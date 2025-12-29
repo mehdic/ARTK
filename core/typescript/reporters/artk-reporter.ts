@@ -47,7 +47,10 @@ import { dirname } from 'path';
  * ```
  */
 export class ARTKReporter implements Reporter {
-  private config: FullConfig | undefined;
+  // Note: config is stored for future use (filtering, metadata, etc.)
+  // Currently not used but kept for API compatibility
+  // private _config: FullConfig | undefined;
+
   private readonly options: ARTKReporterOptions;
   private readonly testMappings: JourneyTestMapping[] = [];
   private startTime: number = 0;
@@ -60,8 +63,8 @@ export class ARTKReporter implements Reporter {
   /**
    * Called once before running tests
    */
-  onBegin(config: FullConfig, _suite: Suite): void {
-    this.config = config;
+  onBegin(_config: FullConfig, _suite: Suite): void {
+    // this._config = config; // Stored for future use
     this.startTime = Date.now();
   }
 

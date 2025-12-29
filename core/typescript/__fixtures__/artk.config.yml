@@ -1,0 +1,176 @@
+# ARTK Core v1 Sample Configuration
+# This is a comprehensive example showing all available configuration options.
+
+version: 1
+
+# Application configuration
+app:
+  name: Sample Application
+  type: web-app
+  baseUrl: ${APP_BASE_URL:-http://localhost:3000}
+
+# Environment configurations
+environments:
+  local:
+    baseUrl: http://localhost:3000
+    apiUrl: http://localhost:3000/api
+  staging:
+    baseUrl: https://staging.example.com
+    apiUrl: https://staging.example.com/api
+  production:
+    baseUrl: https://app.example.com
+    apiUrl: https://api.example.com
+
+# Authentication configuration
+auth:
+  provider: oidc
+
+  # Storage state settings
+  storageState:
+    directory: .auth-states
+    maxAgeMinutes: 60
+
+  # Role definitions
+  roles:
+    admin:
+      credentialsEnv:
+        username: APP_ADMIN_USER
+        password: APP_ADMIN_PASS
+    standardUser:
+      credentialsEnv:
+        username: APP_USER_EMAIL
+        password: APP_USER_PASS
+    readOnlyUser:
+      credentialsEnv:
+        username: APP_READONLY_USER
+        password: APP_READONLY_PASS
+
+  # OIDC configuration
+  oidc:
+    idpType: keycloak
+    loginUrl: /auth/login
+    success:
+      url: /dashboard
+      timeout: 5000
+    mfa:
+      enabled: false
+      type: totp
+      secretEnv: APP_TOTP_SECRET
+    timeouts:
+      loginFlow: 30000
+      idpRedirect: 10000
+      callback: 5000
+      pushApproval: 60000
+
+# Selector configuration
+selectors:
+  testIdAttribute: data-testid
+  strategy:
+    - role
+    - label
+    - placeholder
+    - testid
+    - text
+
+# Assertions configuration
+assertions:
+  toast:
+    timeout: 5000
+    dismissTimeout: 10000
+  loading:
+    timeout: 30000
+  form:
+    timeout: 5000
+
+# Data configuration
+data:
+  namespace:
+    prefix: artk
+    suffix: runId
+  cleanup:
+    onFailure: keep
+    maxRetries: 3
+
+# Fixtures configuration
+fixtures:
+  defaultRole: standardUser
+  roleFixtures:
+    - admin
+    - standardUser
+    - readOnlyUser
+  api:
+    baseUrl: ${API_BASE_URL:-http://localhost:3000/api}
+    timeout: 30000
+
+# Test tier configurations
+tiers:
+  smoke:
+    retries: 0
+    workers: 1
+    timeout: 30000
+  release:
+    retries: 2
+    workers: 4
+    timeout: 60000
+  regression:
+    retries: 2
+    workers: 8
+    timeout: 120000
+
+# Reporter configuration
+reporters:
+  html:
+    enabled: true
+    open: never
+    outputFolder: test-results/html
+  json:
+    enabled: true
+    outputFile: test-results/results.json
+  junit:
+    enabled: true
+    outputFile: test-results/junit.xml
+  artk:
+    enabled: true
+    outputFile: test-results/artk-report.json
+    journeyMapping: true
+
+# Artifacts configuration
+artifacts:
+  screenshots:
+    mode: only-on-failure
+    fullPage: false
+  video:
+    mode: retain-on-failure
+    size:
+      width: 1280
+      height: 720
+  trace:
+    mode: retain-on-failure
+
+# Browser configurations
+browsers:
+  chromium:
+    enabled: true
+    viewport:
+      width: 1280
+      height: 720
+  firefox:
+    enabled: false
+    viewport:
+      width: 1280
+      height: 720
+  webkit:
+    enabled: false
+    viewport:
+      width: 1280
+      height: 720
+
+# Journeys configuration
+journeys:
+  directory: journeys
+  idPrefix: JRN
+  idWidth: 4
+  backlog:
+    path: journeys/BACKLOG.md
+    groupBy: tier
+    layout: checklist

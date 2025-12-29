@@ -84,7 +84,7 @@ export function parseNamespace(
 
   const match = namespacedValue.match(pattern);
 
-  if (!match) {
+  if (!match || !match[1] || !match[2]) {
     return null;
   }
 

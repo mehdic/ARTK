@@ -1,53 +1,170 @@
 /**
  * ARTK Core v1 - Main Entry Point
  *
- * This is the barrel export file for ARTK Core. It exports all public APIs
- * from the various modules. Project-specific code should import from this
- * file or from specific module exports (e.g., '@artk/core/config').
+ * ARTK Core is designed for module-specific imports to avoid type conflicts
+ * and keep bundle sizes small. Import from specific modules rather than this
+ * main entry point.
  *
  * @example
  * ```typescript
- * // Import from main entry
- * import { loadConfig, createPlaywrightConfig } from '@artk/core';
- *
- * // Import from specific module
+ * // ✅ RECOMMENDED: Import from specific modules
  * import { loadConfig } from '@artk/core/config';
  * import { test, expect } from '@artk/core/fixtures';
+ * import { OIDCAuthProvider } from '@artk/core/auth';
+ * import { createPlaywrightConfig } from '@artk/core/harness';
+ * import { locate } from '@artk/core/locators';
+ * import { expectToast } from '@artk/core/assertions';
+ * import { namespace } from '@artk/core/data';
+ * import { ARTKReporter } from '@artk/core/reporters';
+ *
+ * // ⚠️ NOT RECOMMENDED: Importing from main entry (can cause type conflicts)
+ * // import { loadConfig, test } from '@artk/core';
  * ```
+ *
+ * @packageDocumentation
  */
 
-// Version information
+// =============================================================================
+// Version Information
+// =============================================================================
+
+/**
+ * ARTK Core version information
+ *
+ * @example
+ * ```typescript
+ * import { version } from '@artk/core';
+ * console.log(`ARTK Core v${version.version}`);
+ * ```
+ */
 export { default as version } from './version.json';
 
-// Config module exports will be added in Phase 3 (US1)
-// export * from './config/index.js';
+// =============================================================================
+// Module Re-exports for Convenience
+// =============================================================================
 
-// Auth module exports will be added in Phase 4 (US2)
-// export * from './auth/index.js';
+/**
+ * Configuration Module (US1 - Config)
+ * @see {@link config/index.ts} for full API
+ */
+export { loadConfig, getConfig, clearConfigCache, type ARTKConfig } from './config/index.js';
 
-// Fixtures module exports will be added in Phase 5 (US3)
-// export * from './fixtures/index.js';
+/**
+ * Authentication Module (US2 - Auth)
+ * @see {@link auth/index.ts} for full API
+ */
+export {
+  OIDCAuthProvider,
+  FormAuthProvider,
+  TokenAuthProvider,
+  saveStorageState,
+  loadStorageState,
+  getCredentials,
+  type AuthProvider,
+  type Credentials,
+} from './auth/index.js';
 
-// Locators module exports will be added in Phase 6 (US4)
-// export * from './locators/index.js';
+/**
+ * Fixtures Module (US3 - Fixtures)
+ * @see {@link fixtures/index.ts} for full API
+ */
+export {
+  test,
+  expect,
+  type ARTKTestType,
+  type ARTKFixtures,
+  type TestDataManager as FixtureTestDataManager,
+} from './fixtures/index.js';
 
-// Assertions module exports will be added in Phase 7 (US5)
-// export * from './assertions/index.js';
+/**
+ * Locators Module (US4 - Locators)
+ * @see {@link locators/index.ts} for full API
+ */
+export { locate, byRole, byLabel, byTestId, withinForm, withinTable } from './locators/index.js';
 
-// Data module exports will be added in Phase 8 (US6)
-// export * from './data/index.js';
+/**
+ * Assertions Module (US5 - Assertions)
+ * @see {@link assertions/index.ts} for full API
+ */
+export {
+  expectToast,
+  expectTableToContainRow,
+  expectFormFieldError,
+  expectLoading,
+  waitForLoadingComplete,
+} from './assertions/index.js';
 
-// Reporters module exports will be added in Phase 9 (US7)
-// export * from './reporters/index.js';
+/**
+ * Data Module (US6 - Data)
+ * @see {@link data/index.ts} for full API
+ */
+export {
+  namespace,
+  generateRunId,
+  CleanupManager,
+  type TestDataManager as DataTestDataManager,
+} from './data/index.js';
 
-// Harness module exports will be added in Phase 10
-// export * from './harness/index.js';
+/**
+ * Reporters Module (US7 - Reporters)
+ * @see {@link reporters/index.ts} for full API
+ */
+export { ARTKReporter, extractJourneyId, mapTestToJourney } from './reporters/index.js';
 
-// Error classes
-// export * from './errors/index.js';
+/**
+ * Harness Module (US8 - Harness)
+ * @see {@link harness/index.ts} for full API
+ */
+export { createPlaywrightConfig, getTierSettings, getUseOptions } from './harness/index.js';
 
-// Shared utilities
-// export * from './utils/index.js';
+/**
+ * Error Classes
+ * @see {@link errors/index.ts} for full API
+ */
+export { ARTKConfigError, ARTKAuthError, ARTKStorageStateError } from './errors/index.js';
 
-// Shared types
-// export * from './types/index.js';
+/**
+ * Utilities
+ * @see {@link utils/index.ts} for full API
+ */
+export { createLogger, withRetry, type Logger } from './utils/index.js';
+
+// =============================================================================
+// Module Guide
+// =============================================================================
+
+/**
+ * # ARTK Core Modules
+ *
+ * ## Available Modules
+ *
+ * | Module | Import Path | Description |
+ * |--------|-------------|-------------|
+ * | **Config** | `@artk/core/config` | Configuration loading and management |
+ * | **Auth** | `@artk/core/auth` | Authentication (OIDC, form, token) |
+ * | **Fixtures** | `@artk/core/fixtures` | Playwright test fixtures |
+ * | **Locators** | `@artk/core/locators` | Accessibility-first locators |
+ * | **Assertions** | `@artk/core/assertions` | UI assertion helpers |
+ * | **Data** | `@artk/core/data` | Test data and cleanup |
+ * | **Reporters** | `@artk/core/reporters` | Custom reporters |
+ * | **Harness** | `@artk/core/harness` | Playwright config generation |
+ * | **Errors** | `@artk/core/errors` | Error classes |
+ * | **Utils** | `@artk/core/utils` | Utilities (logging, retry) |
+ *
+ * ## Usage Pattern
+ *
+ * Always prefer module-specific imports to avoid type conflicts and reduce bundle size:
+ *
+ * ```typescript
+ * // config module
+ * import { loadConfig, getConfig } from '@artk/core/config';
+ *
+ * // fixtures module
+ * import { test, expect } from '@artk/core/fixtures';
+ *
+ * // locators module
+ * import { locate, byRole } from '@artk/core/locators';
+ * ```
+ *
+ * @see quickstart.md for complete usage examples
+ */
