@@ -203,17 +203,17 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation for User Story 6
 
-- [ ] T080 [P] [US6] Create data types in core/typescript/data/types.ts
-- [ ] T081 [US6] Implement generateRunId function in core/typescript/data/namespace.ts
-- [ ] T082 [US6] Implement namespace() and parseNamespace() functions in core/typescript/data/namespace.ts
-- [ ] T083 [US6] Implement CleanupManager class in core/typescript/data/cleanup.ts
-- [ ] T084 [US6] Implement abstract DataBuilder base class in core/typescript/data/builders.ts
-- [ ] T085 [US6] Implement DataApiClient for data operations in core/typescript/data/api-client.ts
-- [ ] T086 [US6] Implement createFactory and createSequencedFactory utilities in core/typescript/data/factories.ts
-- [ ] T087 [US6] Create data module barrel export in core/typescript/data/index.ts
-- [ ] T088 [US6] Write unit tests for namespace functions in core/typescript/data/__tests__/namespace.test.ts
-- [ ] T089 [US6] Write unit tests for CleanupManager in core/typescript/data/__tests__/cleanup.test.ts
-- [ ] T090 [US6] Write unit tests for DataBuilder in core/typescript/data/__tests__/builders.test.ts
+- [x] T080 [P] [US6] Create data types in core/typescript/data/types.ts
+- [x] T081 [US6] Implement generateRunId function in core/typescript/data/namespace.ts
+- [x] T082 [US6] Implement namespace() and parseNamespace() functions in core/typescript/data/namespace.ts
+- [x] T083 [US6] Implement CleanupManager class in core/typescript/data/cleanup.ts
+- [x] T084 [US6] Implement abstract DataBuilder base class in core/typescript/data/builders.ts
+- [x] T085 [US6] Implement DataApiClient for data operations in core/typescript/data/api-client.ts
+- [x] T086 [US6] Implement createFactory and createSequencedFactory utilities in core/typescript/data/factories.ts
+- [x] T087 [US6] Create data module barrel export in core/typescript/data/index.ts
+- [x] T088 [US6] Write unit tests for namespace functions in core/typescript/data/__tests__/namespace.test.ts
+- [x] T089 [US6] Write unit tests for CleanupManager in core/typescript/data/__tests__/cleanup.test.ts
+- [x] T090 [US6] Write unit tests for DataBuilder in core/typescript/data/__tests__/builders.test.ts
 
 **Checkpoint**: Data harness complete - can namespace data, register cleanup, run cleanup on failure
 
