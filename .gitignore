@@ -1,0 +1,16 @@
+# ARTK repo starter
+.DS_Store
+.idea/
+.vscode/
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ARTK artifacts (when you start running things)
+artk-artifacts/
+playwright-report/
+test-results/
