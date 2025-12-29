@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "releaseDate": "2025-12-29",
+  "description": "ARTK Core v1 - Initial release with config-driven setup, OIDC auth, fixtures, locators, assertions, data harness, and reporters",
+  "minNodeVersion": "18.0.0",
+  "minPlaywrightVersion": "1.40.0",
+  "breakingChanges": [],
+  "features": [
+    "Config-driven test setup via artk.config.yml",
+    "OIDC authentication with storage state management",
+    "Pre-built fixtures (authenticatedPage, apiContext, testData, runId)",
+    "Accessibility-first locator utilities",
+    "Common assertion helpers (toast, table, form, loading)",
+    "Test data isolation and cleanup",
+    "Journey-aware reporting with PII masking",
+    "Vendorable library design for offline operation"
+  ],
+  "compatibilityNotes": [
+    "This is the initial v1 release - no backward compatibility requirements"
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "name": "@artk/core",
+  "version": "1.0.0",
+  "description": "ARTK Core v1 - Vendorable Playwright infrastructure library",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config/index.js",
+      "types": "./dist/config/index.d.ts"
+    },
+    "./auth": {
+      "import": "./dist/auth/index.js",
+      "types": "./dist/auth/index.d.ts"
+    },
+    "./fixtures": {
+      "import": "./dist/fixtures/index.js",
+      "types": "./dist/fixtures/index.d.ts"
+    },
+    "./locators": {
+      "import": "./dist/locators/index.js",
+      "types": "./dist/locators/index.d.ts"
+    },
+    "./assertions": {
+      "import": "./dist/assertions/index.js",
+      "types": "./dist/assertions/index.d.ts"
+    },
+    "./data": {
+      "import": "./dist/data/index.js",
+      "types": "./dist/data/index.d.ts"
+    },
+    "./reporters": {
+      "import": "./dist/reporters/index.js",
+      "types": "./dist/reporters/index.d.ts"
+    },
+    "./harness": {
+      "import": "./dist/harness/index.js",
+      "types": "./dist/harness/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "version.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:watch": "vitest watch",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,json,md}\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.40.0",
+    "zod": "^3.22.4",
+    "yaml": "^2.3.4",
+    "otplib": "^12.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0",
+    "tsup": "^8.0.1",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "prettier": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "e2e",
+    "automation",
+    "artk",
+    "regression-testing"
+  ],
+  "author": "ARTK Team",
+  "license": "MIT"
+}
