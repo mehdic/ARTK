@@ -113,27 +113,191 @@ core/typescript/
 └── .prettierrc          # Prettier config
 ```
 
-## Usage
+## Installation
 
-This library is designed to be vendored (copied) into target Playwright projects rather than installed via npm. This approach provides:
+### Option 1: Git-based Installation (Recommended)
 
-- Full control over the code
-- Offline operation capability
-- Easy customization for project-specific needs
-- No dependency on npm registry availability
+Install directly from the Git repository:
 
-### Import Examples
+```bash
+# Using npm
+npm install git+https://github.com/mehdic/ARTK.git#main --save-dev
+
+# Using yarn
+yarn add git+https://github.com/mehdic/ARTK.git#main --dev
+
+# Using pnpm
+pnpm add git+https://github.com/mehdic/ARTK.git#main --save-dev
+```
+
+**Note:** The package is located at `core/typescript/` in the repo. If your package manager doesn't support subdirectory installs, use Option 2 or 3.
+
+### Option 2: Local Path Installation
+
+If you have the ARTK repository cloned locally:
+
+```bash
+# Navigate to your project
+cd your-playwright-project
+
+# Install from local path
+npm install ../path/to/ARTK/core/typescript --save-dev
+```
+
+### Option 3: Vendoring (Full Control)
+
+Copy the built library into your project for offline operation:
+
+```bash
+# Build the library
+cd ARTK/core/typescript
+npm install
+npm run build
+
+# Copy dist to your project
+cp -r dist/ ../your-project/vendor/artk-core/
+cp package.json ../your-project/vendor/artk-core/
+cp version.json ../your-project/vendor/artk-core/
+```
+
+Then add to your project's `package.json`:
+```json
+{
+  "dependencies": {
+    "@artk/core": "file:./vendor/artk-core"
+  }
+}
+```
+
+## Quick Start
+
+### 1. Create Configuration File
+
+Create `artk.config.yml` in your project root:
+
+```yaml
+app:
+  name: My Application
+  type: spa
+  baseUrl: ${APP_BASE_URL:-http://localhost:3000}
+
+auth:
+  provider: oidc
+  idpType: keycloak
+  loginUrl: /auth/realms/my-realm/protocol/openid-connect/auth
+  roles:
+    standard-user:
+      credentialsEnv:
+        username: APP_USER
+        password: APP_PASSWORD
+
+browsers:
+  enabled:
+    - chromium
+  headless: true
+```
+
+### 2. Configure Playwright
+
+Update your `playwright.config.ts`:
 
 ```typescript
-// Import from main entry
-import { loadConfig, createPlaywrightConfig } from '@artk/core';
-
-// Import from specific modules
 import { loadConfig } from '@artk/core/config';
-import { test, expect } from '@artk/core/fixtures';
-import { byRole, byLabel } from '@artk/core/locators';
-import { expectToast } from '@artk/core/assertions';
+import { createPlaywrightConfig } from '@artk/core/harness';
+
+const artkConfig = loadConfig();
+export default createPlaywrightConfig(artkConfig);
 ```
+
+### 3. Write Tests
+
+```typescript
+import { test, expect } from '@artk/core/fixtures';
+import { expectToast } from '@artk/core/assertions';
+
+test.describe('User Dashboard @JRN-0001 @smoke', () => {
+  test('should display welcome message', async ({ authenticatedPage }) => {
+    await authenticatedPage.goto('/dashboard');
+
+    const heading = authenticatedPage.getByRole('heading', { name: /welcome/i });
+    await expect(heading).toBeVisible();
+  });
+
+  test('should show success notification', async ({ authenticatedPage }) => {
+    await authenticatedPage.goto('/dashboard');
+    await authenticatedPage.getByRole('button', { name: 'Save' }).click();
+
+    await expectToast(authenticatedPage, {
+      message: 'Saved successfully',
+      type: 'success'
+    });
+  });
+});
+```
+
+### 4. Set Environment Variables
+
+```bash
+export APP_BASE_URL=https://my-app.example.com
+export APP_USER=testuser
+export APP_PASSWORD=testpass
+```
+
+### 5. Run Tests
+
+```bash
+npx playwright test
+```
+
+## Module Imports
+
+ARTK Core uses module-specific imports to keep bundle sizes small and avoid type conflicts:
+
+```typescript
+// Configuration
+import { loadConfig, getConfig } from '@artk/core/config';
+
+// Fixtures (Playwright test + expect with ARTK enhancements)
+import { test, expect } from '@artk/core/fixtures';
+
+// Authentication
+import { OIDCAuthProvider, saveStorageState } from '@artk/core/auth';
+
+// Locators (accessibility-first)
+import { locate, byRole, byLabel, byTestId } from '@artk/core/locators';
+
+// Assertions (UI helpers)
+import { expectToast, expectTableToContainRow, expectLoading } from '@artk/core/assertions';
+
+// Data management
+import { namespace, generateRunId, CleanupManager } from '@artk/core/data';
+
+// Reporters
+import { ARTKReporter, extractJourneyId } from '@artk/core/reporters';
+
+// Harness (Playwright config)
+import { createPlaywrightConfig, getTierSettings } from '@artk/core/harness';
+
+// Errors
+import { ARTKConfigError, ARTKAuthError } from '@artk/core/errors';
+
+// Utilities
+import { createLogger, withRetry } from '@artk/core/utils';
+```
+
+## Available Fixtures
+
+When using `import { test } from '@artk/core/fixtures'`, these fixtures are available:
+
+| Fixture | Description |
+|---------|-------------|
+| `authenticatedPage` | Pre-authenticated Playwright Page (default role) |
+| `adminPage` | Page authenticated as admin role |
+| `userPage` | Page authenticated as standard-user role |
+| `config` | Loaded ARTK configuration |
+| `runId` | Unique test run identifier for data namespacing |
+| `testData` | Cleanup manager for test data |
+| `apiContext` | Authenticated API request context |
 
 ## License
 

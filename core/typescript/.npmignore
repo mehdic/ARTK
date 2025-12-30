@@ -1,0 +1,32 @@
+# Source files (dist only)
+*.ts
+!*.d.ts
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+
+# Test files
+__tests__/
+tests/
+__fixtures__/
+*.test.ts
+*.spec.ts
+
+# Development files
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Source maps (reduce package size)
+*.map
+
+# Build artifacts
+node_modules/
+coverage/
+
+# IDE
+.vscode/
+.idea/
+
+# Scripts (development only)
+scripts/
