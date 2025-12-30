@@ -100,9 +100,11 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 fi
 
-# Run npm install to link the package (always use --legacy-peer-deps for compatibility)
+# Run npm install to link the package
+# Use --legacy-peer-deps for compatibility with complex dependency trees
+# Use --registry to bypass private registries that may require auth
 echo -e "${YELLOW}Linking package...${NC}"
-npm install --legacy-peer-deps
+npm install --legacy-peer-deps --registry https://registry.npmjs.org
 
 echo ""
 echo -e "${GREEN}✅ @artk/core installed successfully!${NC}"
