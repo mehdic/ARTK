@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "bazinga_20251230_095724",
+  "group_id": "P3_INFRA",
+  "task_title": "P3 Infrastructure - Version, Timeouts, Logger Format",
+  "task_requirements": "Implement P3-1, P3-2, P3-3 from specs/001-artk-core-v1/implementation-fixes.md:\n\n**P3-1: Add Git SHA to Version File**\nFile: core/typescript/version.json, core/typescript/scripts/update-version.js (new)\nCreate script that adds gitSha and buildTime to version.json. Add version:update script to package.json.\n\n**P3-2: Centralize Timeout Defaults**\nFile: core/typescript/config/timeouts.ts (new)\nCreate TIMEOUTS constant object with all timeout defaults (AUTH_NAVIGATION_MS, AUTH_SUBMIT_MS, etc.). Update defaults.ts to import from timeouts.ts.\n\n**P3-3: Add Logger Format Option**\nFile: core/typescript/utils/logger.ts\nAdd 'format' option to LoggerConfig ('json' | 'pretty'). Implement pretty format with timestamp, level, module, message. Default remains 'json'.\n\nVerification:\n- npm run typecheck\n- npm run test",
+  "branch": "main",
+  "mode": "parallel",
+  "testing_mode": "full",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/bazinga_20251230_095724/developer_P3_INFRA.md"
+}

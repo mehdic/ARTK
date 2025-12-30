@@ -28,11 +28,13 @@ export interface CleanupOptions {
 }
 
 /**
- * Test data manager fixture interface
+ * Cleanup context interface for data harness
  *
- * Provides cleanup registration and unique run ID for test isolation
+ * Provides cleanup registration and unique run ID for test isolation.
+ * Note: This is the internal data module interface. For fixtures, use
+ * TestDataManager from fixtures/types.ts instead.
  */
-export interface TestDataManager {
+export interface CleanupContext {
   /** Unique run ID for this test */
   readonly runId: string;
 

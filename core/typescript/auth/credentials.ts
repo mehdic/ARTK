@@ -340,3 +340,56 @@ export function hasCredentials(
   const { username: usernameEnvVar, password: passwordEnvVar } = roleConfig.credentialsEnv;
   return Boolean(env[usernameEnvVar]) && Boolean(env[passwordEnvVar]);
 }
+
+/**
+ * Validate that credentials environment variables are set for all roles
+ *
+ * This function checks that all required environment variables for role credentials
+ * are present at config load time, providing early failure with clear error messages.
+ *
+ * @param roles - Record of role configurations from auth config
+ * @param env - Environment variables to check (defaults to process.env)
+ * @throws ARTKAuthError if any required environment variables are missing
+ *
+ * @example
+ * ```typescript
+ * // Validate all roles from config
+ * validateCredentialsConfig(config.auth.roles);
+ *
+ * // Skip validation (for dry-run scenarios)
+ * // Don't call this function
+ * ```
+ */
+export function validateCredentialsConfig(
+  roles: Record<string, RoleConfig>,
+  env: Record<string, string | undefined> = process.env
+): void {
+  const missingVars: string[] = [];
+
+  for (const [roleName, roleConfig] of Object.entries(roles)) {
+    const { username, password } = roleConfig.credentialsEnv;
+
+    if (!env[username]) {
+      missingVars.push(`${username} (for role '${roleName}')`);
+    }
+    if (!env[password]) {
+      missingVars.push(`${password} (for role '${roleName}')`);
+    }
+  }
+
+  if (missingVars.length > 0) {
+    throw new ARTKAuthError(
+      `Missing required environment variables:\n` +
+      missingVars.map(v => `  - ${v}`).join('\n') +
+      `\n\nSet these variables before running tests.`,
+      'credentials',
+      'credentials',
+      undefined,
+      'Export the missing environment variables or set them in your .env file'
+    );
+  }
+
+  logger.debug('All credential environment variables validated', {
+    roleCount: Object.keys(roles).length,
+  });
+}

@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "bazinga_20251230_095724",
+  "group_id": "P0_CRITICAL",
+  "task_title": "P0 Critical Fixes - Config Schema and Type Collision",
+  "task_requirements": "Implement P0 Critical Fixes from specs/001-artk-core-v1/implementation-fixes.md:\n\n**P0-1: Fix Sample Config Schema Mismatch**\nFile: core/typescript/__fixtures__/artk.config.yml\n\n5 specific fixes required:\n1. Fix invalid app.type value (Line 9): Change 'web-app' to 'spa' (valid: 'spa'|'ssr'|'hybrid')\n2. Fix invalid assertions structure (Lines 75-83): Add containerSelector, messageSelector, typeAttribute to toast; add selectors array to loading; add errorSelector, formErrorSelector to form\n3. Fix invalid data.cleanup structure (Lines 90-93): Change onFailure from 'keep' to boolean false; add enabled: true and parallel: true\n4. Fix invalid browsers structure (Lines 152-166): Change from nested browser configs to flat structure with enabled array\n5. Fix invalid journeys structure (Lines 169-176): Add id object with prefix/width; add layout; fix backlog structure\n\n**P0-2: Unify TestDataManager Type Collision**\nFiles: core/typescript/fixtures/index.ts, core/typescript/data/index.ts, core/typescript/index.ts\n\nSteps:\n1. In data/index.ts: Rename TestDataManager interface to CleanupContext\n2. In fixtures/index.ts: Keep TestDataManager as primary\n3. In index.ts: Update exports - remove aliases, export TestDataManager from fixtures and CleanupContext from data\n4. Update all internal usages of the renamed type\n\nVerification:\n- npm run typecheck (must pass)\n- npm run test (must pass)\n- loadConfig() successfully loads sample config",
+  "branch": "main",
+  "mode": "parallel",
+  "testing_mode": "full",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/bazinga_20251230_095724/developer_P0_CRITICAL.md"
+}

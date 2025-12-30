@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US5_ASSERTIONS",
+  "task_title": "Review Phase 7: US5 Assertions Module Fixes (Iteration 2)",
+  "task_requirements": "Review the fixes made by Developer to resolve test timeout failures.\n\n**Files Changed:**\n- core/typescript/assertions/toast.ts (added timeout parameter)\n- core/typescript/assertions/loading.ts (dynamic timeout)\n- core/typescript/assertions/__tests__/toast.test.ts (explicit timeout)\n\n**Validation:**\n- All 51 assertion tests passing\n- No ESLint issues\n- toast.test.ts:151 and loading.test.ts:337 now pass\n- FR-021 to FR-024 compliance maintained",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US5_ASSERTIONS_fix.md"
+}

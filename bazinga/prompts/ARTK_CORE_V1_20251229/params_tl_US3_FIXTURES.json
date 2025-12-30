@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US3_FIXTURES",
+  "task_title": "Review Phase 5: US3 Pre-Built Test Fixtures (T048-T056)",
+  "task_requirements": "Review the Fixtures module implementation.\n\n**Files to Review in core/typescript/fixtures/:**\n- types.ts - Fixture type definitions\n- base.ts - Base test fixture with config\n- auth.ts - authenticatedPage and role-specific fixtures\n- api.ts - apiContext fixture with auth headers\n- data.ts - runId and testData fixtures\n- index.ts - Barrel export\n- __tests__/fixtures.test.ts - Unit tests\n\n**Validation:**\n- FR-014 to FR-018 compliance\n- 28 fixture tests passing, 501 total tests passing\n- Proper integration with auth and data modules",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US3_FIXTURES.md"
+}

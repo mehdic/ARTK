@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "bazinga_20251230_095724",
+  "group_id": "P1_TEST",
+  "task_title": "P1-1 OIDC TOTP Integration Test",
+  "task_requirements": "Implement P1-1 from specs/001-artk-core-v1/implementation-fixes.md:\n\n**Add OIDC + TOTP Integration Test**\nLocation: core/typescript/tests/integration/oidc-totp-flow.test.ts (new file)\n\nTest cases to implement:\n1. should complete OIDC flow with TOTP MFA - Mock page and TOTP secret, configure provider with MFA, verify TOTP generated and submitted\n2. should respect MFA timeout configuration (FR-010) - Verify custom timeout is applied\n3. should handle TOTP entry failure gracefully - Test retry logic\n\nUse vitest, mock Playwright Page, use otplib authenticator for TOTP generation.\n\nVerification:\n- npm run test -- tests/integration/oidc-totp-flow.test.ts (must pass)\n- Test covers FR-009 (TOTP generation)\n- Test covers FR-010 (timeout configuration)",
+  "branch": "main",
+  "mode": "parallel",
+  "testing_mode": "full",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/bazinga_20251230_095724/developer_P1_TEST.md"
+}

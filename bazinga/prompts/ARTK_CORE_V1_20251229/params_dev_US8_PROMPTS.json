@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US8_PROMPTS",
+  "task_title": "Phase 12: US8 Prompt Integration with Core (T111-T121)",
+  "task_requirements": "Update ARTK prompts to reference the new core framework so AI assistants generate code that imports from core modules.\n\n**Tasks (T111-T121):**\n- T111: Review existing /init prompt structure in prompts/init.prompt.md\n- T112: Update /init prompt to copy core to artk/.core/ and generate artk.config.yml\n- T113: Review existing /foundation-build prompt in prompts/foundation-build.prompt.md\n- T114: Update /foundation-build to import createPlaywrightConfig from core\n- T115: Review existing /journey-implement prompt in prompts/journey-implement.prompt.md\n- T116: Update /journey-implement to import fixtures, locators, assertions from core\n- T117: Review existing /journey-validate prompt in prompts/journey-validate.prompt.md\n- T118: Update /journey-validate to check for correct core API usage\n- T119: Review existing /journey-verify prompt in prompts/journey-verify.prompt.md\n- T120: Update /journey-verify to use core fixtures and harness\n- T121: Create prompt testing guide documenting how to validate prompt updates in docs/PROMPT_TESTING.md\n\n**Checkpoint**: Prompts updated - AI assistants will generate code that uses core modules",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/dev_US8_PROMPTS.md"
+}

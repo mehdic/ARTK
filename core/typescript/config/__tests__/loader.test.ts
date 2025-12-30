@@ -218,7 +218,7 @@ describe('loadConfig', () => {
 
     const filePath = writeYamlConfig(tempDir, config);
 
-    const result = loadConfig({ baseDir: tempDir });
+    const result = loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
 
     expect(result.config.app.name).toBe('Test App');
     expect(result.config.app.baseUrl).toBe('https://example.com');
@@ -243,7 +243,7 @@ describe('loadConfig', () => {
       TEST_BASE_URL: 'https://resolved.example.com',
     };
 
-    const result = loadConfig({ baseDir: tempDir, env: testEnv });
+    const result = loadConfig({ baseDir: tempDir, env: testEnv, skipCredentialsValidation: true });
 
     expect(result.config.app.baseUrl).toBe('https://resolved.example.com');
     expect(result.config.auth.oidc?.loginUrl).toBe('https://resolved.example.com/login');
@@ -263,7 +263,7 @@ describe('loadConfig', () => {
 
     writeYamlConfig(tempDir, config);
 
-    const result = loadConfig({ baseDir: tempDir, env: {} });
+    const result = loadConfig({ baseDir: tempDir, env: {}, skipCredentialsValidation: true });
 
     expect(result.config.app.baseUrl).toBe('https://default.example.com');
   });
@@ -282,8 +282,8 @@ describe('loadConfig', () => {
 
     writeYamlConfig(tempDir, config);
 
-    expect(() => loadConfig({ baseDir: tempDir, env: {} })).toThrow(ARTKConfigError);
-    expect(() => loadConfig({ baseDir: tempDir, env: {} })).toThrow(/MISSING_VAR/);
+    expect(() => loadConfig({ baseDir: tempDir, env: {}, skipCredentialsValidation: true })).toThrow(ARTKConfigError);
+    expect(() => loadConfig({ baseDir: tempDir, env: {}, skipCredentialsValidation: true })).toThrow(/MISSING_VAR/);
   });
 
   it('validates configuration schema', () => {
@@ -300,8 +300,8 @@ describe('loadConfig', () => {
 
     writeYamlConfig(tempDir, config);
 
-    expect(() => loadConfig({ baseDir: tempDir })).toThrow(ARTKConfigError);
-    expect(() => loadConfig({ baseDir: tempDir })).toThrow(/version/i);
+    expect(() => loadConfig({ baseDir: tempDir, skipCredentialsValidation: true })).toThrow(ARTKConfigError);
+    expect(() => loadConfig({ baseDir: tempDir, skipCredentialsValidation: true })).toThrow(/version/i);
   });
 
   it('caches configuration', () => {
@@ -318,8 +318,8 @@ describe('loadConfig', () => {
 
     writeYamlConfig(tempDir, config);
 
-    const result1 = loadConfig({ baseDir: tempDir });
-    const result2 = loadConfig({ baseDir: tempDir });
+    const result1 = loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
+    const result2 = loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
 
     expect(result1.config).toBe(result2.config); // Same reference
   });
@@ -338,8 +338,8 @@ describe('loadConfig', () => {
 
     writeYamlConfig(tempDir, config);
 
-    const result1 = loadConfig({ baseDir: tempDir });
-    const result2 = loadConfig({ baseDir: tempDir, forceReload: true });
+    const result1 = loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
+    const result2 = loadConfig({ baseDir: tempDir, forceReload: true, skipCredentialsValidation: true });
 
     expect(result1.config).not.toBe(result2.config); // Different references
   });
@@ -358,7 +358,7 @@ describe('loadConfig', () => {
 
     writeYamlConfig(tempDir, config);
 
-    const result = loadConfig({ baseDir: tempDir });
+    const result = loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
 
     // Check various defaults are applied
     expect(result.config.selectors.testIdAttribute).toBe('data-testid');
@@ -367,8 +367,8 @@ describe('loadConfig', () => {
   });
 
   it('throws for missing config file', () => {
-    expect(() => loadConfig({ baseDir: tempDir })).toThrow(ARTKConfigError);
-    expect(() => loadConfig({ baseDir: tempDir })).toThrow(/not found/);
+    expect(() => loadConfig({ baseDir: tempDir, skipCredentialsValidation: true })).toThrow(ARTKConfigError);
+    expect(() => loadConfig({ baseDir: tempDir, skipCredentialsValidation: true })).toThrow(/not found/);
   });
 });
 
@@ -397,7 +397,7 @@ describe('Environment Profiles', () => {
   it('returns active environment from config', () => {
     writeYamlConfig(tempDir, baseConfig);
 
-    const result = loadConfig({ baseDir: tempDir });
+    const result = loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
 
     expect(result.activeEnvironment).toBe('local');
     expect(result.environmentConfig?.baseUrl).toBe('http://localhost:3000');
@@ -408,7 +408,8 @@ describe('Environment Profiles', () => {
 
     const result = loadConfig({
       baseDir: tempDir,
-      env: { ARTK_ENV: 'staging' }
+      env: { ARTK_ENV: 'staging' },
+      skipCredentialsValidation: true
     });
 
     expect(result.activeEnvironment).toBe('staging');
@@ -420,7 +421,8 @@ describe('Environment Profiles', () => {
 
     const result = loadConfig({
       baseDir: tempDir,
-      activeEnvironment: 'production'
+      activeEnvironment: 'production',
+      skipCredentialsValidation: true
     });
 
     expect(result.activeEnvironment).toBe('production');
@@ -433,7 +435,8 @@ describe('Environment Profiles', () => {
     const result = loadConfig({
       baseDir: tempDir,
       env: { ARTK_ENV: 'staging' },
-      activeEnvironment: 'production'
+      activeEnvironment: 'production',
+      skipCredentialsValidation: true
     });
 
     expect(result.activeEnvironment).toBe('production');
@@ -464,7 +467,7 @@ describe('Configuration Accessors', () => {
     };
 
     writeYamlConfig(tempDir, config);
-    loadConfig({ baseDir: tempDir });
+    loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
   });
 
   it('getConfig returns loaded config', () => {
@@ -540,7 +543,7 @@ describe('clearConfigCache', () => {
     };
 
     writeYamlConfig(tempDir, config);
-    loadConfig({ baseDir: tempDir });
+    loadConfig({ baseDir: tempDir, skipCredentialsValidation: true });
 
     expect(isConfigLoaded()).toBe(true);
 

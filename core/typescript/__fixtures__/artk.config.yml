@@ -6,8 +6,11 @@ version: 1
 # Application configuration
 app:
   name: Sample Application
-  type: web-app
+  type: spa
   baseUrl: ${APP_BASE_URL:-http://localhost:3000}
+
+# Active environment
+activeEnvironment: ${ACTIVE_ENV:-local}
 
 # Environment configurations
 environments:
@@ -75,12 +78,19 @@ selectors:
 # Assertions configuration
 assertions:
   toast:
+    containerSelector: '[role="alert"]'
+    messageSelector: '.toast-message'
+    typeAttribute: 'data-toast-type'
     timeout: 5000
-    dismissTimeout: 10000
   loading:
+    selectors:
+      - '[data-loading="true"]'
+      - '.loading-spinner'
+      - '[aria-busy="true"]'
     timeout: 30000
   form:
-    timeout: 5000
+    errorSelector: '.field-error'
+    formErrorSelector: '.form-error'
 
 # Data configuration
 data:
@@ -88,8 +98,9 @@ data:
     prefix: artk
     suffix: runId
   cleanup:
-    onFailure: keep
-    maxRetries: 3
+    enabled: true
+    onFailure: false
+    parallel: true
 
 # Fixtures configuration
 fixtures:
@@ -99,8 +110,7 @@ fixtures:
     - standardUser
     - readOnlyUser
   api:
-    baseUrl: ${API_BASE_URL:-http://localhost:3000/api}
-    timeout: 30000
+    baseURL: ${API_BASE_URL:-http://localhost:3000/api}
 
 # Test tier configurations
 tiers:
@@ -108,14 +118,17 @@ tiers:
     retries: 0
     workers: 1
     timeout: 30000
+    tag: '@smoke'
   release:
     retries: 2
     workers: 4
     timeout: 60000
+    tag: '@release'
   regression:
     retries: 2
     workers: 8
     timeout: 120000
+    tag: '@regression'
 
 # Reporter configuration
 reporters:
@@ -149,28 +162,18 @@ artifacts:
 
 # Browser configurations
 browsers:
-  chromium:
-    enabled: true
-    viewport:
-      width: 1280
-      height: 720
-  firefox:
-    enabled: false
-    viewport:
-      width: 1280
-      height: 720
-  webkit:
-    enabled: false
-    viewport:
-      width: 1280
-      height: 720
+  enabled:
+    - chromium
+  viewport:
+    width: 1280
+    height: 720
+  headless: true
 
 # Journeys configuration
 journeys:
-  directory: journeys
-  idPrefix: JRN
-  idWidth: 4
+  id:
+    prefix: JRN
+    width: 4
+  layout: flat
   backlog:
-    path: journeys/BACKLOG.md
     groupBy: tier
-    layout: checklist

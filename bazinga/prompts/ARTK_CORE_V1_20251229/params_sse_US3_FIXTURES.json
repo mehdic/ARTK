@@ -1,0 +1,12 @@
+{
+  "agent_type": "senior_software_engineer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US3_FIXTURES",
+  "task_title": "Phase 5: US3 Pre-Built Test Fixtures (T048-T056)",
+  "task_requirements": "Implement pre-configured Playwright fixtures for authenticated pages, API contexts, and test data.\n\n**Tasks (T048-T056):**\n- T048: Create fixture type definitions in core/typescript/fixtures/types.ts\n- T049: Create base test fixture with config in core/typescript/fixtures/base.ts\n- T050: Implement authenticatedPage fixture in core/typescript/fixtures/auth.ts\n- T051: Implement dynamic role-specific page fixtures (adminPage, userPage) in core/typescript/fixtures/auth.ts\n- T052: Implement apiContext fixture with auth headers in core/typescript/fixtures/api.ts\n- T053: Implement runId fixture for test isolation in core/typescript/fixtures/data.ts\n- T054: Implement testData fixture with cleanup registration in core/typescript/fixtures/data.ts\n- T055: Create fixtures module barrel export (test, expect) in core/typescript/fixtures/index.ts\n- T056: Write unit tests for fixture composition in core/typescript/fixtures/__tests__/fixtures.test.ts\n\n**Checkpoint**: Fixtures complete - tests can use authenticatedPage, apiContext, testData, runId\n\n**Dependencies**: US1 (Config) and US2 (Auth) are complete. Reference existing modules:\n- core/typescript/config/ (config system)\n- core/typescript/auth/ (storage state, credentials, providers)\n- core/typescript/data/ (namespace, cleanup)",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/sse_US3_FIXTURES.md"
+}

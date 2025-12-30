@@ -18,6 +18,7 @@ import type { ZodError, ZodIssue } from 'zod';
 
 import { ARTKConfigError } from '../errors/config-error.js';
 import { createLogger } from '../utils/logger.js';
+import { validateCredentialsConfig } from '../auth/credentials.js';
 import {
   createMissingEnvVarsError,
   getMissingEnvVars,
@@ -108,6 +109,13 @@ export interface LoadConfigOptions {
    * Active environment name override (defaults to ARTK_ENV or config value)
    */
   activeEnvironment?: string;
+
+  /**
+   * Skip credentials validation
+   * Useful for dry-run scenarios or when credentials are not yet set
+   * @default false
+   */
+  skipCredentialsValidation?: boolean;
 }
 
 /**
@@ -269,6 +277,7 @@ export function loadConfig(options: LoadConfigOptions = {}): LoadConfigResult {
     env = process.env,
     forceReload = false,
     activeEnvironment: overrideEnv,
+    skipCredentialsValidation = false,
   } = options;
 
   // Return cached config if available and not forcing reload
@@ -334,6 +343,14 @@ export function loadConfig(options: LoadConfigOptions = {}): LoadConfigResult {
   }
 
   const config = parseResult.data as ARTKConfig;
+
+  // Validate credentials at config load time (unless explicitly skipped)
+  if (!skipCredentialsValidation) {
+    logger.debug('Validating credentials configuration');
+    validateCredentialsConfig(config.auth.roles, env);
+  } else {
+    logger.debug('Skipping credentials validation (skipCredentialsValidation = true)');
+  }
 
   // Determine active environment
   const envName = determineActiveEnvironment(config, { env, override: overrideEnv });

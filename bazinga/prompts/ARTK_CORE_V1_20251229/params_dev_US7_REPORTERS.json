@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US7_REPORTERS",
+  "task_title": "Phase 9: US7 Journey-Aware Reporting (T091-T100)",
+  "task_requirements": "Implement test reporters that map results back to Journey definitions.\n\n**Tasks (T091-T100):**\n- T091: Create reporter types in core/typescript/reporters/types.ts\n- T092: Implement mapTestToJourney and groupTestsByJourney in core/typescript/reporters/journey-reporter.ts\n- T093: Implement calculateJourneyStatus in core/typescript/reporters/journey-reporter.ts\n- T094: Implement ARTKReporter class in core/typescript/reporters/artk-reporter.ts\n- T095: Implement saveScreenshot with PII masking option in core/typescript/reporters/artifacts.ts\n- T096: Implement maskPiiInScreenshot function in core/typescript/reporters/masking.ts\n- T097: Implement generateARTKReport and writeARTKReport in core/typescript/reporters/artk-reporter.ts\n- T098: Create reporters module barrel export in core/typescript/reporters/index.ts\n- T099: Write unit tests for journey mapping in core/typescript/reporters/__tests__/journey-reporter.test.ts\n- T100: Write unit tests for PII masking in core/typescript/reporters/__tests__/masking.test.ts\n\n**Checkpoint**: Reporters complete - can generate ARTK reports with journey mapping and PII masking\n\n**Dependencies**: US1 (Config) is complete. Reference existing modules:\n- core/typescript/config/ (ARTKConfig types)\n- core/typescript/types/common.ts (base types)",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/dev_US7_REPORTERS.md"
+}

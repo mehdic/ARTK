@@ -1,0 +1,13 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "FOUNDATIONAL",
+  "task_title": "Review Phase 2: Foundational Types, Errors, and Utils (T010-T017)",
+  "task_requirements": "Review the foundational infrastructure implementation for ARTK Core v1:\n\n**Files to Review:**\n- core/typescript/types/index.ts - Shared types\n- core/typescript/errors/config-error.ts - ARTKConfigError class\n- core/typescript/errors/auth-error.ts - ARTKAuthError class\n- core/typescript/errors/storage-state-error.ts - ARTKStorageStateError class\n- core/typescript/errors/index.ts - Errors barrel export\n- core/typescript/utils/logger.ts - Structured logger (NFR-001-003)\n- core/typescript/utils/retry.ts - Retry utility (NFR-010-012)\n- core/typescript/utils/index.ts - Utils barrel export\n\n**Validation Criteria:**\n- Error classes match data-model.md section 3 definitions\n- Logger meets NFR-001 (JSON format), NFR-002 (log levels), NFR-003 (context)\n- Retry meets NFR-010 (2 retries), NFR-011 (actionable error), NFR-012 (log retries)\n- TypeScript strict mode compliance\n- Proper exports and type safety",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tech_lead_FOUNDATIONAL.md",
+  "prior_handoff_file": "bazinga/artifacts/ARTK_CORE_V1_20251229/FOUNDATIONAL/handoff_developer.json"
+}

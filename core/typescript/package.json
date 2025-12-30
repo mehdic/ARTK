@@ -57,7 +57,8 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,json,md}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "version:update": "node scripts/update-version.js"
   },
   "dependencies": {
     "@playwright/test": "^1.40.0",

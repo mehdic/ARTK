@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "HARNESS",
+  "task_title": "Review Phase 10: Playwright Harness Integration (T101-T107)",
+  "task_requirements": "Review the Harness module implementation.\n\n**Files to Review in core/typescript/harness/:**\n- types.ts - Harness type definitions\n- projects.ts - createAuthSetupProject, createBrowserProjects\n- reporters.ts - getReporterConfig\n- playwright.config.base.ts - createPlaywrightConfig, getTierSettings, getUseOptions\n- index.ts - Barrel export\n- __tests__/config.test.ts - Config factory unit tests\n\n**Validation:**\n- Creates complete Playwright config from artk.config.yml\n- 65/65 harness tests passing, 566 total tests passing\n- Proper integration with all US1-US7 modules\n- ESM build successful",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_HARNESS.md"
+}

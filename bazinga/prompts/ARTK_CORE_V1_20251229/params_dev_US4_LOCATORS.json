@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US4_LOCATORS",
+  "task_title": "Phase 6: US4 Accessibility-First Locator Utilities (T057-T068)",
+  "task_requirements": "Implement the Locators module for ARTK Core v1 - accessibility-first locator utilities.\n\n**Tasks (12 total):**\n- T057: Create locator types and ByRoleOptions in core/typescript/locators/types.ts\n- T058: Implement testIdAttribute configuration in core/typescript/locators/testid.ts\n- T059: Implement byRole, byLabel, byPlaceholder, byText in core/typescript/locators/strategies.ts\n- T060: Implement byTestId with custom attribute support in core/typescript/locators/testid.ts\n- T061: Implement ARIA/accessibility helpers in core/typescript/locators/aria.ts\n- T062-T064: Implement withinForm, withinTable, withinSection scoped locators in core/typescript/locators/factory.ts\n- T065: Implement locate() with strategy chain in core/typescript/locators/factory.ts\n- T066: Create locators module barrel export in core/typescript/locators/index.ts\n- T067-T068: Write unit tests\n\n**Context Files:**\n- specs/001-artk-core-v1/data-model.md section 2.6 (ScopedLocators)\n- specs/001-artk-core-v1/spec.md FR-017 to FR-020\n\n**Key Requirements:**\n- FR-017: Support strategies: role, label, placeholder, testid, text, css\n- FR-018: Apply strategies in configured order\n- FR-019: Custom test ID attribute configuration\n- FR-020: Scoped locators for forms, tables, sections\n\n**After each task:** Update specs/001-artk-core-v1/tasks.md",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/dev_US4_LOCATORS.md"
+}

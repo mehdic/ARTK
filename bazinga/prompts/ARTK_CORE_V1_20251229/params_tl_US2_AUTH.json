@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US2_AUTH",
+  "task_title": "Review Phase 4: US2 OIDC Authentication with Storage State (T028-T047)",
+  "task_requirements": "Review the Auth System module implementation.\n\n**Files to Review in core/typescript/auth/:**\n- types.ts, credentials.ts, storage-state.ts\n- providers/base.ts, providers/oidc.ts, providers/form.ts, providers/token.ts, providers/custom.ts\n- oidc/flow.ts, oidc/providers/*.ts\n- setup-factory.ts, index.ts\n- __tests__/*.test.ts\n\n**Validation:**\n- FR-006 to FR-011 compliance\n- 436/436 tests passing\n- Proper OIDC flow with MFA support\n- Storage state persistence and cleanup",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US2_AUTH.md"
+}

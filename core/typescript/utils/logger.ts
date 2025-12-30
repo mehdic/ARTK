@@ -22,6 +22,11 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /**
+ * Log output format
+ */
+export type LogFormat = 'json' | 'pretty';
+
+/**
  * Structured log entry
  */
 export interface LogEntry {
@@ -38,6 +43,7 @@ export interface LogEntry {
  */
 export interface LoggerConfig {
   minLevel: LogLevel;
+  format: LogFormat;
   output: (entry: LogEntry) => void;
 }
 
@@ -52,13 +58,39 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 };
 
 /**
+ * Format log entry as pretty text
+ *
+ * @param entry - Log entry to format
+ * @returns Formatted string
+ */
+function formatPretty(entry: LogEntry): string {
+  // Extract time from ISO timestamp (HH:MM:SS)
+  const time = entry.timestamp.split('T')[1]?.split('.')[0] || '00:00:00';
+
+  // Format level (uppercase, padded to 5 chars for alignment)
+  const level = entry.level.toUpperCase().padEnd(5);
+
+  // Format context if present
+  const context = entry.context ? ` ${JSON.stringify(entry.context)}` : '';
+
+  return `[${time}] ${level} [${entry.module}] ${entry.message}${context}`;
+}
+
+/**
  * Global logger configuration
  */
 let globalConfig: LoggerConfig = {
   minLevel: 'info',
+  format: 'json',
   output: (entry: LogEntry): void => {
+    // eslint-disable-next-line no-console
     const target = entry.level === 'error' ? console.error : console.log;
-    target(JSON.stringify(entry));
+
+    if (globalConfig.format === 'pretty') {
+      target(formatPretty(entry));
+    } else {
+      target(JSON.stringify(entry));
+    }
   },
 };
 
@@ -69,8 +101,20 @@ let globalConfig: LoggerConfig = {
  *
  * @example
  * ```typescript
+ * // JSON format (default, for production)
  * configureLogger({
  *   minLevel: 'debug',
+ *   format: 'json'
+ * });
+ *
+ * // Pretty format (for local development)
+ * configureLogger({
+ *   minLevel: 'debug',
+ *   format: 'pretty'
+ * });
+ *
+ * // Custom output
+ * configureLogger({
  *   output: (entry) => fs.appendFileSync('artk.log', JSON.stringify(entry) + '\n')
  * });
  * ```

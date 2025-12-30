@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "INTEGRATION",
+  "task_title": "Review Phase 11: Integration Testing (T108-T110)",
+  "task_requirements": "Review the Integration tests.\n\n**Files to Review in tests/integration/:**\n- config-to-harness.test.ts (29 tests) - Config system feeding into harness\n- auth-flow.test.ts (30 tests) - Auth providers with storage state\n- fixtures-composition.test.ts (29 tests) - Fixtures composing with auth and data\n\n**Validation:**\n- 88/88 integration tests passing\n- Tests verify module interoperability\n- Proper mocking of external dependencies (IdP)\n- ESLint clean",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_INTEGRATION.md"
+}

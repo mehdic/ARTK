@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US6_DATA",
+  "task_title": "Phase 8: US6 Test Data Isolation and Cleanup (T080-T090)",
+  "task_requirements": "Implement the Data Harness module for ARTK Core v1 - test data isolation and cleanup.\n\n**Tasks (11 total):**\n- T080: Create data types in core/typescript/data/types.ts\n- T081: Implement generateRunId function in core/typescript/data/namespace.ts\n- T082: Implement namespace() and parseNamespace() functions in core/typescript/data/namespace.ts\n- T083: Implement CleanupManager class in core/typescript/data/cleanup.ts\n- T084: Implement abstract DataBuilder base class in core/typescript/data/builders.ts\n- T085: Implement DataApiClient for data operations in core/typescript/data/api-client.ts\n- T086: Implement createFactory and createSequencedFactory utilities in core/typescript/data/factories.ts\n- T087: Create data module barrel export in core/typescript/data/index.ts\n- T088-T090: Write unit tests for namespace, CleanupManager, DataBuilder\n\n**Context Files:**\n- specs/001-artk-core-v1/data-model.md sections 2.3-2.5 (TestDataManager, CleanupManager, DataBuilder)\n- specs/001-artk-core-v1/spec.md FR-025 to FR-028\n\n**Key Requirements:**\n- FR-025: Generate unique run IDs for test isolation\n- FR-026: Namespacing utilities that append run ID to values\n- FR-027: Execute registered cleanup functions after test completion\n- FR-028: Run cleanup even when tests fail (configurable)\n\n**After each task:** Update specs/001-artk-core-v1/tasks.md",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/dev_US6_DATA.md"
+}

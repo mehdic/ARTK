@@ -1,0 +1,12 @@
+{
+  "agent_type": "senior_software_engineer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "HARNESS",
+  "task_title": "Phase 10: Playwright Harness Integration (T101-T107)",
+  "task_requirements": "Implement Playwright configuration factory that integrates all modules.\n\n**Tasks (T101-T107):**\n- T101: Create harness types in core/typescript/harness/types.ts\n- T102: Implement createPlaywrightConfig factory in core/typescript/harness/playwright.config.base.ts\n- T103: Implement createAuthSetupProject and createBrowserProjects in core/typescript/harness/projects.ts\n- T104: Implement getReporterConfig in core/typescript/harness/reporters.ts\n- T105: Implement getTierSettings and getUseOptions in core/typescript/harness/playwright.config.base.ts\n- T106: Create harness module barrel export in core/typescript/harness/index.ts\n- T107: Write unit tests for config factory in core/typescript/harness/__tests__/config.test.ts\n\n**Checkpoint**: Harness complete - can generate complete Playwright config from artk.config.yml\n\n**Dependencies**: All US1-US7 modules complete. Reference:\n- core/typescript/config/ (ARTKConfig, loadConfig)\n- core/typescript/auth/ (storage state, credentials, providers)\n- core/typescript/fixtures/ (test fixtures)\n- core/typescript/reporters/ (ARTK reporter)",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/sse_HARNESS.md"
+}

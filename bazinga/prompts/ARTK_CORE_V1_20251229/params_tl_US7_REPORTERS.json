@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US7_REPORTERS",
+  "task_title": "Review Phase 9: US7 Journey-Aware Reporting (T091-T100)",
+  "task_requirements": "Review the Reporters module implementation.\n\n**Files to Review in core/typescript/reporters/:**\n- types.ts - Reporter type definitions\n- journey-reporter.ts - mapTestToJourney, groupTestsByJourney, calculateJourneyStatus\n- artk-reporter.ts - ARTKReporter class, generateARTKReport, writeARTKReport\n- artifacts.ts - saveScreenshot with PII masking option\n- masking.ts - maskPiiInScreenshot function\n- index.ts - Barrel export\n- __tests__/journey-reporter.test.ts - Journey mapping tests\n- __tests__/masking.test.ts - PII masking tests\n\n**Validation:**\n- FR-029 to FR-033 compliance\n- 37/37 tests passing\n- Journey mapping and PII masking working correctly",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US7_REPORTERS.md"
+}

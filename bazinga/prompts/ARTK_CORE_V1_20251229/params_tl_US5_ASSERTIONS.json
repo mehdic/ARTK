@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US5_ASSERTIONS",
+  "task_title": "Review Phase 7: US5 Common Assertion Helpers (T069-T079)",
+  "task_requirements": "Review the Assertions module implementation.\n\n**Files to Review in core/typescript/assertions/:**\n- types.ts, toast.ts, table.ts, form.ts, loading.ts, url.ts, api.ts, index.ts\n- __tests__/*.test.ts\n\n**Validation:**\n- FR-021 to FR-024 compliance\n- 51 tests passing\n- Toast/table/form/loading assertions working",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US5_ASSERTIONS.md"
+}

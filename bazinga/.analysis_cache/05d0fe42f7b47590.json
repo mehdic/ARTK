@@ -1,0 +1,12 @@
+{
+  "key": "project_patterns",
+  "value": {
+    "factory_pattern": true,
+    "decorator_pattern": true,
+    "test_framework": "none detected",
+    "build_system": "npm/yarn",
+    "package_manager": "npm",
+    "primary_language": "java"
+  },
+  "timestamp": "2025-12-29T20:40:51.346204"
+}

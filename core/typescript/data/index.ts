@@ -18,7 +18,7 @@
 export type {
   CleanupEntry,
   CleanupOptions,
-  TestDataManager,
+  CleanupContext,
   NamespaceConfig,
   DataApiOptions,
   DataFactory,

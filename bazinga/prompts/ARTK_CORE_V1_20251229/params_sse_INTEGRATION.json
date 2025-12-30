@@ -1,0 +1,12 @@
+{
+  "agent_type": "senior_software_engineer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "INTEGRATION",
+  "task_title": "Phase 11: Integration Testing (T108-T110)",
+  "task_requirements": "Write integration tests to verify modules work together correctly.\n\n**Tasks (T108-T110):**\n- T108: Write config-to-harness integration test in tests/integration/config-to-harness.test.ts\n- T109: Write auth flow integration test (mock IdP) in tests/integration/auth-flow.test.ts\n- T110: Write fixtures composition integration test in tests/integration/fixtures.test.ts\n\n**Goal**: Verify modules work together correctly:\n- Config system properly feeds into harness\n- Auth providers integrate with storage state\n- Fixtures compose with auth and data modules\n\n**Dependencies**: All US1-US7 and HARNESS modules complete.",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/sse_INTEGRATION.md"
+}

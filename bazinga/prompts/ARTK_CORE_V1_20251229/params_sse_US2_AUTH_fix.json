@@ -1,0 +1,13 @@
+{
+  "agent_type": "senior_software_engineer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US2_AUTH",
+  "task_title": "Fix US2 Authentication Module - TypeScript and ESLint Issues",
+  "task_requirements": "Fix the issues identified in Tech Lead review:\n\n1. **TypeScript Error in custom.ts:245**: The `authenticate` method return type issue\n2. **19 ESLint Issues**: Fix all ESLint errors in test files\n\nFiles to fix:\n- core/typescript/auth/providers/custom.ts (TypeScript error)\n- core/typescript/auth/__tests__/*.test.ts (ESLint issues)\n\nRun tests after fixes to verify: npm test -- --filter auth",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "tl_feedback": "CHANGES_REQUESTED:\n\n1. TypeScript Error in custom.ts:245:\n   - The `authenticate` method has a return type issue\n   - Fix the Promise return type to match the interface\n\n2. ESLint Issues (19 total) in test files:\n   - Fix all linting errors in auth/__tests__/*.test.ts\n   - Common issues: unused variables, any types, missing return types\n\nRun `npm test -- --filter auth` after fixes to verify all 51 tests still pass.",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/sse_US2_AUTH_fix.md"
+}

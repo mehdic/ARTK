@@ -24,6 +24,7 @@ import type {
   StorageStateConfig,
   TierConfig,
 } from './types.js';
+import { TIMEOUTS } from './timeouts.js';
 
 // =============================================================================
 // Application Defaults
@@ -48,7 +49,7 @@ export const DEFAULT_STORAGE_STATE: StorageStateConfig = {
 // =============================================================================
 
 /** Default OIDC success timeout in ms */
-export const DEFAULT_OIDC_SUCCESS_TIMEOUT = 5000;
+export const DEFAULT_OIDC_SUCCESS_TIMEOUT = TIMEOUTS.OIDC_SUCCESS_MS;
 
 /** Default MFA type */
 export const DEFAULT_MFA_TYPE: MFAType = 'none';
@@ -57,16 +58,16 @@ export const DEFAULT_MFA_TYPE: MFAType = 'none';
 export const DEFAULT_MFA_ENABLED = false;
 
 /** Default push timeout in ms */
-export const DEFAULT_PUSH_TIMEOUT_MS = 30000;
+export const DEFAULT_PUSH_TIMEOUT_MS = TIMEOUTS.AUTH_MFA_PUSH_MS;
 
 /** Default OIDC login flow timeout in ms */
-export const DEFAULT_LOGIN_FLOW_MS = 30000;
+export const DEFAULT_LOGIN_FLOW_MS = TIMEOUTS.AUTH_LOGIN_FLOW_MS;
 
 /** Default IdP redirect timeout in ms */
-export const DEFAULT_IDP_REDIRECT_MS = 10000;
+export const DEFAULT_IDP_REDIRECT_MS = TIMEOUTS.AUTH_IDP_REDIRECT_MS;
 
 /** Default callback timeout in ms */
-export const DEFAULT_CALLBACK_MS = 10000;
+export const DEFAULT_CALLBACK_MS = TIMEOUTS.AUTH_CALLBACK_MS;
 
 // =============================================================================
 // Selectors Defaults
@@ -96,10 +97,10 @@ export const DEFAULT_SELECTORS: SelectorsConfig = {
 // =============================================================================
 
 /** Default toast timeout in ms */
-export const DEFAULT_TOAST_TIMEOUT = 5000;
+export const DEFAULT_TOAST_TIMEOUT = TIMEOUTS.TOAST_DEFAULT_MS;
 
 /** Default loading timeout in ms */
-export const DEFAULT_LOADING_TIMEOUT = 30000;
+export const DEFAULT_LOADING_TIMEOUT = TIMEOUTS.LOADING_DEFAULT_MS;
 
 /** Default assertions configuration */
 export const DEFAULT_ASSERTIONS: AssertionsConfig = {
@@ -214,7 +215,25 @@ export const DEFAULT_ARTIFACTS: ArtifactsConfig = {
     mode: DEFAULT_SCREENSHOT_MODE,
     fullPage: true,
     maskPii: false,
-    piiSelectors: [],
+    piiSelectors: [
+      // Common PII input patterns
+      'input[type="password"]',
+      'input[name*="ssn"]',
+      'input[name*="social"]',
+      'input[name*="credit"]',
+      'input[name*="card"]',
+      'input[name*="cvv"]',
+      'input[name*="account"]',
+      'input[autocomplete="cc-number"]',
+      'input[autocomplete="cc-csc"]',
+      // Data attribute markers
+      '[data-pii]',
+      '[data-sensitive]',
+      '[data-mask]',
+      // Common class patterns
+      '.pii-field',
+      '.sensitive-data',
+    ],
   },
   video: {
     mode: DEFAULT_CAPTURE_MODE,

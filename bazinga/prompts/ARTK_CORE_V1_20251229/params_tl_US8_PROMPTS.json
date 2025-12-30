@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US8_PROMPTS",
+  "task_title": "Review Phase 12: US8 Prompt Integration with Core (T111-T121)",
+  "task_requirements": "Review the updated ARTK prompts.\n\n**Files to Review in prompts/:**\n- init.prompt.md - Updated to copy core and generate artk.config.yml\n- foundation-build.prompt.md - Updated to import createPlaywrightConfig from core\n- journey-implement.prompt.md - Updated to import fixtures, locators, assertions from core\n- journey-validate.prompt.md - Updated to check for correct core API usage\n- journey-verify.prompt.md - Updated to use core fixtures and harness\n\n**Also review:**\n- docs/PROMPT_TESTING.md - Testing guide for prompt validation\n\n**Validation:**\n- Prompts reference @artk/core/* modules\n- AI assistants will generate code using core framework\n- Testing guide is comprehensive",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US8_PROMPTS.md"
+}

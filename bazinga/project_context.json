@@ -1,0 +1,26 @@
+{
+  "schema_version": "2.0",
+  "detected_at": "2025-12-30T09:00:00Z",
+  "confidence": "high",
+  "primary_language": "typescript",
+  "secondary_languages": ["yaml"],
+  "framework": "playwright",
+  "structure": "monorepo",
+  "components": [
+    {
+      "path": "core/typescript/",
+      "type": "library",
+      "language": "typescript",
+      "suggested_specializations": [
+        "bazinga/templates/specializations/01-languages/typescript.md",
+        "bazinga/templates/specializations/02-frameworks/playwright.md"
+      ]
+    }
+  ],
+  "infrastructure": {
+    "package_manager": "npm",
+    "test_framework": "vitest",
+    "build_system": "tsc"
+  },
+  "detection_notes": ["Derived from CLAUDE.md - TypeScript 5.x + Playwright 1.40.0+ + Zod + yaml + otplib"]
+}

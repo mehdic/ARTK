@@ -1,0 +1,12 @@
+{
+  "agent_type": "senior_software_engineer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US1_CONFIG",
+  "task_title": "Phase 3: US1 Config-Driven Test Setup (T018-T027) - CRITICAL PATH",
+  "task_requirements": "Implement the Config System module for ARTK Core v1. This is the CRITICAL PATH - all other modules depend on this.\n\n**Tasks:**\n- T018 [P] [US1] Create TypeScript interfaces for all config sections in core/typescript/config/types.ts\n- T019 [P] [US1] Create default values for optional config fields in core/typescript/config/defaults.ts\n- T020 [US1] Create Zod validation schemas for config in core/typescript/config/schema.ts\n- T021 [US1] Implement environment variable resolver (${VAR:-default} syntax) in core/typescript/config/env.ts\n- T022 [US1] Implement YAML config loader with validation in core/typescript/config/loader.ts\n- T023 [US1] Create config accessor functions (getAuthConfig, getSelectorsConfig, etc.) in core/typescript/config/loader.ts\n- T024 [US1] Create config module barrel export in core/typescript/config/index.ts\n- T025 [US1] Write unit tests for env variable resolution in core/typescript/config/__tests__/env.test.ts\n- T026 [US1] Write unit tests for schema validation in core/typescript/config/__tests__/schema.test.ts\n- T027 [US1] Write unit tests for config loader in core/typescript/config/__tests__/loader.test.ts\n\n**Context Files (READ THESE FIRST):**\n- specs/001-artk-core-v1/data-model.md - Complete config type definitions (sections 1.1-1.14)\n- specs/001-artk-core-v1/spec.md - Functional requirements FR-001 to FR-005\n- specs/001-artk-core-v1/plan.md - Technical architecture\n\n**Key Requirements:**\n- FR-001: Load config from artk/artk.config.yml\n- FR-002: Validate against schema, report all errors with field paths\n- FR-003: Resolve env vars using ${VAR_NAME} and ${VAR_NAME:-default} syntax\n- FR-004: Support named environment profiles switchable via ARTK_ENV\n- FR-005: Provide typed access to all configuration sections\n\n**After completing each task:** Update specs/001-artk-core-v1/tasks.md to mark task complete",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/sse_US1_CONFIG.md"
+}

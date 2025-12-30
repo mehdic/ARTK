@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US5_ASSERTIONS",
+  "task_title": "Phase 7: US5 Common Assertion Helpers (T069-T079)",
+  "task_requirements": "Implement the Assertions module for ARTK Core v1 - common assertion helpers.\n\n**Tasks (11 total):**\n- T069: Create assertion types in core/typescript/assertions/types.ts\n- T070: Implement expectToast and expectNoToast in core/typescript/assertions/toast.ts\n- T071: Implement expectTableToContainRow and expectTableRowCount in core/typescript/assertions/table.ts\n- T072: Implement expectFormFieldError and expectFormValid in core/typescript/assertions/form.ts\n- T073: Implement expectLoading, expectNotLoading, waitForLoadingComplete in core/typescript/assertions/loading.ts\n- T074: Implement URL assertions in core/typescript/assertions/url.ts\n- T075: Implement API response assertions in core/typescript/assertions/api.ts\n- T076: Create assertions module barrel export in core/typescript/assertions/index.ts\n- T077-T079: Write unit tests for toast, table, loading assertions\n\n**Context Files:**\n- specs/001-artk-core-v1/spec.md FR-021 to FR-024\n\n**Key Requirements:**\n- FR-021: Toast/notification assertions with type detection\n- FR-022: Table row assertions with column matching\n- FR-023: Form validation error assertions\n- FR-024: Loading state assertions with configurable selectors\n\n**After each task:** Update specs/001-artk-core-v1/tasks.md",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/dev_US5_ASSERTIONS.md"
+}

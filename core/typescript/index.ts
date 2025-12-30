@@ -73,7 +73,7 @@ export {
   expect,
   type ARTKTestType,
   type ARTKFixtures,
-  type TestDataManager as FixtureTestDataManager,
+  type TestDataManager,
 } from './fixtures/index.js';
 
 /**
@@ -102,7 +102,7 @@ export {
   namespace,
   generateRunId,
   CleanupManager,
-  type TestDataManager as DataTestDataManager,
+  type CleanupContext,
 } from './data/index.js';
 
 /**

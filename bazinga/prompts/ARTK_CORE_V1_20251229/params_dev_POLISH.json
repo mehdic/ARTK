@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "POLISH",
+  "task_title": "Phase 13: Polish & Cross-Cutting Concerns (T122-T128)",
+  "task_requirements": "Final polish, documentation, and validation.\n\n**Tasks (T122-T128):**\n- T122: Update main barrel export to include all modules in core/typescript/index.ts\n- T123: Create sample artk.config.yml for testing in core/typescript/__fixtures__/artk.config.yml\n- T124: Create ITSS-specific sample config in core/typescript/__fixtures__/itss.config.yml\n- T125: Run all unit tests and fix any failures\n- T126: Run ESLint and fix any issues\n- T127: Validate against quickstart.md usage examples\n- T128: Build library with tsup for distribution\n\n**Final Validation:**\n- All tests passing (should be 600+ tests)\n- ESLint clean\n- Build succeeds\n- Main index exports all public APIs",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/dev_POLISH.md"
+}

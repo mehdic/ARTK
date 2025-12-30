@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "bazinga_20251230_095724",
+  "group_id": "P1_DOCS",
+  "task_title": "P1-2 Custom Auth Provider Documentation",
+  "task_requirements": "Implement P1-2 from specs/001-artk-core-v1/implementation-fixes.md:\n\n**Document Custom Auth Provider Implementation**\nLocation: core/typescript/docs/custom-auth-providers.md (new file)\n\nContent to include:\n1. AuthProvider interface definition (login, logout, isSessionValid methods)\n2. Example: SAML Provider implementation extending BaseAuthProvider\n3. Configuration section for artk.config.yml\n4. Using custom provider in playwright.config.ts\n\nUpdate main README to reference this doc.\n\nAcceptance Criteria:\n- Documentation exists for custom auth providers\n- Example code is complete and working\n- Referenced from main README",
+  "branch": "main",
+  "mode": "parallel",
+  "testing_mode": "full",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/bazinga_20251230_095724/developer_P1_DOCS.md"
+}

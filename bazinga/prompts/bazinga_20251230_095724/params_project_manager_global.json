@@ -1,0 +1,12 @@
+{
+  "agent_type": "project_manager",
+  "session_id": "bazinga_20251230_095724",
+  "group_id": "",
+  "task_title": "ARTK Core v1 Implementation Fixes",
+  "task_requirements": "Implement fixes from specs/001-artk-core-v1/implementation-fixes.md:\n\n**Total: 15 Issues**\n\n**P0 - CRITICAL (Must Fix Before Release):**\n1. P0-1: Fix Sample Config Schema Mismatch (core/typescript/__fixtures__/artk.config.yml) - 5 specific fixes: app.type, assertions, data.cleanup, browsers, journeys structure\n2. P0-2: Unify TestDataManager Type Collision - Rename duplicate types in fixtures/index.ts and data/index.ts\n\n**P1 - HIGH PRIORITY (Should Fix Soon):**\n3. P1-1: Add OIDC + TOTP Integration Test (tests/integration/oidc-totp-flow.test.ts)\n4. P1-2: Document Custom Auth Provider Implementation (docs/custom-auth-providers.md)\n\n**P2 - MEDIUM PRIORITY:**\n5. P2-1: Add Default PII Selectors to config/defaults.ts\n6. P2-2: Validate Credentials at Config Load Time (auth/credentials.ts)\n7. P2-3: Document Cleanup Order with Parallel Mode (docs/data-cleanup.md)\n8. P2-4: Add Quickstart User Validation Evidence (SC-009) - documentation task\n\n**P3 - MINOR (Low Priority):**\n9. P3-1: Add Git SHA to Version File (version.json + build script)\n10. P3-2: Centralize Timeout Defaults (config/timeouts.ts)\n11. P3-3: Add Logger Format Option (utils/logger.ts)\n12. P3-4: Document Test File Naming Convention (CONTRIBUTING.md)\n13. P3-5: Add MFA Disclaimer to Form Auth (auth/providers/form.ts)\n14. P3-6: Add Form Auth Provider Tests (auth/__tests__/form-provider.test.ts)\n15. P3-7: Add Token Auth Provider Tests (auth/__tests__/token-provider.test.ts)\n\nAll files are in core/typescript/ directory. Run 'npm run test' and 'npm run typecheck' after each fix.",
+  "branch": "main",
+  "mode": "simple",
+  "testing_mode": "full",
+  "model": "opus",
+  "output_file": "bazinga/prompts/bazinga_20251230_095724/project_manager_global.md"
+}

@@ -1,0 +1,13 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US5_ASSERTIONS",
+  "task_title": "Fix US5 Assertions Module - Test Timeout Failures",
+  "task_requirements": "Fix the 2 test failures identified in Tech Lead review:\n\n1. **toast.test.ts:151** - Timeout failure in toast assertion test\n2. **loading.test.ts:337** - Timeout failure in loading assertion test\n\nRoot cause: Playwright auto-retry mechanism racing against Vitest timeout.\n\nFix approach:\n- Increase test timeouts for Playwright assertion tests\n- Or mock the Playwright expect behavior to avoid real waits\n- Ensure tests complete within Vitest's timeout window\n\nRun tests after fixes: npm test -- --filter assertions",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "tl_feedback": "CHANGES_REQUESTED:\n\n2 Test Failures:\n1. toast.test.ts:151 - Timeout during toast visibility assertion\n2. loading.test.ts:337 - Timeout during loading spinner assertion\n\nRoot Cause Analysis:\nPlaywright's expect() uses auto-retry with configurable timeout. When used in Vitest, if the Playwright timeout exceeds Vitest's test timeout, the test fails.\n\nRecommended Fix:\n- Reduce Playwright expect timeout in tests to be well under Vitest's 5s default\n- Or explicitly set shorter timeouts on assertions: expect(locator).toBeVisible({ timeout: 2000 })\n- Or use mockPlaywrightExpect helper that doesn't actually wait\n\nRun `npm test -- --filter assertions` after fixes.",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/dev_US5_ASSERTIONS_fix.md"
+}

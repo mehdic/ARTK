@@ -1,0 +1,12 @@
+{
+  "agent_type": "senior_software_engineer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US2_AUTH",
+  "task_title": "Phase 4: US2 OIDC Authentication with Storage State (T028-T047)",
+  "task_requirements": "Implement the Auth System module for ARTK Core v1 - OIDC authentication with storage state management.\n\n**Tasks (20 total):**\n- T028-T030: Auth types, credentials, base provider\n- T031-T032: Storage state save/load/validate, 24h cleanup\n- T033-T038: OIDC flow, IdP handlers (Keycloak, Azure AD, Okta, Generic), TOTP MFA\n- T039-T044: OIDCAuthProvider, FormAuthProvider, TokenAuthProvider, CustomAuthProvider, setup factory\n- T045-T047: Unit tests for credentials, storage state, OIDC flow\n\n**Context Files:**\n- specs/001-artk-core-v1/data-model.md sections 2.1-2.5 (AuthProvider, StorageState, Credentials)\n- specs/001-artk-core-v1/spec.md FR-006 to FR-011 (auth requirements)\n\n**Key Requirements:**\n- FR-006: Support OIDC with Keycloak, Azure AD, Okta, generic providers\n- FR-007: Persist storage state to files, reuse across runs\n- FR-008: Invalidate state based on maxAge\n- FR-009: Multiple named roles with separate credentials\n- FR-010: Handle TOTP MFA\n- FR-011: Credentials from env vars only\n\n**After each task:** Update specs/001-artk-core-v1/tasks.md",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/sse_US2_AUTH.md"
+}

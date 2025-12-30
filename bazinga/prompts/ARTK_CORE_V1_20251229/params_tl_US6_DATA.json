@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US6_DATA",
+  "task_title": "Review Phase 8: US6 Test Data Isolation and Cleanup (T080-T090)",
+  "task_requirements": "Review the Data Harness module implementation.\n\n**Files to Review in core/typescript/data/:**\n- types.ts, namespace.ts, cleanup.ts, builders.ts, api-client.ts, factories.ts, index.ts\n- __tests__/*.test.ts\n\n**Validation:**\n- FR-025 to FR-028 compliance\n- 74/74 tests passing\n- Namespacing and cleanup working",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US6_DATA.md"
+}

@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "bazinga_20251230_095724",
+  "group_id": "P2_CONFIG",
+  "task_title": "P2 Config Improvements - PII Selectors, Credential Validation, Cleanup Docs",
+  "task_requirements": "Implement P2-1, P2-2, P2-3 from specs/001-artk-core-v1/implementation-fixes.md:\n\n**P2-1: Add Default PII Selectors**\nFile: core/typescript/config/defaults.ts\nAdd default piiSelectors array with common patterns: password inputs, SSN/credit card fields, data-pii attributes, common classes.\n\n**P2-2: Validate Credentials at Config Load Time**\nFile: core/typescript/auth/credentials.ts\nAdd validateCredentialsConfig() function that checks env vars for all roles at config load time. Clear error messages listing missing vars.\nCall from loadConfig() with optional skipCredentialsValidation flag.\n\n**P2-3: Document Cleanup Order with Parallel Mode**\nFile: core/typescript/docs/data-cleanup.md (new)\nDocument cleanup order (reverse registration), parallel mode behavior, when to use each mode.\n\n**Note:** P2-4 (Quickstart User Validation) is a manual task - skip it.\n\nVerification:\n- npm run typecheck\n- npm run test",
+  "branch": "main",
+  "mode": "parallel",
+  "testing_mode": "full",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/bazinga_20251230_095724/developer_P2_CONFIG.md"
+}

@@ -1,0 +1,12 @@
+{
+  "agent_type": "tech_lead",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "US4_LOCATORS",
+  "task_title": "Review Phase 6: US4 Accessibility-First Locator Utilities (T057-T068)",
+  "task_requirements": "Review the Locators module implementation.\n\n**Files to Review in core/typescript/locators/:**\n- types.ts, testid.ts, strategies.ts, aria.ts, factory.ts, index.ts\n- __tests__/*.test.ts\n\n**Validation:**\n- FR-017 to FR-020 compliance\n- 101/101 tests passing\n- Strategy chain implementation\n- Scoped locators for forms/tables/sections",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "opus",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/tl_US4_LOCATORS.md"
+}
