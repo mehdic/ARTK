@@ -100,14 +100,15 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 fi
 
-# Run npm install to link the package
-# Use --legacy-peer-deps for compatibility with complex dependency trees
-# Use --registry to bypass private registries that may require auth
-echo -e "${YELLOW}Linking package...${NC}"
-npm install --legacy-peer-deps --registry https://registry.npmjs.org
+# The package is now in vendor/ and package.json is updated
+# Skip npm install to avoid auth issues with private registries
+# The symlink will be created on next npm install
 
 echo ""
 echo -e "${GREEN}✅ @artk/core installed successfully!${NC}"
+echo ""
+echo -e "${YELLOW}Note:${NC} Run 'npm install' in your project when ready."
+echo "      The @artk/core package will be linked from vendor/artk-core/"
 echo ""
 echo "Vendor location: $VENDOR_DIR"
 echo ""
