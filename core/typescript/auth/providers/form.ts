@@ -4,6 +4,16 @@
  * Implements the AuthProvider interface for direct form login (no OIDC redirect).
  * Useful for local development environments with basic auth.
  *
+ * **MFA Support:** This provider does NOT support multi-factor authentication (MFA).
+ * For applications requiring MFA (TOTP, push notifications, etc.), use the
+ * OIDCAuthProvider instead, which supports MFA flows including TOTP generation
+ * and push notification handling.
+ *
+ * **Use Cases:**
+ * - Local development with basic username/password auth
+ * - Simple authentication forms without OIDC
+ * - Custom login pages in staging environments
+ *
  * @module auth/providers/form
  */
 
