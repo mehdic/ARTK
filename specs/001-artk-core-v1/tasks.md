@@ -150,18 +150,18 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation for User Story 4
 
-- [ ] T057 [P] [US4] Create locator types and ByRoleOptions in core/typescript/locators/types.ts
-- [ ] T058 [US4] Implement testIdAttribute configuration in core/typescript/locators/testid.ts
-- [ ] T059 [US4] Implement byRole, byLabel, byPlaceholder, byText functions in core/typescript/locators/strategies.ts
-- [ ] T060 [US4] Implement byTestId with custom attribute support in core/typescript/locators/testid.ts
-- [ ] T061 [US4] Implement ARIA/accessibility helpers in core/typescript/locators/aria.ts
-- [ ] T062 [US4] Implement withinForm scoped locator in core/typescript/locators/factory.ts
-- [ ] T063 [US4] Implement withinTable scoped locator in core/typescript/locators/factory.ts
-- [ ] T064 [US4] Implement withinSection scoped locator in core/typescript/locators/factory.ts
-- [ ] T065 [US4] Implement locate() with strategy chain in core/typescript/locators/factory.ts
-- [ ] T066 [US4] Create locators module barrel export in core/typescript/locators/index.ts
-- [ ] T067 [US4] Write unit tests for locator strategies in core/typescript/locators/__tests__/strategies.test.ts
-- [ ] T068 [US4] Write unit tests for scoped locators in core/typescript/locators/__tests__/factory.test.ts
+- [x] T057 [P] [US4] Create locator types and ByRoleOptions in core/typescript/locators/types.ts
+- [x] T058 [US4] Implement testIdAttribute configuration in core/typescript/locators/testid.ts
+- [x] T059 [US4] Implement byRole, byLabel, byPlaceholder, byText functions in core/typescript/locators/strategies.ts
+- [x] T060 [US4] Implement byTestId with custom attribute support in core/typescript/locators/testid.ts
+- [x] T061 [US4] Implement ARIA/accessibility helpers in core/typescript/locators/aria.ts
+- [x] T062 [US4] Implement withinForm scoped locator in core/typescript/locators/factory.ts
+- [x] T063 [US4] Implement withinTable scoped locator in core/typescript/locators/factory.ts
+- [x] T064 [US4] Implement withinSection scoped locator in core/typescript/locators/factory.ts
+- [x] T065 [US4] Implement locate() with strategy chain in core/typescript/locators/factory.ts
+- [x] T066 [US4] Create locators module barrel export in core/typescript/locators/index.ts
+- [x] T067 [US4] Write unit tests for locator strategies in core/typescript/locators/__tests__/strategies.test.ts
+- [x] T068 [US4] Write unit tests for scoped locators in core/typescript/locators/__tests__/factory.test.ts
 
 **Checkpoint**: Locators complete - can find elements by role, label, testid with configurable strategy
 
@@ -177,17 +177,17 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation for User Story 5
 
-- [ ] T069 [P] [US5] Create assertion types in core/typescript/assertions/types.ts
-- [ ] T070 [P] [US5] Implement expectToast and expectNoToast in core/typescript/assertions/toast.ts
-- [ ] T071 [P] [US5] Implement expectTableToContainRow and expectTableRowCount in core/typescript/assertions/table.ts
-- [ ] T072 [P] [US5] Implement expectFormFieldError and expectFormValid in core/typescript/assertions/form.ts
-- [ ] T073 [P] [US5] Implement expectLoading, expectNotLoading, waitForLoadingComplete in core/typescript/assertions/loading.ts
-- [ ] T074 [P] [US5] Implement URL assertions (expectUrlContains, expectUrlMatches) in core/typescript/assertions/url.ts
-- [ ] T075 [P] [US5] Implement API response assertions in core/typescript/assertions/api.ts
-- [ ] T076 [US5] Create assertions module barrel export in core/typescript/assertions/index.ts
-- [ ] T077 [US5] Write unit tests for toast assertions in core/typescript/assertions/__tests__/toast.test.ts
-- [ ] T078 [US5] Write unit tests for table assertions in core/typescript/assertions/__tests__/table.test.ts
-- [ ] T079 [US5] Write unit tests for loading assertions in core/typescript/assertions/__tests__/loading.test.ts
+- [x] T069 [P] [US5] Create assertion types in core/typescript/assertions/types.ts
+- [x] T070 [P] [US5] Implement expectToast and expectNoToast in core/typescript/assertions/toast.ts
+- [x] T071 [P] [US5] Implement expectTableToContainRow and expectTableRowCount in core/typescript/assertions/table.ts
+- [x] T072 [P] [US5] Implement expectFormFieldError and expectFormValid in core/typescript/assertions/form.ts
+- [x] T073 [P] [US5] Implement expectLoading, expectNotLoading, waitForLoadingComplete in core/typescript/assertions/loading.ts
+- [x] T074 [P] [US5] Implement URL assertions (expectUrlContains, expectUrlMatches) in core/typescript/assertions/url.ts
+- [x] T075 [P] [US5] Implement API response assertions in core/typescript/assertions/api.ts
+- [x] T076 [US5] Create assertions module barrel export in core/typescript/assertions/index.ts
+- [x] T077 [US5] Write unit tests for toast assertions in core/typescript/assertions/__tests__/toast.test.ts
+- [x] T078 [US5] Write unit tests for table assertions in core/typescript/assertions/__tests__/table.test.ts
+- [x] T079 [US5] Write unit tests for loading assertions in core/typescript/assertions/__tests__/loading.test.ts
 
 **Checkpoint**: Assertions complete - can assert toast, table, form, loading states
 
