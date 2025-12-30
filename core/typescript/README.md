@@ -141,7 +141,11 @@ MIT
 
 ## Documentation
 
+### Core Documentation
 For complete documentation, see:
 - `/specs/001-artk-core-v1/spec.md` - Feature specification
 - `/specs/001-artk-core-v1/plan.md` - Implementation plan
 - `/specs/001-artk-core-v1/tasks.md` - Task breakdown
+
+### Guides
+- [Custom Authentication Providers](docs/custom-auth-providers.md) - Implement custom auth flows (SAML, proprietary systems, etc.)
