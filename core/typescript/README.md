@@ -144,9 +144,42 @@ cd your-playwright-project
 npm install ../path/to/ARTK/core/typescript --save-dev
 ```
 
-### Option 3: Vendoring (Full Control)
+### Option 3: Vendor Installation Script (Recommended)
 
-Copy the built library into your project for offline operation:
+Use the automated vendor installation script - works with any npm configuration:
+
+```bash
+# From anywhere, run:
+/path/to/ARTK/core/typescript/scripts/install-to-project.sh /path/to/your-project
+
+# Example:
+/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh ~/projects/my-app
+```
+
+**What it does:**
+1. Builds @artk/core if dist doesn't exist
+2. Creates `vendor/artk-core/` in your target project
+3. Copies dist, package.json, version.json, README.md
+4. Adds `"@artk/core": "file:./vendor/artk-core"` to devDependencies
+5. Runs `npm install --legacy-peer-deps` to link it
+
+**Pro tip - create an alias:**
+
+Add to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+alias artk-install="/path/to/ARTK/core/typescript/scripts/install-to-project.sh"
+```
+
+Then just run:
+```bash
+cd ~/projects/my-playwright-project
+artk-install .
+```
+
+### Option 4: Manual Vendoring
+
+Copy the built library into your project manually for offline operation:
 
 ```bash
 # Build the library
@@ -163,7 +196,7 @@ cp version.json ../your-project/vendor/artk-core/
 Then add to your project's `package.json`:
 ```json
 {
-  "dependencies": {
+  "devDependencies": {
     "@artk/core": "file:./vendor/artk-core"
   }
 }
