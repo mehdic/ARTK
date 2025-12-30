@@ -128,11 +128,33 @@ For each test file in scope:
 - Confirm file exists.
 - Confirm it includes `@JRN-####`.
 - Confirm tags are valid Playwright tags (start with `@`).
-- Confirm test imports come from harness base test (where required by Phase 7).
+- **CRITICAL: Confirm test imports use ARTK Core:**
+  - MUST import `test` and `expect` from `'@artk/core/fixtures'`
+  - MUST NOT create custom fixture files or extend test manually
+  - MUST NOT import from local `fixtures/` directory
 
 Also check reverse links:
 - Find all files containing `@JRN-####`
 - Ensure they are listed in `tests[]` (or recommend updating).
+
+**Core API Import Validation:**
+
+Check each test file for correct core usage:
+
+✅ **VALID:**
+```typescript
+import { test, expect } from '@artk/core/fixtures';
+import { assertToastMessage } from '@artk/core/assertions';
+import { getByTestId } from '@artk/core/locators';
+import { namespace } from '@artk/core/data';
+```
+
+❌ **INVALID:**
+```typescript
+import { test } from '@playwright/test'; // Should use @artk/core/fixtures
+import { test } from './fixtures/test'; // No custom fixtures
+import { expect } from '../support/expect'; // Use core expect
+```
 
 ## Step 3 — Module registry coherence (if present)
 If `<harnessRoot>/modules/registry.json` exists:

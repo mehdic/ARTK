@@ -46,11 +46,22 @@ If the tests fail, you will attempt to **fix test code (not product code)** in a
 ---
 
 ## Preconditions (verify before running)
-- Phase 7 harness exists (playwright config + base fixtures).
+- **ARTK Core framework exists** at `<ARTK_ROOT>/.core/`
+- **Playwright config uses core harness**: Created via `createPlaywrightConfig` from `@artk/core/harness`
+- **Tests use core fixtures**: Import from `@artk/core/fixtures`, not custom fixture files
+- **artk.config.yml exists**: Valid ARTK Core v1 configuration
 - The Journey exists (`id=` or `file=`) and has at least one test, OR tests exist containing `@JRN-####`.
-- The environment is reachable from where you run tests. If it isn’t, stop. Do not pretend.
+- The environment is reachable from where you run tests. If it isn't, stop. Do not pretend.
 
-If preconditions fail, stop with a short “Next command(s) to run” list.
+If preconditions fail, stop with a short "Next command(s) to run" list.
+
+**Verify Core Integration:**
+Before running tests, check:
+1. `<ARTK_ROOT>/.core/dist/` contains compiled core modules
+2. `playwright.config.ts` imports from `@artk/core/harness`
+3. Test files import from `@artk/core/fixtures`
+4. Auth setup projects exist (auto-created by core harness)
+5. Storage state directory exists at `<ARTK_ROOT>/.auth-states/`
 
 ---
 

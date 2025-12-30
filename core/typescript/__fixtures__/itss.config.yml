@@ -1,0 +1,195 @@
+# ARTK Core v1 - ITSS (IT Service Shop) Configuration
+# Real-world configuration example for IT Service Shop application
+# Authentication: OIDC with MFA (TOTP)
+
+version: 1
+
+# Application configuration
+app:
+  name: IT Service Shop
+  type: web-app
+  baseUrl: ${ITSS_BASE_URL:-https://itss.example.com}
+
+# Environment configurations
+environments:
+  local:
+    baseUrl: http://localhost:3000
+    apiUrl: http://localhost:3000/api
+  dev:
+    baseUrl: https://dev-itss.example.com
+    apiUrl: https://dev-itss.example.com/api
+  test:
+    baseUrl: https://test-itss.example.com
+    apiUrl: https://test-itss.example.com/api
+  staging:
+    baseUrl: https://staging-itss.example.com
+    apiUrl: https://staging-itss.example.com/api
+  production:
+    baseUrl: https://itss.example.com
+    apiUrl: https://itss.example.com/api
+
+# Authentication configuration - OIDC with MFA
+auth:
+  provider: oidc
+
+  # Storage state settings
+  storageState:
+    directory: .auth-states
+    maxAgeMinutes: 45  # Shorter for security compliance
+
+  # Role definitions for ITSS
+  roles:
+    # IT Admin - full system access
+    itAdmin:
+      credentialsEnv:
+        username: ITSS_ADMIN_USER
+        password: ITSS_ADMIN_PASS
+        totpSecret: ITSS_ADMIN_TOTP_SECRET
+
+    # Service Manager - manages service catalog
+    serviceManager:
+      credentialsEnv:
+        username: ITSS_MANAGER_USER
+        password: ITSS_MANAGER_PASS
+        totpSecret: ITSS_MANAGER_TOTP_SECRET
+
+    # End User - submits service requests
+    endUser:
+      credentialsEnv:
+        username: ITSS_USER_EMAIL
+        password: ITSS_USER_PASS
+        totpSecret: ITSS_USER_TOTP_SECRET
+
+    # Approver - approves service requests
+    approver:
+      credentialsEnv:
+        username: ITSS_APPROVER_USER
+        password: ITSS_APPROVER_PASS
+        totpSecret: ITSS_APPROVER_TOTP_SECRET
+
+  # OIDC configuration with MFA
+  oidc:
+    idpType: keycloak  # Or azure-ad, okta depending on ITSS setup
+    loginUrl: /auth/login
+    success:
+      url: /dashboard
+      timeout: 5000
+    mfa:
+      enabled: true
+      type: totp
+      secretEnv: ITSS_TOTP_SECRET  # Default, overridden by role-specific
+    timeouts:
+      loginFlow: 45000  # Longer for MFA flow
+      idpRedirect: 15000
+      callback: 10000
+      pushApproval: 90000  # Extended for MFA approval
+
+# Selector configuration - ITSS uses data-testid extensively
+selectors:
+  testIdAttribute: data-testid
+  strategy:
+    - testid  # ITSS prioritizes test IDs
+    - role
+    - label
+    - text
+
+# Assertions configuration
+assertions:
+  toast:
+    timeout: 6000  # ITSS notifications can be slower
+    dismissTimeout: 12000
+  loading:
+    timeout: 45000  # API calls can be slow in enterprise environment
+  form:
+    timeout: 8000
+
+# Data configuration
+data:
+  namespace:
+    prefix: itss-test
+    suffix: runId
+  cleanup:
+    onFailure: keep  # Keep test data for debugging
+    maxRetries: 3
+  api:
+    baseUrl: ${ITSS_API_URL:-https://itss.example.com/api}
+    timeout: 45000  # Enterprise APIs can be slower
+
+# Fixtures configuration
+fixtures:
+  defaultRole: endUser
+  roleFixtures:
+    - itAdmin
+    - serviceManager
+    - endUser
+    - approver
+  api:
+    baseUrl: ${ITSS_API_URL:-https://itss.example.com/api}
+    timeout: 45000
+
+# Test tier configurations - ITSS specific
+tiers:
+  smoke:
+    retries: 1  # At least one retry in enterprise environment
+    workers: 2
+    timeout: 60000  # Longer for enterprise systems
+  release:
+    retries: 2
+    workers: 4
+    timeout: 90000
+  regression:
+    retries: 3  # More retries for flaky enterprise systems
+    workers: 6
+    timeout: 180000
+
+# Reporter configuration
+reporters:
+  html:
+    enabled: true
+    open: never
+    outputFolder: test-results/html
+  json:
+    enabled: true
+    outputFile: test-results/results.json
+  junit:
+    enabled: true
+    outputFile: test-results/junit.xml
+  artk:
+    enabled: true
+    outputFile: test-results/artk-report.json
+    journeyMapping: true
+
+# Artifacts configuration - capture more for debugging
+artifacts:
+  screenshots:
+    mode: on  # Always capture for compliance
+    fullPage: true
+  video:
+    mode: on  # Always record for audit trail
+    size:
+      width: 1920
+      height: 1080
+  trace:
+    mode: on  # Always trace for debugging
+
+# Browser configurations - ITSS primarily uses Chromium
+browsers:
+  chromium:
+    enabled: true
+    viewport:
+      width: 1920
+      height: 1080
+  firefox:
+    enabled: false  # Not required for ITSS
+  webkit:
+    enabled: false  # Not required for ITSS
+
+# Journeys configuration
+journeys:
+  directory: journeys
+  idPrefix: ITSS
+  idWidth: 4
+  backlog:
+    path: journeys/BACKLOG.md
+    groupBy: tier
+    layout: checklist

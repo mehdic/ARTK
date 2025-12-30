@@ -174,50 +174,132 @@ Rules:
 - Print resolved config at runtime (safe values only).
 
 ## Step 3 — Build Playwright config baseline
-Create `playwright.config.(ts|js)` with:
+
+**CRITICAL: Use ARTK Core Framework**
+
+Import and use `createPlaywrightConfig` from `@artk/core/harness`:
+
+```typescript
+// playwright.config.ts
+import { loadConfig } from '@artk/core/config';
+import { createPlaywrightConfig } from '@artk/core/harness';
+
+const { config, activeEnvironment } = loadConfig();
+
+export default createPlaywrightConfig({
+  config,
+  activeEnvironment,
+  tier: process.env.ARTK_TIER || 'regression',
+});
+```
+
+The core framework's `createPlaywrightConfig` automatically handles:
 - `testDir` pointing to `tests/`
-- `timeout` = timeoutMs
-- `expect.timeout` = expectTimeoutMs
-- `retries` = CI ? retriesCI : retriesLocal
-- `reporter` includes:
-  - list/line for console
-  - html report to `<harnessRoot>/playwright-report` with `open` controlled by reportOpen
-- `outputDir` set to `<harnessRoot>/test-results` (intermediate artifacts)
+- `timeout`, `expect.timeout`, `retries` from tier configuration
+- Reporter configuration (html, json, line) from `config.reporters`
+- `outputDir` separation from HTML report
+- `use` options from `config.artifacts` (trace, screenshot, video modes)
+- `baseURL` from active environment
+- `testIdAttribute` from `config.selectors.testIdAttribute`
+- Auth setup projects and browser projects with proper dependencies
+- Storage state paths from `config.auth.storageState`
 
-Important: keep HTML report folder separate from outputDir.
+**Do NOT manually create Playwright config from scratch.** Always use the core framework factory.
 
-Set `use` defaults:
-- baseURL from env loader
-- trace: `on-first-retry`
-- screenshot: `only-on-failure`
-- video: `retain-on-failure`
-- `testIdAttribute` from arg/env (default data-testid)
+If custom overrides are needed, merge them:
+```typescript
+import { createPlaywrightConfig } from '@artk/core/harness';
+import type { PlaywrightTestConfig } from '@playwright/test';
+
+const baseConfig = createPlaywrightConfig({ config, activeEnvironment, tier: 'regression' });
+
+export default {
+  ...baseConfig,
+  // Custom overrides only if absolutely necessary
+  workers: process.env.CI ? 4 : 1,
+} satisfies PlaywrightTestConfig;
+```
 
 ## Step 4 — Auth harness using project dependencies + storageState
-Implement Playwright projects as:
-- `setup` project:
-  - runs `tests/setup/auth.setup.*`
-- test projects (chromium/firefox/webkit as requested):
-  - depend on `setup`
-  - reuse storage state file
 
-Storage state policy:
-- write to `<harnessRoot>/playwright/.auth/<env>/<actor>.json`
-- NEVER commit this directory (gitignore it)
-- if authMode=external:
-  - setup project should validate that the storage state file exists and fail with actionable instructions if missing
-- if authMode=api:
-  - use APIRequestContext to authenticate and write storage state (placeholder; leave TODOs)
+**CRITICAL: ARTK Core handles auth setup projects automatically**
 
-Also create `modules/foundation/auth/login.*` that contains a `performLogin(page, actor, env)` placeholder, with TODOs for SSO/login specifics.
+The `createPlaywrightConfig` from `@artk/core/harness` automatically creates:
+- Auth setup projects for each role in `config.auth.roles`
+- Browser projects with proper dependencies on setup projects
+- Storage state paths following convention: `<ARTK_ROOT>/.auth-states/<env>/<role>.json`
+
+**Do NOT manually create setup projects.** The core framework does this based on config.
+
+If you need custom auth logic, create an auth setup file that uses core auth providers:
+
+```typescript
+// tests/setup/auth.setup.ts
+import { test } from '@artk/core/fixtures';
+import { performOIDCLogin, performFormLogin } from '@artk/core/auth';
+
+// Core framework automatically calls this for each role
+test('authenticate', async ({ page, context, config }, testInfo) => {
+  const role = testInfo.project.name.replace('-setup', '');
+
+  if (config.auth.provider === 'oidc') {
+    await performOIDCLogin(page, context, { role, config });
+  } else if (config.auth.provider === 'form') {
+    await performFormLogin(page, context, { role, config });
+  }
+
+  // Storage state automatically saved by core framework
+});
+```
+
+Storage state is managed by core:
+- Path: resolved via `getStorageStatePath(role, env)` from `@artk/core/config`
+- Validation: core framework checks validity before reuse
+- `.gitignore` entry: added automatically during init
 
 ## Step 5 — Create baseline fixtures
-Create `fixtures/test.ts` using `test.extend()`:
-- include fixture that exposes:
-  - `artkEnv` (resolved config)
-  - `runId` (namespacing)
-  - helper `app` wrapper (optional placeholder)
-- ensure fixtures do not store secrets in logs.
+
+**CRITICAL: Import fixtures from ARTK Core**
+
+Tests should import from `@artk/core/fixtures`, NOT create custom fixtures:
+
+```typescript
+// tests/example.spec.ts
+import { test, expect } from '@artk/core/fixtures';
+
+test('user can access dashboard', async ({ authenticatedPage, config, runId }) => {
+  // authenticatedPage: Pre-authenticated with default role
+  // config: Full ARTK configuration
+  // runId: Unique test run identifier
+
+  await authenticatedPage.goto('/dashboard');
+  await expect(authenticatedPage.locator('h1')).toContainText(config.app.name);
+});
+
+test('admin can manage users', async ({ adminPage, testData }) => {
+  // adminPage: Pre-authenticated with admin role
+  // testData: Cleanup manager for test isolation
+
+  await adminPage.goto('/admin/users');
+
+  const userName = `Test User ${testData.runId}`;
+  // ... create user ...
+
+  testData.cleanup(async () => {
+    // Cleanup runs automatically after test
+  });
+});
+```
+
+Available core fixtures (no custom setup needed):
+- `config`: ARTK configuration
+- `authenticatedPage`: Page with default role
+- `adminPage`, `userPage`: Role-specific pages (auto-generated from config.auth.roles)
+- `apiContext`: Authenticated API request context
+- `testData`: Cleanup registration with unique run ID
+- `runId`: Unique identifier for test isolation
+
+**Do NOT create custom fixture files.** Use core fixtures directly.
 
 ## Step 6 — Navigation helpers foundation module
 Create `modules/foundation/navigation/nav.*`:

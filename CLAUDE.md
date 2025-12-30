@@ -113,3 +113,10 @@ When the user asks to "ultrathink" about a topic, create a research document:
    ```
 3. **Purpose:** Capture architectural decisions, analysis, and strategic thinking for future reference
 4. **Naming:** Use lowercase with underscores for the topic slug (e.g., `generalization_analysis`, `auth_patterns`, `cli_design`)
+
+## Active Technologies
+- TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation) (001-artk-core-v1)
+- File system (storage states in `.auth-states/`, config in `artk.config.yml`) (001-artk-core-v1)
+
+## Recent Changes
+- 001-artk-core-v1: Added TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)

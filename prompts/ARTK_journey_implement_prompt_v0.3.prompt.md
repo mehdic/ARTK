@@ -243,8 +243,86 @@ Never:
 - Cleanup if feasible; otherwise ensure namespacing and document.
 
 ## Step 10 — Write the test(s)
-- Import `test` from the harness base fixture file.
-- Mirror Journey steps using `test.step()` for report readability.
+
+**CRITICAL: Import from ARTK Core Fixtures**
+
+```typescript
+// tests/<tier>/<JRN-ID>__<slug>.spec.ts
+import { test, expect } from '@artk/core/fixtures';
+
+test.describe('JRN-0001: User can view dashboard @JRN-0001 @smoke @scope-dashboard', () => {
+  test('should display user dashboard with navigation @JRN-0001', async ({
+    authenticatedPage,
+    config,
+    runId,
+    testData,
+  }) => {
+    // Use core fixtures - NO custom fixture setup needed
+    // authenticatedPage: Already authenticated as default role
+    // config: ARTK configuration
+    // runId: Unique test run ID
+    // testData: Cleanup manager
+
+    await test.step('Navigate to dashboard', async () => {
+      await authenticatedPage.goto('/dashboard');
+      await expect(authenticatedPage.locator('h1')).toContainText('Dashboard');
+    });
+
+    await test.step('AC-1: User sees welcome message', async () => {
+      const welcome = authenticatedPage.getByRole('heading', { name: /welcome/i });
+      await expect(welcome).toBeVisible();
+    });
+
+    await test.step('AC-2: Navigation menu is available', async () => {
+      const nav = authenticatedPage.getByRole('navigation');
+      await expect(nav).toBeVisible();
+    });
+  });
+});
+```
+
+**Core Fixture Usage:**
+- `authenticatedPage`: Pre-authenticated page (default role from config)
+- `adminPage`, `userPage`: Role-specific authenticated pages
+- `config`: Full ARTK configuration
+- `runId`: Unique test run identifier (for data namespacing)
+- `testData`: Cleanup manager (register cleanup callbacks)
+- `apiContext`: Authenticated API request context
+
+**Use Core Locator Utilities:**
+```typescript
+import { getByTestId, waitForElement } from '@artk/core/locators';
+
+// Prefer role/label locators from Playwright
+const button = page.getByRole('button', { name: 'Submit' });
+
+// Use core helpers when needed
+const customElement = getByTestId(page, 'custom-widget');
+await waitForElement(customElement, { state: 'visible', timeout: 5000 });
+```
+
+**Use Core Assertions:**
+```typescript
+import {
+  assertToastMessage,
+  assertLoadingComplete,
+  assertFormValid,
+} from '@artk/core/assertions';
+
+await test.step('AC-3: Success toast appears', async () => {
+  await assertToastMessage(authenticatedPage, {
+    message: 'Saved successfully',
+    type: 'success',
+  });
+});
+
+await test.step('Wait for data to load', async () => {
+  await assertLoadingComplete(authenticatedPage, {
+    indicator: '[data-loading]',
+    timeout: 10000,
+  });
+});
+```
 
 Tagging (mandatory):
 - `@JRN-####`
@@ -254,7 +332,7 @@ Tagging (mandatory):
 Assertions mapping:
 - Map each acceptance criterion to at least one assertion.
 - Prefer user-visible assertions.
-- No sleeps.
+- No sleeps - use core assertions for async completion.
 
 ## Step 11 — Update Journey draft links (pre-gate)
 Before running gates, you may:

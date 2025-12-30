@@ -1,0 +1,12 @@
+{
+  "agent_type": "developer",
+  "session_id": "ARTK_CORE_V1_20251229",
+  "group_id": "FOUNDATIONAL",
+  "task_title": "Phase 2: Foundational Types, Errors, and Utils (T010-T017)",
+  "task_requirements": "Implement foundational infrastructure for ARTK Core v1:\n\n**Tasks:**\n- T010: Create shared types index in core/typescript/types/index.ts\n- T011: Create ARTKConfigError class in core/typescript/errors/config-error.ts\n- T012: Create ARTKAuthError class in core/typescript/errors/auth-error.ts\n- T013: Create ARTKStorageStateError class in core/typescript/errors/storage-state-error.ts\n- T014: Create errors barrel export in core/typescript/errors/index.ts\n- T015: Create structured logger utility in core/typescript/utils/logger.ts (NFR-001 to NFR-003)\n- T016: Create retry utility with exponential backoff in core/typescript/utils/retry.ts (NFR-010 to NFR-012)\n- T017: Create utils barrel export in core/typescript/utils/index.ts\n\n**Context Files:**\n- specs/001-artk-core-v1/data-model.md (error type definitions in section 3)\n- specs/001-artk-core-v1/spec.md (NFR requirements for logging and retry)\n\n**After completing each task:** Update specs/001-artk-core-v1/tasks.md to mark task complete (change [ ] to [x])",
+  "branch": "001-artk-core-v1",
+  "mode": "parallel",
+  "testing_mode": "minimal",
+  "model": "sonnet",
+  "output_file": "bazinga/prompts/ARTK_CORE_V1_20251229/developer_FOUNDATIONAL.md"
+}

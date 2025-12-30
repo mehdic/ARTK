@@ -198,12 +198,25 @@ Each must include:
    - Rules: Playwright locator strategy (prefer role/testid), deterministic waits, no sleep, module boundaries, etc.
 
 ### 5B) ARTK workspace skeleton (inside ARTK_ROOT)
-Create the “empty but correct” structure:
+Create the "empty but correct" structure:
 
 ```
 <ARTK_ROOT>/
   README.md
   artk.config.yml
+  .core/                      # ARTK Core v1 framework (copied from core/typescript)
+    package.json
+    dist/
+      index.js
+      config/
+      fixtures/
+      harness/
+      locators/
+      assertions/
+      data/
+      auth/
+      reporters/
+    (additional core files)
   docs/
     PLAYBOOK.md
     ARCHITECTURE.md
@@ -226,16 +239,40 @@ Create the “empty but correct” structure:
       README.md
 ```
 
+**CRITICAL: Copy ARTK Core Framework**
+
+Before creating any configuration files, you must copy the ARTK Core v1 framework to `<ARTK_ROOT>/.core/`:
+
+1. Copy the entire `core/typescript/dist/` directory to `<ARTK_ROOT>/.core/`
+2. Copy `core/typescript/package.json` to `<ARTK_ROOT>/.core/package.json`
+3. The core framework provides:
+   - Config loading and validation (`@artk/core/config`)
+   - Playwright fixtures (`@artk/core/fixtures`)
+   - Harness configuration (`@artk/core/harness`)
+   - Locators, assertions, data helpers, auth providers, reporters
+
+This ensures all ARTK instances use the same versioned core implementation.
+
 #### Content requirements (high-level, not the full implementation)
-- `artk.config.yml` must contain: root, target app, env placeholder, auth type, artifact policy, tiers, chosen language/pm.
+- `artk.config.yml` must conform to ARTK Core v1 schema (use `@artk/core/config` types):
+  - `version: "1.0"` (required)
+  - `app:` (name, type, description)
+  - `environments:` (named profiles with baseUrl, apiUrl)
+  - `auth:` (provider, roles, storageState)
+  - `selectors:`, `assertions:`, `data:`, `fixtures:`, `tiers:`, `reporters:`, `artifacts:`, `browsers:`, `journeys:`
+- Include commented examples showing how to reference env vars: `${ARTK_BASE_URL}`, `${API_TOKEN:-default}`
 - `journeys/BACKLOG.md` must contain a checklist and a stable ID per journey (placeholders are fine).
 - `docs/PLAYBOOK.md` must define:
   - what a Journey is vs a Test vs a Module (brief)
   - how journeys map to Playwright tests
   - foundation vs feature modules concept
-  - a “how to contribute” section
-- `docs/ARCHITECTURE.md` must explain chosen placement + coexistence strategy.
-- `README.md` must explain how to run the harness locally (commands only, don’t change CI yet).
+  - how to import from ARTK Core (`@artk/core/config`, `@artk/core/fixtures`, etc.)
+  - a "how to contribute" section
+- `docs/ARCHITECTURE.md` must explain:
+  - chosen placement + coexistence strategy
+  - ARTK Core v1 framework integration
+  - how `.core/` provides reusable infrastructure
+- `README.md` must explain how to run the harness locally (commands only, don't change CI yet)
 
 ### 5C) Minimal Playwright harness bootstrap (optional but recommended)
 If `hasPlaywright` is false and user chose a Node-based harness:
