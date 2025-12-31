@@ -1,0 +1,372 @@
+/**
+ * @module install/gitignore-generator
+ * @description .gitignore generator for ARTK E2E isolated installation.
+ *
+ * Generates a comprehensive .gitignore for E2E test directories,
+ * including patterns for test artifacts, auth states, and dependencies.
+ *
+ * @example
+ * ```typescript
+ * import { generateGitignore, GitignoreOptions } from '@artk/core/install';
+ *
+ * const gitignore = generateGitignore({
+ *   includeAuthStates: true,
+ *   includeTestArtifacts: true,
+ * });
+ *
+ * await fs.writeFile('artk-e2e/.gitignore', gitignore);
+ * ```
+ */
+
+/**
+ * Options for generating .gitignore.
+ */
+export interface GitignoreOptions {
+  /**
+   * Include patterns for auth storage states.
+   * These contain sensitive session data and should not be committed.
+   * @default true
+   */
+  includeAuthStates?: boolean;
+
+  /**
+   * Include patterns for test artifacts (traces, screenshots, videos).
+   * @default true
+   */
+  includeTestArtifacts?: boolean;
+
+  /**
+   * Include patterns for coverage reports.
+   * @default true
+   */
+  includeCoverage?: boolean;
+
+  /**
+   * Include patterns for IDE and editor files.
+   * @default true
+   */
+  includeIdeFiles?: boolean;
+
+  /**
+   * Include patterns for OS-specific files.
+   * @default true
+   */
+  includeOsFiles?: boolean;
+
+  /**
+   * Additional patterns to include.
+   */
+  additionalPatterns?: string[];
+
+  /**
+   * Patterns that should never be ignored (exceptions).
+   * Will be prefixed with !
+   */
+  exceptions?: string[];
+}
+
+/**
+ * Default options for .gitignore generation.
+ */
+const DEFAULT_OPTIONS: Required<GitignoreOptions> = {
+  includeAuthStates: true,
+  includeTestArtifacts: true,
+  includeCoverage: true,
+  includeIdeFiles: true,
+  includeOsFiles: true,
+  additionalPatterns: [],
+  exceptions: [],
+};
+
+/**
+ * Gitignore section with patterns.
+ */
+interface GitignoreSection {
+  header: string;
+  patterns: string[];
+}
+
+/**
+ * Creates the auth states section.
+ */
+function createAuthStatesSection(): GitignoreSection {
+  return {
+    header: 'Auth Storage States (sensitive)',
+    patterns: [
+      '.auth-states/',
+      '*.storageState.json',
+      // But keep the directory structure
+      '!.auth-states/.gitkeep',
+    ],
+  };
+}
+
+/**
+ * Creates the test artifacts section.
+ */
+function createTestArtifactsSection(): GitignoreSection {
+  return {
+    header: 'Test Artifacts',
+    patterns: [
+      'test-results/',
+      'playwright-report/',
+      'blob-report/',
+      '.playwright/',
+      '*.trace.zip',
+      'screenshots/',
+      'videos/',
+    ],
+  };
+}
+
+/**
+ * Creates the coverage section.
+ */
+function createCoverageSection(): GitignoreSection {
+  return {
+    header: 'Coverage',
+    patterns: ['coverage/', '.nyc_output/', '*.lcov'],
+  };
+}
+
+/**
+ * Creates the IDE files section.
+ */
+function createIdeFilesSection(): GitignoreSection {
+  return {
+    header: 'IDE and Editor',
+    patterns: [
+      '.idea/',
+      '.vscode/',
+      '*.swp',
+      '*.swo',
+      '*~',
+      '.project',
+      '.classpath',
+      '.settings/',
+    ],
+  };
+}
+
+/**
+ * Creates the OS files section.
+ */
+function createOsFilesSection(): GitignoreSection {
+  return {
+    header: 'OS Files',
+    patterns: [
+      '.DS_Store',
+      'Thumbs.db',
+      'Desktop.ini',
+      '*.lnk',
+    ],
+  };
+}
+
+/**
+ * Creates the dependencies section.
+ */
+function createDependenciesSection(): GitignoreSection {
+  return {
+    header: 'Dependencies',
+    patterns: [
+      'node_modules/',
+      // Keep vendored @artk/core
+      '!vendor/',
+      '!vendor/**',
+    ],
+  };
+}
+
+/**
+ * Creates the build/dist section.
+ */
+function createBuildSection(): GitignoreSection {
+  return {
+    header: 'Build Output',
+    patterns: ['dist/', 'build/', '*.tsbuildinfo'],
+  };
+}
+
+/**
+ * Creates the environment section.
+ */
+function createEnvironmentSection(): GitignoreSection {
+  return {
+    header: 'Environment',
+    patterns: [
+      '.env',
+      '.env.local',
+      '.env.*.local',
+      // But keep example env files
+      '!.env.example',
+      '!.env.template',
+    ],
+  };
+}
+
+/**
+ * Creates the logs section.
+ */
+function createLogsSection(): GitignoreSection {
+  return {
+    header: 'Logs',
+    patterns: ['*.log', 'npm-debug.log*', 'yarn-debug.log*', 'yarn-error.log*'],
+  };
+}
+
+/**
+ * Formats a gitignore section into string lines.
+ */
+function formatSection(section: GitignoreSection): string {
+  const lines: string[] = [];
+  lines.push(`# ${section.header}`);
+  lines.push(...section.patterns);
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Generates a .gitignore string for ARTK E2E installation.
+ *
+ * @param options - Generation options
+ * @returns Formatted .gitignore content
+ */
+export function generateGitignore(options?: GitignoreOptions): string {
+  const opts: Required<GitignoreOptions> = {
+    ...DEFAULT_OPTIONS,
+    ...options,
+  };
+
+  const sections: GitignoreSection[] = [];
+
+  // Header
+  const header = `# ARTK E2E .gitignore
+# Generated by ARTK install
+# ${new Date().toISOString().split('T')[0]}
+
+`;
+
+  // Always include dependencies and build
+  sections.push(createDependenciesSection());
+  sections.push(createBuildSection());
+  sections.push(createEnvironmentSection());
+  sections.push(createLogsSection());
+
+  // Conditional sections
+  if (opts.includeAuthStates) {
+    sections.push(createAuthStatesSection());
+  }
+
+  if (opts.includeTestArtifacts) {
+    sections.push(createTestArtifactsSection());
+  }
+
+  if (opts.includeCoverage) {
+    sections.push(createCoverageSection());
+  }
+
+  if (opts.includeIdeFiles) {
+    sections.push(createIdeFilesSection());
+  }
+
+  if (opts.includeOsFiles) {
+    sections.push(createOsFilesSection());
+  }
+
+  // Additional patterns
+  if (opts.additionalPatterns.length > 0) {
+    sections.push({
+      header: 'Additional Patterns',
+      patterns: opts.additionalPatterns,
+    });
+  }
+
+  // Build content
+  let content = header;
+  for (const section of sections) {
+    content += formatSection(section);
+  }
+
+  // Add exceptions at the end
+  if (opts.exceptions.length > 0) {
+    content += '# Exceptions (never ignore)\n';
+    for (const exception of opts.exceptions) {
+      content += `!${exception}\n`;
+    }
+    content += '\n';
+  }
+
+  return content;
+}
+
+/**
+ * Common .gitignore patterns for E2E testing.
+ */
+export const GITIGNORE_PATTERNS = {
+  authStates: ['.auth-states/', '*.storageState.json'],
+  testArtifacts: ['test-results/', 'playwright-report/', '*.trace.zip'],
+  coverage: ['coverage/', '.nyc_output/'],
+  dependencies: ['node_modules/'],
+  environment: ['.env', '.env.local'],
+} as const;
+
+/**
+ * Creates a minimal .gitignore for quick setup.
+ */
+export function generateMinimalGitignore(): string {
+  return `# ARTK E2E Minimal .gitignore
+node_modules/
+.auth-states/
+test-results/
+playwright-report/
+.env
+*.log
+`;
+}
+
+/**
+ * Merges existing .gitignore content with ARTK patterns.
+ *
+ * @param existingContent - Existing .gitignore content
+ * @param options - Generation options
+ * @returns Merged .gitignore content
+ */
+export function mergeGitignore(
+  existingContent: string,
+  options?: GitignoreOptions
+): string {
+  const artkPatterns = generateGitignore(options);
+
+  // Parse existing patterns
+  const existingPatterns = new Set(
+    existingContent
+      .split('\n')
+      .filter((line) => line.trim() && !line.startsWith('#'))
+  );
+
+  // Parse ARTK patterns (skip header comments)
+  const artkLines = artkPatterns.split('\n');
+  const newPatterns: string[] = [];
+
+  for (const line of artkLines) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#') && !existingPatterns.has(trimmed)) {
+      newPatterns.push(line);
+    }
+  }
+
+  if (newPatterns.length === 0) {
+    return existingContent;
+  }
+
+  // Append new patterns
+  const separator = existingContent.endsWith('\n') ? '' : '\n';
+  return (
+    existingContent +
+    separator +
+    '\n# ARTK E2E Additions\n' +
+    newPatterns.join('\n') +
+    '\n'
+  );
+}

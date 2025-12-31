@@ -246,7 +246,7 @@ function cleanupTempEnvironment(): void {
   }
 }
 
-const defaultStorageOptions: StorageStateOptions = {
+let defaultStorageOptions: StorageStateOptions = {
   directory: '.auth-states',
   maxAgeMinutes: 60,
   filePattern: '{role}.json',
@@ -261,7 +261,7 @@ describe('Auth Flow Integration (T109)', () => {
   beforeEach(() => {
     createTempEnvironment();
     clearConfigCache();
-    defaultStorageOptions.projectRoot = tempDir;
+    defaultStorageOptions = { ...defaultStorageOptions, projectRoot: tempDir };
 
     // Mock environment variables
     vi.stubEnv('ADMIN_USER', 'admin@example.com');
@@ -765,6 +765,7 @@ describe('Auth with Config Integration', () => {
 
     for (const roleName of roles) {
       const roleConfig = config.auth.roles[roleName];
+      if (!roleConfig) continue;
       const credentials = getCredentialsFromRoleConfig(roleName, roleConfig);
 
       expect(credentials.username).toBeTruthy();

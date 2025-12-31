@@ -9,16 +9,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Locator } from '@playwright/test';
 import {
   getAccessibleName,
-  getAriaDescription,
   getAriaLabel,
-  getAriaLive,
   getAriaRole,
   isAriaChecked,
   isAriaDisabled,
   isAriaExpanded,
-  isAriaHidden,
-  isAriaInvalid,
-  isAriaRequired,
   isValidAriaRole,
 } from '../aria.js';
 

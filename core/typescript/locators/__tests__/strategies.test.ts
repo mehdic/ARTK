@@ -21,9 +21,9 @@ import {
 // =============================================================================
 
 function createMockPage(): Page {
-  const mockLocator: Partial<Locator> = {
+  const mockLocator = {
     _selector: '.mock-selector',
-  };
+  } as unknown as Locator;
 
   return {
     getByRole: vi.fn().mockReturnValue(mockLocator),
