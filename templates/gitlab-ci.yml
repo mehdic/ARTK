@@ -1,0 +1,156 @@
+# ARTK E2E Tests - GitLab CI Configuration
+# Copy this file to your project's .gitlab-ci.yml or include it
+
+image: node:18-slim
+
+variables:
+  # Base URL for the application under test
+  ARTK_BASE_URL: ${ARTK_BASE_URL}
+  # Keycloak/OIDC configuration (if using auth)
+  KEYCLOAK_URL: ${KEYCLOAK_URL}
+  KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+  KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+  # Test user credentials (store in CI/CD Variables)
+  ARTK_ADMIN_USERNAME: ${ARTK_ADMIN_USERNAME}
+  ARTK_ADMIN_PASSWORD: ${ARTK_ADMIN_PASSWORD}
+
+stages:
+  - install
+  - smoke
+  - release
+  - regression
+
+# Cache node_modules between jobs
+.cache_template: &cache_template
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - artk-e2e/node_modules/
+    policy: pull
+
+# Install dependencies job
+install:
+  stage: install
+  script:
+    - cd artk-e2e
+    - npm ci
+    - npx playwright install chromium --with-deps
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - artk-e2e/node_modules/
+    policy: push
+  artifacts:
+    paths:
+      - artk-e2e/node_modules/
+    expire_in: 1 hour
+
+# Smoke tests - run on every MR
+smoke-tests:
+  stage: smoke
+  <<: *cache_template
+  script:
+    - cd artk-e2e
+    - npx playwright install chromium --with-deps
+    - npx playwright test --grep "@smoke"
+  artifacts:
+    when: always
+    paths:
+      - artk-e2e/playwright-report/
+      - artk-e2e/test-results/
+    reports:
+      junit: artk-e2e/test-results/junit.xml
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Release tests - run on merge to main
+release-tests:
+  stage: release
+  <<: *cache_template
+  script:
+    - cd artk-e2e
+    - npx playwright install chromium --with-deps
+    - npx playwright test --grep "@release"
+  artifacts:
+    when: always
+    paths:
+      - artk-e2e/playwright-report/
+      - artk-e2e/test-results/
+    reports:
+      junit: artk-e2e/test-results/junit.xml
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - smoke-tests
+
+# Full regression - manual trigger or scheduled
+regression-chromium:
+  stage: regression
+  <<: *cache_template
+  script:
+    - cd artk-e2e
+    - npx playwright install chromium --with-deps
+    - npx playwright test --project=chromium
+  artifacts:
+    when: always
+    paths:
+      - artk-e2e/playwright-report/
+      - artk-e2e/test-results/
+    expire_in: 14 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+
+regression-firefox:
+  stage: regression
+  <<: *cache_template
+  script:
+    - cd artk-e2e
+    - npx playwright install firefox --with-deps
+    - npx playwright test --project=firefox
+  artifacts:
+    when: always
+    paths:
+      - artk-e2e/playwright-report/
+      - artk-e2e/test-results/
+    expire_in: 14 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+
+regression-webkit:
+  stage: regression
+  <<: *cache_template
+  script:
+    - cd artk-e2e
+    - npx playwright install webkit --with-deps
+    - npx playwright test --project=webkit
+  artifacts:
+    when: always
+    paths:
+      - artk-e2e/playwright-report/
+      - artk-e2e/test-results/
+    expire_in: 14 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+
+# Pages for publishing test reports (optional)
+pages:
+  stage: .post
+  script:
+    - mkdir -p public
+    - cp -r artk-e2e/playwright-report/* public/ || true
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - release-tests

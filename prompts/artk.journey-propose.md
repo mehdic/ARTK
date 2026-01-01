@@ -164,17 +164,35 @@ At the end print:
 
 # Procedure / Algorithm
 
-## Step 0 — Preconditions
+## Step 0 — Preconditions and Context Loading
+
 1) Locate `ARTK_ROOT`:
    - `artkRoot=` argument
    - nearest `artk.config.yml` up the tree
-2) Confirm Journey system exists:
+
+2) **Load context from `.artk/context.json`:**
+
+   Read `<ARTK_ROOT>/.artk/context.json` to get:
+   - `targets[]` - detected frontend targets from /init
+   - `detectedTargets[]` - targets with detection confidence
+   - `discovery` - if present, cached discovery results (routes, components)
+   - `journeys` - existing journey statistics
+
+   Use context to:
+   - Pre-populate app scope based on detected targets
+   - Access previously discovered routes without re-scanning
+   - Check journey counts to avoid over-proposing
+
+   If context file is missing, continue with file-based detection (legacy mode).
+
+3) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/`
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
 If missing: instruct user to run `/journey-system` first.
 
-3) Confirm discovery exists:
+4) Confirm discovery exists:
    - prefer `docs/discovery/*.json`, else `docs/DISCOVERY.md` + `docs/TESTABILITY.md`
+   - alternatively, use `discovery` from context.json if present
 If missing: instruct user to run `/discover` first.
 
 ## Step 1 — Load Journey config + existing index

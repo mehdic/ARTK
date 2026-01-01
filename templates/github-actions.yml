@@ -1,0 +1,156 @@
+# ARTK E2E Tests - GitHub Actions Workflow
+# Copy this file to your project's .github/workflows/artk-e2e.yml
+
+name: ARTK E2E Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'artk-e2e/**'
+      - 'src/**'
+      - '.github/workflows/artk-e2e.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # Base URL for the application under test
+  ARTK_BASE_URL: ${{ secrets.ARTK_BASE_URL }}
+  # Keycloak/OIDC configuration (if using auth)
+  KEYCLOAK_URL: ${{ secrets.KEYCLOAK_URL }}
+  KEYCLOAK_REALM: ${{ secrets.KEYCLOAK_REALM }}
+  KEYCLOAK_CLIENT_ID: ${{ secrets.KEYCLOAK_CLIENT_ID }}
+  # Test user credentials
+  ARTK_ADMIN_USERNAME: ${{ secrets.ARTK_ADMIN_USERNAME }}
+  ARTK_ADMIN_PASSWORD: ${{ secrets.ARTK_ADMIN_PASSWORD }}
+
+jobs:
+  # Smoke tests run on every PR
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: artk-e2e/package-lock.json
+
+      - name: Install dependencies
+        working-directory: artk-e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: artk-e2e
+        run: npx playwright install chromium --with-deps
+
+      - name: Run smoke tests
+        working-directory: artk-e2e
+        run: npx playwright test --grep "@smoke"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: |
+            artk-e2e/playwright-report/
+            artk-e2e/test-results/
+          retention-days: 7
+
+  # Release tests run on merge to main
+  release-tests:
+    name: Release Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: smoke-tests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: artk-e2e/package-lock.json
+
+      - name: Install dependencies
+        working-directory: artk-e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: artk-e2e
+        run: npx playwright install chromium --with-deps
+
+      - name: Run release tests
+        working-directory: artk-e2e
+        run: npx playwright test --grep "@release"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-test-results
+          path: |
+            artk-e2e/playwright-report/
+            artk-e2e/test-results/
+          retention-days: 30
+
+  # Full regression suite (scheduled or manual trigger)
+  regression-tests:
+    name: Full Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: artk-e2e/package-lock.json
+
+      - name: Install dependencies
+        working-directory: artk-e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: artk-e2e
+        run: npx playwright install ${{ matrix.browser }} --with-deps
+
+      - name: Run regression tests
+        working-directory: artk-e2e
+        run: npx playwright test --project=${{ matrix.browser }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-${{ matrix.browser }}-results
+          path: |
+            artk-e2e/playwright-report/
+            artk-e2e/test-results/
+          retention-days: 14
+
+# Optional: Add scheduled runs for nightly regression
+# schedule:
+#   - cron: '0 2 * * *'  # Run at 2 AM UTC daily

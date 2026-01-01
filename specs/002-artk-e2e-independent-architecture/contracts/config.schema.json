@@ -1,0 +1,235 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://artk.dev/schemas/config.schema.json",
+  "title": "ARTK Config",
+  "description": "Main configuration file for ARTK E2E suite (artk.config.yml)",
+  "type": "object",
+  "required": ["schemaVersion", "project", "targets", "defaults"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "2.0",
+      "description": "Schema version for backward compatibility"
+    },
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Project name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional project description"
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "description": "Frontend targets with environment URLs (1-5 max)",
+      "items": {
+        "$ref": "#/definitions/ArtkConfigTarget"
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "required": ["target", "environment"],
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Default target name (must match a targets[].name)"
+        },
+        "environment": {
+          "type": "string",
+          "description": "Default environment (e.g., 'local', 'staging')"
+        }
+      }
+    },
+    "auth": {
+      "$ref": "#/definitions/ArtkAuthConfig"
+    },
+    "browsers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["chromium", "firefox", "webkit"]
+          },
+          "uniqueItems": true,
+          "default": ["chromium"]
+        },
+        "headless": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "timeouts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 30000,
+          "description": "Default timeout in milliseconds"
+        },
+        "navigation": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 60000,
+          "description": "Navigation timeout in milliseconds"
+        },
+        "auth": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 120000,
+          "description": "Authentication timeout in milliseconds"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ArtkConfigTarget": {
+      "type": "object",
+      "required": ["name", "path", "type", "environments"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Unique identifier"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\./)",
+          "description": "Relative path to frontend directory"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["react-spa", "vue-spa", "angular", "next", "nuxt", "other"],
+          "description": "Application type"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description"
+        },
+        "environments": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["baseUrl"],
+            "additionalProperties": false,
+            "properties": {
+              "baseUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Base URL for the environment"
+              },
+              "apiUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Optional API URL"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ArtkAuthConfig": {
+      "type": "object",
+      "required": ["provider", "storageStateDir"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["oidc", "saml", "basic", "custom"],
+          "description": "Auth provider type"
+        },
+        "idpType": {
+          "type": "string",
+          "enum": ["keycloak", "auth0", "okta", "azure-ad", "other"],
+          "description": "Identity provider type (for OIDC)"
+        },
+        "storageStateDir": {
+          "type": "string",
+          "default": ".auth-states",
+          "description": "Directory for storage states (relative to artk-e2e/)"
+        },
+        "environments": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["loginUrl"],
+            "additionalProperties": false,
+            "properties": {
+              "loginUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Login URL"
+              },
+              "logoutUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Logout URL"
+              }
+            }
+          }
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ArtkRole"
+          }
+        }
+      }
+    },
+    "ArtkRole": {
+      "type": "object",
+      "required": ["credentialsEnv"],
+      "additionalProperties": false,
+      "properties": {
+        "credentialsEnv": {
+          "type": "object",
+          "required": ["username", "password"],
+          "additionalProperties": false,
+          "properties": {
+            "username": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "description": "Environment variable name for username"
+            },
+            "password": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "description": "Environment variable name for password"
+            }
+          }
+        },
+        "totpSecretEnv": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "Environment variable name for TOTP secret"
+        },
+        "storageState": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Per-target storage state file paths"
+        }
+      }
+    }
+  }
+}
