@@ -2,7 +2,8 @@
 
 **Feature Branch**: `003-artk-pilot-launch`
 **Created**: 2026-01-01
-**Status**: Draft
+**Status**: Clarified
+**Clarified**: 2026-01-01
 **Input**: User description: "Complete E2E architecture (002 spec), validate ARTK on ITSS pilot project, implement MVP journeys, and validate maintenance workflow"
 
 ## Overview
@@ -96,10 +97,11 @@ As a developer running /init, I want ARTK to automatically detect and scaffold t
 
 **Acceptance Scenarios**:
 
-1. **Given** a project with frontend(s), **When** I run /init, **Then** frontend detector identifies them correctly
-2. **Given** detected frontends, **When** /init completes, **Then** `artk-e2e/` directory exists with valid structure
-3. **Given** /init runs, **When** it completes, **Then** `.artk/context.json` is created for inter-prompt communication
-4. **Given** /init runs, **When** it completes, **Then** `playwright.config.ts` uses @artk/core harness
+1. **Given** a project with frontend(s), **When** I run /init, **Then** frontend detector identifies them with confidence scores (CLR-003)
+2. **Given** detection confidence < 70%, **When** /init runs, **Then** user is prompted to confirm or correct results (CLR-003)
+3. **Given** detected frontends, **When** /init completes, **Then** `artk-e2e/` directory exists with valid structure
+4. **Given** /init runs, **When** it completes, **Then** `.artk/context.json` is created with detection results and any user corrections (CLR-003)
+5. **Given** /init runs, **When** it completes, **Then** `playwright.config.ts` uses @artk/core harness
 
 ---
 
@@ -148,6 +150,8 @@ As a developer, I want to configure ARTK auth for ITSS's OIDC flow so that tests
 1. **Given** artk.config.yml with auth section, **When** auth setup runs, **Then** storage state is created
 2. **Given** valid storage state, **When** a test runs with auth fixture, **Then** test accesses protected routes
 3. **Given** OIDC requires TOTP, **When** auth setup runs, **Then** TOTP is handled automatically
+4. **Given** auth fails on first attempt, **When** retry succeeds, **Then** test continues normally (CLR-001)
+5. **Given** auth fails on both attempts, **When** error is raised, **Then** message includes specific failure reason and resolution steps (CLR-001)
 
 ---
 
@@ -258,8 +262,9 @@ As a developer, I want to verify that MVP tests actually pass so that journeys c
 **Acceptance Scenarios**:
 
 1. **Given** validated journey, **When** I run /journey-verify, **Then** tests execute against ITSS
-2. **Given** tests pass, **When** verification completes, **Then** journey status is updated to implemented
-3. **Given** tests pass once, **When** stability check runs, **Then** repeat runs also pass
+2. **Given** tests pass 3 consecutive times, **When** verification completes, **Then** journey status is updated to implemented (CLR-002)
+3. **Given** tests pass 1-2 times out of 3, **When** verification completes, **Then** journey is flagged as flaky and remains in clarified status (CLR-002)
+4. **Given** verification runs, **When** any test fails, **Then** artifacts (traces, screenshots) are captured for debugging
 
 ---
 
@@ -297,10 +302,66 @@ As a developer, I want to document everything learned during the pilot so that f
 
 ### Edge Cases
 
-- What happens when ITSS frontend is not detected? (Manual override in /init)
-- How does system handle OIDC auth timeout? (Storage state refresh mechanism)
-- What happens when a journey test is flaky? (Quarantine workflow via /journey-maintain)
-- How does system handle missing test accounts? (Block with clear error message)
+- What happens when ITSS frontend is not detected? → Interactive prompt for manual specification (CLR-003)
+- How does system handle OIDC auth timeout? → Retry once, then fail with actionable message (CLR-001)
+- What happens when a journey test is flaky? → Quarantine workflow via /journey-maintain; 3-pass stability gate (CLR-002)
+- How does system handle missing test accounts? → Block with clear error message and resolution steps
+
+---
+
+## Clarifications *(from speckit.clarify)*
+
+### CLR-001: Authentication Failure Recovery
+
+**Question**: When ITSS OIDC authentication fails during test execution (e.g., expired token, Keycloak unavailable, invalid credentials), what should happen?
+
+**Decision**: **Retry auth once, then fail with actionable message**
+
+**Rationale**: This balances reliability with avoiding cascading failures. A single retry handles transient network issues without masking persistent problems.
+
+**Implementation Details**:
+- On first auth failure: Wait 2 seconds, then retry auth flow once
+- On second failure: Fail immediately with actionable error message including:
+  - Specific failure reason (expired token, connection refused, invalid credentials)
+  - Steps to resolve (refresh credentials, check Keycloak status, verify test account)
+  - Link to auth troubleshooting documentation
+- All subsequent tests in the suite should be skipped (not attempted) to avoid noise
+- Storage state should NOT be cached if auth fails (prevent stale state reuse)
+
+### CLR-002: Test Stability Threshold for Journey Verification
+
+**Question**: What defines a journey test as "stable enough" to mark as implemented?
+
+**Decision**: **3 consecutive passes required on same environment**
+
+**Rationale**: This provides confidence while keeping pilot velocity reasonable. 3 consecutive passes filters out most flaky tests without over-testing.
+
+**Implementation Details**:
+- /journey-verify MUST run the test 3 times consecutively
+- All 3 runs must pass on the same environment (same baseURL, same browser)
+- If any run fails, the journey remains in `clarified` status (not promoted to `implemented`)
+- Flaky tests (1-2 passes out of 3) should be flagged for investigation before re-verification
+- Test artifacts (traces, screenshots) should be captured for ALL runs, not just failures
+- Browser: Use Chromium for pilot stability checks (consistent baseline)
+
+### CLR-003: Frontend Detection Fallback Behavior
+
+**Question**: If automatic detection fails or produces low-confidence results for ITSS, what should /init do?
+
+**Decision**: **Prompt user to confirm/correct detected results interactively**
+
+**Rationale**: This provides the safety net of automation while allowing human override. ITSS is a known project, so manual specification is acceptable if detection struggles.
+
+**Implementation Details**:
+- /init MUST display detected frontends with confidence scores before proceeding
+- If confidence < 70%: Show warning and prompt for confirmation
+- If no frontends detected: Prompt user to specify frontend path(s) manually
+- User can accept detection, modify paths, or specify entirely new targets
+- Interactive mode uses simple prompts (not complex wizard):
+  - "Detected: React SPA at ./frontend (confidence: 85%). Correct? [Y/n/edit]"
+  - If 'edit': "Enter frontend path: "
+- Non-interactive mode (CI): Use `--accept-detection` flag to skip prompts, or fail if confidence < threshold
+- Detection results and user corrections are logged to `.artk/context.json` for debugging
 
 ---
 
