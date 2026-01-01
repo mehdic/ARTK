@@ -66,16 +66,16 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation for User Story 1
 
-- [ ] T018 [P] [US1] Create TypeScript interfaces for all config sections in core/typescript/config/types.ts
-- [ ] T019 [P] [US1] Create default values for optional config fields in core/typescript/config/defaults.ts
-- [ ] T020 [US1] Create Zod validation schemas for config in core/typescript/config/schema.ts
-- [ ] T021 [US1] Implement environment variable resolver (${VAR:-default} syntax) in core/typescript/config/env.ts
-- [ ] T022 [US1] Implement YAML config loader with validation in core/typescript/config/loader.ts
-- [ ] T023 [US1] Create config accessor functions (getAuthConfig, getSelectorsConfig, etc.) in core/typescript/config/loader.ts
-- [ ] T024 [US1] Create config module barrel export in core/typescript/config/index.ts
-- [ ] T025 [US1] Write unit tests for env variable resolution in core/typescript/config/__tests__/env.test.ts
-- [ ] T026 [US1] Write unit tests for schema validation in core/typescript/config/__tests__/schema.test.ts
-- [ ] T027 [US1] Write unit tests for config loader in core/typescript/config/__tests__/loader.test.ts
+- [x] T018 [P] [US1] Create TypeScript interfaces for all config sections in core/typescript/config/types.ts
+- [x] T019 [P] [US1] Create default values for optional config fields in core/typescript/config/defaults.ts
+- [x] T020 [US1] Create Zod validation schemas for config in core/typescript/config/schema.ts
+- [x] T021 [US1] Implement environment variable resolver (${VAR:-default} syntax) in core/typescript/config/env.ts
+- [x] T022 [US1] Implement YAML config loader with validation in core/typescript/config/loader.ts
+- [x] T023 [US1] Create config accessor functions (getAuthConfig, getSelectorsConfig, etc.) in core/typescript/config/loader.ts
+- [x] T024 [US1] Create config module barrel export in core/typescript/config/index.ts
+- [x] T025 [US1] Write unit tests for env variable resolution in core/typescript/config/__tests__/env.test.ts
+- [x] T026 [US1] Write unit tests for schema validation in core/typescript/config/__tests__/schema.test.ts
+- [x] T027 [US1] Write unit tests for config loader in core/typescript/config/__tests__/loader.test.ts
 
 **Checkpoint**: Config system complete - can load artk.config.yml, validate, and provide typed access
 
@@ -91,26 +91,26 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation for User Story 2
 
-- [ ] T028 [P] [US2] Create auth types and interfaces in core/typescript/auth/types.ts
-- [ ] T029 [P] [US2] Create Credentials type and getCredentials function in core/typescript/auth/credentials.ts
-- [ ] T030 [P] [US2] Create base AuthProvider abstract class in core/typescript/auth/providers/base.ts
-- [ ] T031 [US2] Implement storage state save/load/validate functions in core/typescript/auth/storage-state.ts
-- [ ] T032 [US2] Implement expired storage state cleanup (24h) in core/typescript/auth/storage-state.ts
-- [ ] T033 [US2] Implement generic OIDC flow handler in core/typescript/auth/oidc/flow.ts
-- [ ] T034 [P] [US2] Implement Keycloak IdP handler in core/typescript/auth/oidc/providers/keycloak.ts
-- [ ] T035 [P] [US2] Implement Azure AD IdP handler in core/typescript/auth/oidc/providers/azure-ad.ts
-- [ ] T036 [P] [US2] Implement Okta IdP handler in core/typescript/auth/oidc/providers/okta.ts
-- [ ] T037 [P] [US2] Implement generic OIDC IdP handler in core/typescript/auth/oidc/providers/generic.ts
-- [ ] T038 [US2] Implement TOTP code generation for MFA in core/typescript/auth/oidc/flow.ts
-- [ ] T039 [US2] Implement OIDCAuthProvider class with retry logic in core/typescript/auth/providers/oidc.ts
-- [ ] T040 [P] [US2] Implement FormAuthProvider class in core/typescript/auth/providers/form.ts
-- [ ] T041 [P] [US2] Implement TokenAuthProvider class in core/typescript/auth/providers/token.ts
-- [ ] T042 [P] [US2] Create CustomAuthProvider abstract base in core/typescript/auth/providers/custom.ts
-- [ ] T043 [US2] Create auth setup project factory in core/typescript/auth/setup-factory.ts
-- [ ] T044 [US2] Create auth module barrel export in core/typescript/auth/index.ts
-- [ ] T045 [US2] Write unit tests for credentials loading in core/typescript/auth/__tests__/credentials.test.ts
-- [ ] T046 [US2] Write unit tests for storage state management in core/typescript/auth/__tests__/storage-state.test.ts
-- [ ] T047 [US2] Write unit tests for OIDC flow in core/typescript/auth/__tests__/oidc-flow.test.ts
+- [x] T028 [P] [US2] Create auth types and interfaces in core/typescript/auth/types.ts
+- [x] T029 [P] [US2] Create Credentials type and getCredentials function in core/typescript/auth/credentials.ts
+- [x] T030 [P] [US2] Create base AuthProvider abstract class in core/typescript/auth/providers/base.ts
+- [x] T031 [US2] Implement storage state save/load/validate functions in core/typescript/auth/storage-state.ts
+- [x] T032 [US2] Implement expired storage state cleanup (24h) in core/typescript/auth/storage-state.ts
+- [x] T033 [US2] Implement generic OIDC flow handler in core/typescript/auth/oidc/flow.ts
+- [x] T034 [P] [US2] Implement Keycloak IdP handler in core/typescript/auth/oidc/providers/keycloak.ts
+- [x] T035 [P] [US2] Implement Azure AD IdP handler in core/typescript/auth/oidc/providers/azure-ad.ts
+- [x] T036 [P] [US2] Implement Okta IdP handler in core/typescript/auth/oidc/providers/okta.ts
+- [x] T037 [P] [US2] Implement generic OIDC IdP handler in core/typescript/auth/oidc/providers/generic.ts
+- [x] T038 [US2] Implement TOTP code generation for MFA in core/typescript/auth/oidc/flow.ts
+- [x] T039 [US2] Implement OIDCAuthProvider class with retry logic in core/typescript/auth/providers/oidc.ts
+- [x] T040 [P] [US2] Implement FormAuthProvider class in core/typescript/auth/providers/form.ts
+- [x] T041 [P] [US2] Implement TokenAuthProvider class in core/typescript/auth/providers/token.ts
+- [x] T042 [P] [US2] Create CustomAuthProvider abstract base in core/typescript/auth/providers/custom.ts
+- [x] T043 [US2] Create auth setup project factory in core/typescript/auth/setup-factory.ts
+- [x] T044 [US2] Create auth module barrel export in core/typescript/auth/index.ts
+- [x] T045 [US2] Write unit tests for credentials loading in core/typescript/auth/__tests__/credentials.test.ts
+- [x] T046 [US2] Write unit tests for storage state management in core/typescript/auth/__tests__/storage-state.test.ts
+- [x] T047 [US2] Write unit tests for OIDC flow in core/typescript/auth/__tests__/oidc-flow.test.ts
 
 **Checkpoint**: Auth system complete - can authenticate via OIDC, save/reuse storage state, handle MFA
 
@@ -126,15 +126,15 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation for User Story 3
 
-- [ ] T048 [P] [US3] Create fixture type definitions in core/typescript/fixtures/types.ts
-- [ ] T049 [US3] Create base test fixture with config in core/typescript/fixtures/base.ts
-- [ ] T050 [US3] Implement authenticatedPage fixture in core/typescript/fixtures/auth.ts
-- [ ] T051 [US3] Implement dynamic role-specific page fixtures (adminPage, userPage) in core/typescript/fixtures/auth.ts
-- [ ] T052 [US3] Implement apiContext fixture with auth headers in core/typescript/fixtures/api.ts
-- [ ] T053 [US3] Implement runId fixture for test isolation in core/typescript/fixtures/data.ts
-- [ ] T054 [US3] Implement testData fixture with cleanup registration in core/typescript/fixtures/data.ts
-- [ ] T055 [US3] Create fixtures module barrel export (test, expect) in core/typescript/fixtures/index.ts
-- [ ] T056 [US3] Write unit tests for fixture composition in core/typescript/fixtures/__tests__/fixtures.test.ts
+- [x] T048 [P] [US3] Create fixture type definitions in core/typescript/fixtures/types.ts
+- [x] T049 [US3] Create base test fixture with config in core/typescript/fixtures/base.ts
+- [x] T050 [US3] Implement authenticatedPage fixture in core/typescript/fixtures/auth.ts
+- [x] T051 [US3] Implement dynamic role-specific page fixtures (adminPage, userPage) in core/typescript/fixtures/auth.ts
+- [x] T052 [US3] Implement apiContext fixture with auth headers in core/typescript/fixtures/api.ts
+- [x] T053 [US3] Implement runId fixture for test isolation in core/typescript/fixtures/data.ts
+- [x] T054 [US3] Implement testData fixture with cleanup registration in core/typescript/fixtures/data.ts
+- [x] T055 [US3] Create fixtures module barrel export (test, expect) in core/typescript/fixtures/index.ts
+- [x] T056 [US3] Write unit tests for fixture composition in core/typescript/fixtures/__tests__/fixtures.test.ts
 
 **Checkpoint**: Fixtures complete - tests can use authenticatedPage, apiContext, testData, runId
 
@@ -229,16 +229,16 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation for User Story 7
 
-- [ ] T091 [P] [US7] Create reporter types in core/typescript/reporters/types.ts
-- [ ] T092 [US7] Implement mapTestToJourney and groupTestsByJourney in core/typescript/reporters/journey-reporter.ts
-- [ ] T093 [US7] Implement calculateJourneyStatus in core/typescript/reporters/journey-reporter.ts
-- [ ] T094 [US7] Implement ARTKReporter class in core/typescript/reporters/artk-reporter.ts
-- [ ] T095 [US7] Implement saveScreenshot with PII masking option in core/typescript/reporters/artifacts.ts
-- [ ] T096 [US7] Implement maskPiiInScreenshot function in core/typescript/reporters/masking.ts
-- [ ] T097 [US7] Implement generateARTKReport and writeARTKReport in core/typescript/reporters/artk-reporter.ts
-- [ ] T098 [US7] Create reporters module barrel export in core/typescript/reporters/index.ts
-- [ ] T099 [US7] Write unit tests for journey mapping in core/typescript/reporters/__tests__/journey-reporter.test.ts
-- [ ] T100 [US7] Write unit tests for PII masking in core/typescript/reporters/__tests__/masking.test.ts
+- [x] T091 [P] [US7] Create reporter types in core/typescript/reporters/types.ts
+- [x] T092 [US7] Implement mapTestToJourney and groupTestsByJourney in core/typescript/reporters/journey-reporter.ts
+- [x] T093 [US7] Implement calculateJourneyStatus in core/typescript/reporters/journey-reporter.ts
+- [x] T094 [US7] Implement ARTKReporter class in core/typescript/reporters/artk-reporter.ts
+- [x] T095 [US7] Implement saveScreenshot with PII masking option in core/typescript/reporters/artifacts.ts
+- [x] T096 [US7] Implement maskPiiInScreenshot function in core/typescript/reporters/masking.ts
+- [x] T097 [US7] Implement generateARTKReport and writeARTKReport in core/typescript/reporters/artk-reporter.ts
+- [x] T098 [US7] Create reporters module barrel export in core/typescript/reporters/index.ts
+- [x] T099 [US7] Write unit tests for journey mapping in core/typescript/reporters/__tests__/journey-reporter.test.ts
+- [x] T100 [US7] Write unit tests for PII masking in core/typescript/reporters/__tests__/masking.test.ts
 
 **Checkpoint**: Reporters complete - can generate ARTK reports with journey mapping and PII masking
 
@@ -252,13 +252,13 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Implementation
 
-- [ ] T101 Create harness types in core/typescript/harness/types.ts
-- [ ] T102 Implement createPlaywrightConfig factory in core/typescript/harness/playwright.config.base.ts
-- [ ] T103 Implement createAuthSetupProject and createBrowserProjects in core/typescript/harness/projects.ts
-- [ ] T104 Implement getReporterConfig in core/typescript/harness/reporters.ts
-- [ ] T105 Implement getTierSettings and getUseOptions in core/typescript/harness/playwright.config.base.ts
-- [ ] T106 Create harness module barrel export in core/typescript/harness/index.ts
-- [ ] T107 Write unit tests for config factory in core/typescript/harness/__tests__/config.test.ts
+- [x] T101 Create harness types in core/typescript/harness/types.ts
+- [x] T102 Implement createPlaywrightConfig factory in core/typescript/harness/playwright.config.base.ts
+- [x] T103 Implement createAuthSetupProject and createBrowserProjects in core/typescript/harness/projects.ts
+- [x] T104 Implement getReporterConfig in core/typescript/harness/reporters.ts
+- [x] T105 Implement getTierSettings and getUseOptions in core/typescript/harness/playwright.config.base.ts
+- [x] T106 Create harness module barrel export in core/typescript/harness/index.ts
+- [x] T107 Write unit tests for config factory in core/typescript/harness/__tests__/config.test.ts
 
 **Checkpoint**: Harness complete - can generate complete Playwright config from artk.config.yml
 
@@ -270,9 +270,9 @@ All source code under `core/typescript/` as specified in plan.md:
 
 ### Integration Tests
 
-- [ ] T108 Write config-to-harness integration test in tests/integration/config-to-harness.test.ts
-- [ ] T109 Write auth flow integration test (mock IdP) in tests/integration/auth-flow.test.ts
-- [ ] T110 Write fixtures composition integration test in tests/integration/fixtures.test.ts
+- [x] T108 Write config-to-harness integration test in tests/integration/config-to-harness.test.ts
+- [x] T109 Write auth flow integration test (mock IdP) in tests/integration/auth-flow.test.ts
+- [x] T110 Write fixtures composition integration test in tests/integration/fixtures.test.ts
 
 ---
 
@@ -306,13 +306,13 @@ All source code under `core/typescript/` as specified in plan.md:
 
 **Purpose**: Final polish, documentation, and validation
 
-- [ ] T122 Update main barrel export to include all modules in core/typescript/index.ts
-- [ ] T123 [P] Create sample artk.config.yml for testing in core/typescript/__fixtures__/artk.config.yml
-- [ ] T124 [P] Create ITSS-specific sample config in core/typescript/__fixtures__/itss.config.yml
-- [ ] T125 Run all unit tests and fix any failures
-- [ ] T126 Run ESLint and fix any issues
+- [x] T122 Update main barrel export to include all modules in core/typescript/index.ts
+- [x] T123 [P] Create sample artk.config.yml for testing in core/typescript/__fixtures__/artk.config.yml
+- [x] T124 [P] Create ITSS-specific sample config in core/typescript/__fixtures__/itss.config.yml
+- [x] T125 Run all unit tests and fix any failures
+- [x] T126 Run ESLint and fix any issues
 - [ ] T127 Validate against quickstart.md usage examples
-- [ ] T128 [P] Build library with tsup for distribution
+- [x] T128 [P] Build library with tsup for distribution
 
 ---
 

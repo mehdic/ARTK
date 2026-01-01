@@ -291,33 +291,33 @@ test.describe('JRN-0001: User can view dashboard @JRN-0001 @smoke @scope-dashboa
 
 **Use Core Locator Utilities:**
 ```typescript
-import { getByTestId, waitForElement } from '@artk/core/locators';
+import { byTestId } from '@artk/core/locators';
 
 // Prefer role/label locators from Playwright
 const button = page.getByRole('button', { name: 'Submit' });
 
 // Use core helpers when needed
-const customElement = getByTestId(page, 'custom-widget');
-await waitForElement(customElement, { state: 'visible', timeout: 5000 });
+const customElement = byTestId(page, 'custom-widget');
+await expect(customElement).toBeVisible({ timeout: 5000 });
 ```
 
 **Use Core Assertions:**
 ```typescript
 import {
-  assertToastMessage,
-  assertLoadingComplete,
-  assertFormValid,
+  expectToast,
+  waitForLoadingComplete,
+  expectFormValid,
 } from '@artk/core/assertions';
 
 await test.step('AC-3: Success toast appears', async () => {
-  await assertToastMessage(authenticatedPage, {
+  await expectToast(authenticatedPage, {
     message: 'Saved successfully',
     type: 'success',
   });
 });
 
 await test.step('Wait for data to load', async () => {
-  await assertLoadingComplete(authenticatedPage, {
+  await waitForLoadingComplete(authenticatedPage, {
     indicator: '[data-loading]',
     timeout: 10000,
   });
