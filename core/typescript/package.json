@@ -49,6 +49,22 @@
     "./utils": {
       "import": "./dist/utils/index.js",
       "types": "./dist/utils/index.d.ts"
+    },
+    "./detection": {
+      "import": "./dist/detection/index.js",
+      "types": "./dist/detection/index.d.ts"
+    },
+    "./targets": {
+      "import": "./dist/targets/index.js",
+      "types": "./dist/targets/index.d.ts"
+    },
+    "./install": {
+      "import": "./dist/install/index.js",
+      "types": "./dist/install/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
     }
   },
   "files": [

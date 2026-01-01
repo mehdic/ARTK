@@ -568,6 +568,9 @@ export const ARTKConfigSchema = z
       data.activeEnvironment.includes('}');
     const envKeys = Object.keys(data.environments);
 
+    // Validate activeEnvironment matches defined environments (only when environments is non-empty)
+    // Note: Empty environments with custom activeEnvironment is allowed for backward compatibility
+    // but may indicate misconfiguration - consider logging a warning at runtime
     if (
       !isEnvVarTemplate &&
       envKeys.length > 0 &&

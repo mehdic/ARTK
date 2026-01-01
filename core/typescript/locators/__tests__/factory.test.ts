@@ -22,9 +22,9 @@ import type { LocatorFactoryConfig } from '../types.js';
 // =============================================================================
 
 function createMockPage(): Page {
-  const mockLocator: Partial<Locator> = {
+  const mockLocator = {
     _selector: '.mock-selector',
-  };
+  } as unknown as Locator;
 
   return {
     getByRole: vi.fn().mockReturnValue(mockLocator),
@@ -124,7 +124,7 @@ describe('locate', () => {
         callOrder.push('label');
         throw new Error('Not found');
       }),
-      locator: vi.fn().mockImplementation((sel) => {
+      locator: vi.fn().mockImplementation((_sel) => {
         callOrder.push('css');
         return {};
       }),

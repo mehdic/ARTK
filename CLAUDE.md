@@ -150,6 +150,8 @@ artk-install .
 ## Active Technologies
 - TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation) (001-artk-core-v1)
 - File system (storage states in `.auth-states/`, config in `artk.config.yml`) (001-artk-core-v1)
+- TypeScript 5.x (Node.js 18.0.0+) for scripts; Bash for install scripts (with PowerShell parity for Windows) + @artk/core 1.0.0+, @playwright/test 1.40.0+, yaml (config parsing), zod (schema validation) (002-artk-e2e-independent-architecture)
+- File-based (YAML config, JSON context, Markdown journeys) (002-artk-e2e-independent-architecture)
 
 ## Recent Changes
 - 001-artk-core-v1: Added TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)

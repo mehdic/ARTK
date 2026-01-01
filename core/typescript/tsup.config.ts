@@ -13,7 +13,10 @@ export default defineConfig({
     'harness/index.ts',
     'errors/index.ts',
     'utils/index.ts',
-    'types/index.ts'
+    'types/index.ts',
+    'detection/index.ts',
+    'targets/index.ts',
+    'install/index.ts'
   ],
   format: ['esm'],
   dts: true,

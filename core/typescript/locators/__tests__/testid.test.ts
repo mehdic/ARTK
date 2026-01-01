@@ -21,10 +21,10 @@ import type { LocatorFactoryConfig } from '../types.js';
 // =============================================================================
 
 function createMockPage(): Page {
-  const mockLocator: Partial<Locator> = {
+  const mockLocator = {
     _selector: '.mock-selector',
     first: vi.fn().mockReturnThis(),
-  };
+  } as unknown as Locator;
 
   return {
     locator: vi.fn().mockReturnValue(mockLocator),

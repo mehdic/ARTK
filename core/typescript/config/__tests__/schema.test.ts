@@ -628,6 +628,32 @@ describe('ARTKConfigSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts non-default activeEnvironment with empty environments for backward compatibility', () => {
+    // This is allowed for backward compatibility even though it may indicate misconfiguration
+    const config = createMinimalConfig({
+      environments: {},
+      activeEnvironment: 'production',
+    });
+
+    const result = ARTKConfigSchema.safeParse(config);
+
+    // Should pass for backward compatibility (empty environments = use app.baseUrl)
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts default activeEnvironment with empty environments', () => {
+    // Using 'default' as activeEnvironment with empty environments is OK
+    const config = createMinimalConfig({
+      environments: {},
+      activeEnvironment: 'default',
+    });
+
+    const result = ARTKConfigSchema.safeParse(config);
+
+    // Should pass because 'default' is the default value
+    expect(result.success).toBe(true);
+  });
+
   it('validates fixtures.defaultRole exists in auth.roles', () => {
     const config = createMinimalConfig();
     // Change defaultRole to non-existent role
