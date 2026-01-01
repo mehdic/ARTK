@@ -1,0 +1,391 @@
+# ARTK E2E Architecture Deep Dive: Monorepo Integration
+
+**Date:** 2025-12-30
+**Topic:** How should ARTK integrate with monorepo structures where frontends are submodules?
+
+---
+
+## The Actual Structure We're Dealing With
+
+```
+req-apps-it-service-shop/              # Root project (git repo)
+├── iss-frontend/                       # Frontend submodule (React app)
+│   ├── package.json                    # React, Font Awesome, etc.
+│   ├── src/
+│   └── ...
+├── iss-backend/                        # Backend submodule (maybe)
+├── docker-compose.yml                  # Infrastructure
+├── README.md
+└── [proposed] artk-e2e/               # Independent E2E test suite
+```
+
+**Key insight:** `iss-frontend` is NOT the root project. It's a component of a larger system.
+
+---
+
+## Critical Questions (Pessimistic Analysis)
+
+### 1. How Do We Reliably Find "The Frontend"?
+
+**Naive approach:** Look for `package.json` with `react` dependency.
+
+**Problems:**
+- What if there are multiple frontends? (admin portal, user portal)
+- What if it's Vue, Angular, Svelte?
+- What if frontend is at root level?
+- What if there's no frontend (API-only project)?
+- What about micro-frontends?
+
+**Heuristics to try (in order):**
+
+| Signal | Confidence | False Positive Risk |
+|--------|------------|---------------------|
+| Directory named `frontend`, `web`, `app`, `client` | Medium | Low |
+| `package.json` with `react`/`vue`/`angular` | High | Medium (could be component lib) |
+| `package.json` with `vite`/`webpack`/`next`/`nuxt` | High | Low |
+| `index.html` in root or `public/` | Medium | Medium |
+| `src/App.tsx` or `src/main.ts` | High | Low |
+| Presence of `playwright.config.ts` already | Very High | Low (they want E2E) |
+
+**Edge cases:**
+- Monorepo with `packages/web`, `packages/admin`, `packages/mobile-web`
+- Nx/Turborepo with `apps/frontend`
+- No clear frontend (headless CMS, API project)
+
+**Recommendation:**
+- Auto-detect with heuristics
+- **Always confirm with user** before proceeding
+- Allow manual override via config
+
+### 2. What If The Project Doesn't Fit Expected Structure?
+
+**Scenarios to handle:**
+
+| Structure | How to handle |
+|-----------|---------------|
+| Monorepo with submodules | Create `artk-e2e/` at root |
+| Single app at root | Create `artk-e2e/` alongside (or `e2e/` inside) |
+| Nx/Turborepo workspace | Create `apps/artk-e2e/` or `packages/e2e/` |
+| Already has `e2e/` folder | Warn, ask to merge or rename |
+| Already has Playwright setup | Offer to migrate or coexist |
+
+**Failure modes:**
+- Can't determine root (nested git repos)
+- Read-only filesystem
+- No write permission to root
+- Workspace constraints (npm/yarn/pnpm workspaces)
+
+### 3. Path Management: Relative vs Absolute
+
+**Problem:** Paths break when project is moved or shared.
+
+**Wrong approach:**
+```yaml
+frontend:
+  path: /Users/mehdi/projects/iss-frontend  # Breaks for other devs
+```
+
+**Correct approach:**
+```yaml
+# All paths relative to config file location
+project:
+  root: ..                    # Relative to artk-e2e/
+
+targets:
+  frontend:
+    path: ../iss-frontend     # Relative to artk-e2e/
+```
+
+**Edge case:** What if frontend is in a different repo entirely?
+- Git submodule: path works but may not exist until `git submodule update`
+- Separate repo: Must use URL-based testing only (no local path)
+
+### 4. Where Should Configuration Live?
+
+**Option A: In artk-e2e/**
+```
+artk-e2e/
+├── artk.config.yml          # All config here
+├── package.json
+└── tests/
+```
+- ✅ Self-contained
+- ✅ Easy to reason about
+- ❌ Separated from app it tests
+
+**Option B: At project root**
+```
+project-root/
+├── artk.config.yml          # Config at root
+├── iss-frontend/
+└── artk-e2e/                # Tests only
+```
+- ✅ Config visible at top level
+- ❌ Split between two places
+- ❌ Confusing ownership
+
+**Option C: In artk-e2e/ with root symlink**
+```
+project-root/
+├── artk.config.yml -> artk-e2e/artk.config.yml
+├── iss-frontend/
+└── artk-e2e/
+    └── artk.config.yml      # Actual file
+```
+- ✅ Accessible from both places
+- ❌ Symlinks are fragile (Windows issues)
+
+**Recommendation:** Option A (all in artk-e2e/). It's the test suite's config.
+
+### 5. Git Considerations
+
+**Should artk-e2e/ be committed?**
+
+| Content | Commit? | Reason |
+|---------|---------|--------|
+| `package.json` | ✅ Yes | Reproducible deps |
+| `artk.config.yml` | ✅ Yes | Test configuration |
+| `journeys/*.md` | ✅ Yes | Test specifications |
+| `tests/*.spec.ts` | ⚠️ Depends | Generated but may have manual edits |
+| `node_modules/` | ❌ No | Standard gitignore |
+| `.auth-states/` | ❌ No | Contains credentials |
+| `test-results/` | ❌ No | CI artifacts |
+| `playwright-report/` | ❌ No | CI artifacts |
+
+**Recommendation:** Commit everything except credentials and artifacts.
+
+### 6. Documentation Migration
+
+**Current state:**
+- Prompts in `ARTK/prompts/`
+- Docs in `ARTK/docs/`
+- Generated docs... where?
+
+**Proposed state:**
+```
+artk-e2e/
+├── docs/
+│   ├── discovery.md         # Generated by /discover
+│   ├── playbook.md          # Generated by /playbook
+│   └── journeys/
+│       ├── JRN-0001.md      # Journey definitions
+│       └── JRN-0002.md
+├── tests/                    # Generated tests
+│   ├── jrn-0001.spec.ts
+│   └── jrn-0002.spec.ts
+└── reports/                  # Generated reports (gitignored)
+```
+
+**Migration complexity:**
+- Prompts stay in ARTK repo (they're templates)
+- Generated docs go to target project's artk-e2e/
+- Need clear separation: template vs instance
+
+### 7. Multi-Environment Support
+
+**Problem:** Same tests, different URLs.
+
+```yaml
+# artk.config.yml
+environments:
+  local:
+    baseUrl: http://localhost:3000
+    apiUrl: http://localhost:8080
+  staging:
+    baseUrl: https://staging.iss.example.com
+    apiUrl: https://api.staging.iss.example.com
+  production:
+    baseUrl: https://iss.example.com
+    apiUrl: https://api.iss.example.com
+
+# Default environment (can override with ENV var)
+defaultEnvironment: ${ARTK_ENV:-local}
+```
+
+**Running tests:**
+```bash
+ARTK_ENV=staging npm test
+```
+
+### 8. What About CI/CD?
+
+**Question:** When does E2E run if it's separate from the app?
+
+**Options:**
+
+| Trigger | When to run E2E |
+|---------|-----------------|
+| Frontend PR | After frontend preview deploy |
+| Backend PR | After backend preview deploy |
+| Main branch | After staging deploy |
+| Scheduled | Nightly against production |
+| Manual | On-demand |
+
+**Problem:** E2E job needs to know deploy is complete.
+
+**Solutions:**
+1. **Webhook from deploy** → Trigger E2E
+2. **Health check polling** → Wait for app to be ready
+3. **Same workflow** → Deploy then test (sequential)
+4. **Separate workflow with dependency** → `workflow_run` trigger
+
+### 9. The Init Flow (Revised)
+
+```
+/init --install-script /path/to/install-to-project.sh
+
+1. DISCOVER PROJECT STRUCTURE
+   ├── Find git root
+   ├── Scan for frontends (heuristics)
+   ├── Scan for backends
+   └── Identify existing test setup
+
+2. CONFIRM WITH USER
+   ├── "Found frontend at ./iss-frontend - correct?"
+   ├── "Found backend at ./iss-backend - correct?"
+   └── "Create artk-e2e/ at project root?"
+
+3. CREATE STRUCTURE
+   ├── mkdir artk-e2e/
+   ├── Generate package.json (minimal deps)
+   ├── Execute install script (copy @artk/core)
+   ├── npm install (in artk-e2e/)
+   └── npx playwright install chromium
+
+4. GENERATE CONFIG
+   ├── artk.config.yml (with discovered paths)
+   ├── playwright.config.ts
+   └── .gitignore
+
+5. SAVE CONTEXT
+   ├── Write artk-e2e/.artk/context.json
+   │   ├── frontend_path: "../iss-frontend"
+   │   ├── backend_path: "../iss-backend"
+   │   ├── install_script: "/path/to/script"
+   │   └── init_date: "2025-12-30"
+   └── This context is read by subsequent prompts
+```
+
+### 10. What Could Go Wrong?
+
+| Failure Mode | Likelihood | Mitigation |
+|--------------|------------|------------|
+| Can't find frontend | Medium | Ask user to specify |
+| No write permission | Low | Clear error message |
+| npm install fails | Medium | Already handle --legacy-peer-deps |
+| Playwright install fails | Low | Retry with `--with-deps` |
+| Existing e2e/ conflicts | Medium | Ask user: merge/rename/abort |
+| Git submodule not initialized | Medium | Warn and continue |
+| Disk space insufficient | Low | Check before install |
+| Node version incompatible | Medium | Check and warn |
+| Already initialized | Medium | Offer: reinit/update/abort |
+| Windows path issues | Medium | Use path.join, normalize |
+
+---
+
+## Proposed Implementation
+
+### Phase 1: Update Install Script
+
+Create `install-to-project.sh` that:
+1. Creates `artk-e2e/` directory
+2. Generates minimal `package.json`
+3. Copies @artk/core to `vendor/`
+4. Runs `npm install`
+5. Installs Playwright browsers
+
+### Phase 2: Update /init Prompt
+
+```markdown
+# /init accepts:
+# - --install-script: Path to install-to-project.sh
+# - --frontend: Override frontend detection
+# - --root: Override root detection
+
+1. Detect project structure
+2. Confirm with user
+3. Execute install script
+4. Generate artk.config.yml
+5. Generate playwright.config.ts
+6. Save context for other prompts
+```
+
+### Phase 3: Context File
+
+```json
+// artk-e2e/.artk/context.json
+{
+  "version": "1.0",
+  "initialized_at": "2025-12-30T15:00:00Z",
+  "initialized_by": "claude-code",
+
+  "project": {
+    "name": "req-apps-it-service-shop",
+    "root": "..",
+    "git_root": ".."
+  },
+
+  "targets": {
+    "frontend": {
+      "path": "../iss-frontend",
+      "type": "react-spa",
+      "detected_by": "package.json:react"
+    }
+  },
+
+  "install": {
+    "script_path": "/path/to/install-to-project.sh",
+    "artk_core_version": "1.0.0",
+    "playwright_version": "1.40.0"
+  }
+}
+```
+
+### Phase 4: Other Prompts Read Context
+
+```typescript
+// In /discover, /foundation-build, etc.
+const context = loadContext('artk-e2e/.artk/context.json');
+const frontendPath = context.targets.frontend.path;
+```
+
+---
+
+## Decision Matrix
+
+| Decision | Recommendation | Rationale |
+|----------|----------------|-----------|
+| Where to create artk-e2e/ | Project root | Tests whole system, not just frontend |
+| Config location | Inside artk-e2e/ | Self-contained |
+| Path format | Relative to artk-e2e/ | Portable |
+| Frontend detection | Heuristics + user confirm | Balance automation with accuracy |
+| Commit tests/ | Yes (but support .gitignore option) | Tests are code |
+| Commit node_modules | No | Standard practice |
+| Multi-env support | Yes, in artk.config.yml | Essential for real use |
+| Prompts location | Stay in ARTK repo | They're templates |
+| Generated docs | In artk-e2e/docs/ | Per-project output |
+
+---
+
+## Next Steps
+
+1. **Create new install script** that creates the full `artk-e2e/` structure
+2. **Update /init prompt** to:
+   - Accept install script path
+   - Run discovery
+   - Confirm with user
+   - Execute script
+   - Generate config
+3. **Create context.json schema** for inter-prompt communication
+4. **Update other prompts** to read context
+5. **Test with iss-frontend** as the real-world validation
+
+---
+
+## Open Questions
+
+1. Should `artk-e2e/` be its own git repo (nested) or part of parent repo?
+2. How do we handle updates to @artk/core after initial install?
+3. Should we support npm workspaces integration?
+4. What's the story for non-Node backends (Python, Go, Java)?
+5. How do we handle authentication that requires the backend to be running?

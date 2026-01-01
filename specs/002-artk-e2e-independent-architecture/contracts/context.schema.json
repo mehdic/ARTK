@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://artk.dev/schemas/context.schema.json",
+  "title": "ARTK Context",
+  "description": "Persistent state for inter-prompt communication in ARTK E2E suites",
+  "type": "object",
+  "required": ["version", "initialized_at", "project", "targets", "install"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version for migration support"
+    },
+    "initialized_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO8601 timestamp when context was created"
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "root"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable project name"
+        },
+        "root": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\./)",
+          "description": "Relative path to project root from artk-e2e/"
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "description": "Configured frontend targets (1-5 max)",
+      "items": {
+        "$ref": "#/definitions/ArtkTarget"
+      }
+    },
+    "install": {
+      "type": "object",
+      "required": ["artk_core_version", "playwright_version", "script_path"],
+      "additionalProperties": false,
+      "properties": {
+        "artk_core_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$",
+          "description": "Semantic version of @artk/core"
+        },
+        "playwright_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$",
+          "description": "Semantic version of @playwright/test"
+        },
+        "script_path": {
+          "type": "string",
+          "description": "Path to install script used"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ArtkTarget": {
+      "type": "object",
+      "required": ["name", "path", "type", "detected_by"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Unique identifier, lowercase-kebab-case"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\./)",
+          "description": "Relative path to frontend directory from artk-e2e/"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["react-spa", "vue-spa", "angular", "next", "nuxt", "other"],
+          "description": "Detected or specified application type"
+        },
+        "detected_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Signals that identified this target during detection"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description"
+        }
+      }
+    }
+  }
+}
