@@ -128,33 +128,95 @@ For each test file in scope:
 - Confirm file exists.
 - Confirm it includes `@JRN-####`.
 - Confirm tags are valid Playwright tags (start with `@`).
-- **CRITICAL: Confirm test imports use ARTK Core:**
-  - MUST import `test` and `expect` from `'@artk/core/fixtures'`
-  - MUST NOT create custom fixture files or extend test manually
-  - MUST NOT import from local `fixtures/` directory
 
 Also check reverse links:
 - Find all files containing `@JRN-####`
 - Ensure they are listed in `tests[]` (or recommend updating).
 
-**Core API Import Validation:**
+### Step 2A — Core API Import Validation (CRITICAL)
 
-Check each test file for correct core usage:
+**MANDATORY:** All tests MUST import from ARTK Core v1 modules, NOT from Playwright Test directly or custom fixture files.
 
-✅ **VALID:**
+**Validation checks:**
+
+1. **Test and expect imports:**
+   - ✅ MUST: `import { test, expect } from '@artk/core/fixtures';`
+   - ❌ FORBIDDEN: `import { test } from '@playwright/test';`
+   - ❌ FORBIDDEN: `import { test } from './fixtures/test';`
+   - ❌ FORBIDDEN: Custom fixture file extensions
+
+2. **Locator utilities (if used):**
+   - ✅ RECOMMENDED: `import { locate, byRole, byTestId } from '@artk/core/locators';`
+   - ❌ AVOID: Custom locator helpers without good reason
+
+3. **Assertion helpers (if used):**
+   - ✅ RECOMMENDED: `import { expectToast, expectLoading } from '@artk/core/assertions';`
+   - ⚠️ WARN: Manual polling loops (suggest using core assertions)
+
+4. **Data isolation (if used):**
+   - ✅ RECOMMENDED: `import { namespace } from '@artk/core/data';`
+   - ⚠️ WARN: Hard-coded test data without namespacing
+
+5. **Config access (if used):**
+   - ✅ MUST: Access config via fixture: `async ({ config }) => { ... }`
+   - ❌ FORBIDDEN: Importing config directly in test files
+
+**Detailed validation examples:**
+
+✅ **VALID test structure:**
 ```typescript
 import { test, expect } from '@artk/core/fixtures';
-import { assertToastMessage } from '@artk/core/assertions';
-import { getByTestId } from '@artk/core/locators';
+import { expectToast, expectLoading } from '@artk/core/assertions';
+import { byTestId } from '@artk/core/locators';
 import { namespace } from '@artk/core/data';
+
+test('example @JRN-0001', async ({ authenticatedPage, config, runId }) => {
+  // Uses core fixtures and helpers
+  const userName = namespace('user', runId);
+  await authenticatedPage.goto('/dashboard');
+  await expectLoading(authenticatedPage, { timeout: 5000 });
+});
 ```
 
-❌ **INVALID:**
+❌ **INVALID patterns to reject:**
 ```typescript
-import { test } from '@playwright/test'; // Should use @artk/core/fixtures
-import { test } from './fixtures/test'; // No custom fixtures
-import { expect } from '../support/expect'; // Use core expect
+// ❌ Direct Playwright import
+import { test } from '@playwright/test';
+
+// ❌ Custom fixture file
+import { test } from './fixtures/test';
+
+// ❌ Custom expect extensions
+import { expect } from '../support/custom-expect';
+
+// ❌ Manual config loading
+import { loadConfig } from '@artk/core/config';
+const config = loadConfig(); // Should use fixture instead
+
+// ❌ Custom locator without encapsulation
+const myCustomLocator = page.locator('.some-brittle-class');
 ```
+
+**Automated validation approach:**
+
+1. **Grep-based checks (always available):**
+   ```bash
+   # Must find this import
+   grep -l "from '@artk/core/fixtures'" <test-files>
+
+   # Must NOT find these
+   grep "from '@playwright/test'" <test-files>
+   grep "from './fixtures/" <test-files>
+   grep "from '../fixtures/" <test-files>
+   ```
+
+2. **ESLint rules (if available):**
+   - Custom rule: `artk/use-core-fixtures`
+   - Custom rule: `artk/no-direct-config-import`
+
+**Failure handling:**
+- If strict: FAIL validation with file/line pointers
+- If warnings: WARN but suggest `/journey-implement` re-run with `--fix-imports` flag
 
 ## Step 3 — Module registry coherence (if present)
 If `<harnessRoot>/modules/registry.json` exists:

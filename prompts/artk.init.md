@@ -254,7 +254,7 @@ Before creating any configuration files, you must copy the ARTK Core v1 framewor
 This ensures all ARTK instances use the same versioned core implementation.
 
 #### Content requirements (high-level, not the full implementation)
-- `artk.config.yml` must conform to ARTK Core v1 schema (use `@artk/core/config` types):
+- `artk.config.yml` must conform to ARTK Core v1 schema (validated by `@artk/core/config`):
   - `version: "1.0"` (required)
   - `app:` (name, type, description)
   - `environments:` (named profiles with baseUrl, apiUrl)
@@ -266,12 +266,21 @@ This ensures all ARTK instances use the same versioned core implementation.
   - what a Journey is vs a Test vs a Module (brief)
   - how journeys map to Playwright tests
   - foundation vs feature modules concept
-  - how to import from ARTK Core (`@artk/core/config`, `@artk/core/fixtures`, etc.)
+  - **how to import from ARTK Core v1 modules:**
+    - Config: `import { loadConfig } from '@artk/core/config';`
+    - Fixtures: `import { test, expect } from '@artk/core/fixtures';`
+    - Locators: `import { locate, byRole } from '@artk/core/locators';`
+    - Assertions: `import { expectToast } from '@artk/core/assertions';`
+    - Data: `import { namespace } from '@artk/core/data';`
+    - Auth: `import { OIDCAuthProvider } from '@artk/core/auth';`
+    - Reporters: `import { ARTKReporter } from '@artk/core/reporters';`
+    - Harness: `import { createPlaywrightConfig } from '@artk/core/harness';`
   - a "how to contribute" section
 - `docs/ARCHITECTURE.md` must explain:
   - chosen placement + coexistence strategy
   - ARTK Core v1 framework integration
-  - how `.core/` provides reusable infrastructure
+  - how `.core/` provides reusable, versioned infrastructure
+  - module-specific imports to avoid type conflicts
 - `README.md` must explain how to run the harness locally (commands only, don't change CI yet)
 
 ### 5C) Minimal Playwright harness bootstrap (optional but recommended)

@@ -175,17 +175,21 @@ Rules:
 
 ## Step 3 — Build Playwright config baseline
 
-**CRITICAL: Use ARTK Core Framework**
+**CRITICAL: Use ARTK Core Framework - DO NOT create config manually**
 
-Import and use `createPlaywrightConfig` from `@artk/core/harness`:
+The Playwright configuration MUST be generated using `createPlaywrightConfig` from `@artk/core/harness`. This factory automatically handles all configuration based on `artk.config.yml`.
+
+**Minimal Playwright config using core:**
 
 ```typescript
 // playwright.config.ts
 import { loadConfig } from '@artk/core/config';
 import { createPlaywrightConfig } from '@artk/core/harness';
 
+// Load ARTK configuration
 const { config, activeEnvironment } = loadConfig();
 
+// Generate complete Playwright configuration from ARTK config
 export default createPlaywrightConfig({
   config,
   activeEnvironment,
@@ -193,69 +197,86 @@ export default createPlaywrightConfig({
 });
 ```
 
-The core framework's `createPlaywrightConfig` automatically handles:
-- `testDir` pointing to `tests/`
-- `timeout`, `expect.timeout`, `retries` from tier configuration
-- Reporter configuration (html, json, line) from `config.reporters`
-- `outputDir` separation from HTML report
-- `use` options from `config.artifacts` (trace, screenshot, video modes)
-- `baseURL` from active environment
-- `testIdAttribute` from `config.selectors.testIdAttribute`
-- Auth setup projects and browser projects with proper dependencies
-- Storage state paths from `config.auth.storageState`
+**What the core framework handles automatically (DO NOT reimplement):**
+- ✅ `testDir` pointing to `tests/`
+- ✅ `timeout`, `expect.timeout`, `retries` from `config.tiers[tier]`
+- ✅ Reporter configuration (html, json, line) from `config.reporters`
+- ✅ `outputDir` for test results, separate from HTML report directory
+- ✅ `use` options from `config.artifacts` (trace, screenshot, video modes)
+- ✅ `baseURL` from active environment's configuration
+- ✅ `testIdAttribute` from `config.selectors.testIdAttribute`
+- ✅ Auth setup projects for each role in `config.auth.roles`
+- ✅ Browser projects with proper dependencies on auth setup
+- ✅ Storage state paths following convention: `<ARTK_ROOT>/.auth-states/<env>/<role>.json`
 
-**Do NOT manually create Playwright config from scratch.** Always use the core framework factory.
+**Advanced: Custom overrides (only if absolutely necessary)**
 
-If custom overrides are needed, merge them:
+If you need custom overrides beyond what ARTK config provides:
+
 ```typescript
+import { loadConfig } from '@artk/core/config';
 import { createPlaywrightConfig } from '@artk/core/harness';
 import type { PlaywrightTestConfig } from '@playwright/test';
 
+const { config, activeEnvironment } = loadConfig();
 const baseConfig = createPlaywrightConfig({ config, activeEnvironment, tier: 'regression' });
 
 export default {
   ...baseConfig,
-  // Custom overrides only if absolutely necessary
+  // Custom overrides only when necessary (prefer updating artk.config.yml)
   workers: process.env.CI ? 4 : 1,
 } satisfies PlaywrightTestConfig;
 ```
+
+**Best practice:** Prefer configuring behavior in `artk.config.yml` rather than overriding here. The config file is the source of truth.
 
 ## Step 4 — Auth harness using project dependencies + storageState
 
 **CRITICAL: ARTK Core handles auth setup projects automatically**
 
 The `createPlaywrightConfig` from `@artk/core/harness` automatically creates:
-- Auth setup projects for each role in `config.auth.roles`
-- Browser projects with proper dependencies on setup projects
-- Storage state paths following convention: `<ARTK_ROOT>/.auth-states/<env>/<role>.json`
+- ✅ Auth setup projects for each role in `config.auth.roles`
+- ✅ Browser projects with proper dependencies on auth setup
+- ✅ Storage state paths following convention: `<ARTK_ROOT>/.auth-states/<env>/<role>.json`
+- ✅ Storage state validation before reuse
 
-**Do NOT manually create setup projects.** The core framework does this based on config.
+**DO NOT manually create setup projects.** The core framework generates them based on `artk.config.yml`.
 
-If you need custom auth logic, create an auth setup file that uses core auth providers:
+**Custom auth logic (optional):**
+
+If you need custom authentication flows beyond what the core providers support, create an auth setup file that uses core auth providers:
 
 ```typescript
 // tests/setup/auth.setup.ts
 import { test } from '@artk/core/fixtures';
-import { performOIDCLogin, performFormLogin } from '@artk/core/auth';
+import { OIDCAuthProvider, FormAuthProvider, saveStorageState } from '@artk/core/auth';
+import { loadConfig } from '@artk/core/config';
 
-// Core framework automatically calls this for each role
-test('authenticate', async ({ page, context, config }, testInfo) => {
+test('authenticate', async ({ page, context }, testInfo) => {
+  const { config } = loadConfig();
   const role = testInfo.project.name.replace('-setup', '');
 
+  // Use core auth providers
   if (config.auth.provider === 'oidc') {
-    await performOIDCLogin(page, context, { role, config });
+    const authProvider = new OIDCAuthProvider(config.auth.oidc);
+    await authProvider.authenticate(page, context, { role });
   } else if (config.auth.provider === 'form') {
-    await performFormLogin(page, context, { role, config });
+    const authProvider = new FormAuthProvider(config.auth.form);
+    await authProvider.authenticate(page, context, { role });
   }
 
   // Storage state automatically saved by core framework
+  await saveStorageState(context, { role, env: config.activeEnv });
 });
 ```
 
-Storage state is managed by core:
-- Path: resolved via `getStorageStatePath(role, env)` from `@artk/core/config`
-- Validation: core framework checks validity before reuse
-- `.gitignore` entry: added automatically during init
+**Storage state management (handled by core):**
+- Path: Resolved via `getStorageStatePath(role, env)` from `@artk/core/config`
+- Validation: Core framework checks validity before reuse (expiry, domain)
+- `.gitignore` entry: Added automatically during `/init`
+- Cleanup: Expired states (>24h) removed automatically
+
+**DO NOT implement custom storage state logic.** Use core providers.
 
 ## Step 5 — Create baseline fixtures
 
