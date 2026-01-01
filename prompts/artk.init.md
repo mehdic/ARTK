@@ -298,10 +298,55 @@ If the repo already has Playwright:
 - Do not reconfigure their harness.
 - Instead, create ARTK structure and add a small “ARTK entrypoint” test folder that uses their config.
 
+## Step 5D — Create context file for inter-prompt state
+
+Create `.artk/context.json` inside `ARTK_ROOT` to persist state for subsequent commands:
+
+```json
+{
+  "version": "1.0",
+  "initialized_at": "<ISO8601 timestamp>",
+  "project": {
+    "name": "<inferred project name>",
+    "root": ".."
+  },
+  "targets": [
+    {
+      "name": "<kebab-case target name>",
+      "path": "<relative path to frontend>",
+      "type": "<react-spa|vue-spa|angular|next|nuxt|other>",
+      "detected_by": ["<signal1>", "<signal2>"]
+    }
+  ],
+  "install": {
+    "artk_core_version": "1.0.0",
+    "playwright_version": "<detected version>",
+    "script_path": "<path to install script used>"
+  },
+  "detectedTargets": [
+    {
+      "name": "<name>",
+      "path": "<path>",
+      "type": "<type>",
+      "confidence": "high|medium|low",
+      "signals": ["<detection signals>"]
+    }
+  ]
+}
+```
+
+This file enables:
+- `/discover` to know which targets to scan
+- `/journey-propose` to access detected routes and features
+- All commands to maintain consistent state
+
+**CRITICAL**: If detection fails or is uncertain (CLR-003), include `"confidence": "low"` and add an `"interactive_fallback_needed": true` flag to trigger the interactive prompt in subsequent commands.
+
 ## Step 6 — Validate what you did
 After scaffolding:
 - Print a file checklist with created/updated items.
 - Confirm that nothing was overwritten unsafely.
+- Confirm `.artk/context.json` was created with detected targets.
 - Provide the next commands:
   - `/discover` (populate app map)
   - `/journey-propose` (auto-identify journeys)
@@ -310,6 +355,65 @@ After scaffolding:
 ---
 
 # Edge-case cookbook (apply as needed)
+
+## CLR-003: Interactive Prompt Fallback for Detection Failures
+
+If frontend detection returns low confidence or fails entirely, trigger the interactive fallback:
+
+### Detection Failure Conditions
+- No frontends detected (`detectedTargets.length === 0`)
+- All detected targets have `confidence: "low"`
+- Package.json exists but no framework dependencies found
+- Detection signals conflict (e.g., React + Angular in same project)
+
+### Interactive Fallback Flow
+
+**Step 1: Display detection status**
+```
+⚠️ Frontend detection returned low confidence results.
+
+   Detected: [list any detected targets with confidence]
+
+   Please confirm or provide the correct information.
+```
+
+**Step 2: Ask targeted questions**
+```
+1) Frontend path: Which directory contains the main frontend?
+   - Auto-suggestion: [list candidate directories from repo scan]
+   - Example: `iss-frontend/`, `apps/web/`, `client/`
+
+2) Framework: What framework is used?
+   - Options: react-spa, vue-spa, angular, next, nuxt, other
+   - Auto-detected: [show detected framework if any]
+
+3) Base URL: What is the local development URL?
+   - Default: http://localhost:3000
+   - Example: http://localhost:5173 (Vite default)
+```
+
+**Step 3: Validate user input**
+- Confirm the path exists and contains package.json
+- If invalid, re-prompt with helpful error message
+
+**Step 4: Update context.json**
+```json
+{
+  "detectedTargets": [
+    {
+      "name": "<user-provided-name>",
+      "path": "<user-provided-path>",
+      "type": "<user-selected-type>",
+      "confidence": "user-confirmed",
+      "signals": ["user-input"]
+    }
+  ],
+  "interactive_fallback_used": true,
+  "interactive_fallback_at": "<ISO8601 timestamp>"
+}
+```
+
+This ensures subsequent commands (/discover, /journey-propose) have valid target information even when auto-detection fails.
 
 ## Monorepo with many apps
 - Prefer installing ARTK once at repo root (or a shared tools package), and store `apps:` list in `artk.config.yml`.

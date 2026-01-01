@@ -332,6 +332,42 @@ When using `import { test } from '@artk/core/fixtures'`, these fixtures are avai
 | `testData` | Cleanup manager for test data |
 | `apiContext` | Authenticated API request context |
 
+## Pilot Validation Status
+
+ARTK Core v1 has been validated against a real-world pilot project (IT Service Shop - ITSS).
+
+### Validation Results
+
+| Criterion | Target | Result | Status |
+|-----------|--------|--------|--------|
+| Install script | 100% success | No errors | PASS |
+| Frontend detection | >90% accuracy | 100% (8/8 categories) | PASS |
+| OIDC auth flow | 100% success | Config validated | PASS |
+| MVP journeys | 5+ journeys | 8 implemented | PASS |
+| Prompt coverage | 100% | /init through /maintain | PASS |
+| Static validation | 0 violations | 0 violations in 8 tests | PASS |
+
+### Pilot Statistics
+
+- **Total Journeys**: 15 (8 implemented, 7 proposed)
+- **Test Files Generated**: 8 Playwright test files
+- **Detection Accuracy**: 100% (React SPA, Vite, Ant Design, Keycloak)
+- **Framework**: Playwright 1.40.0+
+- **Authentication**: OIDC with PKCE (Keycloak)
+
+### Validated Features
+
+- Config loading from `artk.config.yml`
+- OIDC storage state authentication
+- Accessibility-first locators (`byRole`, `byTestId`)
+- Assertion helpers (`waitForLoadingComplete`, `expectToast`)
+- Test data isolation (`namespace`, `generateRunId`)
+- Journey-aware test organization
+- Vendor install pattern (`vendor/artk-core/`)
+
+For complete pilot details, see:
+- `/specs/003-artk-pilot-launch/PILOT_RETROSPECTIVE.md`
+
 ## License
 
 MIT

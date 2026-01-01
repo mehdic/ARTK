@@ -96,11 +96,27 @@ At the end, print a “How to use these outputs” section.
 
 # Procedure / Algorithm
 
-## Step 0 — Locate ARTK_ROOT
+## Step 0 — Locate ARTK_ROOT and Load Context
+
 Determine `ARTK_ROOT` in this order:
 1) `artkRoot=` argument
 2) nearest `artk.config.yml` (search upward from CWD)
 3) if still unknown, stop and instruct the user to run `/init` first
+
+**Load context from `.artk/context.json`:**
+
+Once `ARTK_ROOT` is found, read `<ARTK_ROOT>/.artk/context.json` to get:
+- `targets[]` - detected frontend targets from /init
+- `detectedTargets[]` - targets with confidence scores
+- `project.name` - project identifier
+
+If context file is missing:
+- Warn: "Context file not found. Running in legacy mode."
+- Continue with file-based detection
+
+If context has `interactive_fallback_needed: true` (CLR-003):
+- Prompt user to confirm/correct detected targets before proceeding
+- Update context.json with confirmed values
 
 ## Step 1 — Identify app candidates (monorepo-aware)
 Detect app roots using common patterns:
