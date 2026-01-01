@@ -29,6 +29,9 @@
 
 import type { ArtkEnvironmentUrls } from '../types/config.js';
 import type { ArtkTargetType } from '../types/target.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('targets', 'config-generator');
 
 /**
  * Target input for config generation.
@@ -378,7 +381,26 @@ export function generateEnvironmentUrls(
   targetName: string
 ): Record<string, ArtkEnvironmentUrls> {
   // Extract domain from base URL for staging/production generation
-  const url = new URL(baseUrl);
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch (error) {
+    // Invalid URL - log warning and return sensible defaults based on target name
+    logger.warn('Invalid baseUrl provided, using default environment URLs', {
+      baseUrl,
+      targetName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      local: { baseUrl: 'http://localhost:3000' },
+      staging: {
+        baseUrl: `https://staging.${targetName}.example.com`,
+      },
+      production: {
+        baseUrl: `https://${targetName}.example.com`,
+      },
+    };
+  }
   const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
 
   if (isLocalhost) {
@@ -449,8 +471,14 @@ export function generateArtkConfigWithResult(
 ): ConfigGeneratorResult {
   const warnings: string[] = [];
 
+  // Validate targets array is not empty
+  const targets = options.targets ?? [];
+  if (targets.length === 0) {
+    warnings.push('No targets provided - configuration will have no frontend targets');
+  }
+
   // Validate and normalize target names
-  const normalizedTargets = options.targets.map((target) => {
+  const normalizedTargets = targets.map((target) => {
     if (!isValidTargetName(target.name)) {
       const normalized = normalizeTargetName(target.name);
       warnings.push(

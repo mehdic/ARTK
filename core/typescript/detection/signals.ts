@@ -9,7 +9,7 @@
  * ```typescript
  * import { SIGNAL_WEIGHTS, calculateScore, getConfidenceFromScore } from '@artk/core/detection';
  *
- * const score = calculateScore(['package.json:react', 'file:src/App.tsx']);
+ * const score = calculateScore(['package-dependency:react', 'entry-file:src/App.tsx']);
  * const confidence = getConfidenceFromScore(score); // 'high'
  * ```
  */
@@ -18,6 +18,14 @@ import type { ArtkConfidenceLevel, ArtkDetectionSignalCategory } from '../types/
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('detection', 'signals');
+
+/**
+ * Track unknown signals to avoid spamming warnings.
+ * Only warn once per unique signal per process lifecycle.
+ * Limited to MAX_WARNED_SIGNALS to prevent memory leaks in long-running processes.
+ */
+const MAX_WARNED_SIGNALS = 1000;
+const warnedSignals = new Set<string>();
 
 /**
  * Signal weight definitions for frontend detection.
@@ -202,8 +210,8 @@ export const FRONTEND_PACKAGE_INDICATORS = [
  */
 export function calculateScore(signals: string[]): number {
   return signals.reduce((score, signal) => {
-    const weight = SIGNAL_WEIGHTS[signal as SignalKey] ?? 0;
-    return score + weight;
+    // Use getSignalWeight for consistent behavior (logging unknown signals)
+    return score + getSignalWeight(signal);
   }, 0);
 }
 
@@ -284,13 +292,29 @@ export function createSignal(
 export function getSignalWeight(signal: string): number {
   const weight = SIGNAL_WEIGHTS[signal as SignalKey];
   if (weight === undefined) {
-    logger.warn('Unknown detection signal (returning weight 0)', {
-      signal,
-      hint: 'Check for typos or add the signal to SIGNAL_WEIGHTS',
-    });
+    // Rate limit warnings - only warn once per unique signal
+    if (!warnedSignals.has(signal)) {
+      // Prevent memory leak by clearing when threshold reached
+      if (warnedSignals.size >= MAX_WARNED_SIGNALS) {
+        warnedSignals.clear();
+      }
+      warnedSignals.add(signal);
+      logger.warn('Unknown detection signal (returning weight 0)', {
+        signal,
+        hint: 'Check for typos or add the signal to SIGNAL_WEIGHTS',
+      });
+    }
     return 0;
   }
   return weight;
+}
+
+/**
+ * Clears the cache of warned signals.
+ * Useful for testing or when you want to re-enable warnings.
+ */
+export function clearWarnedSignalsCache(): void {
+  warnedSignals.clear();
 }
 
 /**

@@ -30,6 +30,7 @@ import type {
 import {
   calculateScore,
   getConfidenceFromScore,
+  getSignalWeight,
   CONFIDENCE_THRESHOLDS,
 } from './signals.js';
 import { PackageScanner, type PackageScanResult } from './package-scanner.js';
@@ -296,11 +297,12 @@ export class FrontendDetector {
       const fullPath = path.join(dirPath, location);
       if (existsSync(fullPath)) {
         const signal = `index-html:${location}`;
+        const weight = getSignalWeight(signal);
         signals.push(signal);
         detailedSignals.push({
           type: 'index-html',
           source: signal,
-          weight: 10,
+          weight,
           description: `Found index.html at ${location}`,
         });
       }

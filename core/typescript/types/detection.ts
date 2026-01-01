@@ -29,8 +29,8 @@ export type ArtkDetectionSignalCategory =
  * ```typescript
  * const signal: DetectionSignal = {
  *   type: 'package-dependency',
- *   source: 'package.json:react',
- *   weight: 35,
+ *   source: 'package-dependency:react',
+ *   weight: 30,
  *   description: 'Found react in dependencies'
  * };
  * ```
@@ -42,7 +42,8 @@ export interface DetectionSignal {
   type: ArtkDetectionSignalCategory;
 
   /**
-   * Source identifier (e.g., 'package.json:react', 'file:src/App.tsx').
+   * Source identifier - the full signal string
+   * (e.g., 'package-dependency:react', 'entry-file:src/App.tsx').
    */
   source: string;
 
@@ -68,11 +69,11 @@ export interface DetectionSignal {
  *   relativePath: '../frontend',
  *   confidence: 'high',
  *   type: 'react-spa',
- *   signals: ['package.json:react', 'file:src/App.tsx'],
- *   score: 55,
+ *   signals: ['package-dependency:react', 'entry-file:src/App.tsx'],
+ *   score: 50,
  *   detailedSignals: [
- *     { type: 'package-dependency', source: 'package.json:react', weight: 35 },
- *     { type: 'entry-file', source: 'file:src/App.tsx', weight: 20 }
+ *     { type: 'package-dependency', source: 'package-dependency:react', weight: 30 },
+ *     { type: 'entry-file', source: 'entry-file:src/App.tsx', weight: 20 }
  *   ]
  * };
  * ```
@@ -101,7 +102,7 @@ export interface DetectionResult {
 
   /**
    * Detection signal identifiers that matched.
-   * @example ['package.json:react', 'file:src/App.tsx', 'dirname:frontend']
+   * @example ['package-dependency:react', 'entry-file:src/App.tsx', 'directory-name:frontend']
    */
   signals: string[];
 
@@ -111,60 +112,14 @@ export interface DetectionResult {
   score: number;
 
   /**
-   * Detailed signal information (optional, for debugging).
+   * Detailed signal information for debugging and analysis.
    */
-  detailedSignals?: DetectionSignal[];
+  detailedSignals: DetectionSignal[];
 }
 
-/**
- * Score thresholds for confidence levels.
- */
-export const CONFIDENCE_THRESHOLDS = {
-  high: 40,
-  medium: 20,
-  // low: < 20
-} as const;
-
-/**
- * Default signal weights for detection.
- */
-export const DEFAULT_SIGNAL_WEIGHTS = {
-  // Package.json dependencies (highest weight)
-  'package-dependency:react': 35,
-  'package-dependency:vue': 35,
-  'package-dependency:@angular/core': 35,
-  'package-dependency:next': 30,
-  'package-dependency:nuxt': 30,
-
-  // Entry files
-  'entry-file:src/App.tsx': 20,
-  'entry-file:src/App.jsx': 20,
-  'entry-file:src/App.vue': 20,
-  'entry-file:src/main.ts': 15,
-  'entry-file:src/main.tsx': 15,
-  'entry-file:app/page.tsx': 20, // Next.js App Router
-  'entry-file:pages/index.tsx': 15, // Next.js Pages Router
-  'entry-file:pages/index.vue': 15, // Nuxt
-
-  // Directory names
-  'directory-name:frontend': 15,
-  'directory-name:client': 15,
-  'directory-name:web': 10,
-  'directory-name:app': 10,
-
-  // Index.html presence
-  'index-html:public/index.html': 10,
-  'index-html:index.html': 10,
-} as const;
-
-/**
- * Determines confidence level from a score.
- */
-export function getConfidenceLevel(score: number): ArtkConfidenceLevel {
-  if (score >= CONFIDENCE_THRESHOLDS.high) return 'high';
-  if (score >= CONFIDENCE_THRESHOLDS.medium) return 'medium';
-  return 'low';
-}
+// Note: Signal weights and confidence thresholds are defined in detection/signals.ts
+// Import SIGNAL_WEIGHTS, CONFIDENCE_THRESHOLDS, and getConfidenceFromScore from there.
+// This file only contains type definitions to avoid duplication.
 
 /**
  * Type guard to check if a value is a valid DetectionResult.
@@ -199,6 +154,21 @@ export function isDetectionResult(value: unknown): value is DetectionResult {
 
   // Check score
   if (typeof obj.score !== 'number') return false;
+
+  // Check detailedSignals (required array of DetectionSignal objects)
+  if (!Array.isArray(obj.detailedSignals)) return false;
+  if (
+    !obj.detailedSignals.every(
+      (s) =>
+        typeof s === 'object' &&
+        s !== null &&
+        typeof (s as Record<string, unknown>).type === 'string' &&
+        typeof (s as Record<string, unknown>).source === 'string' &&
+        typeof (s as Record<string, unknown>).weight === 'number'
+    )
+  ) {
+    return false;
+  }
 
   return true;
 }

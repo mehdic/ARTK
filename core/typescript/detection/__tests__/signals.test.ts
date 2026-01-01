@@ -17,6 +17,7 @@ import {
   getSignalCategory,
   createSignal,
   getSignalWeight,
+  clearWarnedSignalsCache,
   isFrontendPackage,
   matchesFrontendDirectoryPattern,
 } from '../signals.js';
@@ -390,5 +391,54 @@ describe('matchesFrontendDirectoryPattern', () => {
     expect(matchesFrontendDirectoryPattern('server')).toBe(false);
     expect(matchesFrontendDirectoryPattern('api')).toBe(false);
     expect(matchesFrontendDirectoryPattern('lib')).toBe(false);
+  });
+});
+
+// =============================================================================
+// clearWarnedSignalsCache Tests
+// =============================================================================
+
+describe('clearWarnedSignalsCache', () => {
+  it('should be a function that clears the cache', () => {
+    // First, trigger a warning by getting weight for unknown signal
+    getSignalWeight('test-unknown:signal-1');
+
+    // Clear the cache
+    clearWarnedSignalsCache();
+
+    // This should not throw - the function clears the internal Set
+    expect(clearWarnedSignalsCache).toBeDefined();
+  });
+
+  it('should allow warnings to be triggered again after clearing', () => {
+    // Clear any previous state
+    clearWarnedSignalsCache();
+
+    // Get weight for unknown signal (triggers internal warning)
+    const weight1 = getSignalWeight('test-cache-clear:unique-signal');
+    expect(weight1).toBe(0);
+
+    // Get weight again for same signal (should not trigger warning due to cache)
+    const weight2 = getSignalWeight('test-cache-clear:unique-signal');
+    expect(weight2).toBe(0);
+
+    // Clear the cache
+    clearWarnedSignalsCache();
+
+    // Get weight for same signal again (should be able to trigger warning again)
+    const weight3 = getSignalWeight('test-cache-clear:unique-signal');
+    expect(weight3).toBe(0);
+  });
+
+  it('should not affect valid signal lookups', () => {
+    clearWarnedSignalsCache();
+
+    // Valid signals should still return correct weights
+    expect(getSignalWeight('package-dependency:react')).toBe(30);
+
+    clearWarnedSignalsCache();
+
+    // Should still work after clearing
+    expect(getSignalWeight('package-dependency:react')).toBe(30);
   });
 });

@@ -37,8 +37,10 @@ export const ENTRY_FILE_PATTERNS = {
     'src/index.jsx',
   ],
 
-  // Vue (vue.config.js is definitive indicator for Vue 2 CLI projects)
-  vue: ['src/App.vue', 'src/main.ts', 'src/main.js', 'vue.config.js'],
+  // Vue (src/App.vue is definitive, vue.config.js for Vue 2 CLI projects)
+  // Note: src/main.ts and src/main.js are shared with Angular and other frameworks
+  // so we exclude them from Vue type detection to avoid false positives
+  vue: ['src/App.vue', 'vue.config.js'],
 
   // Next.js (App Router)
   'next-app': ['app/page.tsx', 'app/page.jsx', 'app/layout.tsx', 'app/layout.jsx'],
@@ -201,11 +203,13 @@ export class EntryFileDetector {
       return 'nuxt';
     }
 
-    // Priority 3: Angular
-    const hasAngular = files.some((f) =>
-      ENTRY_FILE_PATTERNS.angular.includes(f as any)
-    );
-    if (hasAngular) {
+    // Priority 3: Angular (requires angular.json as definitive indicator)
+    // Note: src/main.ts alone is ambiguous (used by Vue/Angular/React+Vite)
+    // We require angular.json to disambiguate from other frameworks
+    const hasAngularJson = files.includes('angular.json');
+    const hasAngularComponent = files.includes('src/app/app.component.ts');
+    const hasAngularModule = files.includes('src/app/app.module.ts');
+    if (hasAngularJson || (hasAngularComponent && hasAngularModule)) {
       return 'angular';
     }
 

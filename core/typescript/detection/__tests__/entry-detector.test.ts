@@ -43,9 +43,11 @@ describe('ENTRY_FILE_PATTERNS', () => {
 
   it('should have vue entry patterns', () => {
     expect(ENTRY_FILE_PATTERNS.vue).toContain('src/App.vue');
-    expect(ENTRY_FILE_PATTERNS.vue).toContain('src/main.ts');
-    expect(ENTRY_FILE_PATTERNS.vue).toContain('src/main.js');
     expect(ENTRY_FILE_PATTERNS.vue).toContain('vue.config.js');
+    // Note: src/main.ts and src/main.js are intentionally excluded from Vue patterns
+    // to avoid false positives with Angular and other frameworks that use the same files
+    expect(ENTRY_FILE_PATTERNS.vue).not.toContain('src/main.ts');
+    expect(ENTRY_FILE_PATTERNS.vue).not.toContain('src/main.js');
   });
 
   it('should have next-app router patterns', () => {
