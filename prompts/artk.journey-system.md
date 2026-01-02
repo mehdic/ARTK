@@ -1,8 +1,6 @@
 ---
-name: journey-system
-description: "Phase 3: Install/upgrade ARTK Core (Journeys) and configure the repo-specific Journey system (backlog + index automation)."
-argument-hint: "mode=standard|quick|max artkRoot=<path> coreSource=<path> coreInstall=vendor|submodule|subtree|npm coreInstallDir=<path> idPrefix=JRN idWidth=4 layout=auto|flat|staged dryRun=true|false"
-agent: agent
+mode: agent
+description: "Install Journey system - schema, templates, backlog automation, and index generation"
 ---
 
 # ARTK /journey-system — Core + Instance (Journeys)
@@ -72,7 +70,7 @@ Determine `ARTK_ROOT` in this order:
 2) nearest `artk.config.yml` (search upward from CWD)
 3) if multiple candidates exist (monorepo), choose the one that already has `journeys/` or `e2e/` folders; otherwise ask user to pick.
 
-If ARTK_ROOT cannot be determined, stop and tell the user to run `/init` first.
+If ARTK_ROOT cannot be determined, stop and tell the user to run `/init-playbook` first.
 
 ## Step 2 — Detect existing Journey Instance
 Check under `<ARTK_ROOT>/journeys/` for:

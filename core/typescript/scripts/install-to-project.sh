@@ -1,10 +1,13 @@
 #!/bin/bash
 #
 # ARTK Core Vendor Installation Script
-# Usage: ./install-to-project.sh /path/to/target-project
+# Usage: ./install-to-project.sh /path/to/target-project [--skip-install]
 #
-# This script copies @artk/core to the target project's vendor directory
-# and updates package.json to reference it.
+# This script copies @artk/core to the target project's vendor directory,
+# updates package.json to reference it, and runs npm install.
+#
+# Options:
+#   --skip-install  Skip running npm install (for private registries with auth)
 #
 
 set -e
@@ -100,15 +103,26 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 fi
 
-# The package is now in vendor/ and package.json is updated
-# Skip npm install to avoid auth issues with private registries
-# The symlink will be created on next npm install
+# Run npm install unless --skip-install was passed
+SKIP_INSTALL=false
+for arg in "$@"; do
+    if [ "$arg" = "--skip-install" ]; then
+        SKIP_INSTALL=true
+    fi
+done
 
-echo ""
-echo -e "${GREEN}✅ @artk/core installed successfully!${NC}"
-echo ""
-echo -e "${YELLOW}Note:${NC} Run 'npm install' in your project when ready."
-echo "      The @artk/core package will be linked from vendor/artk-core/"
+if [ "$SKIP_INSTALL" = false ]; then
+    echo -e "${YELLOW}Running npm install...${NC}"
+    npm install --legacy-peer-deps
+    echo ""
+    echo -e "${GREEN}✅ @artk/core installed and linked successfully!${NC}"
+else
+    echo ""
+    echo -e "${GREEN}✅ @artk/core installed successfully!${NC}"
+    echo ""
+    echo -e "${YELLOW}Note:${NC} Run 'npm install' in your project when ready."
+    echo "      The @artk/core package will be linked from vendor/artk-core/"
+fi
 echo ""
 echo "Vendor location: $VENDOR_DIR"
 echo ""

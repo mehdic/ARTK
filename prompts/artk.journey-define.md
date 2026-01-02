@@ -1,8 +1,6 @@
 ---
-name: journey-define
-description: "Phase 6: Create a canonical defined Journey from user input OR promote a proposed Journey. Auto-pulls discovery context when available. Regenerates backlog/index."
-argument-hint: "mode=standard|quick|max artkRoot=<path> source=<JRN-id|path|none> title="..." goal="..." tier=smoke|release|regression steps="..." assertions="..." actor=<role> scope=<area> links="..." tags="..." useDiscovery=auto|true|false outDir=journeys/defined dryRun=true|false"
-agent: agent
+mode: agent
+description: "Create or promote a Journey to defined status - structured test scenario contract with acceptance criteria"
 ---
 
 # ARTK /journey-define — User-defined Journeys (Phase 6)

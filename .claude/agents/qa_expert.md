@@ -1183,6 +1183,52 @@ When tests fail, provide:
 | `FAIL_ESCALATE` | Level 3+ challenge failures (security, chaos, behavioral) |
 | `FLAKY` | Tests pass sometimes, fail sometimes |
 
+## Test Progression Tracking (MANDATORY for Re-tests)
+
+**When re-testing after Developer/SSE fixes, you MUST track progress:**
+
+### On First QA Run (Iteration 1)
+
+Record all failing tests as `original_failures`:
+```json
+{
+  "test_progression": {
+    "iteration": 1,
+    "original_failures": ["test_auth_invalid", "test_token_expiry", "test_rate_limit"],
+    "fixed_since_start": [],
+    "still_failing": ["test_auth_invalid", "test_token_expiry", "test_rate_limit"],
+    "new_failures": [],
+    "progress_made": false
+  }
+}
+```
+
+### On Subsequent Runs (Iteration 2+)
+
+Compare current failures to original list:
+```json
+{
+  "test_progression": {
+    "iteration": 2,
+    "original_failures": ["test_auth_invalid", "test_token_expiry", "test_rate_limit"],
+    "fixed_since_start": ["test_auth_invalid"],
+    "still_failing": ["test_token_expiry", "test_rate_limit"],
+    "new_failures": [],
+    "progress_made": true
+  }
+}
+```
+
+### Progress Detection Rules
+
+| Scenario | `progress_made` | Escalation? |
+|----------|-----------------|-------------|
+| Some original tests now pass | `true` | No - continue loop |
+| Same tests failing, 0 fixed | `false` | After 2 consecutive no-progress → Escalate |
+| New tests fail (regressions) | `true` (if others fixed) | No if net progress |
+
+**The Orchestrator uses `progress_made` to determine if escalation is needed.**
+
 ## Write Handoff File (MANDATORY)
 
 **Before your final response, you MUST write a handoff file** containing all details for the next agent.
@@ -1226,6 +1272,15 @@ Write(
       "suggested_fix": "{how to fix}"
     }
   ],
+
+  "test_progression": {
+    "iteration": "{current QA iteration, starts at 1}",
+    "original_failures": ["{test names that failed in first iteration}"],
+    "fixed_since_start": ["{test names now passing that originally failed}"],
+    "still_failing": ["{test names still failing from original set}"],
+    "new_failures": ["{test names that failed this iteration but not before}"],
+    "progress_made": "{true if fixed_since_start increased, false otherwise}"
+  },
 
   "files_tested": ["path/to/file1.py", "path/to/file2.py"],
   "branch": "{branch_name}",
@@ -1441,7 +1496,7 @@ Write(
 **When tests FAIL, register a context package so the next developer iteration has failure details:**
 
 ```
-bazinga-db, please save context package:
+bazinga-db-context, please save context package:
 
 Session ID: {SESSION_ID}
 Group ID: {GROUP_ID}
@@ -1452,7 +1507,7 @@ Consumer Agents: ["developer", "senior_software_engineer"]
 Priority: high
 Summary: {N} test failures: {brief list of failing tests}
 ```
-Then invoke: `Skill(command: "bazinga-db")`
+Then invoke: `Skill(command: "bazinga-db-context")`
 
 **Write the failures file first** with: test name, error message, expected vs actual, file locations. Then register.
 
@@ -1510,8 +1565,9 @@ cat > /tmp/reasoning_understanding.md << 'REASONING_EOF'
 - [Claim 2]
 REASONING_EOF
 
-python3 .claude/skills/bazinga-db/scripts/bazinga_db.py --quiet save-reasoning \
-  "{SESSION_ID}" "{GROUP_ID}" "qa_expert" "understanding" \
+Skill(command: "bazinga-db-agents")
+
+Request: save-reasoning "{SESSION_ID}" "{GROUP_ID}" "qa_expert" "understanding" \
   --content-file /tmp/reasoning_understanding.md \
   --confidence high
 
@@ -1532,8 +1588,9 @@ cat > /tmp/reasoning_completion.md << 'REASONING_EOF'
 [Pass to Tech Lead / Return to Developer / Escalate]
 REASONING_EOF
 
-python3 .claude/skills/bazinga-db/scripts/bazinga_db.py --quiet save-reasoning \
-  "{SESSION_ID}" "{GROUP_ID}" "qa_expert" "completion" \
+Skill(command: "bazinga-db-agents")
+
+Request: save-reasoning "{SESSION_ID}" "{GROUP_ID}" "qa_expert" "completion" \
   --content-file /tmp/reasoning_completion.md \
   --confidence high
 ```

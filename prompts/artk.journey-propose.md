@@ -1,8 +1,6 @@
 ---
-name: journey-propose
-description: "Phase 5: Propose high-signal Journeys automatically from discovery + change/incident signals, generate proposed Journey files, update backlog/index, and write JOURNEY_PROPOSALS.md."
-argument-hint: "mode=standard|quick|max artkRoot=<path> appScope=auto|all|<appName> maxJourneys=20 smokeCount=6 releaseCount=14 includeRegression=true|false includeBlocked=true|false minFeasibility=medium|high allowDuplicates=false|true changeSignals=auto|on|off changeWindowDays=90 changeWindowCommits=500 churnWeight=1.0 incidentWeight=1.0 baseRiskWeight=1.0 ownerWeight=0.5 incidentPaths=<glob> ticketRegex=<regex> useCODEOWNERS=auto|true|false outProposedDir=<path> outDocsDir=<path> dryRun=true|false"
-agent: agent
+mode: agent
+description: "Auto-propose high-signal Journeys from discovery findings - generates proposed Journey files and JOURNEY_PROPOSALS.md"
 ---
 
 # ARTK /journey-propose — Automatic Journey Identification (Phase 5)
@@ -57,7 +55,7 @@ Look for any of these in the repo:
 - bug/incident exports: `incidents.csv`, `bugs.csv`, `jira_export.*`, `tickets.*`
 - commit messages containing ticket IDs (e.g., `ABC-1234`, `INC123456`)
 
-If discovery sources are missing, stop and instruct the user to run `/discover` first.
+If discovery sources are missing, stop and instruct the user to run `/discover-foundation` first.
 
 ---
 
@@ -157,7 +155,7 @@ Ask a compact questionnaire for a single reply, based on `mode`.
 - Optional evidence JSONs written
 
 At the end print:
-- Next commands (`/journey-define`, `/journey-clarify`, `/foundation-build`)
+- Next commands (`/journey-define`, `/journey-clarify`)
 - Known blockers & remediation (from feasibility + incidents)
 
 ---
@@ -193,7 +191,7 @@ If missing: instruct user to run `/journey-system` first.
 4) Confirm discovery exists:
    - prefer `docs/discovery/*.json`, else `docs/DISCOVERY.md` + `docs/TESTABILITY.md`
    - alternatively, use `discovery` from context.json if present
-If missing: instruct user to run `/discover` first.
+If missing: instruct user to run `/discover-foundation` first.
 
 ## Step 1 — Load Journey config + existing index
 - Read `<ARTK_ROOT>/journeys/journeys.config.yml` for:

@@ -1,8 +1,6 @@
 ---
-name: journey-clarify
-description: "Phase 6: Clarify a Journey to deterministic execution-ready detail. Auto-pulls /discover + TESTABILITY signals, flags blockers, and promotes to clarified when ready."
-argument-hint: "mode=medium|minimal|max artkRoot=<path> id=<JRN-0001> file=<path> useDiscovery=auto|true|false strictGates=true|false promote=true|false outDir=journeys/clarified dryRun=true|false"
-agent: agent
+mode: agent
+description: "Add deterministic execution detail to a Journey - data strategy, assertions, async handling, promotes to clarified"
 ---
 
 # ARTK /journey-clarify — Clarification to Execution-Ready Detail (Phase 6)
