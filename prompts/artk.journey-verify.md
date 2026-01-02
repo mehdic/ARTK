@@ -1,8 +1,6 @@
 ---
-name: journey-verify
-description: "Phase 8.5: Run the Playwright tests for a Journey (by @JRN tag), collect evidence (report/trace/video), detect flakiness, and optionally auto-heal common failures in a bounded loop. Updates Journey verification block and (optionally) status."
-argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> env=auto|<name> baseURL=auto|<url> project=auto|<pw-project> workers=1|auto retries=0|1|2 trace=auto|retain-on-first-failure|retain-on-failure|on-first-retry|off repeat=0|2|3 failOnFlaky=auto|true|false maxFailures=1|auto heal=auto|off healAttempts=2 timeoutMs=auto report=auto|html|line|list|json artifacts=standard|minimal|max redactPII=auto|true|false updateJourney=true|false dryRun=true|false"
-agent: agent
+mode: agent
+description: "Runtime verification gate - runs Playwright tests, detects flakiness, auto-heals common failures, updates Journey status"
 ---
 
 # ARTK /journey-verify — Run + Stabilize a Journey’s Tests (Phase 8.5)
@@ -58,19 +56,19 @@ Before running any tests, verify ARTK Core v1 is properly integrated:
      - `dist/locators/`, `dist/assertions/`, `dist/data/`
      - `dist/auth/`, `dist/reporters/`
    - ✅ `<ARTK_ROOT>/.core/package.json` exists with correct version
-   - ❌ If missing: Run `/init` to install core framework
+   - ❌ If missing: Run `/init-playbook` to install core framework
 
 2. **artk.config.yml valid:**
    - ✅ Valid ARTK Core v1 schema (validated by `@artk/core/config`)
    - ✅ `version: "1.0"` field present
    - ✅ Required sections: `app`, `environments`, `auth`, `selectors`, `tiers`
-   - ❌ If invalid: Fix config or run `/init` to regenerate
+   - ❌ If invalid: Fix config or run `/init-playbook` to regenerate
 
 3. **Playwright config uses core harness:**
    - ✅ `playwright.config.ts` imports from `@artk/core/harness`
    - ✅ Uses `createPlaywrightConfig()` factory
    - ✅ Config loads via `loadConfig()` from `@artk/core/config`
-   - ❌ If manual config: Run `/foundation-build` to regenerate
+   - ❌ If manual config: Run `/discover-foundation` to regenerate
 
 4. **Tests use core fixtures:**
    - ✅ Test files import from `@artk/core/fixtures`
@@ -100,9 +98,9 @@ Before running any tests, verify ARTK Core v1 is properly integrated:
 |--------------|----------------|-------------|
 | Core missing | `/init` | Install ARTK Core framework |
 | Config invalid | Fix `artk.config.yml` | Update to Core v1 schema |
-| Config uses manual Playwright | `/foundation-build` | Regenerate using core harness |
+| Config uses manual Playwright | `/discover-foundation` | Regenerate using core harness |
 | Tests use custom fixtures | `/journey-implement id=... --fix-imports` | Re-implement with core imports |
-| No auth setup | Check config + run `/foundation-build` | Configure auth in config |
+| No auth setup | Check config + run `/discover-foundation` | Configure auth in config |
 | No tests | `/journey-implement id=...` | Implement the Journey |
 | Environment unreachable | Fix network/VPN | Cannot verify without access |
 
@@ -262,9 +260,117 @@ Else, loop up to `healAttempts`:
 4) Re-run the stabilization command.
 5) If pass, break. If fail and category is blocked or app bug, stop early.
 
-Hard rule: **never introduce sleeps** as a “stability fix” unless explicitly allowed by the playbook and only with a TODO and justification.
+Hard rule: **never introduce sleeps** as a "stability fix" unless explicitly allowed by the playbook and only with a TODO and justification.
 
-## Step 5 — Stability gate (don’t trust a single green run)
+## Step 4A — Deterministic Healing Rules (Step-by-Step)
+
+When tests fail, apply these fixes in priority order. Each fix should be atomic and traceable.
+
+### Selector Failures (element not found, strict mode violation)
+
+**Healing Priority Order:**
+1. Check if element has accessible role → use `getByRole()`
+2. Check if element has label/aria-label → use `getByLabel()`
+3. Check if element has text content → use `getByText()`
+4. Check if element has data-testid → use `getByTestId()`
+5. Check TESTABILITY.md for app-specific conventions
+6. If no good selector exists → add blocker note, do NOT use CSS hack
+
+**Fix Examples:**
+| Original (broken) | Fixed | Reason |
+|------------------|-------|--------|
+| `.locator('.btn-primary')` | `getByRole('button', { name: 'Submit' })` | Role + name is stable |
+| `.locator('#submit')` | `getByRole('button', { name: 'Submit' })` | ID may change, role won't |
+| `.locator('button').first()` | `getByRole('button', { name: 'Save' })` | Avoid positional selectors |
+| `.locator('[data-qa="save"]')` | `getByTestId('save')` | Use core helper |
+
+### Timing Failures (timeout, element not visible yet)
+
+**Never add `waitForTimeout()` - use these instead:**
+
+| Failure Type | Correct Fix |
+|-------------|-------------|
+| Navigation not complete | Add URL assertion: `await expect(page).toHaveURL(/\/expected/);` |
+| Loading spinner visible | Use core helper: `await waitForLoadingComplete(page);` |
+| Toast not appearing | Use core helper: `await expectToast(page, { type: 'success' });` |
+| API not responded | Add response wait: `await page.waitForResponse(r => r.url().includes('/api'));` |
+| Element appearing late | Increase assertion timeout: `await expect(el).toBeVisible({ timeout: 10000 });` |
+| Modal animation | Wait for stable state: `await expect(dialog).toBeVisible();` |
+
+### Data Failures (collision, stale data, missing record)
+
+**Healing Strategy:**
+1. Ensure `runId` namespacing is used for all created data
+2. Check cleanup is registered with `testData.register()`
+3. Verify test isolation (no shared state between tests)
+4. If using shared test accounts, check for parallel run conflicts
+
+**Fix Examples:**
+```typescript
+// Before (collision risk)
+const userName = 'testuser';
+
+// After (isolated)
+const userName = namespace('user', runId);  // → 'user-abc123'
+```
+
+### Navigation Failures (wrong page, redirect loop)
+
+**Healing Strategy:**
+1. Add explicit URL assertion before interactions
+2. Handle redirects with `waitForURL()`
+3. For new tabs: use `context.waitForEvent('page')`
+4. For iframes: use frame locators
+
+**Fix Examples:**
+```typescript
+// Before (assumes navigation complete)
+await page.goto('/dashboard');
+await page.getByRole('button', { name: 'Action' }).click();
+
+// After (explicit wait)
+await page.goto('/dashboard');
+await expect(page).toHaveURL(/\/dashboard/);
+await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+await page.getByRole('button', { name: 'Action' }).click();
+```
+
+## Step 4B — Healing Attempt Logging
+
+Track each healing attempt for audit and learning:
+
+```json
+{
+  "journeyId": "JRN-0001",
+  "attempt": 1,
+  "timestamp": "2026-01-02T10:30:00Z",
+  "failureCategory": "SELECTOR",
+  "failingStep": "test.step('AC-1: User sees dashboard')",
+  "failingLocator": ".locator('.dashboard-header')",
+  "errorMessage": "Strict mode violation: locator resolved to 2 elements",
+  "evidence": {
+    "traceFile": "test-results/trace.zip",
+    "screenshot": "test-results/failure.png",
+    "domSnapshot": "Multiple h1 elements found"
+  },
+  "fix": {
+    "type": "SELECTOR_UPGRADE",
+    "original": ".locator('.dashboard-header')",
+    "replacement": "getByRole('heading', { name: 'Dashboard', level: 1 })",
+    "rationale": "Role + name uniquely identifies the header"
+  },
+  "result": "PASS"
+}
+```
+
+**Healing Attempt Budget:**
+- quick mode: 1 attempt
+- standard mode: 2 attempts
+- max mode: 3 attempts
+
+If all attempts exhausted and still failing → mark as BLOCKED with evidence.
+
+## Step 5 — Stability gate (don't trust a single green run)
 If the tests pass once:
 - Run a light stability gate:
   - `--repeat-each=2 --workers=1 --retries=0`
