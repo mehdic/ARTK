@@ -1,6 +1,8 @@
 ---
-mode: agent
-description: "Generate Playwright tests from clarified Journey - creates test files, page objects, flows, updates module registry"
+name: journey-implement
+description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the Phase 7 harness. Includes post-implementation quality gates: /journey-validate (static) and /journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
+argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false"
+agent: agent
 ---
 
 # ARTK /journey-implement — Implement Journey as Playwright Tests (Phase 8)
@@ -212,7 +214,7 @@ Ensure equivalents exist for:
 - selectors/locators
 - data/run-id/builders
 
-If missing: stop and instruct `/discover-foundation`.
+If missing: stop and instruct `/foundation-build`.
 
 ### 6.2 Feature modules
 Create missing feature modules only when needed.
@@ -239,111 +241,6 @@ Never:
 - Prefer API seed helpers if available.
 - Namespace all created data using `runId`.
 - Cleanup if feasible; otherwise ensure namespacing and document.
-
-## Step 9A — Apply Step Mapping Rules (Deterministic Code Generation)
-
-Before writing test code, apply these deterministic mapping rules to convert Journey steps into Playwright code:
-
-### Navigation Patterns
-| Journey Step | Playwright Code |
-|-------------|-----------------|
-| Navigate to /path | `await page.goto('/path');` |
-| Go to the dashboard | `await page.goto('/dashboard');` |
-| Open /settings page | `await page.goto('/settings');` |
-| Return to home | `await page.goto('/');` |
-
-### Interaction Patterns
-| Journey Step | Playwright Code |
-|-------------|-----------------|
-| Click on "Button" | `await page.getByRole('button', { name: 'Button' }).click();` |
-| Click the "Link" link | `await page.getByRole('link', { name: 'Link' }).click();` |
-| Fill "Field" with "value" | `await page.getByLabel('Field').fill('value');` |
-| Enter "value" in "Field" | `await page.getByLabel('Field').fill('value');` |
-| Select "Option" from dropdown | `await page.getByRole('combobox').selectOption('Option');` |
-| Check "Checkbox" | `await page.getByLabel('Checkbox').check();` |
-| Upload file to "Input" | `await page.getByLabel('Input').setInputFiles('path');` |
-| Press Enter | `await page.keyboard.press('Enter');` |
-| Hover over "Element" | `await page.getByText('Element').hover();` |
-
-### Assertion Patterns
-| Journey Assertion | Playwright Code |
-|------------------|-----------------|
-| See "text" | `await expect(page.getByText('text')).toBeVisible();` |
-| See heading "Title" | `await expect(page.getByRole('heading', { name: 'Title' })).toBeVisible();` |
-| See button "Name" | `await expect(page.getByRole('button', { name: 'Name' })).toBeVisible();` |
-| Not see "text" | `await expect(page.getByText('text')).not.toBeVisible();` |
-| Field contains "value" | `await expect(page.getByLabel('Field')).toHaveValue('value');` |
-| URL contains "/path" | `await expect(page).toHaveURL(/\/path/);` |
-| Title is "Page Title" | `await expect(page).toHaveTitle('Page Title');` |
-| "Element" is disabled | `await expect(page.getByRole('button', { name: 'Element' })).toBeDisabled();` |
-
-### Async Patterns (NO SLEEPS - use these instead)
-| Journey Pattern | Playwright Code |
-|----------------|-----------------|
-| Wait for success toast | `await expectToast(page, { type: 'success' });` |
-| Wait for loading to complete | `await waitForLoadingComplete(page);` |
-| Wait for redirect to /path | `await page.waitForURL(/\/path/);` |
-| Wait for modal to close | `await expect(page.getByRole('dialog')).not.toBeVisible();` |
-| Wait for API response | `await page.waitForResponse(r => r.url().includes('/api/'));` |
-| Eventually see "text" | `await expect(page.getByText('text')).toBeVisible({ timeout: 10000 });` |
-
-### Data Patterns
-| Journey Data Pattern | Playwright Code |
-|---------------------|-----------------|
-| Create unique user | `const userName = namespace('user', runId);` |
-| Use run-specific data | `const data = { name: \`Test-\${runId}\` };` |
-| Cleanup created data | `testData.register(async () => { /* cleanup */ });` |
-
-## Step 9B — Selector Priority Rules
-
-When inferring selectors from Journey steps, use this strict priority order:
-
-1. **Role-based** (highest priority - most resilient):
-   ```typescript
-   page.getByRole('button', { name: 'Submit' })
-   page.getByRole('link', { name: 'Home' })
-   page.getByRole('heading', { level: 1 })
-   ```
-
-2. **Label-based** (for form fields):
-   ```typescript
-   page.getByLabel('Email address')
-   page.getByPlaceholder('Enter your email')
-   ```
-
-3. **Text-based** (for content):
-   ```typescript
-   page.getByText('Welcome back')
-   page.getByText(/total.*\$\d+/)
-   ```
-
-4. **Test ID** (when role/label unavailable):
-   ```typescript
-   page.getByTestId('submit-button')
-   byTestId(page, 'custom-widget')  // @artk/core helper
-   ```
-
-5. **CSS/XPath** (LAST RESORT - must encapsulate in module):
-   ```typescript
-   // Only in feature modules, with justification comment
-   // TODO: Request data-testid for this element
-   page.locator('.legacy-widget > div:first-child')
-   ```
-
-### Keyword → Locator Inference
-| Step Contains | Inferred Locator |
-|--------------|------------------|
-| "button" | `getByRole('button', { name: ... })` |
-| "link" | `getByRole('link', { name: ... })` |
-| "heading" / "title" | `getByRole('heading', { name: ... })` |
-| "field" / "input" | `getByLabel(...)` |
-| "dropdown" / "select" | `getByRole('combobox', ...)` |
-| "checkbox" | `getByLabel(...).check()` |
-| "table" | `getByRole('table')` |
-| "row" | `getByRole('row')` |
-| "menu" | `getByRole('navigation')` |
-| "dialog" / "modal" | `getByRole('dialog')` |
-| "tab" | `getByRole('tab', { name: ... })` |
 
 ## Step 10 — Write the test(s)
 

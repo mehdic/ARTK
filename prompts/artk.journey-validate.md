@@ -1,6 +1,8 @@
 ---
-mode: agent
-description: "Static validation gate - checks tags, no hardcoded URLs, proper fixtures, module registry consistency"
+name: journey-validate
+description: "Phase 8.4: Validate Journey implementation quality (static gates). Checks traceability, schema, tags, module registry, and Playwright best-practice violations (ESLint plugin when available, fallback greps otherwise). Produces a validation report."
+argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|docs/JOURNEY_VALIDATION_<id>.md dryRun=true|false"
+agent: agent
 ---
 
 # ARTK /journey-validate — Quality Gates for a Journey Implementation (Phase 8.4)
@@ -226,70 +228,7 @@ If registry missing, do not fail by default (warn).
 
 ## Step 4 — Technical lint gates
 
-### 4A) Step Pattern Validation (Deterministic Code Quality)
-
-Verify generated tests follow the step mapping rules from `/journey-implement`:
-
-#### Required Patterns (must find in test files)
-```bash
-# Must find role-based or label-based locators
-grep -E "getByRole|getByLabel|getByText|getByTestId" <test-files>
-
-# Must find web-first assertions
-grep -E "await expect\(" <test-files>
-
-# Should find test.step for AC mapping
-grep -E "test\.step\(" <test-files>
-```
-
-#### Forbidden Patterns (must NOT find)
-```bash
-# Sleeps - NEVER allowed
-grep -E "waitForTimeout\(|\.pause\(\)" <test-files>
-
-# Force clicks - fix underlying issue instead
-grep -E "force:\s*true" <test-files>
-
-# Network idle - unreliable
-grep -E "networkidle" <test-files>
-
-# Direct Playwright imports - must use @artk/core
-grep -E "from '@playwright/test'" <test-files>
-
-# Custom fixture imports - must use @artk/core
-grep -E "from '\./fixtures/|from '\.\./fixtures/" <test-files>
-
-# Hardcoded URLs
-grep -E "goto\(['\"]https?://" <test-files>
-
-# CSS-only selectors without role/label
-grep -E "\.click\('\." <test-files>
-```
-
-#### Selector Quality Validation
-| Pattern Found | Severity | Action |
-|--------------|----------|--------|
-| `getByRole()` | Good | No action |
-| `getByLabel()` | Good | No action |
-| `getByText()` | Acceptable | No action |
-| `getByTestId()` | Acceptable | Warn if overused |
-| `locator('.class')` | Warning | Suggest role/label alternative |
-| `locator('#id')` | Warning | Suggest role/label alternative |
-| `nth()` / `first()` / `last()` | Warning | Verify necessity |
-| `xpath=` | Error (strict) | Must encapsulate in module |
-
-#### Async Pattern Validation
-| Pattern Found | Severity | Action |
-|--------------|----------|--------|
-| `waitForTimeout()` | Error | Replace with explicit signal |
-| `expect().toBeVisible()` | Good | No action |
-| `waitForURL()` | Good | No action |
-| `waitForResponse()` | Good | No action |
-| `expectToast()` | Good | No action |
-| `waitForLoadingComplete()` | Good | No action |
-| `sleep()` / `delay()` | Error | Replace with explicit signal |
-
-### 4B) Prefer ESLint plugin when possible
+### 4A) Prefer ESLint plugin when possible
 If `lint=auto|eslint`:
 - Detect ESLint config:
   - `eslint.config.*` or `.eslintrc*`
