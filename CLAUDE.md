@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Critical Rule: Plan First, Implement Only When Asked
+
+**NEVER implement changes unless the user explicitly asks you to implement.**
+
+When the user asks to:
+- "create a plan" → Create only the plan document, do NOT modify code/prompts
+- "research" or "ultrathink" → Create only research documents, do NOT implement
+- "analyze" → Provide analysis, do NOT make changes
+
+Only implement when the user explicitly says:
+- "implement this"
+- "do it"
+- "make the changes"
+- "apply this"
+
+If unsure, ASK before implementing.
+
 ## Project Overview
 
 ARTK (Automatic Regression Testing Kit) is a standardized kit that plugs into GitHub Copilot to help teams build and maintain automated regression testing suites using Playwright. It is designed as:
