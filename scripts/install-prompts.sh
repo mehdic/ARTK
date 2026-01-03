@@ -96,6 +96,26 @@ cp "$ARTK_CORE_SOURCE/version.json" "$CORE_TARGET/" 2>/dev/null || true
 cp "$ARTK_CORE_SOURCE/README.md" "$CORE_TARGET/" 2>/dev/null || true
 echo -e "  ${CYAN}✓${NC} @artk/core bundled to .artk/core/"
 
+# Bundle @artk/core-autogen
+echo -e "${YELLOW}Bundling @artk/core-autogen...${NC}"
+AUTOGEN_SOURCE="$ARTK_ROOT/core/typescript/autogen"
+
+# Build autogen if needed
+if [ ! -d "$AUTOGEN_SOURCE/dist" ]; then
+    echo -e "${YELLOW}Building @artk/core-autogen (dist not found)...${NC}"
+    cd "$AUTOGEN_SOURCE"
+    npm install
+    npm run build
+fi
+
+# Copy to .artk/autogen/
+AUTOGEN_TARGET="$TARGET_PROJECT/.artk/autogen"
+mkdir -p "$AUTOGEN_TARGET"
+cp -r "$AUTOGEN_SOURCE/dist" "$AUTOGEN_TARGET/"
+cp "$AUTOGEN_SOURCE/package.json" "$AUTOGEN_TARGET/"
+cp "$AUTOGEN_SOURCE/README.md" "$AUTOGEN_TARGET/" 2>/dev/null || true
+echo -e "  ${CYAN}✓${NC} @artk/core-autogen bundled to .artk/autogen/"
+
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║      ARTK Installation Complete!           ║${NC}"
@@ -104,6 +124,7 @@ echo ""
 echo -e "${CYAN}Installed:${NC}"
 echo "  .github/prompts/  - $count Copilot prompts"
 echo "  .artk/core/       - @artk/core library"
+echo "  .artk/autogen/    - @artk/core-autogen CLI"
 echo ""
 echo -e "${CYAN}Next step:${NC}"
 echo "  Open VS Code, launch Copilot Chat, and run: /artk.init"
