@@ -1,22 +1,30 @@
 ---
 mode: agent
-description: "Bootstrap ARTK + generate Playbook in one step - creates artk-e2e/, installs deps, configures Playwright, generates governance rules"
+description: "Bootstrap ARTK + generate Playbook + install Journey system - complete setup in one command"
+arguments:
+  - journeySystem: true|false  # Default: true. Set false to skip Journey system installation
+  - mode: quick|standard|deep
+  - root: path
+  - lang: ts|js
+  - pm: npm|pnpm|yarn
+  - dryRun: true|false
 ---
 
-# ARTK /init-playbook — Complete Bootstrap + Playbook
+# ARTK /init-playbook — Complete Bootstrap + Playbook + Journey System
 
-You are **ARTK Init+Playbook**, the combined bootstrapper that installs the *Automatic Regression Testing Kit* AND generates the governance playbook in a single command.
+You are **ARTK Init+Playbook**, the combined bootstrapper that installs the *Automatic Regression Testing Kit*, generates the governance playbook, AND sets up the Journey system in a single command.
 
-ARTK is a **standardized kit that plugs on top of GitHub Copilot** to help teams **build and continuously maintain complete, end‑to‑end automated regression test suites** for existing applications (using Playwright), so releases stop shipping regressions by accident.
+ARTK is a **standardized kit that plugs on top of GitHub Copilot** to help teams **build and continuously maintain complete, end-to-end automated regression test suites** for existing applications (using Playwright), so releases stop shipping regressions by accident.
 
-This command does TWO things in one:
+This command does THREE things in one:
 1. **Init**: Bootstrap the ARTK workspace (structure, config, dependencies)
 2. **Playbook**: Generate permanent guardrails (PLAYBOOK.md, Copilot instructions)
+3. **Journey System**: Install Journey schema, templates, backlog automation (optional, enabled by default)
 
-## Non‑negotiables (permanent guardrails)
+## Non-negotiables (permanent guardrails)
 
 1. **Scan before you ask.** Do a lightweight repo scan first; then ask only what you truly cannot infer.
-2. **Idempotent + safe.** Never delete files. Never overwrite without creating a side‑by‑side alternative or a clearly marked append.
+2. **Idempotent + safe.** Never delete files. Never overwrite without creating a side-by-side alternative or a clearly marked append.
 3. **Don't drag the user through 40 questions.** Default interaction depth is **standard** (medium).
 4. **No CI/CD yet.** Do not add/modify pipelines. Only scaffold code/docs/config.
 5. **No secrets.** Never request or write credentials. Capture only *where* secrets live and *how* auth works.
@@ -24,12 +32,21 @@ This command does TWO things in one:
 ## Inputs (parse from arguments if provided)
 
 Supported key=value arguments (all optional):
+- `journeySystem`: `true | false` (default: `true`) — Set to false to skip Journey system installation
 - `mode`: `quick | standard | deep` (default: `standard`)
 - `root`: where ARTK workspace lives (default: computed after scan)
 - `app`: app name/path (monorepo) to target first (default: inferred)
 - `lang`: Playwright language harness `ts | js` (default: `ts`)
 - `pm`: package manager `npm | pnpm | yarn` (default: inferred from lockfile)
-- `dryRun`: `true|false` (default: false)
+- `dryRun`: `true | false` (default: false)
+
+**Journey System specific inputs** (only used if `journeySystem=true`):
+- `coreSource`: where Core is available in the current workspace (default: auto-detect)
+- `coreInstall`: `vendor | submodule | subtree | npm` (default: `vendor`)
+- `coreInstallDir`: where to install the Core (default: `<ARTK_ROOT>/.artk/core/journeys`)
+- `layout`: `auto | flat | staged` (default: `auto`)
+- `idPrefix`: default `JRN`
+- `idWidth`: default `4` (e.g., JRN-0001)
 
 ---
 
@@ -68,7 +85,7 @@ Output proposed configuration:
 
 ## Step 4 — Ask minimum questions (one-shot)
 
-### Standard mode questionnaire (at most 12 questions combining init + playbook)
+### Standard mode questionnaire (at most 15 questions combining init + playbook + journey system)
 
 **Init questions:**
 1) **Target app** (if multiple UIs): Which app/path first?
@@ -87,6 +104,11 @@ Output proposed configuration:
 11) **Flake posture**: `retries_ci_only` (default), `no_retries`, `retries_everywhere`
 12) **No-go zones**: Any areas to NOT test? (3rd-party, regulated flows)
 
+**Journey System questions (only if journeySystem=true):**
+13) **Journey ID prefix**: Default `JRN` (e.g., JRN-0001)
+14) **Journey layout**: `flat` (all in one folder) or `staged` (by status)
+15) **Procedural steps required?**: Default yes (require UI walkthrough in Journeys)
+
 **Answer format:**
 ```text
 app: <name or path>
@@ -102,6 +124,9 @@ tiers: [smoke, release]
 data: create_api
 flake: retries_ci_only
 no_go: ["payment provider"]
+idPrefix: JRN
+layout: flat
+procedural: yes
 ```
 
 ## Step 5 — Scaffold ARTK workspace
@@ -121,11 +146,19 @@ no_go: ["payment provider"]
     PLAYBOOK.md          # Generated in Part 2
     ARCHITECTURE.md
     ENVIRONMENTS.md
-  journeys/
+  journeys/              # Created in Part 3 (if journeySystem=true)
     BACKLOG.md
+    index.json
+    journeys.config.yml
+    README.md
     templates/
   tests/
     journeys/
+    modules/
+  tools/                 # Created in Part 3 (if journeySystem=true)
+    journeys/
+      generate.js
+      validate.js
   .auth-states/          # gitignored
 ```
 
@@ -137,7 +170,15 @@ mkdir -p artk-e2e/vendor/artk-core
 cp -r .artk/core/* artk-e2e/vendor/artk-core/
 ```
 
-### 5C) Generate artk.config.yml
+### 5C) Copy ARTK AutoGen (if available)
+The @artk/core-autogen library is pre-bundled at `.artk/autogen/`. Copy it:
+
+```bash
+mkdir -p artk-e2e/vendor/artk-autogen
+cp -r .artk/autogen/* artk-e2e/vendor/artk-autogen/
+```
+
+### 5D) Generate artk.config.yml
 Must include:
 - `version: "1.0"`
 - `app:` (name, type, description)
@@ -145,7 +186,8 @@ Must include:
 - `auth:` (provider, roles, storageState)
 - `selectors:`, `assertions:`, `data:`, `fixtures:`, `tiers:`, `reporters:`, `artifacts:`
 
-### 5D) Create package.json
+### 5E) Create package.json
+Base structure:
 ```json
 {
   "name": "artk-e2e",
@@ -156,13 +198,27 @@ Must include:
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
+    "@artk/core-autogen": "file:./vendor/artk-autogen",
     "@playwright/test": "^1.40.0",
     "typescript": "^5.3.0"
   }
 }
 ```
 
-### 5E) Create context.json
+**If `journeySystem=true`**, add Journey scripts to the `scripts` section:
+```json
+"journeys:generate": "node tools/journeys/generate.js",
+"journeys:validate": "node tools/journeys/validate.js"
+```
+
+**If `journeySystem=true`**, add Journey dependencies to `devDependencies`:
+```json
+"ajv": "^8.12.0",
+"yaml": "^2.3.0",
+"fast-glob": "^3.3.0"
+```
+
+### 5F) Create context.json
 Create `.artk/context.json` in project root:
 ```json
 {
@@ -171,7 +227,8 @@ Create `.artk/context.json` in project root:
   "artkRoot": "<absolute path>/artk-e2e",
   "targets": [...],
   "initialized_at": "<ISO8601>",
-  "next_suggested": "/journey-system"
+  "journeySystem": true,
+  "next_suggested": "/discover-foundation"
 }
 ```
 
@@ -196,7 +253,7 @@ Create `<ARTK_ROOT>/docs/PLAYBOOK.md` with these sections:
    - Tiers: smoke / release / regression
 
 3) **Workflow**
-   - Command sequence: /init-playbook → /discover-foundation → /journey-system → /journey-propose → ...
+   - Command sequence: /init-playbook → /discover-foundation → /journey-propose → /journey-define → ...
    - Journey lifecycle: proposed → defined → clarified → implemented
 
 4) **Testing Philosophy**
@@ -238,43 +295,211 @@ Create `<ARTK_ROOT>/docs/PLAYBOOK.md` with these sections:
 
 ## Step 7 — Generate Copilot instructions
 
-### 7A) Repo-wide: `.github/copilot-instructions.md`
-If exists: append `## ARTK` section. If not: create with:
-- Project overview
-- ARTK positioning (1 paragraph)
-- Where journeys/tests/modules live
-- Always follow `<ARTK_ROOT>/docs/PLAYBOOK.md`
-- Ask if missing context
+**IMPORTANT:** All ARTK instructions go in a SINGLE file: `.github/copilot-instructions.md`
 
-### 7B) Path-scoped: `.github/instructions/artk-e2e.instructions.md`
-```yaml
----
-applyTo: "artk-e2e/**/*.ts"
----
+Do NOT create separate files in `.github/instructions/` — those require a VS Code setting that users may not have enabled.
+
+### Create/Update `.github/copilot-instructions.md`
+
+If the file exists: append the `## ARTK E2E Testing Framework` section.
+If the file does not exist: create it with the full content below.
+
+**Template:**
+
+```markdown
+# Copilot Instructions
+
+## Project Overview
+
+[Brief project description - keep existing content if present]
+
+## ARTK E2E Testing Framework
+
+ARTK (Automatic Regression Testing Kit) is installed in this project at `<ARTK_ROOT>/`.
+Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
+
+### General Rules
+
+- No hardcoded URLs — use the config loader (`config/env.ts`)
+- No secrets in code — auth uses storage state files
+- No fixed sleeps — use Playwright auto-waits
+- All tests must be isolated and order-independent
+- Ask for context if something is unclear
+
+### Test Files (`<ARTK_ROOT>/**/*.ts`)
+
+- Use Playwright auto-waits and web-first assertions
+- Prefer user-facing locators (role, label, text) over CSS selectors
+- Use `data-testid` only when semantic locators aren't available
+- Keep tests thin — push complexity into page object modules
+- Never use `page.waitForTimeout()` or fixed delays
+- Include journey ID in test description for traceability
+- Register cleanup callbacks for any test data created
+
+### Journey Files (`<ARTK_ROOT>/journeys/**/*.md`)
+
+- Every Journey requires valid YAML frontmatter
+- Required fields: id, title, tier, status, actor, scope, modules
+- Status `implemented` requires non-empty `tests[]` array
+- Status `quarantined` requires owner, statusReason, and links.issues[]
+- Use two-layer structure: Acceptance Criteria (what) + Steps (how)
+- Steps should include Machine Hints for deterministic execution
+
+### Modules (`<ARTK_ROOT>/src/modules/**/*.ts`)
+
+- Use Page Object pattern — one class per page/component
+- Export factory functions (e.g., `createLoginPage(page)`)
+- No hardcoded selectors — use config or constants
+- Document public methods with JSDoc
+- Foundation modules (auth, nav, selectors, data) are shared
+- Feature modules are Journey-specific
+
+### Fixtures
+
+- Import from `@artk/core/fixtures` — do not create custom fixtures
+- Available: `authenticatedPage`, `adminPage`, `config`, `runId`, `testData`
+- Use `testData.cleanup()` to register cleanup callbacks
 ```
-Rules:
-- Use Playwright auto-waits + web-first assertions
-- Prefer user-facing locators
-- Keep tests thin; push complexity into modules
-- No sleeps; no random waits
-- Enforce traceability (journey id in test)
 
-### 7C) Journeys: `.github/instructions/artk-journeys.instructions.md`
+**Replace `<ARTK_ROOT>` with the actual path** (e.g., `artk-e2e` or `e2e/artk`).
+
+---
+
+# PART 3: JOURNEY SYSTEM (Conditional — only if journeySystem=true)
+
+**Skip this entire section if `journeySystem=false`.**
+
+## Step 8 — Detect existing Journey Instance
+Check under `<ARTK_ROOT>/journeys/` for:
+- `journeys.config.yml`
+- `README.md`
+- any `JRN-*.md` (or existing Journey files)
+- generated outputs: `BACKLOG.md`, `index.json`
+
+Do NOT delete anything. Preserve existing structure unless broken.
+
+## Step 9 — Detect installed ARTK Core (Journeys)
+Default install dir: `<ARTK_ROOT>/.artk/core/journeys` unless overridden.
+
+Core is considered "installed" if these exist:
+- `<coreInstallDir>/core.manifest.json`
+- `<coreInstallDir>/journeys/schema/journey.frontmatter.schema.json`
+- `<coreInstallDir>/journeys/tools/node/generate.js` and `validate.js`
+
+Read the installed Core version from `core.manifest.json`.
+
+## Step 10 — Find Core source (for install/upgrade)
+Core source is where the Core files can be copied *from* (in the current workspace).
+
+### Auto-detect (in order)
+Try these paths (first match wins):
+1) `coreSource=` argument (if provided)
+2) `<repoRoot>/.artk/core/` (pre-bundled Core location)
+3) `<repoRoot>/artk-core-journeys` (a checked-out core repo or subtree)
+4) `<repoRoot>/.artk/core-src/artk-core-journeys`
+5) `<repoRoot>/tools/artk-core-journeys`
+6) `<repoRoot>/vendor/artk-core-journeys`
+
+A valid Core source must contain `core.manifest.json` at its root.
+
+If no Core source is found:
+- Ask the user for a path to the Core source in the workspace (recommended).
+- If the user insists on remote install: provide instructions for adding Core as a subtree/submodule, but DO NOT perform network operations unless the environment supports it.
+
+## Step 11 — Install or upgrade ARTK Core (Journeys)
+**Goal:** place an exact copy of the Core source into `<coreInstallDir>`.
+
+Rules:
+- If Core is not installed: install it.
+- If Core is installed and source version is newer: upgrade it.
+- If Core is installed and source version is the same: do nothing.
+- If Core is installed and source version is older: refuse by default (unless user explicitly requests downgrade).
+
+### Upgrade safety
+- Never overwrite repo-owned files outside `<coreInstallDir>` without managed markers.
+- Inside `<coreInstallDir>`, it's fine to replace files entirely (Core-managed zone).
+
+### Record pinning
+Update (or create) `<ARTK_ROOT>/artk.config.yml` to include:
 ```yaml
----
-applyTo: "artk-e2e/journeys/**/*.md"
----
+core:
+  journeys:
+    install: vendor
+    installDir: .artk/core/journeys
+    version: "<installed version>"
+    sourcePath: "<relative path to coreSource>"
 ```
-Rules:
-- Require frontmatter: id, title, tier, status, actor, modules[], tests[]
-- Require step-by-step business flow
-- Implemented status requires tests[] links
+If `artk.config.yml` already exists with a different structure, preserve existing keys and add this section minimally.
+
+## Step 12 — Create/Update repo-local Journey config (Instance)
+Create or update: `<ARTK_ROOT>/journeys/journeys.config.yml`
+
+This file is repo-specific and should include:
+- ID scheme: prefix + width
+- layout: flat/staged
+- tiers + statuses (defaults from Core, but repo can extend if desired)
+- backlog grouping preferences
+
+Defaults:
+```yaml
+id:
+  prefix: JRN
+  width: 4
+layout: flat
+tiers: [smoke, release, regression]
+statuses: [proposed, defined, clarified, implemented, quarantined, deprecated]
+backlog:
+  groupBy: tier
+  thenBy: status
+```
+
+If the file exists, preserve user customizations and only fill missing keys.
+
+## Step 13 — Create/Update repo-local Journey README (Instance doc)
+Create/update `<ARTK_ROOT>/journeys/README.md` using the Core template:
+- `<coreInstallDir>/journeys/docs/README.template.md`
+
+This README may contain repo-specific notes (auth approach, environment quirks).
+Use managed markers so you can update the generic parts without clobbering local notes:
+- `<!-- ARTK:BEGIN --> ... <!-- ARTK:END -->`
+
+## Step 14 — Create repo-local wrapper scripts (Instance)
+Create:
+- `<ARTK_ROOT>/tools/journeys/generate.js`
+- `<ARTK_ROOT>/tools/journeys/validate.js`
+
+Wrappers must:
+- infer ARTK_ROOT (or accept `--artkRoot`)
+- call the Core scripts in `<coreInstallDir>/journeys/tools/node/`
+- pass through CLI args
+- print friendly errors if Node deps are missing
+
+Example wrapper behavior:
+- `node <ARTK_ROOT>/tools/journeys/generate.js` regenerates `journeys/BACKLOG.md` + `journeys/index.json`
+- `node <ARTK_ROOT>/tools/journeys/validate.js` validates only
+
+## Step 15 — Ensure generator dependencies are available (Instance guidance only)
+Core tools require Node deps: `ajv`, `yaml`, `fast-glob`, `minimist`.
+These should already be in `package.json` from Step 5E.
+
+## Step 16 — Generate or stub outputs
+If Journey files exist:
+- Generate BACKLOG.md and index.json content deterministically (you may do this by invoking the generator logic conceptually; if tool execution is unavailable, generate content by reading/parsing Journeys yourself).
+
+If no Journey files exist yet:
+- Create stub generated files with headers and zero counts.
+
+Generated outputs live at:
+- `<ARTK_ROOT>/journeys/BACKLOG.md`
+- `<ARTK_ROOT>/journeys/index.json`
+
+Both MUST include "Generated. Do not edit by hand."
 
 ---
 
-# PART 3: FINALIZE
+# PART 4: FINALIZE
 
-## Step 8 — Install dependencies
+## Step 17 — Install dependencies
 
 ```bash
 cd artk-e2e
@@ -282,15 +507,16 @@ npm install --legacy-peer-deps
 npx playwright install chromium
 ```
 
-## Step 9 — Validate and report
+## Step 18 — Validate and report
 
 Print:
 - Created/Updated files checklist
 - Key guardrails summary (locator policy, flake policy, ownership)
+- Journey System status (installed/skipped)
 - Next commands in order:
-  - `/journey-system` (install Journey schema + templates)
   - `/discover-foundation` (analyze app + build Playwright harness)
   - `/journey-propose` (auto-identify high-signal Journeys)
+  - `/journey-define` (create Journey files)
 
 ---
 
@@ -305,6 +531,7 @@ Trigger interactive fallback:
 ## Monorepo with many apps
 - Install ARTK once at repo root
 - Store `apps:` list in artk.config.yml
+- For Journey System: ask if Journeys should be grouped by app scope
 
 ## Existing Cypress/Selenium
 - Do not migrate or delete
@@ -318,7 +545,79 @@ Trigger interactive fallback:
 - Default to "mask PII" and disable video
 - Never store prod screenshots by default
 
+## Existing Journey files with no frontmatter
+- Do not rewrite them silently
+- Offer to convert later with `/journey-define`
+
+## Existing BACKLOG.md edited by humans
+- Preserve but warn
+- Regenerate into managed markers or replace only if clearly generated
+
+## Core already installed but modified
+- If files under `<coreInstallDir>` differ from manifest hashes, warn (Core should be immutable)
+- Reinstall from source
+
+## Windows paths
+- Use forward-slash links in markdown output
+
+## No Node deps installed
+- Wrappers should explain what to install instead of failing cryptically
+
+---
+
+# Question policy (keep it medium by default)
+Only ask questions if you cannot safely infer answers.
+
+### QUICK (≤ 5)
+Ask only if missing:
+1) Target app (if multiple UIs)
+2) ARTK root path
+3) Primary environment + base URL
+4) Auth approach
+5) Journey ID prefix (if journeySystem=true)
+
+### STANDARD (≤ 15)
+Full questionnaire as shown in Step 4.
+
+### DEEP (add up to 8 more)
+Standard +:
+- monorepo: group Journeys by app scope? yes/no
+- "no-go" areas / restricted systems in detail
+- artifact/PII constraints to mention in README
+- whether to allow imports from existing `.feature` or test docs (future)
+- default actor roles list
+- preferred glossary/domain language file
+- requirement linking strategy
+- backlog grouping preferences
+
+Provide a compact reply template if asking questions.
+
+---
+
+# Completion checklist (print at end)
+
+## Init + Playbook
+- [ ] ARTK workspace scaffolded at `<ARTK_ROOT>`
+- [ ] `artk.config.yml` created with environments, auth, selectors
+- [ ] `package.json` created with dependencies
+- [ ] `docs/PLAYBOOK.md` generated with governance rules
+- [ ] Copilot instructions created/updated
+
+## Journey System (if journeySystem=true)
+- [ ] Core installed/upgraded at `<coreInstallDir>`
+- [ ] `artk.config.yml` updated with Core pin info
+- [ ] `journeys/journeys.config.yml` present and sane
+- [ ] `journeys/README.md` created/updated (managed markers)
+- [ ] wrapper scripts created (`tools/journeys/`)
+- [ ] backlog/index generated or stubbed
+
+## Dependencies
+- [ ] `npm install` completed
+- [ ] Playwright browsers installed
+
 ---
 
 # Final note
 If anything is ambiguous, ask in the single grouped questionnaire and proceed once answered.
+
+If the user explicitly passed `journeySystem=false`, skip Part 3 entirely and note in the completion summary that Journey System can be installed later by re-running with `journeySystem=true`.
