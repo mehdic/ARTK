@@ -334,8 +334,8 @@ export function generateTest(
 
       // Extract module names from journey metadata
       const modules = {
-        foundation: journey.modules?.foundation || [],
-        features: journey.modules?.features || [],
+        foundation: journey.moduleDependencies?.foundation || [],
+        features: journey.moduleDependencies?.feature || [], // Note: IR uses 'feature' (singular)
       };
 
       updateJourneyFrontmatter({
