@@ -10,7 +10,7 @@ ARTK is a standardized kit for building and maintaining automated regression tes
 
 # 2. Open VS Code with GitHub Copilot
 # 3. In Copilot Chat, run:
-/artk.init
+/artk.init-playbook
 ```
 
 ## Workflow (Prompts Only)
@@ -22,9 +22,10 @@ All work is done through Copilot slash commands. No CLI required.
 │                           ARTK Workflow                                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  SETUP                                                                  │
+│  SETUP (one command does everything)                                    │
 │  ─────                                                                  │
-│  /artk.init-playbook     Bootstrap + generate Copilot guardrails        │
+│  /artk.init-playbook     Bootstrap + Playbook + Journey System          │
+│                          (use journeySystem=false to skip backlog)      │
 │                                                                         │
 │  DISCOVERY                                                              │
 │  ─────────                                                              │
@@ -62,12 +63,13 @@ All work is done through Copilot slash commands. No CLI required.
 
 ## Copilot Slash Commands
 
-### Setup Commands
+### Setup Command
 
 | Command | Purpose |
 |---------|---------|
-| `/artk.init-playbook` | Bootstrap ARTK + generate Copilot guardrails |
-| `/artk.journey-system` | *(Optional)* Install Journey schema validation + BACKLOG.md generation |
+| `/artk.init-playbook` | Bootstrap ARTK + Playbook + Journey System (all-in-one) |
+
+**Note:** Use `journeySystem=false` to skip BACKLOG.md automation if not needed.
 
 ### Discovery Commands
 
@@ -182,8 +184,7 @@ ARTK/
 ├── scripts/
 │   └── install-prompts.sh     # Main installer
 ├── prompts/                    # Copilot slash commands
-│   ├── artk.init-playbook.md
-│   ├── artk.journey-system.md   # Optional
+│   ├── artk.init-playbook.md       # Setup (includes Journey System)
 │   ├── artk.discover-foundation.md
 │   ├── artk.journey-propose.md
 │   ├── artk.journey-define.md

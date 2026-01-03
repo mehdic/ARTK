@@ -411,6 +411,71 @@ Check under `<ARTK_ROOT>/journeys/` for:
 
 Do NOT delete anything. Preserve existing structure unless broken.
 
+### 8A) Detect old Journey System installations (migration guidance)
+
+If an existing Journey System installation is detected, check for indicators of **old Journey System structure** that may need migration:
+
+**Indicators of old/legacy Journey System:**
+1. **Old config location:** `journeys/journeys.config.yml` exists but is missing new fields (e.g., `core:` section pointing to Core installation)
+2. **Old journey files:** Journey markdown files exist without proper YAML frontmatter or with deprecated frontmatter structure
+3. **Missing Core installation:** Journey files exist but no Core installation detected at expected paths
+4. **Old tool locations:** Standalone `generate.js`/`validate.js` directly in `journeys/tools/` without wrapper pattern
+
+**Migration detection logic:**
+```
+IF journeys.config.yml exists AND (
+   core.journeys.installDir not in artk.config.yml OR
+   <coreInstallDir>/core.manifest.json does not exist
+) THEN
+   → Old Journey System detected
+```
+
+**Migration guidance to provide:**
+
+If old Journey System is detected, inform the user:
+
+```
+⚠️  Detected existing Journey System installation (older version)
+
+Found Journey files and config, but Core installation is missing or outdated.
+
+Migration path:
+1. Your existing Journey files (.md) are safe and will be preserved
+2. Journey System now uses a Core-based architecture with:
+   - Core schema and tools installed at: <ARTK_ROOT>/.artk/core/journeys
+   - Wrapper scripts that call Core tools
+   - Pinned Core version in artk.config.yml
+
+3. This init-playbook will:
+   ✓ Install/upgrade Core to latest version
+   ✓ Update journeys.config.yml with new structure
+   ✓ Create wrapper scripts (tools/journeys/*.js)
+   ✓ Regenerate BACKLOG.md and index.json using new Core tools
+   ✓ Preserve all existing Journey markdown files
+
+4. Manual steps (if needed):
+   - Review journeys.config.yml for any custom settings to preserve
+   - Update Journey frontmatter if validation fails (Core will report issues)
+
+Proceed with migration? [yes/no/review]:
+```
+
+**Migration actions (if user confirms yes):**
+1. Back up existing `journeys.config.yml` to `journeys.config.yml.backup`
+2. Proceed with normal Core installation (Steps 9-11)
+3. Merge any custom settings from backup into new config
+4. Run validation on existing Journey files and report any frontmatter issues
+5. Note in completion checklist: "Migrated from old Journey System"
+
+**If user selects review:**
+- Show existing config file content
+- List all Journey files and their frontmatter status
+- Ask again after review
+
+**If user selects no:**
+- Warn: "Skipping Journey System migration. You may encounter issues with outdated tools."
+- Note in completion checklist: "Old Journey System detected but migration declined"
+
 ## Step 9 — Detect installed ARTK Core (Journeys)
 Default install dir: `<ARTK_ROOT>/.artk/core/journeys` unless overridden.
 

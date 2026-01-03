@@ -593,20 +593,15 @@ Lock in non-negotiables before large-scale generation begins.
    GitHub supports repository custom instructions stored in `.github/copilot-instructions.md`.
    This file must distill Playbook rules into actionable generation constraints.
 
-3. **Optional: create path-scoped instruction files**
-   For more targeted behavior, use `.github/instructions/*.instructions.md` with `applyTo` path globs (supported by Copilot coding agent and Copilot code review per GitHub changelog updates).
-   Example scopes:
-   - `e2e/**` strict test rules
-   - `journeys/**` journey formatting rules
+   **IMPORTANT:** Put ALL ARTK instructions in this single file with clear section headers (e.g., "### Test Files", "### Journey Files", "### Modules"). Do NOT use `.github/instructions/*.instructions.md` files — those require a VS Code setting (`github.copilot.chat.codeGeneration.useInstructionFiles`) that is not enabled by default.
 
-4. **Define “prompt files + fallback” policy**
+3. **Define "prompt files + fallback" policy**
    - Prompt files are stored at `.github/prompts/*.prompt.md` (slash-command workflows in supported IDEs).
    - Also maintain `docs/PROMPTS.md` with copy/paste equivalents.
 
 ### Deliverables
 - `docs/PLAYBOOK.md` (v1).
-- `.github/copilot-instructions.md` (v1).
-- `.github/instructions/` optional instruction files.
+- `.github/copilot-instructions.md` (v1) — single file with all ARTK sections.
 - `docs/PROMPTS.md` fallback.
 
 ### Acceptance criteria
@@ -636,7 +631,7 @@ Create a **Journey system of record** that stays consistent across repositories,
 - Generated outputs (must live in the repo):
   - `journeys/BACKLOG.md` (checkbox list derived from status + tests[])
   - `journeys/index.json` (machine index consumed by other ARTK commands)
-- Copilot instructions for Journey authoring (`.github/instructions/artk-journeys.instructions.md`)
+- Copilot instructions for Journey authoring (section in `.github/copilot-instructions.md`)
 
 ### Tasks
 1) **Define canonical Journey schema + lifecycle**
@@ -1054,8 +1049,7 @@ Prompt files availability can vary by IDE; maintain `docs/PROMPTS.md` as copy/pa
 ### 5.3 Repository custom instructions
 Use `.github/copilot-instructions.md` to provide repo-wide instructions that Copilot automatically uses as context.
 
-### 5.4 Path-scoped instructions (optional)
-Use `.github/instructions/*.instructions.md` with `applyTo` path globs to scope instructions to specific folders (e.g., `e2e/**`, `journeys/**`).
+**IMPORTANT:** Put ALL ARTK instructions in a single `.github/copilot-instructions.md` file with clear section headers (e.g., "### Test Files (`e2e/**/*.ts`)", "### Journey Files"). Do NOT use `.github/instructions/*.instructions.md` files — those require a VS Code setting that is not enabled by default and may cause inconsistent behavior.
 
 ---
 
