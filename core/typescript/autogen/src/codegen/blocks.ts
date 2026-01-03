@@ -186,7 +186,7 @@ function wrapInBlock(content: string, id?: string): string {
  * ```
  */
 export function injectManagedBlocks(options: InjectBlocksOptions): string {
-  const { existingCode, newBlocks, preserveOrder = true } = options;
+  const { existingCode, newBlocks } = options;
 
   // If no existing code, just wrap new blocks
   if (!existingCode.trim()) {
@@ -195,7 +195,7 @@ export function injectManagedBlocks(options: InjectBlocksOptions): string {
       .join('\n\n');
   }
 
-  const { blocks: existingBlocks, preservedCode, hasBlocks } =
+  const { preservedCode, hasBlocks } =
     extractManagedBlocks(existingCode);
 
   if (!hasBlocks) {

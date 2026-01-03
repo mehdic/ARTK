@@ -139,7 +139,7 @@ export interface ModuleDependencies {
 /**
  * Completion signal types
  */
-export type CompletionSignalType = 'url' | 'toast' | 'element' | 'text';
+export type CompletionSignalType = 'url' | 'toast' | 'element' | 'title' | 'api';
 
 /**
  * Completion signal for journey success
@@ -147,8 +147,13 @@ export type CompletionSignalType = 'url' | 'toast' | 'element' | 'text';
 export interface CompletionSignal {
   type: CompletionSignalType;
   value: string;
-  locator?: LocatorSpec;
-  timeout?: number;
+  options?: {
+    timeout?: number;
+    exact?: boolean;
+    state?: 'visible' | 'hidden' | 'attached' | 'detached';
+    method?: string; // For API signals
+    status?: number; // For API signals
+  };
 }
 
 /**

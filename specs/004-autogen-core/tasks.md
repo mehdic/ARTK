@@ -27,13 +27,13 @@
 
 **Purpose**: Initialize the @artk/core-autogen package structure
 
-- [ ] T001 Create package structure at core/typescript/autogen/ per plan.md project structure
-- [ ] T002 Initialize TypeScript project with package.json in core/typescript/autogen/package.json
-- [ ] T003 [P] Configure tsconfig.json for Node.js 18+ in core/typescript/autogen/tsconfig.json
-- [ ] T004 [P] Add dependencies (ts-morph, yaml, zod, fast-glob) in core/typescript/autogen/package.json
-- [ ] T005 [P] Add dev dependencies (vitest, @types/node) in core/typescript/autogen/package.json
-- [ ] T006 [P] Configure ESLint with eslint-plugin-playwright in core/typescript/autogen/eslint.config.js
-- [ ] T007 Create source directory structure per detailed spec Section 23 in core/typescript/autogen/src/
+- [x] T001 Create package structure at core/typescript/autogen/ per plan.md project structure
+- [x] T002 Initialize TypeScript project with package.json in core/typescript/autogen/package.json
+- [x] T003 [P] Configure tsconfig.json for Node.js 18+ in core/typescript/autogen/tsconfig.json
+- [x] T004 [P] Add dependencies (ts-morph, yaml, zod, fast-glob) in core/typescript/autogen/package.json
+- [x] T005 [P] Add dev dependencies (vitest, @types/node) in core/typescript/autogen/package.json
+- [x] T006 [P] Configure ESLint with eslint-plugin-playwright in core/typescript/autogen/eslint.config.js
+- [x] T007 Create source directory structure per detailed spec Section 23 in core/typescript/autogen/src/
 
 **Checkpoint**: Package structure ready for implementation
 
@@ -45,17 +45,17 @@
 
 **Critical**: No user story work can begin until this phase is complete
 
-- [ ] T008 Define Zod schema for autogen.config.yml in core/typescript/autogen/src/config/schema.ts
-- [ ] T009 Implement config loader for artk/autogen.config.yml in core/typescript/autogen/src/config/loader.ts
-- [ ] T010 Define all IR types (IRPrimitive, LocatorSpec, ValueSpec, IRStep, IRJourney) per detailed spec Section 9 in core/typescript/autogen/src/ir/types.ts
-- [ ] T011 Create IR builder utility in core/typescript/autogen/src/ir/builder.ts
-- [ ] T012 Create IR serializer for debugging in core/typescript/autogen/src/ir/serialize.ts
-- [ ] T013 Define Journey frontmatter Zod schema per detailed spec Section 8 in core/typescript/autogen/src/journey/schema.ts
-- [ ] T014 Implement Journey parser (YAML frontmatter + markdown body) in core/typescript/autogen/src/journey/parseJourney.ts
-- [ ] T015 Implement Journey normalizer to extract steps in core/typescript/autogen/src/journey/normalize.ts
-- [ ] T016 Add unit tests for IR types and builder in core/typescript/autogen/tests/ir/types.test.ts
-- [ ] T017 [P] Add unit tests for config loader in core/typescript/autogen/tests/config/loader.test.ts
-- [ ] T018 [P] Add unit tests for Journey parser in core/typescript/autogen/tests/journey/parser.test.ts
+- [x] T008 Define Zod schema for autogen.config.yml in core/typescript/autogen/src/config/schema.ts
+- [x] T009 Implement config loader for artk/autogen.config.yml in core/typescript/autogen/src/config/loader.ts
+- [x] T010 Define all IR types (IRPrimitive, LocatorSpec, ValueSpec, IRStep, IRJourney) per detailed spec Section 9 in core/typescript/autogen/src/ir/types.ts
+- [x] T011 Create IR builder utility in core/typescript/autogen/src/ir/builder.ts
+- [x] T012 Create IR serializer for debugging in core/typescript/autogen/src/ir/serialize.ts
+- [x] T013 Define Journey frontmatter Zod schema per detailed spec Section 8 in core/typescript/autogen/src/journey/schema.ts
+- [x] T014 Implement Journey parser (YAML frontmatter + markdown body) in core/typescript/autogen/src/journey/parseJourney.ts
+- [x] T015 Implement Journey normalizer to extract steps in core/typescript/autogen/src/journey/normalize.ts
+- [x] T016 Add unit tests for IR types and builder in core/typescript/autogen/tests/ir/builder.test.ts
+- [x] T017 [P] Add unit tests for config loader in core/typescript/autogen/tests/config/loader.test.ts
+- [x] T018 [P] Add unit tests for Journey parser in core/typescript/autogen/tests/journey/parser.test.ts
 
 **Checkpoint**: Foundation ready - IR, config, and Journey parsing complete. User story implementation can begin.
 

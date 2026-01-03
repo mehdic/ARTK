@@ -37,6 +37,18 @@ import {
 } from './defaults.js';
 
 // =============================================================================
+// Version Constants
+// =============================================================================
+
+/**
+ * Current configuration version
+ *
+ * Used for schema migration. When breaking changes are made to the config
+ * schema, this version is incremented and a migration is added to migrate.ts.
+ */
+export const CURRENT_CONFIG_VERSION = SUPPORTED_CONFIG_VERSION;
+
+// =============================================================================
 // Primitive Schemas
 // =============================================================================
 
@@ -539,11 +551,7 @@ export const JourneysConfigSchema = z.object({
  */
 export const ARTKConfigSchema = z
   .object({
-    version: z.literal(SUPPORTED_CONFIG_VERSION, {
-      errorMap: () => ({
-        message: `Configuration version must be ${SUPPORTED_CONFIG_VERSION}`,
-      }),
-    }),
+    version: z.number().int().min(1).optional().default(SUPPORTED_CONFIG_VERSION),
     app: AppConfigSchema,
     environments: EnvironmentsSchema.default({}),
     activeEnvironment: z.string().default('default'),

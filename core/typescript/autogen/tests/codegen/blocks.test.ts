@@ -122,7 +122,7 @@ test('outer', () => {
 `;
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const result = extractManagedBlocks(code);
+      extractManagedBlocks(code);
 
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Nested'));
       consoleSpy.mockRestore();

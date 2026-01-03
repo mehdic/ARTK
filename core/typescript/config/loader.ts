@@ -26,6 +26,7 @@ import {
   resolveEnvVarsInObject,
   type ResolveOptions,
 } from './env.js';
+import { CURRENT_CONFIG_VERSION, migrateConfig, needsMigration } from './migrate.js';
 import { ARTKConfigSchema } from './schema.js';
 import type {
   AppConfig,
@@ -333,7 +334,35 @@ export function loadConfig(options: LoadConfigOptions = {}): LoadConfigResult {
   }
 
   // Resolve environment variables
-  const resolvedConfig = resolveEnvVarsInObject(rawConfig, resolveOptions);
+  let resolvedConfig = resolveEnvVarsInObject(rawConfig, resolveOptions);
+
+  // Validate version is supported (reject future versions)
+  const configVersion = (resolvedConfig.version as number | undefined) ?? 0;
+  if (configVersion > CURRENT_CONFIG_VERSION) {
+    throw new ARTKConfigError(
+      `Configuration version ${configVersion} is not supported. Current version is ${CURRENT_CONFIG_VERSION}.`,
+      'version',
+      `Downgrade your configuration to version ${CURRENT_CONFIG_VERSION} or upgrade @artk/core`
+    );
+  }
+
+  // Check for migration
+  if (needsMigration(resolvedConfig)) {
+    const migrationResult = migrateConfig(resolvedConfig);
+
+    if (migrationResult.migrationsApplied.length > 0) {
+      logger.warn(
+        `Config migrated from v${migrationResult.fromVersion} to v${migrationResult.toVersion}:\n` +
+        migrationResult.migrationsApplied.map(m => `  - ${m}`).join('\n')
+      );
+    } else {
+      logger.info(
+        `Config version updated from v${migrationResult.fromVersion} to v${migrationResult.toVersion} (no schema changes)`
+      );
+    }
+
+    resolvedConfig = migrationResult.config;
+  }
 
   // Validate against schema
   const parseResult = ARTKConfigSchema.safeParse(resolvedConfig);
