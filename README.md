@@ -1,49 +1,48 @@
 # Automatic Regression Testing Kit (ARTK)
 
-ARTK is a standardized kit for building and maintaining automated regression testing suites using Playwright. It transforms human-readable **Journey** specifications into executable Playwright tests.
+ARTK is a standardized kit for building and maintaining automated regression testing suites using Playwright. It works through **GitHub Copilot slash commands** that guide you from discovery to implementation.
 
 ## Quick Start
 
 ```bash
 # 1. Install ARTK to your project
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
 
-# 2. Initialize ARTK (in VS Code Copilot Chat)
+# 2. Open VS Code with GitHub Copilot
+# 3. In Copilot Chat, run:
 /artk.init
-
-# 3. Create a Journey file (journeys/login.md)
-# 4. Generate tests
-node .artk/autogen/dist/cli/index.js generate "journeys/*.md" -o e2e/tests/
 ```
 
-## Workflow
+## Workflow (Prompts Only)
+
+All work is done through Copilot slash commands. No CLI required.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           ARTK Workflow                                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  1. INSTALL          2. DISCOVER           3. DEFINE                   │
-│  ─────────           ──────────            ────────                    │
-│  install-prompts.sh  /artk.discover        /artk.journey-define        │
-│       ↓                   ↓                      ↓                     │
-│  .artk/              .artk/context.json    journeys/*.md               │
-│  .github/prompts/                          (proposed → defined)        │
+│  SETUP                                                                  │
+│  ─────                                                                  │
+│  /artk.init-playbook     Bootstrap + generate Copilot guardrails        │
+│  /artk.journey-system    Install/upgrade Journey system from Core       │
 │                                                                         │
-│  4. CLARIFY          5. GENERATE           6. VALIDATE                 │
-│  ─────────           ──────────            ──────────                  │
-│  /artk.journey-      artk-autogen          artk-autogen                │
-│   clarify            generate              validate                    │
-│       ↓                   ↓                      ↓                     │
-│  journeys/*.md       e2e/tests/*.spec.ts   Schema + lint checks       │
-│  (defined → clarified)                                                  │
+│  DISCOVERY                                                              │
+│  ─────────                                                              │
+│  /artk.discover-foundation   Analyze app + build Playwright harness     │
+│  /artk.journey-propose       Auto-propose Journeys from discovery       │
 │                                                                         │
-│  7. VERIFY           8. IMPLEMENT          9. MAINTAIN                 │
-│  ────────            ──────────            ──────────                  │
-│  artk-autogen        Run tests +           /artk.journey-maintain      │
-│  verify              iterate                    ↓                      │
-│       ↓                   ↓                Quarantine flaky,           │
-│  Tests pass?         Production-ready      deprecate obsolete          │
+│  JOURNEY LIFECYCLE                                                      │
+│  ─────────────────                                                      │
+│  /artk.journey-define    Create Journey (proposed → defined)            │
+│  /artk.journey-clarify   Add machine hints (defined → clarified)        │
+│  /artk.journey-implement Generate Playwright tests (→ implemented)      │
+│  /artk.journey-validate  Static validation gate                         │
+│  /artk.journey-verify    Run tests + auto-heal failures                 │
+│                                                                         │
+│  MAINTENANCE (coming soon)                                              │
+│  ─────────────────────────                                              │
+│  /artk.journey-maintain  Quarantine flaky, deprecate obsolete           │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -51,16 +50,67 @@ node .artk/autogen/dist/cli/index.js generate "journeys/*.md" -o e2e/tests/
 ## Installation
 
 ```bash
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
 ```
 
 **What gets installed:**
 
 | Location | Contents |
 |----------|----------|
-| `.github/prompts/` | Copilot slash commands (`/artk.init`, `/artk.journey-define`, etc.) |
+| `.github/prompts/` | Copilot slash commands (all `/artk.*` commands) |
 | `.artk/core/` | @artk/core library (auth, config, fixtures) |
-| `.artk/autogen/` | AutoGen CLI (generate, validate, verify) |
+| `.artk/autogen/` | AutoGen engine (used internally by prompts) |
+
+## Copilot Slash Commands
+
+### Setup Commands
+
+| Command | Purpose |
+|---------|---------|
+| `/artk.init-playbook` | Bootstrap ARTK + generate Copilot guardrails |
+| `/artk.journey-system` | Install/upgrade Journey system from Core |
+
+### Discovery Commands
+
+| Command | Purpose |
+|---------|---------|
+| `/artk.discover-foundation` | Analyze app routes, auth, testability + build Playwright harness |
+| `/artk.journey-propose` | Auto-propose Journeys from discovery results |
+
+### Journey Lifecycle Commands
+
+| Command | Purpose |
+|---------|---------|
+| `/artk.journey-define` | Create a new Journey file with frontmatter |
+| `/artk.journey-clarify` | Add machine hints for deterministic execution |
+| `/artk.journey-implement` | Generate Playwright tests from Journey |
+| `/artk.journey-validate` | Static validation (schema, tags, lint) |
+| `/artk.journey-verify` | Run tests, collect evidence, auto-heal failures |
+
+### Maintenance Command (Coming Soon)
+
+| Command | Purpose |
+|---------|---------|
+| `/artk.journey-maintain` | Quarantine flaky tests, deprecate obsolete Journeys |
+
+## Typical Usage Flow
+
+```bash
+# 1. Install ARTK
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
+
+# 2. In VS Code Copilot Chat:
+/artk.init-playbook             # Bootstrap project + guardrails
+/artk.discover-foundation       # Analyze app + create harness
+/artk.journey-propose           # Get suggested Journeys
+
+# 3. For each Journey:
+/artk.journey-define id=JRN-0001 title="User Login"
+/artk.journey-clarify id=JRN-0001
+/artk.journey-implement id=JRN-0001
+/artk.journey-validate id=JRN-0001
+/artk.journey-verify id=JRN-0001
+```
 
 ## Journey File Format
 
@@ -81,14 +131,16 @@ modules:
 completion:
   - type: url
     value: /dashboard
-    options:
-      timeout: 5000
 ---
 
 # User Login Journey
 
 ## Context
 A registered user authenticates to access the dashboard.
+
+## Acceptance Criteria
+- [ ] User can enter email and password
+- [ ] Login redirects to dashboard
 
 ## Steps
 
@@ -98,47 +150,7 @@ Navigate to the login page.
 **Machine Hints:**
 - action: goto
 - url: /login
-
-### Step 2: Enter Credentials
-Enter email and password.
-
-**Machine Hints:**
-- action: fill
-- selector: [data-testid="email-input"]
-- value: {{user.email}}
 ```
-
-## AutoGen CLI Commands
-
-```bash
-# Generate Playwright tests from Journey files
-node .artk/autogen/dist/cli/index.js generate "journeys/*.md" -o e2e/tests/ -m
-
-# Validate Journey frontmatter (static check)
-node .artk/autogen/dist/cli/index.js validate "journeys/*.md"
-
-# Verify generated tests run successfully
-node .artk/autogen/dist/cli/index.js verify "journeys/*.md" --heal
-```
-
-| Command | Purpose | Output |
-|---------|---------|--------|
-| `generate` | Convert Journeys → Playwright tests | `.spec.ts` + page objects |
-| `validate` | Check Journey schema is valid | Pass/fail + warnings |
-| `verify` | Run tests, optionally self-heal | Test results + fixes |
-
-## Copilot Slash Commands
-
-| Command | Purpose |
-|---------|---------|
-| `/artk.init` | Bootstrap ARTK in your project |
-| `/artk.discover` | Analyze app for testable features |
-| `/artk.journey-define` | Create a new Journey file |
-| `/artk.journey-clarify` | Add machine hints to a Journey |
-| `/artk.journey-implement` | Generate tests (via Copilot) |
-| `/artk.journey-validate` | Validate Journey schema |
-| `/artk.journey-verify` | Run and verify tests |
-| `/artk.journey-maintain` | Quarantine/deprecate Journeys |
 
 ## Journey Lifecycle
 
@@ -150,14 +162,19 @@ proposed → defined → clarified → implemented
                               deprecated (obsolete)
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `proposed` | Initial idea, not yet structured |
+| Status | Requirements |
+|--------|--------------|
+| `proposed` | Initial idea, minimal structure |
 | `defined` | Has frontmatter + acceptance criteria |
 | `clarified` | Has machine hints for each step |
-| `implemented` | Has linked test files (`tests[]` populated) |
-| `quarantined` | Flaky, needs investigation |
-| `deprecated` | No longer relevant |
+| `implemented` | Has linked tests, validated, verified |
+| `quarantined` | Requires `owner`, `statusReason`, `links.issues[]` |
+| `deprecated` | Requires `statusReason` |
+
+## Documentation
+
+- `docs/ARTK_Master_Launch_Document_v0.6.md` - Full specification
+- `docs/ARTK_Journey_Lifecycle_v0.1.md` - Journey status lifecycle
 
 ## Repository Structure
 
@@ -166,19 +183,17 @@ ARTK/
 ├── scripts/
 │   └── install-prompts.sh     # Main installer
 ├── prompts/                    # Copilot slash commands
-│   └── artk.*.md
+│   ├── artk.init-playbook.md
+│   ├── artk.journey-system.md
+│   ├── artk.discover-foundation.md
+│   ├── artk.journey-propose.md
+│   ├── artk.journey-define.md
+│   ├── artk.journey-clarify.md
+│   ├── artk.journey-implement.md
+│   ├── artk.journey-validate.md
+│   └── artk.journey-verify.md
 ├── core/typescript/
 │   ├── src/                    # @artk/core source
-│   ├── autogen/                # @artk/core-autogen source
-│   └── scripts/
-│       └── install-to-project.sh
-├── demo/                       # Example project
-│   ├── journeys/
-│   └── e2e/tests/
+│   └── autogen/                # @artk/core-autogen source
 └── docs/                       # Specifications
 ```
-
-## Documentation
-
-- `docs/ARTK_Master_Launch_Document_v0.6.md` - Full specification
-- `docs/ARTK_Journey_Lifecycle_v0.1.md` - Journey status lifecycle
