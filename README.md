@@ -25,7 +25,6 @@ All work is done through Copilot slash commands. No CLI required.
 │  SETUP                                                                  │
 │  ─────                                                                  │
 │  /artk.init-playbook     Bootstrap + generate Copilot guardrails        │
-│  /artk.journey-system    Install/upgrade Journey system from Core       │
 │                                                                         │
 │  DISCOVERY                                                              │
 │  ─────────                                                              │
@@ -68,7 +67,7 @@ All work is done through Copilot slash commands. No CLI required.
 | Command | Purpose |
 |---------|---------|
 | `/artk.init-playbook` | Bootstrap ARTK + generate Copilot guardrails |
-| `/artk.journey-system` | Install/upgrade Journey system from Core |
+| `/artk.journey-system` | *(Optional)* Install Journey schema validation + BACKLOG.md generation |
 
 ### Discovery Commands
 
@@ -184,7 +183,7 @@ ARTK/
 │   └── install-prompts.sh     # Main installer
 ├── prompts/                    # Copilot slash commands
 │   ├── artk.init-playbook.md
-│   ├── artk.journey-system.md
+│   ├── artk.journey-system.md   # Optional
 │   ├── artk.discover-foundation.md
 │   ├── artk.journey-propose.md
 │   ├── artk.journey-define.md
