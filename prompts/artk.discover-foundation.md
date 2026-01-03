@@ -629,6 +629,253 @@ browsers: [chromium]
 - **Existing Playwright**: integrate carefully, don't replace config
 - **Highly restricted environments**: focus on static discovery
 
+# ═══════════════════════════════════════════════════════════════════
+# PART 4: FOUNDATION VALIDATION
+# ═══════════════════════════════════════════════════════════════════
+
+**This step validates that all foundation modules compile and work correctly.**
+
+## Step V1 — TypeScript Compilation Check
+
+Run TypeScript compiler to catch type errors:
+
+```bash
+cd <ARTK_ROOT>
+npx tsc --noEmit
+```
+
+**Expected outcome:** No compilation errors.
+
+**If errors found:**
+- Fix each error before proceeding
+- Common issues:
+  - Missing type imports
+  - Incorrect @artk/core import paths
+  - Config type mismatches
+
+## Step V2 — Create Foundation Validation Tests
+
+Create `tests/foundation/foundation.validation.spec.ts`:
+
+```typescript
+/**
+ * Foundation Validation Tests
+ *
+ * These tests verify that all foundation modules:
+ * 1. Import correctly
+ * 2. Compile without errors
+ * 3. Basic functionality works
+ *
+ * Run with: npx playwright test tests/foundation/
+ */
+import { test, expect } from '@playwright/test';
+
+// ═══════════════════════════════════════════════════════════════════
+// Module Import Validation
+// ═══════════════════════════════════════════════════════════════════
+
+test.describe('Foundation Module Imports', () => {
+  test('config loader imports and loads', async () => {
+    const { loadConfig } = await import('../../config/env');
+    const config = loadConfig();
+
+    expect(config).toBeDefined();
+    expect(config.baseUrl).toBeDefined();
+  });
+
+  test('navigation module imports', async () => {
+    const nav = await import('../../src/modules/foundation/navigation/nav');
+
+    expect(nav.gotoBase).toBeDefined();
+    expect(nav.gotoPath).toBeDefined();
+  });
+
+  test('selector utilities import', async () => {
+    const selectors = await import('../../src/modules/foundation/selectors/locators');
+
+    expect(selectors.byTestId).toBeDefined();
+  });
+
+  test('data harness imports', async () => {
+    const runId = await import('../../src/modules/foundation/data/run-id');
+
+    expect(runId.generateRunId).toBeDefined();
+  });
+
+  test('auth module imports', async () => {
+    const auth = await import('../../src/modules/foundation/auth/login');
+
+    // Auth module should export login helper
+    expect(auth).toBeDefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Config Validation
+// ═══════════════════════════════════════════════════════════════════
+
+test.describe('Config Validation', () => {
+  test('environment config has required fields', async () => {
+    const { loadConfig } = await import('../../config/env');
+    const config = loadConfig();
+
+    // Required fields
+    expect(config.baseUrl).toBeTruthy();
+    expect(typeof config.baseUrl).toBe('string');
+
+    // URL should be valid
+    expect(() => new URL(config.baseUrl)).not.toThrow();
+  });
+
+  test('environments.json exists and is valid', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const { dirname } = await import('path');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+
+    const envPath = path.join(__dirname, '../../config/environments.json');
+    const envExamplePath = path.join(__dirname, '../../config/environments.example.json');
+
+    // Either environments.json or environments.example.json should exist
+    const exists = fs.existsSync(envPath) || fs.existsSync(envExamplePath);
+    expect(exists).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Playwright Config Validation
+// ═══════════════════════════════════════════════════════════════════
+
+test.describe('Playwright Config Validation', () => {
+  test('playwright.config.ts is valid', async () => {
+    // This test passes if it runs at all - config was loaded by Playwright
+    expect(true).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Module Registry Validation
+// ═══════════════════════════════════════════════════════════════════
+
+test.describe('Module Registry', () => {
+  test('registry.json exists and is valid', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const { dirname } = await import('path');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+
+    const registryPath = path.join(__dirname, '../../src/modules/registry.json');
+    expect(fs.existsSync(registryPath)).toBe(true);
+
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+    expect(registry.foundation).toBeDefined();
+    expect(Array.isArray(registry.foundation)).toBe(true);
+    expect(registry.foundation.length).toBeGreaterThan(0);
+  });
+
+  test('all registered modules exist', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const { dirname } = await import('path');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+
+    const registryPath = path.join(__dirname, '../../src/modules/registry.json');
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+
+    for (const mod of registry.foundation) {
+      const modPath = path.join(__dirname, '../../src/modules', mod.path);
+      expect(fs.existsSync(modPath)).toBe(true);
+    }
+  });
+});
+```
+
+## Step V3 — Run Validation Tests
+
+Execute the validation tests:
+
+```bash
+cd <ARTK_ROOT>
+npx playwright test tests/foundation/ --reporter=list
+```
+
+**Expected outcome:** All validation tests pass.
+
+**If tests fail:**
+1. Check the error message for the specific failure
+2. Fix the underlying module/config issue
+3. Re-run validation
+4. Do NOT proceed until all validation tests pass
+
+## Step V4 — Verify @artk/core Integration
+
+Test that core library integration works:
+
+```bash
+# Test core imports work (ESM dynamic import)
+node --input-type=module -e "
+import('./vendor/artk-core/dist/config/index.js').then(config => {
+  return import('./vendor/artk-core/dist/harness/index.js');
+}).then(harness => {
+  console.log('✓ @artk/core imports successful');
+}).catch(err => {
+  console.error('✗ Import failed:', err.message);
+  process.exit(1);
+});
+"
+```
+
+**If import fails:**
+- Check that vendor/artk-core exists
+- Check that dist/ folder is populated
+- Re-run `/init-playbook` to re-copy core
+
+## Step V5 — Optional: Auth Flow Smoke Test
+
+If auth modules were created, validate the auth setup:
+
+```bash
+# Run auth setup project only
+npx playwright test --project="*-setup" --reporter=list
+```
+
+**Note:** This requires valid test credentials configured in environment.
+
+If no credentials available yet:
+- Skip this step
+- Document in README that auth validation is pending
+- Add TODO comment in auth.setup.ts
+
+## Step V6 — Validation Summary
+
+After validation completes, output summary:
+
+```
+═══════════════════════════════════════════════════════════════════
+FOUNDATION VALIDATION SUMMARY
+═══════════════════════════════════════════════════════════════════
+
+TypeScript Compilation:  ✓ PASS / ✗ FAIL
+Module Imports:          ✓ PASS / ✗ FAIL
+Config Validation:       ✓ PASS / ✗ FAIL
+Registry Validation:     ✓ PASS / ✗ FAIL
+Core Integration:        ✓ PASS / ✗ FAIL
+Auth Flow (optional):    ✓ PASS / ⏭ SKIPPED / ✗ FAIL
+
+Overall: READY / NEEDS FIXES
+
+Next steps:
+- If READY: Proceed to /journey-propose
+- If NEEDS FIXES: Address errors above before continuing
+═══════════════════════════════════════════════════════════════════
+```
+
 ---
 
 ## Completion Checklist
@@ -650,6 +897,12 @@ browsers: [chromium]
 - [ ] Module registry created
 - [ ] Harness README created
 
+### Validation
+- [ ] TypeScript compilation passes (`tsc --noEmit`)
+- [ ] Foundation validation tests created
+- [ ] All validation tests pass
+- [ ] @artk/core integration verified
+- [ ] Validation summary output
+
 ### Next Commands
-- `/journey-system` (install Journey schema + templates)
 - `/journey-propose` (auto-identify high-signal Journeys)
