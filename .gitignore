@@ -33,3 +33,8 @@ ignore/
 bazinga/*.db*
 bazinga/artifacts/
 bazinga/prompts/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
