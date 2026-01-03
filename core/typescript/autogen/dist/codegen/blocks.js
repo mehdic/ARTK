@@ -134,14 +134,14 @@ function wrapInBlock(content, id) {
  * ```
  */
 export function injectManagedBlocks(options) {
-    const { existingCode, newBlocks, preserveOrder = true } = options;
+    const { existingCode, newBlocks } = options;
     // If no existing code, just wrap new blocks
     if (!existingCode.trim()) {
         return newBlocks
             .map(block => wrapInBlock(block.content, block.id))
             .join('\n\n');
     }
-    const { blocks: existingBlocks, preservedCode, hasBlocks } = extractManagedBlocks(existingCode);
+    const { preservedCode, hasBlocks } = extractManagedBlocks(existingCode);
     if (!hasBlocks) {
         // No existing blocks - append new blocks at end
         const preserved = preservedCode.join('\n').trim();

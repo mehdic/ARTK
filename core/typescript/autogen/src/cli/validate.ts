@@ -3,7 +3,7 @@
  * @see T095 - Create CLI entry point for validation
  */
 import { parseArgs } from 'node:util';
-import { glob } from 'fast-glob';
+import fg from 'fast-glob';
 import { validateJourneys, type ValidateJourneyResult } from '../index.js';
 
 const USAGE = `
@@ -52,7 +52,7 @@ export async function runValidate(args: string[]): Promise<void> {
   }
 
   // Expand glob patterns
-  const files = await glob(positionals, {
+  const files = await fg(positionals, {
     absolute: true,
   });
 

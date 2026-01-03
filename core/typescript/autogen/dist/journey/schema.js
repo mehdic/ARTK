@@ -29,14 +29,24 @@ export const CleanupStrategySchema = z.enum(['required', 'best-effort', 'none'])
 /**
  * Completion signal type enum
  */
-export const CompletionTypeSchema = z.enum(['url', 'toast', 'element', 'text']);
+export const CompletionTypeSchema = z.enum(['url', 'toast', 'element', 'title', 'api']);
+/**
+ * Element state enum for completion signals
+ */
+export const ElementStateSchema = z.enum(['visible', 'hidden', 'attached', 'detached']);
 /**
  * Completion signal schema
  */
 export const CompletionSignalSchema = z.object({
     type: CompletionTypeSchema,
-    value: z.string(),
-    timeout: z.number().positive().optional(),
+    value: z.string().min(1, 'Completion signal value is required'),
+    options: z.object({
+        timeout: z.number().positive().optional(),
+        exact: z.boolean().optional(),
+        state: ElementStateSchema.optional(),
+        method: z.string().optional(),
+        status: z.number().int().positive().optional(),
+    }).optional(),
 });
 /**
  * Data configuration schema

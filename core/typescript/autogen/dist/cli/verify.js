@@ -3,7 +3,7 @@
  * @see T096 - Create CLI entry point for verification
  */
 import { parseArgs } from 'node:util';
-import { glob } from 'fast-glob';
+import fg from 'fast-glob';
 import { verifyJourneys } from '../index.js';
 const USAGE = `
 Usage: artk-autogen verify [options] <journey-files...>
@@ -57,7 +57,7 @@ export async function runVerify(args) {
         process.exit(1);
     }
     // Expand glob patterns
-    const journeyFiles = await glob(positionals, {
+    const journeyFiles = await fg(positionals, {
         absolute: true,
     });
     if (journeyFiles.length === 0) {

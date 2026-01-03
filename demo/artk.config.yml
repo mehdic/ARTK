@@ -1,0 +1,24 @@
+version: "1.0.0"
+
+# ARTK AutoGen Configuration
+project:
+  name: artk-demo
+  baseUrl: http://localhost:3000
+
+# Directory structure
+paths:
+  journeys: journeys/
+  tests: e2e/tests/
+  modules: e2e/modules/
+  selectors: e2e/selectors/
+
+# Test generation settings
+generation:
+  testIdAttribute: data-testid
+  defaultTimeout: 30000
+  retries: 2
+
+# Playwright settings
+playwright:
+  browser: chromium
+  headless: true

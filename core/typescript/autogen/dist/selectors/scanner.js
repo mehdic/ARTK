@@ -4,7 +4,7 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, relative, basename, extname } from 'node:path';
-import { glob } from 'fast-glob';
+import fg from 'fast-glob';
 import { createEmptyCatalog, } from './catalogSchema.js';
 /**
  * Default file patterns for scanning
@@ -177,7 +177,7 @@ export async function scanForTestIds(options) {
         };
     }
     // Find files to scan
-    const files = await glob(include, {
+    const files = await fg(include, {
         cwd: resolvedDir,
         ignore: exclude,
         absolute: true,

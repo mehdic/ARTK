@@ -5,7 +5,7 @@
 import { parseArgs } from 'node:util';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { glob } from 'fast-glob';
+import fg from 'fast-glob';
 import { generateJourneyTests } from '../index.js';
 const USAGE = `
 Usage: artk-autogen generate [options] <journey-files...>
@@ -54,7 +54,7 @@ export async function runGenerate(args) {
     const dryRun = values['dry-run'];
     const quiet = values.quiet;
     // Expand glob patterns
-    const journeyFiles = await glob(positionals, {
+    const journeyFiles = await fg(positionals, {
         absolute: true,
     });
     if (journeyFiles.length === 0) {

@@ -3,7 +3,7 @@
  * @see T095 - Create CLI entry point for validation
  */
 import { parseArgs } from 'node:util';
-import { glob } from 'fast-glob';
+import fg from 'fast-glob';
 import { validateJourneys } from '../index.js';
 const USAGE = `
 Usage: artk-autogen validate [options] <files...>
@@ -47,7 +47,7 @@ export async function runValidate(args) {
         process.exit(1);
     }
     // Expand glob patterns
-    const files = await glob(positionals, {
+    const files = await fg(positionals, {
         absolute: true,
     });
     if (files.length === 0) {

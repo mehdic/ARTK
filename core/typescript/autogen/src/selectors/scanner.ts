@@ -4,7 +4,7 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, relative, basename, extname } from 'node:path';
-import { glob } from 'fast-glob';
+import fg from 'fast-glob';
 import {
   type SelectorCatalog,
   type SelectorEntry,
@@ -247,7 +247,7 @@ export async function scanForTestIds(options: ScannerOptions): Promise<ScannerRe
   }
 
   // Find files to scan
-  const files = await glob(include, {
+  const files = await fg(include, {
     cwd: resolvedDir,
     ignore: exclude,
     absolute: true,

@@ -3,7 +3,7 @@
  * @see research/2026-01-02_autogen-refined-plan.md Section 9
  */
 import type { ParsedJourney } from './parseJourney.js';
-import type { IRMappingResult } from '../ir/types.js';
+import type { IRPrimitive, IRMappingResult, CompletionSignal } from '../ir/types.js';
 /**
  * Options for normalizing a Journey
  */
@@ -19,6 +19,10 @@ export interface NormalizeOptions {
  * Normalize a parsed Journey into IR format
  */
 export declare function normalizeJourney(parsed: ParsedJourney, options?: NormalizeOptions): IRMappingResult;
+/**
+ * Convert completion signals to IR primitives (final assertions)
+ */
+export declare function completionSignalsToAssertions(signals: CompletionSignal[]): IRPrimitive[];
 /**
  * Validate that a Journey is ready for code generation
  */

@@ -3,7 +3,7 @@
  * @see T096 - Create CLI entry point for verification
  */
 import { parseArgs } from 'node:util';
-import { glob } from 'fast-glob';
+import fg from 'fast-glob';
 import { verifyJourneys, type VerifyJourneyResult } from '../index.js';
 
 const USAGE = `
@@ -62,7 +62,7 @@ export async function runVerify(args: string[]): Promise<void> {
   }
 
   // Expand glob patterns
-  const journeyFiles = await glob(positionals, {
+  const journeyFiles = await fg(positionals, {
     absolute: true,
   });
 
