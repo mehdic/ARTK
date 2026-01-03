@@ -16,12 +16,30 @@ plus the first **ARTK Core (Journeys) v0.1.0** payload (zip + extracted).
   - `ARTK_Core_Journeys_v0.1.0.zip` — versioned core payload
   - `artk-core-journeys/` — extracted copy for inspection/editing
 
-## Suggested next action
+## Installation
 
-Start by reading:
-1) `docs/ARTK_Master_Launch_Document_v0.6.md`
-2) `docs/ARTK_Journey_Lifecycle_v0.1.md`
+Install ARTK to any Playwright project:
 
-Then implement Phase 1 scaffolding in a real target repo using `/init` and `/playbook` prompts.
+```bash
+# Run from your target project directory:
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
 
-# ARTK
+# Or specify a path:
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
+```
+
+**What gets installed:**
+- `.github/prompts/` - Copilot slash commands
+- `.artk/core/` - @artk/core library
+- `.artk/autogen/` - AutoGen CLI for test generation
+
+**After installation:**
+1. Open VS Code → Copilot Chat → `/artk.init`
+2. Generate tests: `node .artk/autogen/dist/cli/index.js generate "journeys/*.md"`
+
+## Getting Started
+
+1. Read `docs/ARTK_Master_Launch_Document_v0.6.md`
+2. Read `docs/ARTK_Journey_Lifecycle_v0.1.md`
+3. Install ARTK to your project (see above)
+4. Run `/artk.init` in Copilot Chat

@@ -131,31 +131,47 @@ When the user asks to "ultrathink" about a topic, create a research document:
 3. **Purpose:** Capture architectural decisions, analysis, and strategic thinking for future reference
 4. **Naming:** Use lowercase with underscores for the topic slug (e.g., `generalization_analysis`, `auth_patterns`, `cli_design`)
 
-## Installing @artk/core to Another Project
+## Installing ARTK to Another Project
 
-Use the vendor installation script to install @artk/core to any Playwright project:
+### Full Installation (Recommended)
+
+Use the main install script to install everything (prompts + core + autogen CLI):
 
 ```bash
 # From anywhere, run:
-/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh /path/to/your-project
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
 
 # Example:
-/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh ~/projects/iss-frontend
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh ~/projects/req-apps-it-service-shop
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
 ```
 
-**What it does:**
-1. Builds @artk/core if dist doesn't exist
-2. Creates `vendor/artk-core/` in your target project
-3. Copies dist, package.json, version.json, README.md
-4. Adds `"@artk/core": "file:./vendor/artk-core"` to devDependencies
-5. Runs `npm install --legacy-peer-deps` to link it
+**What it installs:**
+| Location | Contents |
+|----------|----------|
+| `.github/prompts/` | Copilot slash commands (`/artk.init`, `/artk.journey-implement`, etc.) |
+| `.artk/core/` | @artk/core library (auth, config, fixtures) |
+| `.artk/autogen/` | @artk/core-autogen CLI (generate, validate, verify) |
 
-**Pro tip - create an alias:**
+**After installation:**
+1. Open VS Code, launch Copilot Chat, run: `/artk.init`
+2. Use AutoGen CLI: `node .artk/autogen/dist/cli/index.js generate "journeys/*.md"`
+
+### @artk/core Only (Alternative)
+
+Use the vendor installation script to install just @artk/core:
+
+```bash
+/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh /path/to/your-project
+```
+
+**Pro tip - create aliases:**
 
 Add to your `~/.zshrc` or `~/.bashrc`:
 
 ```bash
-alias artk-install="/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh"
+alias artk-install="/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh"
+alias artk-core-install="/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh"
 ```
 
 Then just run:
