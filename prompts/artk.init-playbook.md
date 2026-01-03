@@ -154,6 +154,7 @@ procedural: yes
     templates/
   tests/
     journeys/
+  src/
     modules/
   tools/                 # Created in Part 3 (if journeySystem=true)
     journeys/
@@ -299,10 +300,42 @@ Create `<ARTK_ROOT>/docs/PLAYBOOK.md` with these sections:
 
 Do NOT create separate files in `.github/instructions/` — those require a VS Code setting that users may not have enabled.
 
-### Create/Update `.github/copilot-instructions.md`
+### 7A) Detect and cleanup orphan instruction files
 
-If the file exists: append the `## ARTK E2E Testing Framework` section.
+Before creating/updating Copilot instructions, check for orphaned instruction files from older ARTK installations:
+
+**Check for:** `.github/instructions/*.instructions.md` files (e.g., `artk.instructions.md`, `journeys.instructions.md`)
+
+These files are **orphaned** if:
+- They contain ARTK-related content
+- They were created by previous ARTK versions (before single-file consolidation)
+- User has not explicitly customized them for non-ARTK purposes
+
+**Migration approach:**
+1. List detected orphan files
+2. Show user a summary of what content they contain
+3. Ask: "These orphan instruction files were found. They're no longer used since ARTK now uses a single `.github/copilot-instructions.md` file. Should I migrate their ARTK content and remove them? (yes/no/review)"
+4. If yes: extract any ARTK-specific sections, merge into `.github/copilot-instructions.md`, delete orphan files
+5. If no: leave them alone and note in completion checklist
+6. If review: show full content for user review before proceeding
+
+**Example orphan detection output:**
+```
+⚠️  Found orphan instruction files from older ARTK:
+- .github/instructions/artk.instructions.md (254 lines, ARTK E2E rules)
+- .github/instructions/journeys.instructions.md (89 lines, Journey validation)
+
+These are no longer needed (ARTK now uses single copilot-instructions.md).
+Migrate content and remove? [yes/no/review]:
+```
+
+### 7B) Create/Update `.github/copilot-instructions.md`
+
 If the file does not exist: create it with the full content below.
+If the file exists:
+  - First check if the `## ARTK E2E Testing Framework` section already exists (search for the header)
+  - If the section exists: skip appending (to avoid duplicates)
+  - If the section does not exist: append the `## ARTK E2E Testing Framework` section
 
 **Template:**
 
