@@ -57,6 +57,10 @@ PROMPTS_TARGET="$TARGET_PROJECT/.github/prompts"
 echo -e "${YELLOW}Creating prompts directory...${NC}"
 mkdir -p "$PROMPTS_TARGET"
 
+# Clean up old ARTK prompts (removes stale/deleted prompts)
+echo -e "${YELLOW}Cleaning up old ARTK prompts...${NC}"
+rm -f "$PROMPTS_TARGET"/artk.*.prompt.md 2>/dev/null || true
+
 # Copy prompt files
 echo -e "${YELLOW}Copying ARTK prompt files...${NC}"
 echo ""
