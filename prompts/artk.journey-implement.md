@@ -242,6 +242,51 @@ Never:
 - Namespace all created data using `runId`.
 - Cleanup if feasible; otherwise ensure namespacing and document.
 
+## Step 9.5 — Use AutoGen Core for Test Generation (Recommended)
+
+**PREFERRED: Use `@artk/core-autogen` for deterministic test generation**
+
+Instead of manually writing tests, use the AutoGen Core engine to generate tests from the clarified Journey:
+
+```typescript
+import { generateJourneyTests } from '@artk/core-autogen';
+
+// Generate tests from a clarified Journey
+const result = await generateJourneyTests({
+  journeyPath: 'journeys/JRN-0001-user-login.md',
+  outputDir: 'e2e/tests/smoke/',
+  options: {
+    // Use machine hints from Journey if present
+    respectHints: true,
+    // Generate feature modules if needed
+    generateModules: true,
+    // Use selector catalog for stable selectors
+    useCatalog: true,
+  },
+});
+
+console.log('Generated files:', result.files);
+console.log('Mapping stats:', result.stats);
+```
+
+**AutoGen Core Benefits:**
+- Deterministic mapping from Journey steps to Playwright primitives
+- Automatic selector priority (role > label > testid > CSS)
+- Machine hint support for explicit locator overrides
+- Blocked step tracking with improvement suggestions
+- Module generation for shared flows
+
+**When to use manual implementation:**
+- AutoGen cannot map a step (blocked)
+- Complex async flows need custom polling
+- Multi-actor coordination requires custom setup
+- Journey has domain-specific logic not in glossary
+
+If AutoGen generates blocked steps, either:
+1. Add machine hints to the Journey: `(role=button, testid=submit-btn)`
+2. Update the glossary with new synonyms
+3. Implement manually as fallback
+
 ## Step 10 — Write the test(s)
 
 **CRITICAL: Import from ARTK Core Fixtures**

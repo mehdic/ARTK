@@ -585,13 +585,24 @@ describe('ARTKConfigSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects wrong version', () => {
+  it('accepts any version >= 1 (migration handles compatibility)', () => {
+    // Version 2 is valid for the schema (migration will handle it in loader)
     const config = createMinimalConfig({ version: 2 });
+    const result = ARTKConfigSchema.safeParse(config);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.version).toBe(2);
+    }
+  });
+
+  it('rejects version 0', () => {
+    const config = createMinimalConfig({ version: 0 });
     const result = ARTKConfigSchema.safeParse(config);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toContain(`must be ${SUPPORTED_CONFIG_VERSION}`);
+      expect(result.error.issues[0]?.message).toContain('greater than or equal to 1');
     }
   });
 

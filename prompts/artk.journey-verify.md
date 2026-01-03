@@ -220,6 +220,113 @@ If you cannot:
 
 Do not continue “fixing” without evidence.
 
+## Step 3.5 — Use AutoGen Core Verification API (Recommended)
+
+**PREFERRED: Use `@artk/core-autogen` for structured verification and healing**
+
+Instead of manual test execution and healing, use the AutoGen Core verification engine:
+
+```typescript
+import { verifyJourney } from '@artk/core-autogen';
+
+const result = await verifyJourney({
+  journeyPath: 'journeys/JRN-0001-user-login.md',
+  harnessRoot: 'e2e',
+  options: {
+    // Environment settings
+    env: 'local',
+
+    // Healing configuration
+    heal: true,
+    maxHealAttempts: 3,
+
+    // Stability checks
+    repeatCount: 2,
+    failOnFlaky: true,
+
+    // Evidence collection
+    captureAria: true,
+    traceMode: 'retain-on-first-failure',
+  },
+});
+
+console.log('Verification result:', result.status);
+console.log('Healing attempts:', result.healingAttempts);
+console.log('ARIA snapshots:', result.ariaSnapshots);
+```
+
+**AutoGen Core Verification Features:**
+
+1. **Structured Test Execution**
+   - Runs tests filtered by `@JRN-####` tag
+   - Single worker for deterministic debugging
+   - Configurable trace collection
+
+2. **Failure Classification** (`result.classification`)
+   - `selector` - Locator issues (strict mode, missing elements)
+   - `timing` - Async/wait issues
+   - `navigation` - Route/URL issues
+   - `data` - Test data collisions
+   - `auth` - Authentication failures
+   - `env` - Environment unreachable
+
+3. **Bounded Healing Loop** (`heal: true`)
+   - Attempts up to `maxHealAttempts`
+   - Applies targeted fixes based on classification
+   - Logs all attempts to `heal-log.json`
+   - Respects allowed/forbidden fix rules:
+     - ✅ Allowed: `selector-refine`, `navigation-wait`, `missing-await`, `web-first-assertion`
+     - ❌ Forbidden: `add-sleep`, `force-click`, `weaken-assertion`, `remove-assertion`
+
+4. **ARIA Snapshot Capture** (`captureAria: true`)
+   - Captures accessibility tree on failure
+   - Provides baseline for selector improvements
+   - Stores snapshots in `.artk/aria-snapshots/`
+
+```typescript
+// ARIA snapshot structure
+interface AriaSnapshot {
+  testName: string;
+  timestamp: string;
+  url: string;
+  tree: {
+    role: string;
+    name: string;
+    children: AriaNode[];
+  };
+}
+```
+
+5. **Stability Gate** (automatic after healing)
+   - Runs `--repeat-each=2` to detect flakiness
+   - Runs `--fail-on-flaky-tests` to classify
+   - Result: `stable`, `flaky`, `failed`
+
+**Verification Output:**
+
+```typescript
+interface VerifyResult {
+  status: 'passed' | 'failed' | 'healed' | 'blocked';
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
+  classification?: FailureClassification;
+  healingAttempts: HealingAttempt[];
+  ariaSnapshots: AriaSnapshot[];
+  reportPath: string;
+  tracePaths: string[];
+  reproCommand: string;
+}
+```
+
+**When AutoGen Core cannot heal:**
+- ENV/AUTH issues (require manual intervention)
+- APP BUG (genuine product issue - file bug report)
+- Exhausted attempts (quarantine the test)
+
 ## Step 4 — Healing loop (bounded, test code only)
 If `heal=off`: skip to Step 6.
 

@@ -226,6 +226,84 @@ If `<harnessRoot>/modules/registry.json` exists:
 
 If registry missing, do not fail by default (warn).
 
+## Step 3.5 — Use AutoGen Core Validation API (Recommended)
+
+**PREFERRED: Use `@artk/core-autogen` for comprehensive validation**
+
+Instead of manual grep/lint checks, use the AutoGen Core validation engine:
+
+```typescript
+import { validateJourney } from '@artk/core-autogen';
+
+const result = await validateJourney({
+  journeyPath: 'journeys/JRN-0001-user-login.md',
+  testsDir: 'e2e/tests/',
+  options: {
+    // Enable all validation checks
+    checkForbiddenPatterns: true,
+    checkTags: true,
+    checkACMapping: true,
+    runESLint: true,
+    strict: true,
+  },
+});
+
+if (!result.valid) {
+  console.log('Validation failed:');
+  for (const issue of result.issues) {
+    console.log(`  ${issue.severity}: ${issue.message}`);
+    console.log(`    File: ${issue.file}:${issue.line}`);
+    console.log(`    Fix: ${issue.suggestion}`);
+  }
+}
+```
+
+**AutoGen Core Validation Checks:**
+
+1. **Forbidden Pattern Scanner** (`checkForbiddenPatterns`)
+   - `page.waitForTimeout()` - time-based waits
+   - `force: true` - forced actions
+   - `page.pause()` - debug pauses
+   - `.only(` - focused tests
+   - Hardcoded URLs (http://, https://)
+
+2. **Tag Validation** (`checkTags`)
+   - Required: `@JRN-####` tag present
+   - Required: `@smoke`, `@release`, or `@regression` tier tag
+   - Required: `@scope-<scope>` scope tag
+
+3. **AC Mapping Completeness** (`checkACMapping`)
+   - Each AC in Journey has corresponding `test.step()`
+   - Each `test.step()` contains at least one `expect()`
+   - No orphaned steps (steps not in Journey ACs)
+
+4. **ESLint Integration** (`runESLint`)
+   - Uses eslint-plugin-playwright rules
+   - Catches missing awaits, deprecated APIs
+   - Enforces web-first assertions
+
+**Validation Output:**
+
+```typescript
+interface ValidationResult {
+  valid: boolean;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    warnings: number;
+  };
+  issues: Array<{
+    severity: 'error' | 'warning';
+    category: 'pattern' | 'tag' | 'mapping' | 'lint';
+    message: string;
+    file: string;
+    line: number;
+    suggestion: string;
+  }>;
+}
+```
+
 ## Step 4 — Technical lint gates
 
 ### 4A) Prefer ESLint plugin when possible

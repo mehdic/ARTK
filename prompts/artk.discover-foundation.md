@@ -471,6 +471,66 @@ Create `src/modules/foundation/selectors/locators.ts`:
 
 Use `testIdAttribute` detected from discovery if available.
 
+## Step F7.5 — AutoGen Core Integration (ESLint + Selector Catalog)
+
+**Configure ESLint with playwright plugin:**
+
+Add to `eslint.config.js`:
+```javascript
+import playwright from 'eslint-plugin-playwright';
+
+export default [
+  ...playwright.configs['flat/recommended'],
+  {
+    rules: {
+      'playwright/no-wait-for-timeout': 'error',
+      'playwright/no-force-option': 'error',
+      'playwright/prefer-web-first-assertions': 'warn',
+      'playwright/no-raw-locators': 'warn',
+      'playwright/no-get-by-title': 'warn',
+    },
+  },
+];
+```
+
+**Generate initial selector catalog:**
+
+Create `config/selector-catalog.json`:
+```json
+{
+  "version": "1.0.0",
+  "generatedAt": "<ISO8601>",
+  "components": {},
+  "pages": {},
+  "testIds": []
+}
+```
+
+Run testid scanner from AutoGen Core:
+```bash
+npx artk-autogen catalog-generate --scan-source src/
+```
+
+This creates a selector catalog that:
+- Maps `data-testid` attributes to components
+- Provides stable selectors for test generation
+- Tracks CSS selector debt for migration planning
+
+**ARIA snapshot helper:**
+
+Install as devDependency and configure ARIA snapshots for baseline:
+```typescript
+// tests/setup/aria-baseline.ts
+import { test } from '@playwright/test';
+import { captureAriaSnapshot } from '@artk/core-autogen';
+
+test('capture aria baseline', async ({ page }) => {
+  await page.goto('/');
+  const snapshot = await captureAriaSnapshot(page);
+  // Save to .artk/aria-snapshots/baseline.json
+});
+```
+
 ## Step F8 — Data harness scaffolding
 
 Create `src/modules/foundation/data/*`:
