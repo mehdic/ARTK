@@ -10,6 +10,7 @@ import type { IRJourney, IRPrimitive, ValueSpec } from '../ir/types.js';
 import { toPlaywrightLocator } from '../selectors/priority.js';
 import { injectManagedBlocks } from './blocks.js';
 import { updateJourneyFrontmatter } from '../journey/updater.js';
+import { escapeRegex } from '../utils/escaping.js';
 
 // Get current directory for template path
 const __filename = fileURLToPath(import.meta.url);
@@ -76,13 +77,6 @@ function escapeString(str: string): string {
     .replace(/"/g, '\\"')
     .replace(/\n/g, '\\n')
     .replace(/\r/g, '\\r');
-}
-
-/**
- * Escape string for regex pattern
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 }
 
 /**

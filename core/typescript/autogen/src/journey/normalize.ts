@@ -14,6 +14,7 @@ import type {
   LocatorSpec,
 } from '../ir/types.js';
 import { mapStepText } from '../mapping/stepMapper.js';
+import { escapeRegex } from '../utils/escaping.js';
 
 /**
  * Options for normalizing a Journey
@@ -316,6 +317,13 @@ export function completionSignalsToAssertions(
         } as IRPrimitive;
       }
 
+      case 'text':
+        return {
+          type: 'expectVisible',
+          locator: { strategy: 'text', value: signal.value },
+          timeout: signal.options?.timeout,
+        } as IRPrimitive;
+
       case 'title':
         return {
           type: 'expectTitle',
@@ -370,13 +378,6 @@ function parseLocatorFromSelector(selector: string): LocatorSpec {
 
   // Default to CSS
   return { strategy: 'css', value: selector };
-}
-
-/**
- * Escape special regex characters
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 }
 
 /**

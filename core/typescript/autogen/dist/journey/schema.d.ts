@@ -22,7 +22,7 @@ export declare const CleanupStrategySchema: z.ZodEnum<["required", "best-effort"
 /**
  * Completion signal type enum
  */
-export declare const CompletionTypeSchema: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+export declare const CompletionTypeSchema: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
 /**
  * Element state enum for completion signals
  */
@@ -31,7 +31,7 @@ export declare const ElementStateSchema: z.ZodEnum<["visible", "hidden", "attach
  * Completion signal schema
  */
 export declare const CompletionSignalSchema: z.ZodObject<{
-    type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+    type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
     value: z.ZodString;
     options: z.ZodOptional<z.ZodObject<{
         timeout: z.ZodOptional<z.ZodNumber>;
@@ -54,7 +54,7 @@ export declare const CompletionSignalSchema: z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     value: string;
-    type: "url" | "toast" | "element" | "title" | "api";
+    type: "text" | "url" | "toast" | "element" | "title" | "api";
     options?: {
         exact?: boolean | undefined;
         status?: number | undefined;
@@ -64,7 +64,7 @@ export declare const CompletionSignalSchema: z.ZodObject<{
     } | undefined;
 }, {
     value: string;
-    type: "url" | "toast" | "element" | "title" | "api";
+    type: "text" | "url" | "toast" | "element" | "title" | "api";
     options?: {
         exact?: boolean | undefined;
         status?: number | undefined;
@@ -277,7 +277,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -300,7 +300,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -310,7 +310,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -462,7 +462,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -527,7 +527,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -626,7 +626,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -649,7 +649,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -659,7 +659,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -813,7 +813,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -878,7 +878,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -961,7 +961,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1026,7 +1026,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1125,7 +1125,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -1148,7 +1148,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1158,7 +1158,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1312,7 +1312,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1377,7 +1377,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1460,7 +1460,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1525,7 +1525,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1622,7 +1622,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -1645,7 +1645,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1655,7 +1655,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1813,7 +1813,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1878,7 +1878,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1961,7 +1961,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -2026,7 +2026,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;

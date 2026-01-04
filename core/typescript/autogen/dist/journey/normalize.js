@@ -1,4 +1,5 @@
 import { mapStepText } from '../mapping/stepMapper.js';
+import { escapeRegex } from '../utils/escaping.js';
 /**
  * Normalize a parsed Journey into IR format
  */
@@ -253,6 +254,12 @@ export function completionSignalsToAssertions(signals) {
                     timeout: signal.options?.timeout,
                 };
             }
+            case 'text':
+                return {
+                    type: 'expectVisible',
+                    locator: { strategy: 'text', value: signal.value },
+                    timeout: signal.options?.timeout,
+                };
             case 'title':
                 return {
                     type: 'expectTitle',
@@ -299,12 +306,6 @@ function parseLocatorFromSelector(selector) {
     }
     // Default to CSS
     return { strategy: 'css', value: selector };
-}
-/**
- * Escape special regex characters
- */
-function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 }
 /**
  * Validate that a Journey is ready for code generation

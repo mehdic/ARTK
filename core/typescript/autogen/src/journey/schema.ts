@@ -34,7 +34,7 @@ export const CleanupStrategySchema = z.enum(['required', 'best-effort', 'none'])
 /**
  * Completion signal type enum
  */
-export const CompletionTypeSchema = z.enum(['url', 'toast', 'element', 'title', 'api']);
+export const CompletionTypeSchema = z.enum(['url', 'toast', 'element', 'text', 'title', 'api']);
 
 /**
  * Element state enum for completion signals

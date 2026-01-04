@@ -9,6 +9,7 @@ import ejs from 'ejs';
 import { toPlaywrightLocator } from '../selectors/priority.js';
 import { injectManagedBlocks } from './blocks.js';
 import { updateJourneyFrontmatter } from '../journey/updater.js';
+import { escapeRegex } from '../utils/escaping.js';
 // Get current directory for template path
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,12 +23,6 @@ function escapeString(str) {
         .replace(/"/g, '\\"')
         .replace(/\n/g, '\\n')
         .replace(/\r/g, '\\r');
-}
-/**
- * Escape string for regex pattern
- */
-function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 }
 /**
  * Render a value spec to code

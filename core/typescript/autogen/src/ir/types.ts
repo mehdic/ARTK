@@ -139,7 +139,7 @@ export interface ModuleDependencies {
 /**
  * Completion signal types
  */
-export type CompletionSignalType = 'url' | 'toast' | 'element' | 'title' | 'api';
+export type CompletionSignalType = 'url' | 'toast' | 'element' | 'text' | 'title' | 'api';
 
 /**
  * Completion signal for journey success
