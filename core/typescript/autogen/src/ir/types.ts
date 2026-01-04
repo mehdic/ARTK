@@ -169,6 +169,63 @@ export interface JourneyDataConfig {
 }
 
 /**
+ * Negative path definition for error scenario testing
+ */
+export interface NegativePath {
+  /** Name of the negative path scenario */
+  name: string;
+  /** Input values to trigger the error */
+  input: Record<string, unknown>;
+  /** Expected error message */
+  expectedError: string;
+  /** Optional element selector where error should appear */
+  expectedElement?: string;
+}
+
+/**
+ * Visual regression configuration
+ */
+export interface VisualRegressionConfig {
+  enabled: boolean;
+  snapshots?: string[];
+  threshold?: number;
+}
+
+/**
+ * Accessibility configuration
+ */
+export interface AccessibilityConfig {
+  enabled: boolean;
+  rules?: string[];
+  exclude?: string[];
+}
+
+/**
+ * Performance budgets configuration
+ */
+export interface PerformanceConfig {
+  enabled: boolean;
+  budgets?: {
+    lcp?: number;
+    fid?: number;
+    cls?: number;
+    ttfb?: number;
+  };
+}
+
+/**
+ * Test data set for parameterized testing
+ */
+export interface TestDataSet {
+  /** Name of the test data set */
+  name: string;
+  /** Optional description */
+  description?: string;
+  /** Test data key-value pairs */
+  data: Record<string, unknown>;
+}
+
+/**
  * Complete IR representation of a Journey
  * This is the canonical format before code generation
  */
@@ -201,6 +258,18 @@ export interface IRJourney {
   revision?: number;
   /** Source file path */
   sourcePath?: string;
+  /** Prerequisites - Journey IDs that must run first */
+  prerequisites?: string[];
+  /** Negative paths - Error scenarios to test */
+  negativePaths?: NegativePath[];
+  /** Test data sets for parameterized testing */
+  testData?: TestDataSet[];
+  /** Visual regression configuration */
+  visualRegression?: VisualRegressionConfig;
+  /** Accessibility configuration */
+  accessibility?: AccessibilityConfig;
+  /** Performance configuration */
+  performance?: PerformanceConfig;
 }
 
 /**

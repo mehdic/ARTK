@@ -72,7 +72,24 @@ export declare const authPatterns: StepPattern[];
  */
 export declare const waitPatterns: StepPattern[];
 /**
+ * Helper function to convert natural language selectors to Playwright locator strategies
+ */
+export declare function parseSelectorToLocator(selector: string): {
+    strategy: LocatorStrategy;
+    value: string;
+    name?: string;
+};
+/**
+ * Structured step patterns for Journey markdown format
+ * Matches patterns like:
+ * - **Action**: Click the login button
+ * - **Wait for**: Dashboard to load
+ * - **Assert**: User name is visible
+ */
+export declare const structuredPatterns: StepPattern[];
+/**
  * All patterns in priority order (more specific patterns first)
+ * Structured patterns come first to prioritize the Journey markdown format
  */
 export declare const allPatterns: StepPattern[];
 /**

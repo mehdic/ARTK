@@ -9,6 +9,9 @@
  * @actor <%= journey.actor %>
  */
 import { test, expect } from '@playwright/test';
+<% if (journey.accessibility?.enabled) { %>
+import AxeBuilder from '@axe-core/playwright';
+<% } %>
 <% if (imports.length > 0) { %>
 <% for (const imp of imports) { %>
 import { <%= imp.members.join(', ') %> } from '<%= imp.from %>';
@@ -18,6 +21,12 @@ import { <%= imp.members.join(', ') %> } from '<%= imp.from %>';
 test.describe('<%- journey.title %>', {
   tag: [<%- journey.tags.map(t => `'${t}'`).join(', ') %>],
 }, () => {
+<% if (journey.prerequisites && journey.prerequisites.length > 0) { %>
+  // Prerequisites: The following journeys must complete first:
+  // <%- journey.prerequisites.join(', ') %>
+  // Note: Use Playwright project dependencies or test.beforeAll() to run prerequisites
+
+<% } %>
 <% if (journey.setup && journey.setup.length > 0) { %>
   test.beforeEach(async ({ page }) => {
 <% for (const primitive of journey.setup) { %>
@@ -26,13 +35,66 @@ test.describe('<%- journey.title %>', {
   });
 
 <% } %>
+<% if (journey.testData && journey.testData.length > 0) { %>
+  // Data-Driven Tests - Parameterized with test data sets
+  test.describe.each([
+<% for (let i = 0; i < journey.testData.length; i++) { %>
+<% const dataSet = journey.testData[i]; %>
+    { testName: '<%= dataSet.name %>'<% for (const [key, value] of Object.entries(dataSet.data)) { %>, <%= key %>: <%= typeof value === 'string' ? `'${escapeString(value)}'` : JSON.stringify(value) %><% } %> }<%= i < journey.testData.length - 1 ? ',' : '' %>
+<% } %>
+  ])('<%= journey.id %>: <%= journey.title %> - $testName', ({ testName<% if (journey.testData && journey.testData.length > 0) { %><% const allKeys = new Set(); for (const ds of journey.testData) { for (const key of Object.keys(ds.data)) { allKeys.add(key); } } %><% for (const key of Array.from(allKeys)) { %>, <%= key %><% } %><% } %> }) => {
+    test('should complete journey', async ({ page }) => {
+<% for (const step of journey.steps) { %>
+      // <%= step.description %>
+      await test.step('<%= step.id %>: <%- escapeString(step.description) %>', async () => {
+<% for (const action of step.actions) { %>
+<% if (action.type === 'blocked') { %>
+        // TODO: <%- escapeString(action.reason) %>
+        // Source: <%- escapeString(action.sourceText) %>
+<% } else { %>
+        <%- renderPrimitive(action, '        ') %>
+<% } %>
+<% } %>
+<% for (const assertion of step.assertions) { %>
+        <%- renderPrimitive(assertion, '        ') %>
+<% } %>
+<% if (journey.visualRegression?.enabled && journey.visualRegression.snapshots?.includes(step.id)) { %>
+<% const threshold = journey.visualRegression.threshold || 0.1; %>
+        // Visual regression check
+        await expect(page).toHaveScreenshot('<%= step.id.toLowerCase() %>-snapshot.png', {
+          maxDiffPixelRatio: <%= threshold %>,
+        });
+<% } %>
+      });
+
+<% } %>
+<% if (journey.completion && journey.completion.length > 0) { %>
+      // Verify completion signals
+      await test.step('Verify completion', async () => {
+<% for (const signal of journey.completion) { %>
+<% const timeoutOpt = signal.timeout ? `, { timeout: ${signal.timeout} }` : ''; %>
+<% if (signal.type === 'url') { %>
+        await expect(page).toHaveURL(/<%- escapeRegex(signal.value) %>/<%- timeoutOpt %>);
+<% } else if (signal.type === 'toast') { %>
+        await expect(page.getByRole('alert').getByText('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
+<% } else if (signal.type === 'element') { %>
+        await expect(page.locator('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
+<% } else if (signal.type === 'text') { %>
+        await expect(page.getByText('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
+<% } %>
+<% } %>
+      });
+<% } %>
+    });
+  });
+<% } else { %>
   test('<%= journey.id %>: <%= journey.title %>', async ({ page }) => {
 <% for (const step of journey.steps) { %>
     // <%= step.description %>
     await test.step('<%= step.id %>: <%- escapeString(step.description) %>', async () => {
 <% for (const action of step.actions) { %>
 <% if (action.type === 'blocked') { %>
-      // TODO: <%= action.reason %>
+      // TODO: <%- escapeString(action.reason) %>
       // Source: <%- escapeString(action.sourceText) %>
 <% } else { %>
       <%- renderPrimitive(action, '      ') %>
@@ -40,6 +102,13 @@ test.describe('<%- journey.title %>', {
 <% } %>
 <% for (const assertion of step.assertions) { %>
       <%- renderPrimitive(assertion, '      ') %>
+<% } %>
+<% if (journey.visualRegression?.enabled && journey.visualRegression.snapshots?.includes(step.id)) { %>
+<% const threshold = journey.visualRegression.threshold || 0.1; %>
+      // Visual regression check
+      await expect(page).toHaveScreenshot('<%= step.id.toLowerCase() %>-snapshot.png', {
+        maxDiffPixelRatio: <%= threshold %>,
+      });
 <% } %>
     });
 
@@ -62,11 +131,100 @@ test.describe('<%- journey.title %>', {
     });
 <% } %>
   });
+<% } %>
 <% if (journey.cleanup && journey.cleanup.length > 0) { %>
 
   test.afterEach(async ({ page }) => {
 <% for (const primitive of journey.cleanup) { %>
     <%- renderPrimitive(primitive, '    ') %>
+<% } %>
+  });
+<% } %>
+<% if (journey.accessibility?.enabled) { %>
+
+  // Accessibility audits
+  test.afterEach(async ({ page }) => {
+<% const rules = journey.accessibility.rules || []; %>
+<% const exclude = journey.accessibility.exclude || []; %>
+    const accessibilityResults = await new AxeBuilder({ page })<% if (rules.length > 0) { %>
+      .withTags(<%= JSON.stringify(rules) %>)<% } %><% if (exclude.length > 0) { %>
+      .exclude(<%= JSON.stringify(exclude) %>)<% } %>
+      .analyze();
+    expect(accessibilityResults.violations).toEqual([]);
+  });
+<% } %>
+<% if (journey.performance?.enabled && journey.performance.budgets) { %>
+
+  // Performance budgets
+  test.afterEach(async ({ page }) => {
+    const metrics = await page.evaluate(() => {
+      return new Promise((resolve) => {
+        const perfData: Record<string, number> = {};
+
+        // Collect Web Vitals
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.entryType === 'largest-contentful-paint') {
+              perfData.lcp = entry.startTime;
+            }
+          }
+        }).observe({ entryTypes: ['largest-contentful-paint'] });
+
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.name === 'first-input') {
+              perfData.fid = (entry as PerformanceEventTiming).processingStart - entry.startTime;
+            }
+          }
+        }).observe({ entryTypes: ['first-input'] });
+
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.entryType === 'layout-shift' && !(entry as any).hadRecentInput) {
+              perfData.cls = (perfData.cls || 0) + (entry as any).value;
+            }
+          }
+        }).observe({ entryTypes: ['layout-shift'] });
+
+        // Collect TTFB
+        const navTiming = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+        if (navTiming) {
+          perfData.ttfb = navTiming.responseStart - navTiming.requestStart;
+        }
+
+        // Wait for metrics to be collected
+        setTimeout(() => resolve(perfData), 1000);
+      });
+    });
+<% if (journey.performance.budgets.lcp) { %>
+    expect(metrics.lcp).toBeLessThan(<%= journey.performance.budgets.lcp %>);
+<% } %>
+<% if (journey.performance.budgets.fid) { %>
+    expect(metrics.fid).toBeLessThan(<%= journey.performance.budgets.fid %>);
+<% } %>
+<% if (journey.performance.budgets.cls) { %>
+    expect(metrics.cls).toBeLessThan(<%= journey.performance.budgets.cls %>);
+<% } %>
+<% if (journey.performance.budgets.ttfb) { %>
+    expect(metrics.ttfb).toBeLessThan(<%= journey.performance.budgets.ttfb %>);
+<% } %>
+  });
+<% } %>
+<% if (journey.negativePaths && journey.negativePaths.length > 0) { %>
+
+  // Negative Paths - Error Scenario Testing
+  test.describe('Negative paths', () => {
+<% for (const negativePath of journey.negativePaths) { %>
+    test('<%= negativePath.name %> should show error', async ({ page }) => {
+<% for (const [key, value] of Object.entries(negativePath.input)) { %>
+      // Input: <%= key %> = <%= typeof value === 'string' ? value : JSON.stringify(value) %>
+<% } %>
+<% const errorElement = negativePath.expectedElement || '[data-testid="error-message"]'; %>
+      // TODO: Setup negative input based on test context
+      // Expected error: <%= negativePath.expectedError %>
+      await expect(page.locator('<%- errorElement %>')).toContainText('<%- escapeString(negativePath.expectedError) %>');
+    });
+
 <% } %>
   });
 <% } %>

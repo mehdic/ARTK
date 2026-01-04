@@ -28,6 +28,7 @@ export * from './codegen/generateTest.js';
 export * from './codegen/generateModule.js';
 export * from './codegen/astEdit.js';
 export * from './codegen/registry.js';
+export * from './utils/escaping.js';
 export * from './validate/index.js';
 export * from './verify/index.js';
 export * from './heal/index.js';

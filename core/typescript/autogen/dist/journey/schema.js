@@ -78,6 +78,53 @@ export const LinksSchema = z.object({
     docs: z.array(z.string()).optional(),
 });
 /**
+ * Negative path schema for error scenario testing
+ */
+export const NegativePathSchema = z.object({
+    name: z.string().min(1, 'Negative path name is required'),
+    input: z.record(z.any()),
+    expectedError: z.string().min(1, 'Expected error message is required'),
+    expectedElement: z.string().optional(),
+});
+/**
+ * Visual regression configuration schema
+ */
+export const VisualRegressionSchema = z.object({
+    enabled: z.boolean(),
+    snapshots: z.array(z.string()).optional(),
+    threshold: z.number().min(0).max(1).optional(),
+});
+/**
+ * Accessibility configuration schema
+ */
+export const AccessibilitySchema = z.object({
+    enabled: z.boolean(),
+    rules: z.array(z.string()).optional(),
+    exclude: z.array(z.string()).optional(),
+});
+/**
+ * Performance budgets schema
+ */
+export const PerformanceSchema = z.object({
+    enabled: z.boolean(),
+    budgets: z
+        .object({
+        lcp: z.number().positive().optional(),
+        fid: z.number().positive().optional(),
+        cls: z.number().min(0).optional(),
+        ttfb: z.number().positive().optional(),
+    })
+        .optional(),
+});
+/**
+ * Test data set schema for parameterized/data-driven tests
+ */
+export const TestDataSetSchema = z.object({
+    name: z.string().min(1, 'Test data set name is required'),
+    description: z.string().optional(),
+    data: z.record(z.string(), z.any()),
+});
+/**
  * Complete Journey frontmatter schema
  */
 export const JourneyFrontmatterSchema = z.object({
@@ -104,6 +151,21 @@ export const JourneyFrontmatterSchema = z.object({
         forbidden: z.array(z.string()).optional(),
     })
         .optional(),
+    prerequisites: z
+        .array(z.string())
+        .optional()
+        .describe('Array of Journey IDs that must run first'),
+    negativePaths: z
+        .array(NegativePathSchema)
+        .optional()
+        .describe('Error scenarios to test'),
+    testData: z
+        .array(TestDataSetSchema)
+        .optional()
+        .describe('Parameterized test data sets for data-driven testing'),
+    visualRegression: VisualRegressionSchema.optional(),
+    accessibility: AccessibilitySchema.optional(),
+    performance: PerformanceSchema.optional(),
 });
 /**
  * Schema specifically for clarified journeys (required for AutoGen)

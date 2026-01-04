@@ -1,3 +1,4 @@
+import { mapStepText } from '../mapping/stepMapper.js';
 /**
  * Normalize a parsed Journey into IR format
  */
@@ -68,7 +69,14 @@ export function normalizeJourney(parsed, options = {}) {
         completion,
         steps,
         revision: parsed.frontmatter.revision,
+        prerequisites: parsed.frontmatter.prerequisites,
+        negativePaths: parsed.frontmatter.negativePaths,
         sourcePath: parsed.sourcePath,
+        // P3 Feature fields - pass through from frontmatter
+        testData: parsed.frontmatter.testData,
+        visualRegression: parsed.frontmatter.visualRegression,
+        accessibility: parsed.frontmatter.accessibility,
+        performance: parsed.frontmatter.performance,
     };
     // Calculate stats
     const stats = {
@@ -96,34 +104,40 @@ function mapAcceptanceCriterionToStep(ac, proceduralSteps, warnings) {
     const relatedProcedural = proceduralSteps.filter((ps) => ps.linkedAC === ac.id);
     // Process bullet points as potential actions/assertions
     for (const stepText of ac.steps) {
-        const primitive = parseStepText(stepText, warnings);
-        if (primitive) {
-            if (isAssertion(primitive)) {
-                assertions.push(primitive);
+        const result = mapStepText(stepText, { normalizeText: false });
+        if (result.primitive) {
+            if (isAssertion(result.primitive)) {
+                assertions.push(result.primitive);
             }
             else {
-                actions.push(primitive);
+                actions.push(result.primitive);
             }
         }
         else {
             // Cannot parse - add as blocked
             actions.push({
                 type: 'blocked',
-                reason: 'Could not parse step into primitive',
+                reason: result.message || 'Could not parse step into primitive',
                 sourceText: stepText,
             });
+            if (result.message) {
+                warnings.push(result.message);
+            }
         }
     }
     // Add related procedural steps as actions
     for (const ps of relatedProcedural) {
-        const primitive = parseStepText(ps.text, warnings);
-        if (primitive) {
-            if (isAssertion(primitive)) {
-                assertions.push(primitive);
+        const result = mapStepText(ps.text, { normalizeText: false });
+        if (result.primitive) {
+            if (isAssertion(result.primitive)) {
+                assertions.push(result.primitive);
             }
             else {
-                actions.push(primitive);
+                actions.push(result.primitive);
             }
+        }
+        else if (result.message) {
+            warnings.push(result.message);
         }
     }
     // If no assertions from steps, add a visibility check for the AC title
@@ -145,21 +159,24 @@ function mapAcceptanceCriterionToStep(ac, proceduralSteps, warnings) {
 function mapProceduralStepToIRStep(ps, warnings) {
     const actions = [];
     const assertions = [];
-    const primitive = parseStepText(ps.text, warnings);
-    if (primitive) {
-        if (isAssertion(primitive)) {
-            assertions.push(primitive);
+    const result = mapStepText(ps.text, { normalizeText: false });
+    if (result.primitive) {
+        if (isAssertion(result.primitive)) {
+            assertions.push(result.primitive);
         }
         else {
-            actions.push(primitive);
+            actions.push(result.primitive);
         }
     }
     else {
         actions.push({
             type: 'blocked',
-            reason: 'Could not parse procedural step',
+            reason: result.message || 'Could not parse procedural step',
             sourceText: ps.text,
         });
+        if (result.message) {
+            warnings.push(result.message);
+        }
     }
     return {
         id: `PS-${ps.number}`,
@@ -167,165 +184,6 @@ function mapProceduralStepToIRStep(ps, warnings) {
         actions,
         assertions,
     };
-}
-/**
- * Parse step text into an IR primitive
- * This is a heuristic parser - full implementation would use NLP or LLM
- */
-function parseStepText(text, warnings) {
-    const lowerText = text.toLowerCase();
-    // Navigation patterns
-    if (lowerText.includes('navigate to') || lowerText.includes('go to') || lowerText.includes('open')) {
-        const urlMatch = text.match(/(?:navigate to|go to|open)\s+(?:the\s+)?["']?([^"'\s]+)["']?/i);
-        if (urlMatch) {
-            return { type: 'goto', url: urlMatch[1], waitForLoad: true };
-        }
-    }
-    // Click patterns
-    if (lowerText.includes('click') || lowerText.includes('press') || lowerText.includes('tap')) {
-        const buttonMatch = text.match(/(?:click|press|tap)\s+(?:the\s+)?["']([^"']+)["']\s*button/i);
-        if (buttonMatch) {
-            return {
-                type: 'click',
-                locator: createLocator('role', 'button', buttonMatch[1]),
-            };
-        }
-        const linkMatch = text.match(/(?:click|press|tap)\s+(?:the\s+)?["']([^"']+)["']\s*link/i);
-        if (linkMatch) {
-            return {
-                type: 'click',
-                locator: createLocator('role', 'link', linkMatch[1]),
-            };
-        }
-        const genericMatch = text.match(/(?:click|press|tap)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']/i);
-        if (genericMatch) {
-            return {
-                type: 'click',
-                locator: createLocator('text', genericMatch[1]),
-            };
-        }
-    }
-    // Fill/Enter/Type patterns
-    if (lowerText.includes('enter') || lowerText.includes('type') || lowerText.includes('fill')) {
-        const fillMatch = text.match(/(?:enter|type|fill)\s+["']([^"']+)["']\s+(?:in|into)\s+(?:the\s+)?["']?([^"']+)["']?\s*(?:field|input)?/i);
-        if (fillMatch) {
-            return {
-                type: 'fill',
-                locator: createLocator('label', fillMatch[2]),
-                value: createValue(fillMatch[1]),
-            };
-        }
-        const fillMatch2 = text.match(/(?:enter|type|fill)\s+(?:the\s+)?["']?([^"']+)["']?\s+(?:field|input)\s+(?:with\s+)?["']([^"']+)["']/i);
-        if (fillMatch2) {
-            return {
-                type: 'fill',
-                locator: createLocator('label', fillMatch2[1]),
-                value: createValue(fillMatch2[2]),
-            };
-        }
-    }
-    // Select patterns
-    if (lowerText.includes('select')) {
-        const selectMatch = text.match(/select\s+["']([^"']+)["']\s+(?:from|in)\s+(?:the\s+)?["']?([^"']+)["']?\s*(?:dropdown|select)?/i);
-        if (selectMatch) {
-            return {
-                type: 'select',
-                locator: createLocator('label', selectMatch[2]),
-                option: selectMatch[1],
-            };
-        }
-    }
-    // Assertion patterns - visibility
-    if (lowerText.includes('see') || lowerText.includes('visible') || lowerText.includes('displayed')) {
-        const seeMatch = text.match(/(?:should\s+)?(?:see|visible|displayed)\s+(?:the\s+)?["']([^"']+)["']/i);
-        if (seeMatch) {
-            return {
-                type: 'expectVisible',
-                locator: createLocator('text', seeMatch[1]),
-            };
-        }
-    }
-    // Assertion patterns - text content
-    if (lowerText.includes('shows') || lowerText.includes('displays') || lowerText.includes('contains')) {
-        const textMatch = text.match(/(?:shows?|displays?|contains?)\s+(?:the\s+)?(?:text\s+)?["']([^"']+)["']/i);
-        if (textMatch) {
-            return {
-                type: 'expectText',
-                locator: createLocator('css', 'body'),
-                text: textMatch[1],
-            };
-        }
-    }
-    // Toast/notification patterns
-    if (lowerText.includes('toast') || lowerText.includes('notification') || lowerText.includes('message')) {
-        if (lowerText.includes('success')) {
-            const msgMatch = text.match(/["']([^"']+)["']/);
-            return {
-                type: 'expectToast',
-                toastType: 'success',
-                message: msgMatch?.[1],
-            };
-        }
-        if (lowerText.includes('error')) {
-            const msgMatch = text.match(/["']([^"']+)["']/);
-            return {
-                type: 'expectToast',
-                toastType: 'error',
-                message: msgMatch?.[1],
-            };
-        }
-    }
-    // URL patterns
-    if (lowerText.includes('url') || lowerText.includes('redirected')) {
-        const urlMatch = text.match(/(?:url|redirected to)\s+(?:should\s+)?(?:be|contain|include)?\s*["']?([^"'\s]+)["']?/i);
-        if (urlMatch) {
-            return { type: 'expectURL', pattern: urlMatch[1] };
-        }
-    }
-    // Module call patterns
-    if (lowerText.includes('login') || lowerText.includes('authenticate')) {
-        return {
-            type: 'callModule',
-            module: 'auth',
-            method: 'login',
-        };
-    }
-    if (lowerText.includes('logout') || lowerText.includes('sign out')) {
-        return {
-            type: 'callModule',
-            module: 'auth',
-            method: 'logout',
-        };
-    }
-    // Could not parse
-    warnings.push(`Could not parse step: "${text.substring(0, 50)}..."`);
-    return null;
-}
-/**
- * Create a locator spec
- */
-function createLocator(strategy, value, name) {
-    const locator = { strategy, value };
-    if (name) {
-        locator.options = { name };
-    }
-    return locator;
-}
-/**
- * Create a value spec
- */
-function createValue(value) {
-    // Check for actor references
-    if (value.startsWith('{{') && value.endsWith('}}')) {
-        const path = value.slice(2, -2).trim();
-        return { type: 'actor', value: path };
-    }
-    // Check for test data references
-    if (value.startsWith('$')) {
-        return { type: 'testData', value: value.slice(1) };
-    }
-    // Literal value
-    return { type: 'literal', value };
 }
 /**
  * Check if a primitive is an assertion

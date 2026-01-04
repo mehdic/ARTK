@@ -41,6 +41,10 @@ describe('escapeRegex', () => {
   it('should not escape normal characters', () => {
     expect(escapeRegex('hello world 123')).toBe('hello world 123');
   });
+
+  it('should handle empty strings', () => {
+    expect(escapeRegex('')).toBe('');
+  });
 });
 
 describe('escapeString', () => {
