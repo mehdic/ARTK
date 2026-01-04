@@ -130,6 +130,8 @@ export const PerformanceSchema = z.object({
       ttfb: z.number().positive().optional(),
     })
     .optional(),
+  /** Timeout for collecting performance metrics in ms (default: 3000) */
+  collectTimeout: z.number().positive().default(3000).optional(),
 });
 
 /**

@@ -192,8 +192,8 @@ test.describe('<%- journey.title %>', {
           perfData.ttfb = navTiming.responseStart - navTiming.requestStart;
         }
 
-        // Wait for metrics to be collected
-        setTimeout(() => resolve(perfData), 1000);
+        // Wait for metrics to be collected (configurable timeout, default 3000ms)
+        setTimeout(() => resolve(perfData), <%= journey.performance.collectTimeout || 3000 %>);
       });
     });
 <% if (journey.performance.budgets.lcp) { %>
@@ -216,13 +216,25 @@ test.describe('<%- journey.title %>', {
   test.describe('Negative paths', () => {
 <% for (const negativePath of journey.negativePaths) { %>
     test('<%= negativePath.name %> should show error', async ({ page }) => {
+      // Fill form with negative input values
 <% for (const [key, value] of Object.entries(negativePath.input)) { %>
-      // Input: <%= key %> = <%= typeof value === 'string' ? value : JSON.stringify(value) %>
+<% const strValue = typeof value === 'string' ? value : String(value); %>
+<% const capitalizedKey = key.charAt(0).toUpperCase() + key.slice(1); %>
+      await page.getByLabel('<%= capitalizedKey %>', { exact: false }).fill('<%- escapeString(strValue) %>');
 <% } %>
+
+      // Trigger validation (click submit button if exists)
+      const submitButton = page.getByRole('button', { name: /submit|save|send|create|sign|login|register/i });
+      if (await submitButton.count() > 0) {
+        await submitButton.first().click();
+      }
+
+      // Assert error message is displayed
 <% const errorElement = negativePath.expectedElement || '[data-testid="error-message"]'; %>
-      // TODO: Setup negative input based on test context
-      // Expected error: <%= negativePath.expectedError %>
-      await expect(page.locator('<%- errorElement %>')).toContainText('<%- escapeString(negativePath.expectedError) %>');
+<% const errorLocator = errorElement.includes('data-testid')
+     ? `getByTestId('${errorElement.match(/data-testid=["']([^"']+)["']/)?.[1] || 'error-message'}')`
+     : `locator('${errorElement}')`; %>
+      await expect(page.<%- errorLocator %>).toContainText('<%- escapeString(negativePath.expectedError) %>');
     });
 
 <% } %>

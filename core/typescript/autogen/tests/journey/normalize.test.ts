@@ -139,13 +139,8 @@ ${body}`;
       const actions = result.journey.steps[0].actions;
       expect(actions).toHaveLength(2);
       expect(actions[0]).toMatchObject({ type: 'goto', url: '/dashboard' });
-      // Second action might be blocked if step mapping fails
-      if (actions[1].type === 'blocked') {
-        // Step mapper couldn't parse "Go to /settings", which is acceptable
-        expect(actions[1].type).toBe('blocked');
-      } else {
-        expect(actions[1]).toMatchObject({ type: 'goto', url: '/settings' });
-      }
+      // "Go to /settings" now correctly parsed with fixed regex: go(?:es)?
+      expect(actions[1]).toMatchObject({ type: 'goto', url: '/settings' });
     });
 
     it('parses click steps', () => {

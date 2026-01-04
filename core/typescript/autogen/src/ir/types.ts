@@ -211,6 +211,8 @@ export interface PerformanceConfig {
     cls?: number;
     ttfb?: number;
   };
+  /** Timeout for collecting performance metrics in ms (default: 3000) */
+  collectTimeout?: number;
 }
 
 /**

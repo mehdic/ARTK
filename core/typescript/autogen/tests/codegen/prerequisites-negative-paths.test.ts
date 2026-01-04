@@ -99,13 +99,13 @@ describe('Negative Paths Code Generation', () => {
     const { journey: ir } = normalizeJourney(journey);
     const result = generateTest(ir);
 
-    // Should use specified error elements
-    expect(result.code).toContain('[data-testid="login-error"]');
-    expect(result.code).toContain('[data-testid="username-error"]');
-    expect(result.code).toContain('[data-testid="password-error"]');
+    // Should use specified error elements (now using getByTestId for data-testid selectors)
+    expect(result.code).toContain("getByTestId('login-error')");
+    expect(result.code).toContain("getByTestId('username-error')");
+    expect(result.code).toContain("getByTestId('password-error')");
   });
 
-  it('should include input data as comments', () => {
+  it('should fill inputs using getByLabel', () => {
     const journeyPath = join(
       process.cwd(),
       'tests/fixtures/journeys/JRN-9002-negative-paths-demo.md'
@@ -115,10 +115,12 @@ describe('Negative Paths Code Generation', () => {
     const { journey: ir } = normalizeJourney(journey);
     const result = generateTest(ir);
 
-    // Should document inputs in comments
-    expect(result.code).toContain('// Input: username =');
-    expect(result.code).toContain('// Input: password =');
-    expect(result.code).toContain('// Expected error:');
+    // Should fill inputs using getByLabel (not just comments)
+    expect(result.code).toContain("getByLabel('Username'");
+    expect(result.code).toContain("getByLabel('Password'");
+    expect(result.code).toContain('.fill(');
+    // Should still include comment for expected error
+    expect(result.code).toContain('// Assert error message');
   });
 });
 

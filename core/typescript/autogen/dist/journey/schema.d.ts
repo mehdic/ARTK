@@ -200,6 +200,8 @@ export declare const PerformanceSchema: z.ZodObject<{
         cls?: number | undefined;
         ttfb?: number | undefined;
     }>>;
+    /** Timeout for collecting performance metrics in ms (default: 3000) */
+    collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
     budgets?: {
@@ -208,6 +210,7 @@ export declare const PerformanceSchema: z.ZodObject<{
         cls?: number | undefined;
         ttfb?: number | undefined;
     } | undefined;
+    collectTimeout?: number | undefined;
 }, {
     enabled: boolean;
     budgets?: {
@@ -216,6 +219,7 @@ export declare const PerformanceSchema: z.ZodObject<{
         cls?: number | undefined;
         ttfb?: number | undefined;
     } | undefined;
+    collectTimeout?: number | undefined;
 }>;
 /**
  * Test data set schema for parameterized/data-driven tests
@@ -417,6 +421,8 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
             cls?: number | undefined;
             ttfb?: number | undefined;
         }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -425,6 +431,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }, {
         enabled: boolean;
         budgets?: {
@@ -433,6 +440,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
     actor: string;
@@ -496,6 +504,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -562,6 +571,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     modules?: {
         foundation?: string[] | undefined;
@@ -766,6 +776,8 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             cls?: number | undefined;
             ttfb?: number | undefined;
         }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -774,6 +786,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }, {
         enabled: boolean;
         budgets?: {
@@ -782,6 +795,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }>>;
 } & {
     status: z.ZodLiteral<"clarified">;
@@ -847,6 +861,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -913,6 +928,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     modules?: {
         foundation?: string[] | undefined;
@@ -995,6 +1011,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -1061,6 +1078,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     modules?: {
         foundation?: string[] | undefined;
@@ -1265,6 +1283,8 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -1273,6 +1293,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }, {
         enabled: boolean;
         budgets?: {
@@ -1281,6 +1302,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }>>;
 } & {
     status: z.ZodLiteral<"implemented">;
@@ -1346,6 +1368,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -1412,6 +1435,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     modules?: {
         foundation?: string[] | undefined;
@@ -1494,6 +1518,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -1560,6 +1585,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     modules?: {
         foundation?: string[] | undefined;
@@ -1762,6 +1788,8 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -1770,6 +1798,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }, {
         enabled: boolean;
         budgets?: {
@@ -1778,6 +1807,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     }>>;
 } & {
     status: z.ZodLiteral<"quarantined">;
@@ -1847,6 +1877,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     links?: {
         issues?: string[] | undefined;
@@ -1913,6 +1944,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     modules?: {
         foundation?: string[] | undefined;
@@ -1995,6 +2027,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     links?: {
         issues?: string[] | undefined;
@@ -2061,6 +2094,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             cls?: number | undefined;
             ttfb?: number | undefined;
         } | undefined;
+        collectTimeout?: number | undefined;
     } | undefined;
     modules?: {
         foundation?: string[] | undefined;

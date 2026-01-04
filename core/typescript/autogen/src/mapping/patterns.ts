@@ -71,7 +71,7 @@ export function createValueFromText(text: string): ValueSpec {
 export const navigationPatterns: StepPattern[] = [
   {
     name: 'navigate-to-url',
-    regex: /^(?:user\s+)?(?:navigates?|goes?|opens?)\s+(?:to\s+)?(?:the\s+)?["']?([^"'\s]+)["']?$/i,
+    regex: /^(?:user\s+)?(?:navigates?|go(?:es)?|opens?)\s+(?:to\s+)?(?:the\s+)?["']?([^"'\s]+)["']?$/i,
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
@@ -81,7 +81,7 @@ export const navigationPatterns: StepPattern[] = [
   },
   {
     name: 'navigate-to-page',
-    regex: /^(?:user\s+)?(?:navigates?|goes?|opens?)\s+(?:to\s+)?(?:the\s+)?(.+?)\s+page$/i,
+    regex: /^(?:user\s+)?(?:navigates?|go(?:es)?|opens?)\s+(?:to\s+)?(?:the\s+)?(.+?)\s+page$/i,
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
