@@ -43,6 +43,9 @@ export * from './codegen/generateModule.js';
 export * from './codegen/astEdit.js';
 export * from './codegen/registry.js';
 
+// Utilities
+export * from './utils/escaping.js';
+
 // Validation
 export * from './validate/index.js';
 
