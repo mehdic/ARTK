@@ -2,12 +2,18 @@
 
 **Date:** 2026-01-04
 **Topic:** Implementation plan for AutoGen bug fixes and feature enhancements
+**Status:** REVISED after deep analysis (v2)
 
 ---
 
 ## Executive Summary
 
-After testing the AutoGen CLI (`artk-autogen generate|validate|verify`), three critical bugs were identified and additional feature opportunities were discovered. This document provides a comprehensive implementation plan.
+After testing the AutoGen CLI (`artk-autogen generate|validate|verify`), three critical bugs were identified. Deep analysis of the codebase revealed that the architecture is more complete than initially thought, but has specific integration gaps.
+
+**Key Finding:** The step parsing infrastructure EXISTS (`normalize.ts`, `stepMapper.ts`, `patterns.ts`) but:
+1. The main flow uses `normalize.ts`'s inline parser, NOT the sophisticated `patterns.ts`
+2. The structured step format (`**Action**:`, `**Wait for**:`) is not supported
+3. Two separate `escapeRegex()` functions exist - BOTH have the same bug!
 
 ---
 
@@ -42,24 +48,19 @@ EJS tag behavior:
 
 Since `escapeString()` already handles JavaScript string escaping, the EJS tags should be `<%- %>` (unescaped).
 
-**Fix:**
-```ejs
-// Line 53 - Fixed
-await expect(page).toHaveURL(/<%- escapeRegex(signal.value) %>/<%- timeoutOpt %>);
-// Line 55
-await expect(page.getByRole('alert').getByText('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
-// Line 57
-await expect(page.locator('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
-// Line 59
-await expect(page.getByText('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
-```
+**Fix - Complete audit of test.ejs:**
 
-**Also audit these lines for same issue:**
-- Line 6: `@tags <%= journey.tags.join(', ') %>` → `<%- %>`
-- Line 18: `<%- journey.title %>` (already correct)
-- Line 19: `<%- journey.tags.map(...) %>` (already correct)
-- Line 29: `<%= journey.id %>` and `<%= journey.title %>` → should be `<%-`
-- Line 32: `<%= escapeString(step.description) %>` → `<%- escapeString(...) %>`
+| Line | Current | Fix | Reason |
+|------|---------|-----|--------|
+| 2-9 | `<%= %>` | Keep | JSDoc comments - OK |
+| 14 | `<%= imp.members %>` | `<%- %>` | Could contain special chars |
+| 29 | `<%= journey.id %>` | Keep | IDs are safe alphanumeric |
+| 32 | `<%= escapeString(...) %>` | `<%- escapeString(...) %>` | Double-escaping bug |
+| 35-36 | `<%= action.reason %>` | `<%- %>` | Could contain quotes |
+| 53 | `<%= escapeRegex(...) %>` | `<%- escapeRegex(...) %>` | **Critical** |
+| 55 | `<%= escapeString(...) %>` | `<%- escapeString(...) %>` | **Critical** |
+| 57 | `<%= escapeString(...) %>` | `<%- escapeString(...) %>` | **Critical** |
+| 59 | `<%= escapeString(...) %>` | `<%- escapeString(...) %>` | **Critical** |
 
 **Files to Modify:**
 - `src/codegen/templates/test.ejs`
@@ -80,272 +81,178 @@ await expect(page).toHaveURL(/\/dashboard/);
 ```
 
 **Root Cause:**
-The `escapeRegex()` function in `src/codegen/generateTest.ts` (line 84-86) escapes special regex characters but NOT the forward slash `/` when it appears at the start of a URL path.
+**TWO separate `escapeRegex()` functions exist with the SAME bug:**
 
-When the pattern `/dashboard` is inserted into a regex literal `/${pattern}/`, it becomes `//dashboard/` which JavaScript interprets as:
-1. Empty regex `//`
-2. Followed by identifier `dashboard/` (comment or error)
-
-**Current escapeRegex:**
+1. `src/codegen/generateTest.ts` (line 84-86):
 ```typescript
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 ```
 
-**Fix - Option A (escape forward slashes):**
+2. `src/journey/normalize.ts` (line 552-554):
+```typescript
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+```
+
+Neither escapes `/` (forward slash), causing `/dashboard` to become `//dashboard/` in regex literals.
+
+**Fix - BOTH files need update:**
 ```typescript
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 }
 ```
 
-This adds `/` to the character class, so `/dashboard` becomes `\/dashboard`.
-
-**Fix - Option B (special handling for leading slash):**
+**Recommendation:** Create a shared utility to avoid duplication:
 ```typescript
-function escapeRegex(str: string): string {
-  let escaped = str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Escape forward slashes for regex literals
-  escaped = escaped.replace(/\//g, '\\/');
-  return escaped;
+// src/utils/escaping.ts
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
+export function escapeString(str: string): string {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
 }
 ```
-
-**Recommendation:** Option A is cleaner and handles all slashes consistently.
 
 **Files to Modify:**
 - `src/codegen/generateTest.ts` (line 84-86)
+- `src/journey/normalize.ts` (line 552-554)
+- Consider creating `src/utils/escaping.ts` to DRY up
 
 ---
 
-### Bug 3: Steps Not Parsed - Only Completion Signals
+### Bug 3: Steps Not Parsed - Structured Format Unsupported
 
 **Severity:** P1 (High - missing functionality)
 
-**Symptom:**
-Generated tests only contain completion signal assertions. The markdown steps from the Journey body are not converted to Playwright actions.
+**REVISED Analysis:** The step parsing infrastructure EXISTS but has gaps.
 
-**Current Generated Test (partial):**
-```typescript
-test('JRN-0001: User Login', async ({ page }) => {
-  // Verify completion signals
-  await test.step('Verify completion', async () => {
-    await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.locator('[data-testid=\'welcome-message\']')).toBeVisible();
-  });
-});
+**Current Architecture:**
+```
+Journey.md
+    ↓
+parseJourney() → ParsedJourney
+    ↓                  ├── acceptanceCriteria[]
+    │                  └── proceduralSteps[]
+    ↓
+normalizeJourney() → IRJourney
+    │     ↓
+    │  parseStepText() [inline in normalize.ts - BASIC patterns only]
+    │
+    ├── stepMapper.ts [NOT USED - has mapStepText(), mapProceduralStep()]
+    └── patterns.ts [NOT USED - has 50+ sophisticated patterns]
 ```
 
-**Expected (with steps parsed):**
-```typescript
-test('JRN-0001: User Login', async ({ page }) => {
-  await test.step('Step 1: Navigate to login page', async () => {
-    await page.goto('/login');
-    await expect(page.locator('[data-testid="login-form"]')).toBeVisible();
-  });
+**The Problem:**
+1. `normalize.ts:parseStepText()` is a basic inline parser (lines 231-380)
+2. The sophisticated `patterns.ts` with 50+ patterns is NOT connected
+3. The `stepMapper.ts` with `mapStepText()` is NOT used in the main flow
+4. **Structured step format is NOT supported anywhere:**
+   ```markdown
+   ### Step 1: Title
+   - **Action**: Go to `/login`
+   - **Wait for**: `[data-testid="form"]` to be visible
+   - **Assert**: URL matches `/login`
+   ```
 
-  await test.step('Step 2: Enter credentials', async () => {
-    await page.getByLabel('Username').fill(actor.username);
-    await page.getByLabel('Password').fill(actor.password);
-  });
+**Three Distinct Issues:**
 
-  await test.step('Step 3: Submit form', async () => {
-    await page.getByRole('button', { name: 'Login' }).click();
-  });
+**Issue 3a: Disconnect between parsers**
+- `normalize.ts` uses its own inline `parseStepText()`
+- `stepMapper.ts` has `mapStepText()` that uses `patterns.ts`
+- They're not connected!
 
-  // Verify completion signals
-  await test.step('Verify completion', async () => {
-    await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.locator('[data-testid=\'welcome-message\']')).toBeVisible();
-  });
-});
-```
+**Issue 3b: parseProceduralSteps() doesn't parse structured format**
+- Only handles: `1. Step text` or `- Step text`
+- Doesn't parse: `### Step N: Title` with `**Action**:` bullets
 
-**Root Cause Analysis:**
-
-The architecture has all the pieces but they're not connected:
-
-1. **parseJourney.ts** - Parses Journey markdown into:
-   - `acceptanceCriteria[]` - AC sections with bullet points
-   - `proceduralSteps[]` - Numbered steps from "## Steps" section
-
-2. **stepMapper.ts** - Has `mapAcceptanceCriterion()` and `mapProceduralStep()` functions
-
-3. **patterns.ts** - Has patterns for common step text
-
-4. **Missing Link:** No `journeyToIR.ts` that orchestrates:
-   - `parseJourney()` → `ParsedJourney`
-   - Loop through `proceduralSteps` → `mapProceduralStep()` → `IRStep[]`
-   - Loop through `acceptanceCriteria` → `mapAcceptanceCriterion()` → `IRStep[]`
-   - Build `IRJourney` with populated `steps[]`
-
-**Current Flow:**
-```
-Journey.md → parseJourney() → ParsedJourney
-                                ↓
-                    generateTest() directly uses frontmatter
-                    (steps[] is empty, only completion signals used)
-```
-
-**Required Flow:**
-```
-Journey.md → parseJourney() → ParsedJourney
-                                ↓
-             journeyToIR() → IRJourney (with mapped steps[])
-                                ↓
-                    generateTest() → Playwright code
-```
+**Issue 3c: No patterns for structured step format**
+- Neither parser handles `**Action**:`, `**Wait for**:`, `**Assert**:`
 
 ---
 
-## Part 2: Implementation Plan for Step Parsing
+## Part 2: REVISED Implementation Plan for Step Parsing
 
-### Phase 1: Create journeyToIR Converter
+### Architectural Decision: Connect vs Rewrite
 
-**File:** `src/ir/journeyToIR.ts`
+**Option A: Connect existing infrastructure (RECOMMENDED)**
+- Use `patterns.ts` patterns via `stepMapper.ts:mapStepText()` in `normalize.ts`
+- Add structured step patterns to `patterns.ts`
+- Minimal changes, leverages existing 50+ patterns
 
-**Purpose:** Convert `ParsedJourney` to `IRJourney` by:
-1. Mapping frontmatter to IR metadata
-2. Parsing procedural steps into `IRStep[]`
-3. Parsing acceptance criteria into assertions
-4. Handling completion signals
+**Option B: Rewrite normalize.ts**
+- Replace inline `parseStepText()` entirely
+- Higher risk, more work
 
-**Implementation:**
+**Recommendation: Option A** - Connect the existing sophisticated infrastructure.
+
+---
+
+### Phase 1: Connect stepMapper to normalize.ts
+
+**File:** `src/journey/normalize.ts`
+
+**Change:** Replace inline `parseStepText()` with call to `stepMapper.ts:mapStepText()`
 
 ```typescript
-// src/ir/journeyToIR.ts
-import type { IRJourney, IRStep, CompletionSignal, IRMappingResult } from './types.js';
-import type { ParsedJourney, ProceduralStep } from '../journey/parseJourney.js';
-import { mapProceduralStep, getMappingStats } from '../mapping/stepMapper.js';
-
-export interface JourneyToIROptions {
-  /** Include blocked steps as TODO comments */
-  includeBlocked?: boolean;
-  /** Normalize step text before matching */
-  normalizeText?: boolean;
+// BEFORE (normalize.ts:151-167)
+for (const stepText of ac.steps) {
+  const primitive = parseStepText(stepText, warnings);  // inline parser
+  // ...
 }
 
-export function journeyToIR(
-  parsed: ParsedJourney,
-  options: JourneyToIROptions = {}
-): IRMappingResult {
-  const { includeBlocked = true, normalizeText = true } = options;
+// AFTER
+import { mapStepText } from '../mapping/stepMapper.js';
 
-  const warnings: string[] = [];
-  const blockedSteps: IRMappingResult['blockedSteps'] = [];
-  const steps: IRStep[] = [];
-
-  // Convert procedural steps to IR steps
-  for (const ps of parsed.proceduralSteps) {
-    const result = mapProceduralStep(ps, { includeBlocked, normalizeText });
-    steps.push(result.step);
-
-    // Track blocked steps
-    for (const mapping of result.mappings) {
-      if (!mapping.primitive) {
-        blockedSteps.push({
-          stepId: result.step.id,
-          sourceText: mapping.sourceText,
-          reason: mapping.message || 'Could not map step',
-        });
-      }
+for (const stepText of ac.steps) {
+  const result = mapStepText(stepText, { normalizeText: true });
+  if (result.primitive) {
+    if (result.isAssertion) {
+      assertions.push(result.primitive);
+    } else {
+      actions.push(result.primitive);
     }
+  } else {
+    actions.push({
+      type: 'blocked',
+      reason: result.message || 'Could not parse step',
+      sourceText: stepText,
+    });
   }
-
-  // Map completion signals
-  const completion: CompletionSignal[] = [];
-  if (parsed.frontmatter.completion) {
-    for (const signal of parsed.frontmatter.completion) {
-      completion.push({
-        type: signal.type as CompletionSignal['type'],
-        value: signal.value,
-        options: signal.options,
-      });
-    }
-  }
-
-  // Build IR Journey
-  const journey: IRJourney = {
-    id: parsed.frontmatter.id,
-    title: parsed.frontmatter.title,
-    tier: parsed.frontmatter.tier,
-    scope: parsed.frontmatter.scope,
-    actor: parsed.frontmatter.actor,
-    tags: buildTags(parsed.frontmatter),
-    moduleDependencies: {
-      foundation: parsed.frontmatter.modules?.foundation || [],
-      feature: parsed.frontmatter.modules?.features || [],
-    },
-    completion,
-    steps,
-    sourcePath: parsed.sourcePath,
-  };
-
-  // Calculate stats
-  const allMappings = steps.flatMap(s =>
-    [...s.actions, ...s.assertions].map(p => ({
-      primitive: p.type !== 'blocked' ? p : null,
-      sourceText: '',
-      isAssertion: p.type.startsWith('expect'),
-    }))
-  );
-  const stats = getMappingStats(allMappings);
-
-  return {
-    journey,
-    blockedSteps,
-    warnings,
-    stats: {
-      totalSteps: steps.length,
-      mappedSteps: steps.filter(s => s.actions.length > 0 || s.assertions.length > 0).length,
-      blockedSteps: blockedSteps.length,
-      totalActions: stats.actions,
-      totalAssertions: stats.assertions,
-    },
-  };
-}
-
-function buildTags(frontmatter: ParsedJourney['frontmatter']): string[] {
-  return [
-    '@artk',
-    '@journey',
-    `@${frontmatter.id}`,
-    `@tier-${frontmatter.tier}`,
-    `@scope-${frontmatter.scope}`,
-    `@actor-${frontmatter.actor}`,
-  ];
 }
 ```
 
-### Phase 2: Enhance Step Parsing Patterns
+**Benefit:** Immediately gains access to 50+ patterns in `patterns.ts`.
 
-**Current Patterns in `patterns.ts`:**
-- Navigation: `navigates to`, `goes to`, `opens`
-- Clicks: `clicks 'X' button`, `presses`, `taps`
-- Fill: `enters 'X' in 'Y' field`, `types`, `fills`
-- Select: `selects 'X' from 'Y'`
-- Check: `checks 'X' checkbox`, `unchecks`
-- Visibility: `should see 'X'`, `is visible`
-- Toast: `success toast appears`
-- URL: `url contains`, `redirected to`
-- Auth: `user logs in`, `user logs out`
-- Wait: `waits for navigation`
+---
 
-**Additional Patterns Needed:**
+### Phase 2: Add Structured Step Patterns to patterns.ts
+
+**File:** `src/mapping/patterns.ts`
+
+**Add these patterns for structured step format:**
 
 ```typescript
-// New patterns for structured step format
-// Format: ### Step N: Title
-//         - **Action**: action text
-//         - **Wait for**: wait condition
-//         - **Assert**: assertion text
-
-export const structuredStepPatterns: StepPattern[] = [
-  // Action: Go to /path
+/**
+ * Structured step patterns for markdown format:
+ * - **Action**: action text
+ * - **Wait for**: wait condition
+ * - **Assert**: assertion text
+ */
+export const structuredPatterns: StepPattern[] = [
+  // **Action**: Go to /path
   {
-    name: 'action-goto',
-    regex: /^\*\*Action\*\*:\s*(?:Go to|Navigate to)\s+`?([^`]+)`?$/i,
+    name: 'structured-action-goto',
+    regex: /^-?\s*\*\*Action\*\*:\s*(?:Go to|Navigate to)\s+`?([^`\s]+)`?$/i,
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
@@ -354,56 +261,77 @@ export const structuredStepPatterns: StepPattern[] = [
     }),
   },
 
-  // Action: Click selector
+  // **Action**: Click `selector`
   {
-    name: 'action-click-selector',
-    regex: /^\*\*Action\*\*:\s*Click\s+`([^`]+)`$/i,
+    name: 'structured-action-click',
+    regex: /^-?\s*\*\*Action\*\*:\s*Click\s+`([^`]+)`$/i,
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
-      locator: parseSelector(match[1]),
+      locator: parseSelectorToLocator(match[1]),
     }),
   },
 
-  // Wait for: selector to be visible
+  // **Wait for**: `selector` to be visible
   {
-    name: 'wait-for-visible',
-    regex: /^\*\*Wait for\*\*:\s*`([^`]+)`\s+to\s+be\s+visible$/i,
+    name: 'structured-wait-visible',
+    regex: /^-?\s*\*\*Wait for\*\*:\s*`([^`]+)`\s+to\s+be\s+visible$/i,
     primitiveType: 'expectVisible',
     extract: (match) => ({
       type: 'expectVisible',
-      locator: parseSelector(match[1]),
+      locator: parseSelectorToLocator(match[1]),
     }),
   },
 
-  // Assert: selector count is N
+  // **Wait for**: Navigation to complete
   {
-    name: 'assert-count',
-    regex: /^\*\*Assert\*\*:\s*`([^`]+)`\s+count\s+is\s+(\d+)$/i,
+    name: 'structured-wait-nav',
+    regex: /^-?\s*\*\*Wait for\*\*:\s*Navigation\s+to\s+complete$/i,
+    primitiveType: 'waitForLoadingComplete',
+    extract: () => ({
+      type: 'waitForLoadingComplete',
+    }),
+  },
+
+  // **Assert**: `selector` is visible
+  {
+    name: 'structured-assert-visible',
+    regex: /^-?\s*\*\*Assert\*\*:\s*`([^`]+)`\s+is\s+visible$/i,
+    primitiveType: 'expectVisible',
+    extract: (match) => ({
+      type: 'expectVisible',
+      locator: parseSelectorToLocator(match[1]),
+    }),
+  },
+
+  // **Assert**: `selector` count is N
+  {
+    name: 'structured-assert-count',
+    regex: /^-?\s*\*\*Assert\*\*:\s*`([^`]+)`\s+count\s+is\s+(\d+)$/i,
     primitiveType: 'expectCount',
     extract: (match) => ({
       type: 'expectCount',
-      locator: parseSelector(match[1]),
+      locator: parseSelectorToLocator(match[1]),
       count: parseInt(match[2], 10),
     }),
   },
 
-  // Assert: selector contains text "X"
+  // **Assert**: `selector` contains text "X"
   {
-    name: 'assert-contains-text',
-    regex: /^\*\*Assert\*\*:\s*`([^`]+)`\s+contains\s+text\s+["']([^"']+)["']$/i,
+    name: 'structured-assert-text',
+    regex: /^-?\s*\*\*Assert\*\*:\s*`([^`]+)`\s+contains\s+text\s+["']([^"']+)["']$/i,
     primitiveType: 'expectContainsText',
     extract: (match) => ({
       type: 'expectContainsText',
-      locator: parseSelector(match[1]),
+      locator: parseSelectorToLocator(match[1]),
       text: match[2],
     }),
   },
 
-  // Assert: URL matches /path
+  // **Assert**: URL matches `/path`
   {
-    name: 'assert-url-matches',
-    regex: /^\*\*Assert\*\*:\s*URL\s+matches\s+`([^`]+)`$/i,
+    name: 'structured-assert-url',
+    regex: /^-?\s*\*\*Assert\*\*:\s*URL\s+matches\s+`([^`]+)`$/i,
     primitiveType: 'expectURL',
     extract: (match) => ({
       type: 'expectURL',
@@ -412,106 +340,171 @@ export const structuredStepPatterns: StepPattern[] = [
   },
 ];
 
-// Helper to parse CSS/testid selectors
-function parseSelector(selector: string): LocatorSpec {
-  // data-testid selector
-  if (selector.includes('data-testid=')) {
-    const match = selector.match(/data-testid=['"]?([^'"]+)['"]?/);
-    return { strategy: 'testid', value: match?.[1] || selector };
+// Helper function
+function parseSelectorToLocator(selector: string): LocatorSpec {
+  // data-testid pattern: [data-testid="value"] or [data-testid='value']
+  const testidMatch = selector.match(/\[data-testid=['"]([^'"]+)['"]\]/);
+  if (testidMatch) {
+    return { strategy: 'testid', value: testidMatch[1] };
   }
-  // CSS selector
+
+  // CSS selector fallback
   return { strategy: 'css', value: selector };
 }
 ```
 
-### Phase 3: Update parseJourney to Handle Structured Steps
-
-**Enhance `parseProceduralSteps()` in `parseJourney.ts`:**
+**Update allPatterns to include structured patterns (at the START for priority):**
 
 ```typescript
-interface StructuredStep {
-  number: number;
-  title: string;
-  action?: string;
-  waitFor?: string;
-  assertions: string[];
+export const allPatterns: StepPattern[] = [
+  ...structuredPatterns,  // NEW - check structured format first
+  ...authPatterns,
+  ...toastPatterns,
+  ...navigationPatterns,
+  ...clickPatterns,
+  ...fillPatterns,
+  ...selectPatterns,
+  ...checkPatterns,
+  ...visibilityPatterns,
+  ...urlPatterns,
+  ...waitPatterns,
+];
+```
+
+---
+
+### Phase 3: Enhance parseProceduralSteps for Structured Format
+
+**File:** `src/journey/parseJourney.ts`
+
+**Problem:** Current parser only handles `1. Step text` or `- Step text`
+
+**Solution:** Add detection for `### Step N:` format and parse nested bullets
+
+```typescript
+/**
+ * Parse procedural steps - supports both simple and structured formats
+ */
+function parseProceduralSteps(body: string): ProceduralStep[] {
+  const steps: ProceduralStep[] = [];
+
+  // Find the Steps section
+  const psMatch = body.match(
+    /##\s*Steps?\s*\n([\s\S]*?)(?=\n##\s[^#]|$)/i
+  );
+  if (!psMatch) return steps;
+
+  const psSection = psMatch[1];
+
+  // Check for structured format (### Step N:)
+  if (/###\s+Step\s+\d+:/i.test(psSection)) {
+    return parseStructuredSteps(psSection);
+  }
+
+  // Fallback to original simple format parsing
+  // ... existing code ...
 }
 
-function parseStructuredSteps(body: string): StructuredStep[] {
-  const steps: StructuredStep[] = [];
+/**
+ * Parse structured step format:
+ * ### Step 1: Title
+ * - **Action**: ...
+ * - **Wait for**: ...
+ * - **Assert**: ...
+ */
+function parseStructuredSteps(section: string): ProceduralStep[] {
+  const steps: ProceduralStep[] = [];
 
-  // Find ## Steps section
-  const stepsSection = body.match(/##\s*Steps?\s*\n([\s\S]*?)(?=\n##\s[^#]|$)/i)?.[1];
-  if (!stepsSection) return steps;
+  // Split by ### Step N: headers
+  const stepBlocks = section.split(/(?=###\s+Step\s+\d+:)/i).filter(Boolean);
 
-  // Split by ### Step N headers
-  const stepHeaders = stepsSection.split(/\n###\s+Step\s+(\d+):\s*/i);
+  for (const block of stepBlocks) {
+    // Extract step number and title
+    const headerMatch = block.match(/###\s+Step\s+(\d+):\s*(.+)/i);
+    if (!headerMatch) continue;
 
-  for (let i = 1; i < stepHeaders.length; i += 2) {
-    const number = parseInt(stepHeaders[i], 10);
-    const content = stepHeaders[i + 1] || '';
+    const number = parseInt(headerMatch[1], 10);
+    const title = headerMatch[2].trim();
 
-    // Parse title (first line)
-    const lines = content.split('\n');
-    const title = lines[0]?.trim() || `Step ${number}`;
+    // Extract all bullet points (actions, waits, asserts)
+    const bulletPattern = /^-\s+(.+)$/gm;
+    let match;
+    while ((match = bulletPattern.exec(block)) !== null) {
+      const bulletText = match[1].trim();
 
-    // Parse action
-    const actionMatch = content.match(/\*\*Action\*\*:\s*(.+)/i);
-    const action = actionMatch?.[1]?.trim();
-
-    // Parse wait for
-    const waitMatch = content.match(/\*\*Wait for\*\*:\s*(.+)/i);
-    const waitFor = waitMatch?.[1]?.trim();
-
-    // Parse assertions
-    const assertions: string[] = [];
-    const assertMatches = content.matchAll(/\*\*Assert\*\*:\s*(.+)/gi);
-    for (const match of assertMatches) {
-      assertions.push(match[1].trim());
+      // Each bullet becomes a separate ProceduralStep
+      // This allows patterns.ts to match them individually
+      steps.push({
+        number: steps.length + 1,
+        text: bulletText,
+        linkedAC: undefined,
+      });
     }
-
-    steps.push({ number, title, action, waitFor, assertions });
   }
 
   return steps;
 }
 ```
 
-### Phase 4: Integration
+---
 
-**Update CLI command to use full pipeline:**
+### Phase 4: Create Shared Escaping Utility (DRY)
+
+**File:** `src/utils/escaping.ts` (NEW)
 
 ```typescript
-// In generate.ts CLI command
-async function generateFromJourney(journeyPath: string): Promise<void> {
-  // 1. Parse journey markdown
-  const parsed = parseJourneyForAutoGen(journeyPath);
+/**
+ * Shared escaping utilities
+ */
 
-  // 2. Convert to IR (NEW STEP)
-  const { journey: irJourney, blockedSteps, warnings, stats } = journeyToIR(parsed);
+/**
+ * Escape special regex characters including forward slash
+ * Used when embedding strings in regex literals: /pattern/
+ */
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
 
-  // 3. Generate test code
-  const result = generateTest(irJourney, {
-    updateJourney: true,
-    journeyPath,
-    outputPath: outputPath,
-  });
-
-  // 4. Report stats
-  console.log(`Mapped ${stats.mappedSteps}/${stats.totalSteps} steps`);
-  console.log(`Actions: ${stats.totalActions}, Assertions: ${stats.totalAssertions}`);
-
-  if (blockedSteps.length > 0) {
-    console.warn(`Warning: ${blockedSteps.length} steps could not be mapped`);
-    for (const blocked of blockedSteps) {
-      console.warn(`  - ${blocked.stepId}: ${blocked.reason}`);
-    }
-  }
-
-  // 5. Write output
-  await writeFile(outputPath, result.code);
+/**
+ * Escape string for JavaScript string literals
+ * Handles quotes, backslashes, and newlines
+ */
+export function escapeString(str: string): string {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
 }
 ```
+
+**Update imports in:**
+- `src/codegen/generateTest.ts` - import from `../utils/escaping.js`
+- `src/journey/normalize.ts` - import from `../utils/escaping.js`
+- Delete local implementations
+
+---
+
+### Phase 5: Integration Verification
+
+**No CLI changes needed!** The flow already works:
+
+```typescript
+// src/index.ts:166-177 (ALREADY CORRECT)
+const parsed = isFilePaths
+  ? parseJourney(journey)
+  : parseJourneyContent(journey, 'inline');
+
+// Normalize to IR
+const normalized = normalizeJourney(parsed);  // This uses parseStepText()
+
+// Generate test
+const testResult = generateTest(normalized.journey, testOptions);
+```
+
+The fix is internal to `normalizeJourney()` - no API changes needed.
 
 ---
 
@@ -713,56 +706,77 @@ await test.step('Performance check', async () => {
 
 ---
 
-## Part 4: Implementation Priority
+## Part 4: REVISED Implementation Priority
 
 ### Immediate (P0) - Must Fix Before Release
 
-1. **Bug 1: HTML Entity Escaping** - 30 min
-   - Change `<%= %>` to `<%- %>` in test.ejs
-   - Add tests for escaping scenarios
+| Task | File(s) | Effort | Description |
+|------|---------|--------|-------------|
+| **1. Fix EJS escaping** | `test.ejs` | 15 min | Change `<%= escapeX(...) %>` to `<%- escapeX(...) %>` in lines 32, 35-36, 53, 55, 57, 59 |
+| **2. Fix escapeRegex** | `generateTest.ts`, `normalize.ts` | 15 min | Add `/` to character class: `[.*+?^${}()\|[\]\\/]` |
 
-2. **Bug 2: Regex Syntax** - 15 min
-   - Add `/` to escapeRegex character class
-   - Add tests for URL patterns
+**Total P0 effort: ~30 minutes**
 
-### Short Term (P1) - Next Sprint
+### Short Term (P1) - Same Day/Next Day
 
-3. **Bug 3: Step Parsing** - 2-3 days
-   - Create `journeyToIR.ts`
-   - Enhance patterns for structured steps
-   - Update CLI to use full pipeline
-   - Add tests for step mapping
+| Task | File(s) | Effort | Description |
+|------|---------|--------|-------------|
+| **3. Create escaping utility** | `utils/escaping.ts` (new) | 30 min | DRY up escapeRegex and escapeString, update imports |
+| **4. Connect stepMapper** | `normalize.ts` | 1 hr | Replace inline parseStepText() with mapStepText() call |
+| **5. Add structured patterns** | `patterns.ts` | 1 hr | Add 8 patterns for `**Action**:`, `**Wait for**:`, `**Assert**:` |
+| **6. Parse structured steps** | `parseJourney.ts` | 1 hr | Add parseStructuredSteps() for `### Step N:` format |
 
-### Medium Term (P2) - Future Sprints
+**Total P1 effort: ~3.5 hours**
 
-4. **Feature: Data-Driven Tests** - 1-2 days
-5. **Feature: Prerequisites** - 1 day
-6. **Feature: Negative Paths** - 1 day
+### Medium Term (P2) - This Week
 
-### Long Term (P3) - Backlog
+| Task | File(s) | Effort | Description |
+|------|---------|--------|-------------|
+| **7. Unit tests for escaping** | `__tests__/escaping.test.ts` | 1 hr | Test escapeRegex with `/`, `\`, special chars |
+| **8. Integration tests** | `__tests__/generate.test.ts` | 2 hr | End-to-end: Journey → IR → Test code |
+| **9. Update test fixtures** | `test-fixtures/` | 1 hr | Add structured step examples |
 
-7. **Feature: Visual Regression** - 2 days
-8. **Feature: API Mocking** - 2 days
-9. **Feature: Accessibility** - 1-2 days
-10. **Feature: Performance** - 1 day
+### Future (P3) - Backlog
+
+| Feature | Effort | Description |
+|---------|--------|-------------|
+| Data-Driven Tests | 1-2 days | Parameterized test data sets |
+| Prerequisites | 1 day | Chain dependent journeys |
+| Negative Paths | 1 day | Error scenario testing |
+| Visual Regression | 2 days | Screenshot comparisons |
+| API Mocking | 2 days | Declare mock responses |
+| Accessibility | 1-2 days | Auto-inject a11y audits |
+| Performance | 1 day | Assert on LCP/FID metrics |
 
 ---
 
-## Part 5: Test Plan
+## Part 5: REVISED Test Plan
 
 ### Unit Tests for Bug Fixes
 
 ```typescript
-// test/codegen/escaping.test.ts
+// src/__tests__/utils/escaping.test.ts
+import { escapeRegex, escapeString } from '../../utils/escaping.js';
+
 describe('escapeRegex', () => {
   it('escapes forward slashes', () => {
     expect(escapeRegex('/dashboard')).toBe('\\/dashboard');
     expect(escapeRegex('/user/profile')).toBe('\\/user\\/profile');
   });
 
+  it('escapes multiple slashes in URL paths', () => {
+    expect(escapeRegex('/api/v1/users')).toBe('\\/api\\/v1\\/users');
+  });
+
   it('escapes regex special characters', () => {
     expect(escapeRegex('test.html')).toBe('test\\.html');
     expect(escapeRegex('[test]')).toBe('\\[test\\]');
+    expect(escapeRegex('foo(bar)')).toBe('foo\\(bar\\)');
+    expect(escapeRegex('a+b*c?')).toBe('a\\+b\\*c\\?');
+  });
+
+  it('handles mixed slashes and special chars', () => {
+    expect(escapeRegex('/user/[id]')).toBe('\\/user\\/\\[id\\]');
   });
 });
 
@@ -771,8 +785,22 @@ describe('escapeString', () => {
     expect(escapeString("it's")).toBe("it\\'s");
   });
 
+  it('escapes double quotes', () => {
+    expect(escapeString('say "hello"')).toBe('say \\"hello\\"');
+  });
+
   it('escapes backslashes', () => {
     expect(escapeString('path\\to')).toBe('path\\\\to');
+  });
+
+  it('escapes newlines and tabs', () => {
+    expect(escapeString('line1\nline2')).toBe('line1\\nline2');
+    expect(escapeString('col1\tcol2')).toBe('col1\\tcol2');
+  });
+
+  it('handles data-testid selectors', () => {
+    expect(escapeString("[data-testid='login-form']"))
+      .toBe("[data-testid=\\'login-form\\']");
   });
 });
 ```
@@ -780,9 +808,13 @@ describe('escapeString', () => {
 ### Integration Tests for Step Parsing
 
 ```typescript
-// test/ir/journeyToIR.test.ts
-describe('journeyToIR', () => {
-  it('maps procedural steps to IR steps', () => {
+// src/__tests__/integration/structuredSteps.test.ts
+import { parseJourneyContent } from '../../journey/parseJourney.js';
+import { normalizeJourney } from '../../journey/normalize.js';
+import { generateTest } from '../../codegen/generateTest.js';
+
+describe('Structured Step Parsing', () => {
+  it('parses structured step format to IR', () => {
     const parsed = parseJourneyContent(`---
 id: JRN-TEST
 title: Test Journey
@@ -795,39 +827,197 @@ completion:
     value: /success
 ---
 ## Steps
-### Step 1: Navigate
-- **Action**: Go to /login
-### Step 2: Fill form
-- **Action**: Enter 'user@test.com' in 'Email'
+
+### Step 1: Navigate to login
+- **Action**: Go to \`/login\`
+- **Wait for**: \`[data-testid="login-form"]\` to be visible
+
+### Step 2: Submit form
+- **Action**: Click \`[data-testid="submit-btn"]\`
+- **Assert**: URL matches \`/dashboard\`
 `);
 
-    const { journey, stats } = journeyToIR(parsed);
+    const { journey, stats } = normalizeJourney(parsed);
 
-    expect(journey.steps).toHaveLength(2);
-    expect(journey.steps[0].actions[0]).toMatchObject({
+    // Should have steps from procedural parsing
+    expect(journey.steps.length).toBeGreaterThan(0);
+
+    // Check that actions were parsed
+    const allActions = journey.steps.flatMap(s => s.actions);
+    const gotoAction = allActions.find(a => a.type === 'goto');
+    expect(gotoAction).toBeDefined();
+    expect((gotoAction as any).url).toBe('/login');
+  });
+
+  it('generates valid test code without HTML entities', () => {
+    const parsed = parseJourneyContent(`---
+id: JRN-0001
+title: Login Test
+status: clarified
+tier: smoke
+actor: user
+scope: auth
+completion:
+  - type: element
+    value: "[data-testid='welcome']"
+---
+## Steps
+- User sees the welcome message
+`);
+
+    const { journey } = normalizeJourney(parsed);
+    const { code } = generateTest(journey);
+
+    // Should NOT contain HTML entities
+    expect(code).not.toContain('&#39;');
+    expect(code).not.toContain('&quot;');
+
+    // Should contain properly escaped quotes
+    expect(code).toContain("data-testid=\\'welcome\\'");
+  });
+
+  it('generates valid regex for URL patterns', () => {
+    const parsed = parseJourneyContent(`---
+id: JRN-0002
+title: URL Test
+status: clarified
+tier: smoke
+actor: user
+scope: nav
+completion:
+  - type: url
+    value: /dashboard
+---
+## Steps
+- User is redirected to dashboard
+`);
+
+    const { journey } = normalizeJourney(parsed);
+    const { code } = generateTest(journey);
+
+    // Should have escaped forward slash
+    expect(code).toContain('/\\/dashboard/');
+
+    // Should NOT have double slash (invalid regex)
+    expect(code).not.toContain('//dashboard/');
+  });
+});
+```
+
+### Pattern Matching Tests
+
+```typescript
+// src/__tests__/mapping/structuredPatterns.test.ts
+import { matchPattern } from '../../mapping/patterns.js';
+
+describe('Structured Step Patterns', () => {
+  it('matches **Action**: Go to pattern', () => {
+    const result = matchPattern('**Action**: Go to `/login`');
+    expect(result).toMatchObject({
       type: 'goto',
       url: '/login',
     });
-    expect(stats.mappedSteps).toBe(2);
+  });
+
+  it('matches **Action**: Click pattern', () => {
+    const result = matchPattern('**Action**: Click `[data-testid="submit"]`');
+    expect(result).toMatchObject({
+      type: 'click',
+      locator: { strategy: 'testid', value: 'submit' },
+    });
+  });
+
+  it('matches **Wait for**: visible pattern', () => {
+    const result = matchPattern('**Wait for**: `[data-testid="form"]` to be visible');
+    expect(result).toMatchObject({
+      type: 'expectVisible',
+      locator: { strategy: 'testid', value: 'form' },
+    });
+  });
+
+  it('matches **Assert**: URL pattern', () => {
+    const result = matchPattern('**Assert**: URL matches `/dashboard`');
+    expect(result).toMatchObject({
+      type: 'expectURL',
+      pattern: '/dashboard',
+    });
+  });
+
+  it('matches **Assert**: count pattern', () => {
+    const result = matchPattern('**Assert**: `[data-testid="item"]` count is 3');
+    expect(result).toMatchObject({
+      type: 'expectCount',
+      locator: { strategy: 'testid', value: 'item' },
+      count: 3,
+    });
   });
 });
 ```
 
 ---
 
-## Appendix: File Locations
+## Appendix: REVISED File Locations
+
+### Files to MODIFY (Bug Fixes)
+
+| File | Lines | Fix |
+|------|-------|-----|
+| `src/codegen/templates/test.ejs` | 32, 35-36, 53, 55, 57, 59 | Change `<%= escapeX %>` to `<%- escapeX %>` |
+| `src/codegen/generateTest.ts` | 84-86 | Add `/` to escapeRegex char class |
+| `src/journey/normalize.ts` | 552-554 | Add `/` to escapeRegex char class |
+
+### Files to MODIFY (Step Parsing)
+
+| File | Change |
+|------|--------|
+| `src/journey/normalize.ts` | Replace inline parseStepText() with mapStepText() import |
+| `src/mapping/patterns.ts` | Add structuredPatterns array + parseSelectorToLocator helper |
+| `src/journey/parseJourney.ts` | Add parseStructuredSteps() function |
+
+### Files to CREATE
 
 | File | Purpose |
 |------|---------|
-| `src/codegen/templates/test.ejs` | EJS template for test generation |
-| `src/codegen/generateTest.ts` | Test generator with escapeRegex/escapeString |
-| `src/mapping/patterns.ts` | Step text → IR primitive patterns |
-| `src/mapping/stepMapper.ts` | Step mapping orchestration |
-| `src/journey/parseJourney.ts` | Markdown → ParsedJourney |
-| `src/journey/parseHints.ts` | Machine hint extraction (@testid, @role) |
-| `src/ir/types.ts` | IR type definitions |
-| `src/ir/journeyToIR.ts` | **NEW** - ParsedJourney → IRJourney |
-| `src/selectors/priority.ts` | Locator → Playwright code |
+| `src/utils/escaping.ts` | **NEW** - Shared escapeRegex + escapeString utilities |
+| `src/__tests__/utils/escaping.test.ts` | **NEW** - Unit tests for escaping |
+| `src/__tests__/integration/structuredSteps.test.ts` | **NEW** - Integration tests |
+| `src/__tests__/mapping/structuredPatterns.test.ts` | **NEW** - Pattern matching tests |
+
+### Existing Architecture (Reference)
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/codegen/generateTest.ts` | Test generator, EJS rendering | Has bug in escapeRegex |
+| `src/mapping/patterns.ts` | 50+ step patterns | Missing structured patterns |
+| `src/mapping/stepMapper.ts` | Pattern matching via mapStepText() | **NOT CONNECTED** |
+| `src/journey/parseJourney.ts` | Markdown → ParsedJourney | Missing structured step parsing |
+| `src/journey/normalize.ts` | ParsedJourney → IRJourney | Uses inline parser, not patterns.ts |
+| `src/journey/parseHints.ts` | Machine hints (@testid, @role) | Working correctly |
+| `src/ir/types.ts` | IRPrimitive, IRStep, IRJourney | Complete |
+| `src/ir/builder.ts` | Fluent API for IR construction | Complete |
+| `src/selectors/priority.ts` | LocatorSpec → Playwright code | Has escapeString (OK) |
+| `src/index.ts` | Main entry, generateJourneyTests() | Correctly wired |
+
+---
+
+## Summary of Issues Found During Review
+
+1. **Original plan incorrectly stated `journeyToIR.ts` was missing**
+   - `normalize.ts` already has `normalizeJourney()` that converts ParsedJourney → IRJourney
+   - The issue is the inline parser, not a missing file
+
+2. **TWO identical buggy `escapeRegex()` functions found**
+   - Both in `generateTest.ts` and `normalize.ts`
+   - Both missing `/` in the character class
+
+3. **Sophisticated pattern infrastructure EXISTS but is DISCONNECTED**
+   - `patterns.ts` has 50+ patterns
+   - `stepMapper.ts` has `mapStepText()` that uses them
+   - But `normalize.ts` uses its own inline `parseStepText()` instead!
+
+4. **Structured step format unsupported anywhere**
+   - `### Step N:` with `**Action**:`, `**Wait for**:`, `**Assert**:` bullets
+   - Need to add patterns AND parsing support
 
 ---
 
