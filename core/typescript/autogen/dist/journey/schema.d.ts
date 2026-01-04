@@ -22,22 +22,56 @@ export declare const CleanupStrategySchema: z.ZodEnum<["required", "best-effort"
 /**
  * Completion signal type enum
  */
-export declare const CompletionTypeSchema: z.ZodEnum<["url", "toast", "element", "text"]>;
+export declare const CompletionTypeSchema: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+/**
+ * Element state enum for completion signals
+ */
+export declare const ElementStateSchema: z.ZodEnum<["visible", "hidden", "attached", "detached"]>;
 /**
  * Completion signal schema
  */
 export declare const CompletionSignalSchema: z.ZodObject<{
-    type: z.ZodEnum<["url", "toast", "element", "text"]>;
+    type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
     value: z.ZodString;
-    timeout: z.ZodOptional<z.ZodNumber>;
+    options: z.ZodOptional<z.ZodObject<{
+        timeout: z.ZodOptional<z.ZodNumber>;
+        exact: z.ZodOptional<z.ZodBoolean>;
+        state: z.ZodOptional<z.ZodEnum<["visible", "hidden", "attached", "detached"]>>;
+        method: z.ZodOptional<z.ZodString>;
+        status: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        exact?: boolean | undefined;
+        status?: number | undefined;
+        timeout?: number | undefined;
+        state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+        method?: string | undefined;
+    }, {
+        exact?: boolean | undefined;
+        status?: number | undefined;
+        timeout?: number | undefined;
+        state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+        method?: string | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     value: string;
-    type: "text" | "url" | "toast" | "element";
-    timeout?: number | undefined;
+    type: "url" | "toast" | "element" | "title" | "api";
+    options?: {
+        exact?: boolean | undefined;
+        status?: number | undefined;
+        timeout?: number | undefined;
+        state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+        method?: string | undefined;
+    } | undefined;
 }, {
     value: string;
-    type: "text" | "url" | "toast" | "element";
-    timeout?: number | undefined;
+    type: "url" | "toast" | "element" | "title" | "api";
+    options?: {
+        exact?: boolean | undefined;
+        status?: number | undefined;
+        timeout?: number | undefined;
+        state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+        method?: string | undefined;
+    } | undefined;
 }>;
 /**
  * Data configuration schema
@@ -138,17 +172,47 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "text"]>;
+        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
         value: z.ZodString;
-        timeout: z.ZodOptional<z.ZodNumber>;
+        options: z.ZodOptional<z.ZodObject<{
+            timeout: z.ZodOptional<z.ZodNumber>;
+            exact: z.ZodOptional<z.ZodBoolean>;
+            state: z.ZodOptional<z.ZodEnum<["visible", "hidden", "attached", "detached"]>>;
+            method: z.ZodOptional<z.ZodString>;
+            status: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }>, "many">>;
     links: z.ZodOptional<z.ZodObject<{
         issues: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
@@ -176,8 +240,8 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     revision: number;
@@ -197,8 +261,14 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -213,8 +283,8 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
 }, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "proposed" | "defined" | "clarified" | "implemented" | "quarantined" | "deprecated";
@@ -225,8 +295,14 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     revision?: number | undefined;
     modules?: {
@@ -292,17 +368,47 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "text"]>;
+        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
         value: z.ZodString;
-        timeout: z.ZodOptional<z.ZodNumber>;
+        options: z.ZodOptional<z.ZodObject<{
+            timeout: z.ZodOptional<z.ZodNumber>;
+            exact: z.ZodOptional<z.ZodBoolean>;
+            state: z.ZodOptional<z.ZodEnum<["visible", "hidden", "attached", "detached"]>>;
+            method: z.ZodOptional<z.ZodString>;
+            status: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }>, "many">>;
     links: z.ZodOptional<z.ZodObject<{
         issues: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
@@ -332,8 +438,8 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     status: z.ZodLiteral<"clarified">;
 }, "strip", z.ZodTypeAny, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     revision: number;
@@ -353,8 +459,14 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -369,8 +481,8 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
 }, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "clarified";
@@ -381,8 +493,14 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     revision?: number | undefined;
     modules?: {
@@ -406,8 +524,8 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
 }>, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     revision: number;
@@ -427,8 +545,14 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -443,8 +567,8 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
 }, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "clarified";
@@ -455,8 +579,14 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     revision?: number | undefined;
     modules?: {
@@ -522,17 +652,47 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "text"]>;
+        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
         value: z.ZodString;
-        timeout: z.ZodOptional<z.ZodNumber>;
+        options: z.ZodOptional<z.ZodObject<{
+            timeout: z.ZodOptional<z.ZodNumber>;
+            exact: z.ZodOptional<z.ZodBoolean>;
+            state: z.ZodOptional<z.ZodEnum<["visible", "hidden", "attached", "detached"]>>;
+            method: z.ZodOptional<z.ZodString>;
+            status: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }>, "many">>;
     links: z.ZodOptional<z.ZodObject<{
         issues: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
@@ -562,8 +722,8 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     status: z.ZodLiteral<"implemented">;
 }, "strip", z.ZodTypeAny, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     revision: number;
@@ -583,8 +743,14 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -599,8 +765,8 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
 }, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "implemented";
@@ -611,8 +777,14 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     revision?: number | undefined;
     modules?: {
@@ -636,8 +808,8 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
 }>, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     revision: number;
@@ -657,8 +829,14 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
@@ -673,8 +851,8 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
 }, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "implemented";
@@ -685,8 +863,14 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     revision?: number | undefined;
     modules?: {
@@ -750,17 +934,47 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "text"]>;
+        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
         value: z.ZodString;
-        timeout: z.ZodOptional<z.ZodNumber>;
+        options: z.ZodOptional<z.ZodObject<{
+            timeout: z.ZodOptional<z.ZodNumber>;
+            exact: z.ZodOptional<z.ZodBoolean>;
+            state: z.ZodOptional<z.ZodEnum<["visible", "hidden", "attached", "detached"]>>;
+            method: z.ZodOptional<z.ZodString>;
+            status: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }, {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }, {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }>, "many">>;
     links: z.ZodOptional<z.ZodObject<{
         issues: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
@@ -792,8 +1006,8 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     statusReason: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     revision: number;
@@ -815,8 +1029,14 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     links?: {
         issues?: string[] | undefined;
@@ -829,8 +1049,8 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
 }, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "quarantined";
@@ -843,8 +1063,14 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     revision?: number | undefined;
     modules?: {
@@ -866,8 +1092,8 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
 }>, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     revision: number;
@@ -889,8 +1115,14 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     links?: {
         issues?: string[] | undefined;
@@ -903,8 +1135,8 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
 }, {
     actor: string;
-    id: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "quarantined";
@@ -917,8 +1149,14 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "url" | "toast" | "element";
-        timeout?: number | undefined;
+        type: "url" | "toast" | "element" | "title" | "api";
+        options?: {
+            exact?: boolean | undefined;
+            status?: number | undefined;
+            timeout?: number | undefined;
+            state?: "visible" | "hidden" | "attached" | "detached" | undefined;
+            method?: string | undefined;
+        } | undefined;
     }[] | undefined;
     revision?: number | undefined;
     modules?: {

@@ -550,7 +550,7 @@ function parseLocatorFromSelector(selector: string): LocatorSpec {
  * Escape special regex characters
  */
 function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 }
 
 /**

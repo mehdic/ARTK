@@ -27,7 +27,7 @@ function escapeString(str) {
  * Escape string for regex pattern
  */
 function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 }
 /**
  * Render a value spec to code

@@ -29,11 +29,11 @@ test.describe('<%- journey.title %>', {
   test('<%= journey.id %>: <%= journey.title %>', async ({ page }) => {
 <% for (const step of journey.steps) { %>
     // <%= step.description %>
-    await test.step('<%= step.id %>: <%= escapeString(step.description) %>', async () => {
+    await test.step('<%= step.id %>: <%- escapeString(step.description) %>', async () => {
 <% for (const action of step.actions) { %>
 <% if (action.type === 'blocked') { %>
       // TODO: <%= action.reason %>
-      // Source: <%= escapeString(action.sourceText) %>
+      // Source: <%- escapeString(action.sourceText) %>
 <% } else { %>
       <%- renderPrimitive(action, '      ') %>
 <% } %>
@@ -50,13 +50,13 @@ test.describe('<%- journey.title %>', {
 <% for (const signal of journey.completion) { %>
 <% const timeoutOpt = signal.timeout ? `, { timeout: ${signal.timeout} }` : ''; %>
 <% if (signal.type === 'url') { %>
-      await expect(page).toHaveURL(/<%= escapeRegex(signal.value) %>/<%- timeoutOpt %>);
+      await expect(page).toHaveURL(/<%- escapeRegex(signal.value) %>/<%- timeoutOpt %>);
 <% } else if (signal.type === 'toast') { %>
-      await expect(page.getByRole('alert').getByText('<%= escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
+      await expect(page.getByRole('alert').getByText('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
 <% } else if (signal.type === 'element') { %>
-      await expect(page.locator('<%= escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
+      await expect(page.locator('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
 <% } else if (signal.type === 'text') { %>
-      await expect(page.getByText('<%= escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
+      await expect(page.getByText('<%- escapeString(signal.value) %>')).toBeVisible(<%- timeoutOpt %>);
 <% } %>
 <% } %>
     });

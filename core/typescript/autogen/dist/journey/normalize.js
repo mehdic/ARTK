@@ -46,7 +46,7 @@ export function normalizeJourney(parsed, options = {}) {
     const completion = parsed.frontmatter.completion?.map((c) => ({
         type: c.type,
         value: c.value,
-        timeout: c.timeout,
+        options: c.options,
     }));
     // Map data config
     const data = parsed.frontmatter.data
@@ -352,6 +352,101 @@ function buildTags(parsed) {
         }
     }
     return Array.from(tags);
+}
+/**
+ * Convert completion signals to IR primitives (final assertions)
+ */
+export function completionSignalsToAssertions(signals) {
+    return signals.map(signal => {
+        switch (signal.type) {
+            case 'url':
+                return {
+                    type: 'expectURL',
+                    pattern: signal.options?.exact
+                        ? signal.value
+                        : new RegExp(escapeRegex(signal.value)),
+                };
+            case 'toast': {
+                // Parse toast type from value if it contains "success", "error", "info", or "warning"
+                const lowerValue = signal.value.toLowerCase();
+                let toastType = 'success';
+                if (lowerValue.includes('error')) {
+                    toastType = 'error';
+                }
+                else if (lowerValue.includes('warning')) {
+                    toastType = 'warning';
+                }
+                else if (lowerValue.includes('info')) {
+                    toastType = 'info';
+                }
+                return {
+                    type: 'expectToast',
+                    toastType,
+                    message: signal.value,
+                };
+            }
+            case 'element': {
+                const state = signal.options?.state || 'visible';
+                return {
+                    type: state === 'hidden' || state === 'detached'
+                        ? 'expectNotVisible'
+                        : 'expectVisible',
+                    locator: parseLocatorFromSelector(signal.value),
+                    timeout: signal.options?.timeout,
+                };
+            }
+            case 'title':
+                return {
+                    type: 'expectTitle',
+                    title: signal.options?.exact
+                        ? signal.value
+                        : new RegExp(escapeRegex(signal.value)),
+                };
+            case 'api':
+                return {
+                    type: 'waitForResponse',
+                    urlPattern: signal.value,
+                };
+            default:
+                throw new Error(`Unknown completion signal type: ${signal.type}`);
+        }
+    });
+}
+/**
+ * Parse a selector string to LocatorSpec
+ */
+function parseLocatorFromSelector(selector) {
+    // data-testid
+    if (selector.includes('data-testid')) {
+        const match = selector.match(/\[data-testid=['"]([^'"]+)['"]\]/);
+        if (match) {
+            return { strategy: 'testid', value: match[1] };
+        }
+    }
+    // Role selector
+    if (selector.startsWith('role=')) {
+        return { strategy: 'role', value: selector.slice(5) };
+    }
+    // Text selector
+    if (selector.startsWith('text=')) {
+        return { strategy: 'text', value: selector.slice(5) };
+    }
+    // Label selector
+    if (selector.startsWith('label=')) {
+        return { strategy: 'label', value: selector.slice(6) };
+    }
+    // Placeholder selector
+    if (selector.startsWith('placeholder=')) {
+        return { strategy: 'placeholder', value: selector.slice(12) };
+    }
+    // Default to CSS
+    return { strategy: 'css', value: selector };
+}
+/**
+ * Escape special regex characters
+ */
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 }
 /**
  * Validate that a Journey is ready for code generation

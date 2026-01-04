@@ -42,14 +42,14 @@ declare const ModuleMethodMappingSchema: z.ZodObject<{
     method: z.ZodString;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
+    method: string;
     module: string;
     phrase: string;
-    method: string;
     params?: Record<string, string> | undefined;
 }, {
+    method: string;
     module: string;
     phrase: string;
-    method: string;
     params?: Record<string, string> | undefined;
 }>;
 /**
@@ -89,14 +89,14 @@ declare const GlossarySchema: z.ZodObject<{
         method: z.ZodString;
         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
     }, "strip", z.ZodTypeAny, {
+        method: string;
         module: string;
         phrase: string;
-        method: string;
         params?: Record<string, string> | undefined;
     }, {
+        method: string;
         module: string;
         phrase: string;
-        method: string;
         params?: Record<string, string> | undefined;
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
@@ -112,9 +112,9 @@ declare const GlossarySchema: z.ZodObject<{
         selector?: string | undefined;
     }[];
     moduleMethods: {
+        method: string;
         module: string;
         phrase: string;
-        method: string;
         params?: Record<string, string> | undefined;
     }[];
 }, {
@@ -130,9 +130,9 @@ declare const GlossarySchema: z.ZodObject<{
         selector?: string | undefined;
     }[] | undefined;
     moduleMethods?: {
+        method: string;
         module: string;
         phrase: string;
-        method: string;
         params?: Record<string, string> | undefined;
     }[] | undefined;
 }>;
