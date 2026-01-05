@@ -139,6 +139,7 @@ ${body}`;
       const actions = result.journey.steps[0].actions;
       expect(actions).toHaveLength(2);
       expect(actions[0]).toMatchObject({ type: 'goto', url: '/dashboard' });
+      // "Go to /settings" now correctly parsed with fixed regex: go(?:es)?
       expect(actions[1]).toMatchObject({ type: 'goto', url: '/settings' });
     });
 
@@ -247,7 +248,7 @@ ${body}`;
 
       expect(result.blockedSteps).toHaveLength(1);
       expect(result.blockedSteps[0].stepId).toBe('AC-1');
-      expect(result.blockedSteps[0].reason).toContain('Could not parse');
+      expect(result.blockedSteps[0].reason).toContain('Could not map step');
     });
 
     it('calculates stats correctly', () => {

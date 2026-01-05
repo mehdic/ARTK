@@ -42,6 +42,10 @@ export * from './codegen/generateTest.js';
 export * from './codegen/generateModule.js';
 export * from './codegen/astEdit.js';
 export * from './codegen/registry.js';
+export * from './codegen/blocks.js';
+
+// Utilities
+export * from './utils/escaping.js';
 
 // Validation
 export * from './validate/index.js';
@@ -207,6 +211,38 @@ export function generateTestFromIR(
   options?: GenerateTestOptions
 ): GenerateTestResult {
   return generateTest(journey, options);
+}
+
+/**
+ * Regenerate a test using managed blocks strategy
+ *
+ * This preserves user code outside of ARTK:BEGIN/END GENERATED markers
+ * while updating the generated portions.
+ *
+ * @example
+ * ```typescript
+ * import { regenerateTestWithBlocks, parseAndNormalize } from '@artk/core-autogen';
+ *
+ * const { journey } = parseAndNormalize('journeys/login.md');
+ * const existingCode = readFileSync('tests/login.spec.ts', 'utf-8');
+ *
+ * const result = regenerateTestWithBlocks(journey, existingCode);
+ * writeFileSync('tests/login.spec.ts', result.code);
+ *
+ * // User code outside ARTK markers is preserved
+ * // Generated code inside markers is updated
+ * ```
+ */
+export function regenerateTestWithBlocks(
+  journey: IRJourney,
+  existingCode: string,
+  options?: Omit<GenerateTestOptions, 'strategy' | 'existingCode'>
+): GenerateTestResult {
+  return generateTest(journey, {
+    ...options,
+    strategy: 'blocks',
+    existingCode,
+  });
 }
 
 /**

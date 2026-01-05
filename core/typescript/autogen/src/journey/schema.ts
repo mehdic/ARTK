@@ -34,7 +34,7 @@ export const CleanupStrategySchema = z.enum(['required', 'best-effort', 'none'])
 /**
  * Completion signal type enum
  */
-export const CompletionTypeSchema = z.enum(['url', 'toast', 'element', 'title', 'api']);
+export const CompletionTypeSchema = z.enum(['url', 'toast', 'element', 'text', 'title', 'api']);
 
 /**
  * Element state enum for completion signals
@@ -90,6 +90,71 @@ export const LinksSchema = z.object({
 });
 
 /**
+ * Negative path schema for error scenario testing
+ */
+export const NegativePathSchema = z.object({
+  name: z.string().min(1, 'Negative path name is required'),
+  input: z.record(z.any()),
+  expectedError: z.string().min(1, 'Expected error message is required'),
+  expectedElement: z.string().optional(),
+});
+
+/**
+ * Visual regression configuration schema
+ */
+export const VisualRegressionSchema = z.object({
+  enabled: z.boolean(),
+  snapshots: z.array(z.string()).optional(),
+  threshold: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Accessibility timing mode enum
+ */
+export const AccessibilityTimingSchema = z.enum(['afterEach', 'inTest']);
+
+/**
+ * Accessibility configuration schema
+ */
+export const AccessibilitySchema = z.object({
+  enabled: z.boolean(),
+  rules: z.array(z.string()).optional(),
+  exclude: z.array(z.string()).optional(),
+  /**
+   * When to run accessibility checks:
+   * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+   * - 'inTest': Run within test steps (fails immediately, better for CI)
+   */
+  timing: AccessibilityTimingSchema.default('afterEach'),
+});
+
+/**
+ * Performance budgets schema
+ */
+export const PerformanceSchema = z.object({
+  enabled: z.boolean(),
+  budgets: z
+    .object({
+      lcp: z.number().positive().optional(),
+      fid: z.number().positive().optional(),
+      cls: z.number().min(0).optional(),
+      ttfb: z.number().positive().optional(),
+    })
+    .optional(),
+  /** Timeout for collecting performance metrics in ms (default: 3000) */
+  collectTimeout: z.number().positive().optional(),
+});
+
+/**
+ * Test data set schema for parameterized/data-driven tests
+ */
+export const TestDataSetSchema = z.object({
+  name: z.string().min(1, 'Test data set name is required'),
+  description: z.string().optional(),
+  data: z.record(z.string(), z.any()),
+});
+
+/**
  * Complete Journey frontmatter schema
  */
 export const JourneyFrontmatterSchema = z.object({
@@ -116,6 +181,21 @@ export const JourneyFrontmatterSchema = z.object({
       forbidden: z.array(z.string()).optional(),
     })
     .optional(),
+  prerequisites: z
+    .array(z.string())
+    .optional()
+    .describe('Array of Journey IDs that must run first'),
+  negativePaths: z
+    .array(NegativePathSchema)
+    .optional()
+    .describe('Error scenarios to test'),
+  testData: z
+    .array(TestDataSetSchema)
+    .optional()
+    .describe('Parameterized test data sets for data-driven testing'),
+  visualRegression: VisualRegressionSchema.optional(),
+  accessibility: AccessibilitySchema.optional(),
+  performance: PerformanceSchema.optional(),
 });
 
 /**
@@ -179,6 +259,11 @@ export type DataConfig = z.infer<typeof DataConfigSchema>;
 export type Modules = z.infer<typeof ModulesSchema>;
 export type TestRef = z.infer<typeof TestRefSchema>;
 export type Links = z.infer<typeof LinksSchema>;
+export type NegativePath = z.infer<typeof NegativePathSchema>;
+export type TestDataSet = z.infer<typeof TestDataSetSchema>;
+export type VisualRegression = z.infer<typeof VisualRegressionSchema>;
+export type Accessibility = z.infer<typeof AccessibilitySchema>;
+export type Performance = z.infer<typeof PerformanceSchema>;
 export type JourneyFrontmatter = z.infer<typeof JourneyFrontmatterSchema>;
 
 /**

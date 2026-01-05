@@ -139,7 +139,7 @@ export interface ModuleDependencies {
 /**
  * Completion signal types
  */
-export type CompletionSignalType = 'url' | 'toast' | 'element' | 'title' | 'api';
+export type CompletionSignalType = 'url' | 'toast' | 'element' | 'text' | 'title' | 'api';
 
 /**
  * Completion signal for journey success
@@ -166,6 +166,72 @@ export interface JourneyDataConfig {
   seeds?: string[];
   /** Test data factory references */
   factories?: string[];
+}
+
+/**
+ * Negative path definition for error scenario testing
+ */
+export interface NegativePath {
+  /** Name of the negative path scenario */
+  name: string;
+  /** Input values to trigger the error */
+  input: Record<string, unknown>;
+  /** Expected error message */
+  expectedError: string;
+  /** Optional element selector where error should appear */
+  expectedElement?: string;
+}
+
+/**
+ * Visual regression configuration
+ */
+export interface VisualRegressionConfig {
+  enabled: boolean;
+  snapshots?: string[];
+  threshold?: number;
+}
+
+/**
+ * Accessibility timing mode
+ */
+export type AccessibilityTiming = 'afterEach' | 'inTest';
+
+/**
+ * Accessibility configuration
+ */
+export interface AccessibilityConfig {
+  enabled: boolean;
+  rules?: string[];
+  exclude?: string[];
+  /** When to run checks: 'afterEach' (default) or 'inTest' */
+  timing?: AccessibilityTiming;
+}
+
+/**
+ * Performance budgets configuration
+ */
+export interface PerformanceConfig {
+  enabled: boolean;
+  budgets?: {
+    lcp?: number;
+    fid?: number;
+    cls?: number;
+    ttfb?: number;
+  };
+  /** Timeout for collecting performance metrics in ms (default: 3000) */
+  collectTimeout?: number;
+}
+
+/**
+ * Test data set for parameterized testing
+ */
+export interface TestDataSet {
+  /** Name of the test data set */
+  name: string;
+  /** Optional description */
+  description?: string;
+  /** Test data key-value pairs */
+  data: Record<string, unknown>;
 }
 
 /**
@@ -201,6 +267,18 @@ export interface IRJourney {
   revision?: number;
   /** Source file path */
   sourcePath?: string;
+  /** Prerequisites - Journey IDs that must run first */
+  prerequisites?: string[];
+  /** Negative paths - Error scenarios to test */
+  negativePaths?: NegativePath[];
+  /** Test data sets for parameterized testing */
+  testData?: TestDataSet[];
+  /** Visual regression configuration */
+  visualRegression?: VisualRegressionConfig;
+  /** Accessibility configuration */
+  accessibility?: AccessibilityConfig;
+  /** Performance configuration */
+  performance?: PerformanceConfig;
 }
 
 /**

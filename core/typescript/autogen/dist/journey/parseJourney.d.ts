@@ -51,6 +51,37 @@ export interface ProceduralStep {
     linkedAC?: string;
 }
 /**
+ * Structured step action from journey body
+ */
+export interface StructuredStepAction {
+    /** Action type: 'action', 'wait', or 'assert' */
+    type: 'action' | 'wait' | 'assert';
+    /** The parsed action string */
+    action: string;
+    /** Target element or condition */
+    target: string;
+    /** Optional value for the action */
+    value?: string;
+}
+/**
+ * Structured step from journey body
+ */
+export interface StructuredStep {
+    /** Step number */
+    stepNumber: number;
+    /** Step name/title */
+    stepName: string;
+    /** Array of parsed actions */
+    actions: StructuredStepAction[];
+}
+/**
+ * Parse structured steps from markdown content
+ * Parses the new structured format with Action/Wait for/Assert bullets
+ * @param content - The markdown content containing structured steps
+ * @returns Array of parsed structured steps
+ */
+export declare function parseStructuredSteps(content: string): StructuredStep[];
+/**
  * Parse a journey markdown file
  * @param filePath - Path to the journey file
  * @returns Parsed journey structure

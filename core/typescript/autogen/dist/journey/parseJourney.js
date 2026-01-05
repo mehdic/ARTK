@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { JourneyFrontmatterSchema, JourneyStatusSchema, validateForAutoGen, } from './schema.js';
+import { matchPattern } from '../mapping/patterns.js';
 // Re-export for convenience
 export { JourneyFrontmatterSchema, JourneyStatusSchema };
 /**
@@ -148,6 +149,124 @@ function parseDataNotes(body) {
         notes.push(match[1].trim());
     }
     return notes;
+}
+/**
+ * Parse structured steps from markdown content
+ * Parses the new structured format with Action/Wait for/Assert bullets
+ * @param content - The markdown content containing structured steps
+ * @returns Array of parsed structured steps
+ */
+export function parseStructuredSteps(content) {
+    const steps = [];
+    // Split content by step headers
+    const sections = content.split(/(?=^###\s*Step\s+\d+:)/m);
+    for (const section of sections) {
+        // Match the step header
+        const headerMatch = section.match(/^###\s*Step\s+(\d+):\s*(.+)$/m);
+        if (!headerMatch)
+            continue;
+        const step = {
+            stepNumber: parseInt(headerMatch[1], 10),
+            stepName: headerMatch[2].trim(),
+            actions: [],
+        };
+        // Parse bullet points in this section
+        let bulletMatch;
+        // Create a fresh regex for each section to reset lastIndex
+        const sectionBulletRegex = /^-\s*\*\*(Action|Wait for|Assert)\*\*:\s*(.+)$/gm;
+        while ((bulletMatch = sectionBulletRegex.exec(section)) !== null) {
+            const [, type, text] = bulletMatch;
+            // Determine action type
+            const actionType = type.toLowerCase() === 'action' ? 'action'
+                : type.toLowerCase() === 'wait for' ? 'wait'
+                    : 'assert';
+            // Try to parse the text using pattern matching
+            const primitive = matchPattern(text.trim());
+            if (primitive) {
+                // Extract meaningful info from the primitive
+                let action = '';
+                let target = '';
+                let value;
+                switch (primitive.type) {
+                    case 'goto':
+                        action = 'navigate';
+                        target = primitive.url;
+                        break;
+                    case 'click':
+                        action = 'click';
+                        target = primitive.locator.value;
+                        break;
+                    case 'fill':
+                        action = 'fill';
+                        target = primitive.locator.value;
+                        value = primitive.value.value;
+                        break;
+                    case 'select':
+                        action = 'select';
+                        target = primitive.locator.value;
+                        value = primitive.option;
+                        break;
+                    case 'check':
+                        action = 'check';
+                        target = primitive.locator.value;
+                        break;
+                    case 'uncheck':
+                        action = 'uncheck';
+                        target = primitive.locator.value;
+                        break;
+                    case 'expectVisible':
+                        action = 'expectVisible';
+                        target = primitive.locator.value;
+                        break;
+                    case 'expectToast':
+                        action = 'expectToast';
+                        target = primitive.toastType || 'info';
+                        value = primitive.message;
+                        break;
+                    case 'expectURL':
+                        action = 'expectURL';
+                        target = typeof primitive.pattern === 'string' ? primitive.pattern : primitive.pattern.source;
+                        break;
+                    case 'callModule':
+                        action = `${primitive.module}.${primitive.method}`;
+                        target = primitive.args?.join(', ') || '';
+                        break;
+                    case 'waitForURL':
+                        action = 'waitForURL';
+                        target = typeof primitive.pattern === 'string' ? primitive.pattern : primitive.pattern.source;
+                        break;
+                    case 'waitForLoadingComplete':
+                        action = 'waitForLoadingComplete';
+                        target = '';
+                        break;
+                    default:
+                        // Fallback for unknown primitive types
+                        action = text.trim();
+                        target = '';
+                }
+                step.actions.push({
+                    type: actionType,
+                    action,
+                    target,
+                    value,
+                });
+            }
+            else {
+                // If pattern matching fails, store the raw text
+                step.actions.push({
+                    type: actionType,
+                    action: text.trim(),
+                    target: '',
+                    value: undefined,
+                });
+            }
+        }
+        // Only add steps that have actions
+        if (step.actions.length > 0) {
+            steps.push(step);
+        }
+    }
+    return steps;
 }
 /**
  * Parse a journey markdown file

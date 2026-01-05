@@ -29,12 +29,12 @@ test-results/
 # Example/reference projects (never commit)
 ignore/
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # BAZINGA - Auto-generated (do not edit this section)
 bazinga/*.db*
 bazinga/artifacts/
 bazinga/prompts/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
+bazinga/.analysis_cache/

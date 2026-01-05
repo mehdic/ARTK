@@ -22,7 +22,7 @@ export declare const CleanupStrategySchema: z.ZodEnum<["required", "best-effort"
 /**
  * Completion signal type enum
  */
-export declare const CompletionTypeSchema: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+export declare const CompletionTypeSchema: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
 /**
  * Element state enum for completion signals
  */
@@ -31,7 +31,7 @@ export declare const ElementStateSchema: z.ZodEnum<["visible", "hidden", "attach
  * Completion signal schema
  */
 export declare const CompletionSignalSchema: z.ZodObject<{
-    type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+    type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
     value: z.ZodString;
     options: z.ZodOptional<z.ZodObject<{
         timeout: z.ZodOptional<z.ZodNumber>;
@@ -54,7 +54,7 @@ export declare const CompletionSignalSchema: z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     value: string;
-    type: "url" | "toast" | "element" | "title" | "api";
+    type: "text" | "url" | "toast" | "element" | "title" | "api";
     options?: {
         exact?: boolean | undefined;
         status?: number | undefined;
@@ -64,7 +64,7 @@ export declare const CompletionSignalSchema: z.ZodObject<{
     } | undefined;
 }, {
     value: string;
-    type: "url" | "toast" | "element" | "title" | "api";
+    type: "text" | "url" | "toast" | "element" | "title" | "api";
     options?: {
         exact?: boolean | undefined;
         status?: number | undefined;
@@ -129,6 +129,127 @@ export declare const LinksSchema: z.ZodObject<{
     docs?: string[] | undefined;
 }>;
 /**
+ * Negative path schema for error scenario testing
+ */
+export declare const NegativePathSchema: z.ZodObject<{
+    name: z.ZodString;
+    input: z.ZodRecord<z.ZodString, z.ZodAny>;
+    expectedError: z.ZodString;
+    expectedElement: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    input: Record<string, any>;
+    expectedError: string;
+    expectedElement?: string | undefined;
+}, {
+    name: string;
+    input: Record<string, any>;
+    expectedError: string;
+    expectedElement?: string | undefined;
+}>;
+/**
+ * Visual regression configuration schema
+ */
+export declare const VisualRegressionSchema: z.ZodObject<{
+    enabled: z.ZodBoolean;
+    snapshots: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    threshold: z.ZodOptional<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    snapshots?: string[] | undefined;
+    threshold?: number | undefined;
+}, {
+    enabled: boolean;
+    snapshots?: string[] | undefined;
+    threshold?: number | undefined;
+}>;
+/**
+ * Accessibility timing mode enum
+ */
+export declare const AccessibilityTimingSchema: z.ZodEnum<["afterEach", "inTest"]>;
+/**
+ * Accessibility configuration schema
+ */
+export declare const AccessibilitySchema: z.ZodObject<{
+    enabled: z.ZodBoolean;
+    rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    /**
+     * When to run accessibility checks:
+     * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+     * - 'inTest': Run within test steps (fails immediately, better for CI)
+     */
+    timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    timing: "afterEach" | "inTest";
+    exclude?: string[] | undefined;
+    rules?: string[] | undefined;
+}, {
+    enabled: boolean;
+    exclude?: string[] | undefined;
+    rules?: string[] | undefined;
+    timing?: "afterEach" | "inTest" | undefined;
+}>;
+/**
+ * Performance budgets schema
+ */
+export declare const PerformanceSchema: z.ZodObject<{
+    enabled: z.ZodBoolean;
+    budgets: z.ZodOptional<z.ZodObject<{
+        lcp: z.ZodOptional<z.ZodNumber>;
+        fid: z.ZodOptional<z.ZodNumber>;
+        cls: z.ZodOptional<z.ZodNumber>;
+        ttfb: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        lcp?: number | undefined;
+        fid?: number | undefined;
+        cls?: number | undefined;
+        ttfb?: number | undefined;
+    }, {
+        lcp?: number | undefined;
+        fid?: number | undefined;
+        cls?: number | undefined;
+        ttfb?: number | undefined;
+    }>>;
+    /** Timeout for collecting performance metrics in ms (default: 3000) */
+    collectTimeout: z.ZodOptional<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    budgets?: {
+        lcp?: number | undefined;
+        fid?: number | undefined;
+        cls?: number | undefined;
+        ttfb?: number | undefined;
+    } | undefined;
+    collectTimeout?: number | undefined;
+}, {
+    enabled: boolean;
+    budgets?: {
+        lcp?: number | undefined;
+        fid?: number | undefined;
+        cls?: number | undefined;
+        ttfb?: number | undefined;
+    } | undefined;
+    collectTimeout?: number | undefined;
+}>;
+/**
+ * Test data set schema for parameterized/data-driven tests
+ */
+export declare const TestDataSetSchema: z.ZodObject<{
+    name: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    data: z.ZodRecord<z.ZodString, z.ZodAny>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    data: Record<string, any>;
+    description?: string | undefined;
+}, {
+    name: string;
+    data: Record<string, any>;
+    description?: string | undefined;
+}>;
+/**
  * Complete Journey frontmatter schema
  */
 export declare const JourneyFrontmatterSchema: z.ZodObject<{
@@ -172,7 +293,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -195,7 +316,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -205,7 +326,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -238,6 +359,109 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         required?: string[] | undefined;
         forbidden?: string[] | undefined;
     }>>;
+    prerequisites: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    negativePaths: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        input: z.ZodRecord<z.ZodString, z.ZodAny>;
+        expectedError: z.ZodString;
+        expectedElement: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }>, "many">>;
+    testData: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        description: z.ZodOptional<z.ZodString>;
+        data: z.ZodRecord<z.ZodString, z.ZodAny>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }>, "many">>;
+    visualRegression: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        snapshots: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        threshold: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }>>;
+    accessibility: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    }, {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    }>>;
+    performance: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        budgets: z.ZodOptional<z.ZodObject<{
+            lcp: z.ZodOptional<z.ZodNumber>;
+            fid: z.ZodOptional<z.ZodNumber>;
+            cls: z.ZodOptional<z.ZodNumber>;
+            ttfb: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     actor: string;
     title: string;
@@ -254,6 +478,11 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "proposed" | "defined" | "clarified" | "implemented" | "quarantined" | "deprecated";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
@@ -261,7 +490,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -270,6 +499,34 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
     links?: {
@@ -288,6 +545,11 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "proposed" | "defined" | "clarified" | "implemented" | "quarantined" | "deprecated";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
@@ -295,7 +557,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -305,6 +567,34 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         } | undefined;
     }[] | undefined;
     revision?: number | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     modules?: {
         foundation?: string[] | undefined;
         features?: string[] | undefined;
@@ -368,7 +658,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -391,7 +681,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -401,7 +691,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -434,6 +724,109 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         required?: string[] | undefined;
         forbidden?: string[] | undefined;
     }>>;
+    prerequisites: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    negativePaths: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        input: z.ZodRecord<z.ZodString, z.ZodAny>;
+        expectedError: z.ZodString;
+        expectedElement: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }>, "many">>;
+    testData: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        description: z.ZodOptional<z.ZodString>;
+        data: z.ZodRecord<z.ZodString, z.ZodAny>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }>, "many">>;
+    visualRegression: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        snapshots: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        threshold: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }>>;
+    accessibility: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    }, {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    }>>;
+    performance: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        budgets: z.ZodOptional<z.ZodObject<{
+            lcp: z.ZodOptional<z.ZodNumber>;
+            fid: z.ZodOptional<z.ZodNumber>;
+            cls: z.ZodOptional<z.ZodNumber>;
+            ttfb: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }>>;
 } & {
     status: z.ZodLiteral<"clarified">;
 }, "strip", z.ZodTypeAny, {
@@ -452,6 +845,11 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         line?: number | undefined;
     })[];
     status: "clarified";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
@@ -459,7 +857,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -468,6 +866,34 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
     links?: {
@@ -486,6 +912,11 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "clarified";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
@@ -493,7 +924,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -503,6 +934,34 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         } | undefined;
     }[] | undefined;
     revision?: number | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     modules?: {
         foundation?: string[] | undefined;
         features?: string[] | undefined;
@@ -538,6 +997,11 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         line?: number | undefined;
     })[];
     status: "clarified";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
@@ -545,7 +1009,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -554,6 +1018,34 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
     links?: {
@@ -572,6 +1064,11 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "clarified";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
@@ -579,7 +1076,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -589,6 +1086,34 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         } | undefined;
     }[] | undefined;
     revision?: number | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     modules?: {
         foundation?: string[] | undefined;
         features?: string[] | undefined;
@@ -652,7 +1177,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -675,7 +1200,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -685,7 +1210,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -718,6 +1243,109 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         required?: string[] | undefined;
         forbidden?: string[] | undefined;
     }>>;
+    prerequisites: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    negativePaths: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        input: z.ZodRecord<z.ZodString, z.ZodAny>;
+        expectedError: z.ZodString;
+        expectedElement: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }>, "many">>;
+    testData: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        description: z.ZodOptional<z.ZodString>;
+        data: z.ZodRecord<z.ZodString, z.ZodAny>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }>, "many">>;
+    visualRegression: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        snapshots: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        threshold: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }>>;
+    accessibility: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    }, {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    }>>;
+    performance: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        budgets: z.ZodOptional<z.ZodObject<{
+            lcp: z.ZodOptional<z.ZodNumber>;
+            fid: z.ZodOptional<z.ZodNumber>;
+            cls: z.ZodOptional<z.ZodNumber>;
+            ttfb: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }>>;
 } & {
     status: z.ZodLiteral<"implemented">;
 }, "strip", z.ZodTypeAny, {
@@ -736,6 +1364,11 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         line?: number | undefined;
     })[];
     status: "implemented";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
@@ -743,7 +1376,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -752,6 +1385,34 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
     links?: {
@@ -770,6 +1431,11 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "implemented";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
@@ -777,7 +1443,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -787,6 +1453,34 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }[] | undefined;
     revision?: number | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     modules?: {
         foundation?: string[] | undefined;
         features?: string[] | undefined;
@@ -822,6 +1516,11 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         line?: number | undefined;
     })[];
     status: "implemented";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
@@ -829,7 +1528,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -838,6 +1537,34 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
     links?: {
@@ -856,6 +1583,11 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     tier: "smoke" | "release" | "regression";
     scope: string;
     status: "implemented";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
@@ -863,7 +1595,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -873,6 +1605,34 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }[] | undefined;
     revision?: number | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     modules?: {
         foundation?: string[] | undefined;
         features?: string[] | undefined;
@@ -934,7 +1694,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         cleanup?: "required" | "best-effort" | "none" | undefined;
     }>>;
     completion: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["url", "toast", "element", "title", "api"]>;
+        type: z.ZodEnum<["url", "toast", "element", "text", "title", "api"]>;
         value: z.ZodString;
         options: z.ZodOptional<z.ZodObject<{
             timeout: z.ZodOptional<z.ZodNumber>;
@@ -957,7 +1717,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -967,7 +1727,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }, {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1000,6 +1760,109 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         required?: string[] | undefined;
         forbidden?: string[] | undefined;
     }>>;
+    prerequisites: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    negativePaths: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        input: z.ZodRecord<z.ZodString, z.ZodAny>;
+        expectedError: z.ZodString;
+        expectedElement: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }, {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }>, "many">>;
+    testData: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        description: z.ZodOptional<z.ZodString>;
+        data: z.ZodRecord<z.ZodString, z.ZodAny>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }, {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }>, "many">>;
+    visualRegression: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        snapshots: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        threshold: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }, {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    }>>;
+    accessibility: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    }, {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    }>>;
+    performance: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodBoolean;
+        budgets: z.ZodOptional<z.ZodObject<{
+            lcp: z.ZodOptional<z.ZodNumber>;
+            fid: z.ZodOptional<z.ZodNumber>;
+            cls: z.ZodOptional<z.ZodNumber>;
+            ttfb: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }, {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        }>>;
+        /** Timeout for collecting performance metrics in ms (default: 3000) */
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }, {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    }>>;
 } & {
     status: z.ZodLiteral<"quarantined">;
     owner: z.ZodString;
@@ -1022,6 +1885,11 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     status: "quarantined";
     owner: string;
     statusReason: string;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
@@ -1029,7 +1897,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1038,6 +1906,34 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     links?: {
         issues?: string[] | undefined;
         prs?: string[] | undefined;
@@ -1056,6 +1952,11 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     status: "quarantined";
     owner: string;
     statusReason: string;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
@@ -1063,7 +1964,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1073,6 +1974,34 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }[] | undefined;
     revision?: number | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     modules?: {
         foundation?: string[] | undefined;
         features?: string[] | undefined;
@@ -1108,6 +2037,11 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     status: "quarantined";
     owner: string;
     statusReason: string;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
@@ -1115,7 +2049,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1124,6 +2058,34 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        timing: "afterEach" | "inTest";
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     links?: {
         issues?: string[] | undefined;
         prs?: string[] | undefined;
@@ -1142,6 +2104,11 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     status: "quarantined";
     owner: string;
     statusReason: string;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
     tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
@@ -1149,7 +2116,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     completion?: {
         value: string;
-        type: "url" | "toast" | "element" | "title" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1159,6 +2126,34 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         } | undefined;
     }[] | undefined;
     revision?: number | undefined;
+    prerequisites?: string[] | undefined;
+    negativePaths?: {
+        name: string;
+        input: Record<string, any>;
+        expectedError: string;
+        expectedElement?: string | undefined;
+    }[] | undefined;
+    visualRegression?: {
+        enabled: boolean;
+        snapshots?: string[] | undefined;
+        threshold?: number | undefined;
+    } | undefined;
+    accessibility?: {
+        enabled: boolean;
+        exclude?: string[] | undefined;
+        rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
+    } | undefined;
+    performance?: {
+        enabled: boolean;
+        budgets?: {
+            lcp?: number | undefined;
+            fid?: number | undefined;
+            cls?: number | undefined;
+            ttfb?: number | undefined;
+        } | undefined;
+        collectTimeout?: number | undefined;
+    } | undefined;
     modules?: {
         foundation?: string[] | undefined;
         features?: string[] | undefined;
@@ -1190,6 +2185,11 @@ export type DataConfig = z.infer<typeof DataConfigSchema>;
 export type Modules = z.infer<typeof ModulesSchema>;
 export type TestRef = z.infer<typeof TestRefSchema>;
 export type Links = z.infer<typeof LinksSchema>;
+export type NegativePath = z.infer<typeof NegativePathSchema>;
+export type TestDataSet = z.infer<typeof TestDataSetSchema>;
+export type VisualRegression = z.infer<typeof VisualRegressionSchema>;
+export type Accessibility = z.infer<typeof AccessibilitySchema>;
+export type Performance = z.infer<typeof PerformanceSchema>;
 export type JourneyFrontmatter = z.infer<typeof JourneyFrontmatterSchema>;
 /**
  * Validate that a journey is ready for AutoGen (must be clarified)

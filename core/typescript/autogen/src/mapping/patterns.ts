@@ -71,7 +71,7 @@ export function createValueFromText(text: string): ValueSpec {
 export const navigationPatterns: StepPattern[] = [
   {
     name: 'navigate-to-url',
-    regex: /^(?:user\s+)?(?:navigates?|goes?|opens?)\s+(?:to\s+)?(?:the\s+)?["']?([^"'\s]+)["']?$/i,
+    regex: /^(?:user\s+)?(?:navigates?|go(?:es)?|opens?)\s+(?:to\s+)?(?:the\s+)?["']?([^"'\s]+)["']?$/i,
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
@@ -81,7 +81,7 @@ export const navigationPatterns: StepPattern[] = [
   },
   {
     name: 'navigate-to-page',
-    regex: /^(?:user\s+)?(?:navigates?|goes?|opens?)\s+(?:to\s+)?(?:the\s+)?(.+?)\s+page$/i,
+    regex: /^(?:user\s+)?(?:navigates?|go(?:es)?|opens?)\s+(?:to\s+)?(?:the\s+)?(.+?)\s+page$/i,
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
@@ -390,9 +390,144 @@ export const waitPatterns: StepPattern[] = [
 ];
 
 /**
+ * Helper function to convert natural language selectors to Playwright locator strategies
+ */
+export function parseSelectorToLocator(selector: string): { strategy: LocatorStrategy; value: string; name?: string } {
+  // Remove leading "the" if present
+  let cleanSelector = selector.replace(/^the\s+/i, '').trim();
+
+  // Match button patterns
+  if (/button$/i.test(cleanSelector)) {
+    const buttonName = cleanSelector.replace(/\s*button$/i, '').trim();
+    return { strategy: 'role', value: 'button', name: buttonName };
+  }
+
+  // Match link patterns
+  if (/link$/i.test(cleanSelector)) {
+    const linkName = cleanSelector.replace(/\s*link$/i, '').trim();
+    return { strategy: 'role', value: 'link', name: linkName };
+  }
+
+  // Match input/field patterns
+  if (/(?:input|field)$/i.test(cleanSelector)) {
+    const labelName = cleanSelector.replace(/\s*(?:input|field)$/i, '').trim();
+    return { strategy: 'label', value: labelName };
+  }
+
+  // Default to text locator
+  return { strategy: 'text', value: cleanSelector };
+}
+
+/**
+ * Structured step patterns for Journey markdown format
+ * Matches patterns like:
+ * - **Action**: Click the login button
+ * - **Wait for**: Dashboard to load
+ * - **Assert**: User name is visible
+ */
+export const structuredPatterns: StepPattern[] = [
+  // Action patterns
+  {
+    name: 'structured-action-click',
+    regex: /^\*\*Action\*\*:\s*[Cc]lick\s+(?:the\s+)?['"]?(.+?)['"]?\s*(?:button|link)?$/i,
+    primitiveType: 'click',
+    extract: (match) => {
+      const target = match[1];
+      const locatorInfo = parseSelectorToLocator(target + ' button');
+      return {
+        type: 'click',
+        locator: locatorInfo.name
+          ? createLocatorFromMatch(locatorInfo.strategy, locatorInfo.value, locatorInfo.name)
+          : { strategy: locatorInfo.strategy, value: locatorInfo.value },
+      };
+    },
+  },
+  {
+    name: 'structured-action-fill',
+    regex: /^\*\*Action\*\*:\s*[Ff]ill\s+(?:in\s+)?['"]?(.+?)['"]?\s+with\s+['"]?(.+?)['"]?$/i,
+    primitiveType: 'fill',
+    extract: (match) => {
+      const target = match[1];
+      const value = match[2];
+      const locatorInfo = parseSelectorToLocator(target);
+      return {
+        type: 'fill',
+        locator: locatorInfo.name
+          ? createLocatorFromMatch(locatorInfo.strategy, locatorInfo.value, locatorInfo.name)
+          : { strategy: locatorInfo.strategy, value: locatorInfo.value },
+        value: createValueFromText(value),
+      };
+    },
+  },
+  {
+    name: 'structured-action-navigate',
+    regex: /^\*\*Action\*\*:\s*[Nn]avigate\s+to\s+['"]?(.+?)['"]?$/i,
+    primitiveType: 'goto',
+    extract: (match) => ({
+      type: 'goto',
+      url: match[1],
+      waitForLoad: true,
+    }),
+  },
+
+  // Wait patterns
+  {
+    name: 'structured-wait-for-visible',
+    regex: /^\*\*Wait for\*\*:\s*(.+?)\s+(?:to\s+)?(?:be\s+)?(?:visible|appear|load)/i,
+    primitiveType: 'expectVisible',
+    extract: (match) => {
+      const target = match[1];
+      const locatorInfo = parseSelectorToLocator(target);
+      return {
+        type: 'expectVisible',
+        locator: locatorInfo.name
+          ? createLocatorFromMatch(locatorInfo.strategy, locatorInfo.value, locatorInfo.name)
+          : { strategy: locatorInfo.strategy, value: locatorInfo.value },
+      };
+    },
+  },
+
+  // Assert patterns
+  {
+    name: 'structured-assert-visible',
+    regex: /^\*\*Assert\*\*:\s*(.+?)\s+(?:is\s+)?visible$/i,
+    primitiveType: 'expectVisible',
+    extract: (match) => {
+      const target = match[1];
+      const locatorInfo = parseSelectorToLocator(target);
+      return {
+        type: 'expectVisible',
+        locator: locatorInfo.name
+          ? createLocatorFromMatch(locatorInfo.strategy, locatorInfo.value, locatorInfo.name)
+          : { strategy: locatorInfo.strategy, value: locatorInfo.value },
+      };
+    },
+  },
+  {
+    name: 'structured-assert-text',
+    regex: /^\*\*Assert\*\*:\s*(.+?)\s+(?:contains|has text)\s+['"]?(.+?)['"]?$/i,
+    primitiveType: 'expectText',
+    extract: (match) => {
+      const target = match[1];
+      const text = match[2];
+      const locatorInfo = parseSelectorToLocator(target);
+      return {
+        type: 'expectText',
+        locator: locatorInfo.name
+          ? createLocatorFromMatch(locatorInfo.strategy, locatorInfo.value, locatorInfo.name)
+          : { strategy: locatorInfo.strategy, value: locatorInfo.value },
+        text,
+      };
+    },
+  },
+];
+
+/**
  * All patterns in priority order (more specific patterns first)
+ * Structured patterns come first to prioritize the Journey markdown format
  */
 export const allPatterns: StepPattern[] = [
+  ...structuredPatterns,
   ...authPatterns,
   ...toastPatterns,
   ...navigationPatterns,
