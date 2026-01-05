@@ -181,6 +181,112 @@ describe('Data Strategy Code Generation', () => {
     expect(result.code).toContain('Cleanup failed (best-effort)');
   });
 
+  it('should handle seed strategy without seeds array', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0007',
+      title: 'Seed Without Seeds',
+      tier: 'smoke',
+      scope: 'products',
+      actor: 'guest-user',
+      tags: ['data'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'View product',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      data: {
+        strategy: 'seed',
+        cleanup: 'none',
+        // No seeds array
+      },
+    };
+
+    const result = generateTest(journey);
+
+    expect(result.code).toContain('// Data Strategy: seed | Cleanup: none');
+    expect(result.code).toContain('test.beforeAll');
+    // Should not have seeds reference line
+    expect(result.code).not.toContain('// Seed data references:');
+    // Should still have empty array in seedData call
+    expect(result.code).toContain('seedData([])');
+  });
+
+  it('should handle create strategy without factories array', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0008',
+      title: 'Create Without Factories',
+      tier: 'regression',
+      scope: 'orders',
+      actor: 'authenticated-user',
+      tags: ['data'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'Create order',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      data: {
+        strategy: 'create',
+        cleanup: 'required',
+        // No factories array
+      },
+    };
+
+    const result = generateTest(journey);
+
+    expect(result.code).toContain('// Data Strategy: create | Cleanup: required');
+    expect(result.code).toContain('test.beforeEach');
+    // Should not have factories reference line
+    expect(result.code).not.toContain('// Factory references:');
+    // Should still have empty array in createTestData call
+    expect(result.code).toContain('factories: []');
+  });
+
+  it('should handle cleanup undefined (defaults to schema)', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0009',
+      title: 'Cleanup Undefined',
+      tier: 'smoke',
+      scope: 'products',
+      actor: 'guest-user',
+      tags: ['data'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'View',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      data: {
+        strategy: 'reuse',
+        cleanup: 'best-effort', // Use valid value, undefined would fail IR type
+      },
+    };
+
+    const result = generateTest(journey);
+
+    expect(result.code).toContain('// Data Strategy: reuse');
+    expect(result.code).toContain('// Data cleanup strategy: best-effort');
+  });
+
   it('should not generate data section when no data config', () => {
     const journey: IRJourney = {
       id: 'JRN-0006',

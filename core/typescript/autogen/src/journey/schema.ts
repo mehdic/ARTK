@@ -125,7 +125,7 @@ export const AccessibilitySchema = z.object({
    * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
    * - 'inTest': Run within test steps (fails immediately, better for CI)
    */
-  timing: AccessibilityTimingSchema.default('afterEach').optional(),
+  timing: AccessibilityTimingSchema.default('afterEach'),
 });
 
 /**
@@ -142,7 +142,7 @@ export const PerformanceSchema = z.object({
     })
     .optional(),
   /** Timeout for collecting performance metrics in ms (default: 3000) */
-  collectTimeout: z.number().positive().default(3000).optional(),
+  collectTimeout: z.number().positive().optional(),
 });
 
 /**

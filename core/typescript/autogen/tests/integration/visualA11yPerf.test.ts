@@ -344,6 +344,84 @@ describe('Visual Regression, Accessibility, and Performance Integration', () => 
     expect(result.code).toContain('import AxeBuilder');
   });
 
+  it('should default accessibility timing to afterEach when undefined', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0010',
+      title: 'Test Default Timing',
+      tier: 'regression',
+      scope: 'dashboard',
+      actor: 'authenticated-user',
+      tags: ['a11y'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'View page',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      accessibility: {
+        enabled: true,
+        rules: ['wcag2aa'],
+        // timing not specified - should default to afterEach behavior
+      },
+    };
+
+    const result = generateTest(journey);
+
+    // Should generate afterEach mode (default)
+    expect(result.code).toContain('test.afterEach');
+    expect(result.code).toContain('accessibilityResults');
+    // Should NOT have inTest checks
+    expect(result.code).not.toContain('inTest mode');
+    expect(result.code).not.toContain('a11yResults_AC_1');
+  });
+
+  it('should handle data-driven tests with inTest accessibility mode', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0011',
+      title: 'Data-Driven with A11y InTest',
+      tier: 'regression',
+      scope: 'forms',
+      actor: 'guest-user',
+      tags: ['a11y', 'data-driven'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'Fill form',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      testData: [
+        { name: 'valid-input', data: { email: 'test@example.com' } },
+        { name: 'invalid-input', data: { email: 'invalid' } },
+      ],
+      accessibility: {
+        enabled: true,
+        rules: ['wcag2aa'],
+        timing: 'inTest',
+      },
+    };
+
+    const result = generateTest(journey);
+
+    // Should have inTest mode in data-driven format
+    expect(result.code).toContain('inTest mode');
+    expect(result.code).toContain('a11yResults_AC_1');
+    expect(result.code).toContain('test.describe.each');
+    // Should NOT have afterEach mode
+    expect(result.code).not.toContain('afterEach mode');
+  });
+
   it('should use configurable performance collect timeout', () => {
     const journey: IRJourney = {
       id: 'JRN-0009',
