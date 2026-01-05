@@ -262,4 +262,122 @@ describe('Visual Regression, Accessibility, and Performance Integration', () => 
     // AC-3 should have snapshot
     expect(result.code).toContain('ac-3-snapshot.png');
   });
+
+  it('should generate accessibility checks in afterEach by default', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0007',
+      title: 'Test Accessibility AfterEach',
+      tier: 'regression',
+      scope: 'dashboard',
+      actor: 'authenticated-user',
+      tags: ['a11y'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'View dashboard',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      accessibility: {
+        enabled: true,
+        rules: ['wcag2aa'],
+        // timing not specified - should default to afterEach
+      },
+    };
+
+    const result = generateTest(journey);
+
+    // Should have afterEach mode
+    expect(result.code).toContain('test.afterEach');
+    expect(result.code).toContain('afterEach mode');
+    // Should NOT have inTest mode checks in step
+    expect(result.code).not.toContain('inTest mode');
+  });
+
+  it('should generate accessibility checks in test steps when timing is inTest', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0008',
+      title: 'Test Accessibility InTest',
+      tier: 'regression',
+      scope: 'dashboard',
+      actor: 'authenticated-user',
+      tags: ['a11y'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'View dashboard',
+          actions: [],
+          assertions: [],
+        },
+        {
+          id: 'AC-2',
+          description: 'Click menu',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      accessibility: {
+        enabled: true,
+        rules: ['wcag2aa'],
+        timing: 'inTest',
+      },
+    };
+
+    const result = generateTest(journey);
+
+    // Should have inTest mode checks in steps
+    expect(result.code).toContain('inTest mode');
+    expect(result.code).toContain('a11yResults_AC_1');
+    expect(result.code).toContain('a11yResults_AC_2');
+    // Should NOT have afterEach accessibility hook
+    expect(result.code).not.toContain('afterEach mode');
+    // But AxeBuilder should still be imported
+    expect(result.code).toContain('import AxeBuilder');
+  });
+
+  it('should use configurable performance collect timeout', () => {
+    const journey: IRJourney = {
+      id: 'JRN-0009',
+      title: 'Test Custom Timeout',
+      tier: 'smoke',
+      scope: 'products',
+      actor: 'guest-user',
+      tags: ['performance'],
+      moduleDependencies: {
+        foundation: [],
+        feature: [],
+      },
+      steps: [
+        {
+          id: 'AC-1',
+          description: 'Load page',
+          actions: [],
+          assertions: [],
+        },
+      ],
+      performance: {
+        enabled: true,
+        budgets: {
+          lcp: 2500,
+        },
+        collectTimeout: 5000, // Custom timeout
+      },
+    };
+
+    const result = generateTest(journey);
+
+    // Should use custom timeout
+    expect(result.code).toContain('5000');
+    expect(result.code).not.toContain(', 1000)'); // Not the old hardcoded value
+    expect(result.code).not.toContain(', 3000)'); // Not the default 3000 either
+  });
 });

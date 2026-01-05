@@ -27,6 +27,37 @@ test.describe('<%- journey.title %>', {
   // Note: Use Playwright project dependencies or test.beforeAll() to run prerequisites
 
 <% } %>
+<% if (journey.data) { %>
+  // Data Strategy: <%= journey.data.strategy %> | Cleanup: <%= journey.data.cleanup %>
+<% if (journey.data.strategy === 'seed') { %>
+<% if (journey.data.seeds && journey.data.seeds.length > 0) { %>
+  // Seed data references: <%- journey.data.seeds.join(', ') %>
+<% } %>
+  test.beforeAll(async () => {
+    // Load seed data for this journey
+    // Note: Implement seedData() in your test fixtures
+    // await seedData([<%- (journey.data.seeds || []).map(s => `'${s}'`).join(', ') %>]);
+  });
+
+<% } else if (journey.data.strategy === 'create') { %>
+<% if (journey.data.factories && journey.data.factories.length > 0) { %>
+  // Factory references: <%- journey.data.factories.join(', ') %>
+<% } %>
+  let testData: Record<string, unknown>;
+
+  test.beforeEach(async () => {
+    // Create fresh data for each test
+    // Note: Implement createTestData() in your test fixtures
+    // testData = await createTestData({
+    //   factories: [<%- (journey.data.factories || []).map(f => `'${f}'`).join(', ') %>],
+    // });
+  });
+
+<% } else if (journey.data.strategy === 'reuse') { %>
+  // Reuse strategy: Tests share existing data, no per-test setup needed
+  // Ensure test data exists before running these tests
+<% } %>
+<% } %>
 <% if (journey.setup && journey.setup.length > 0) { %>
   test.beforeEach(async ({ page }) => {
 <% for (const primitive of journey.setup) { %>
@@ -64,6 +95,16 @@ test.describe('<%- journey.title %>', {
         await expect(page).toHaveScreenshot('<%= step.id.toLowerCase() %>-snapshot.png', {
           maxDiffPixelRatio: <%= threshold %>,
         });
+<% } %>
+<% if (journey.accessibility?.enabled && journey.accessibility.timing === 'inTest') { %>
+<% const a11yRules = journey.accessibility.rules || []; %>
+<% const a11yExclude = journey.accessibility.exclude || []; %>
+        // Accessibility check (inTest mode - fails immediately if issues found)
+        const a11yResults_<%= step.id.replace(/-/g, '_') %> = await new AxeBuilder({ page })<% if (a11yRules.length > 0) { %>
+          .withTags(<%= JSON.stringify(a11yRules) %>)<% } %><% if (a11yExclude.length > 0) { %>
+          .exclude(<%= JSON.stringify(a11yExclude) %>)<% } %>
+          .analyze();
+        expect(a11yResults_<%= step.id.replace(/-/g, '_') %>.violations).toEqual([]);
 <% } %>
       });
 
@@ -110,6 +151,16 @@ test.describe('<%- journey.title %>', {
         maxDiffPixelRatio: <%= threshold %>,
       });
 <% } %>
+<% if (journey.accessibility?.enabled && journey.accessibility.timing === 'inTest') { %>
+<% const a11yRulesInTest = journey.accessibility.rules || []; %>
+<% const a11yExcludeInTest = journey.accessibility.exclude || []; %>
+      // Accessibility check (inTest mode - fails immediately if issues found)
+      const a11yResults_<%= step.id.replace(/-/g, '_') %> = await new AxeBuilder({ page })<% if (a11yRulesInTest.length > 0) { %>
+        .withTags(<%= JSON.stringify(a11yRulesInTest) %>)<% } %><% if (a11yExcludeInTest.length > 0) { %>
+        .exclude(<%= JSON.stringify(a11yExcludeInTest) %>)<% } %>
+        .analyze();
+      expect(a11yResults_<%= step.id.replace(/-/g, '_') %>.violations).toEqual([]);
+<% } %>
     });
 
 <% } %>
@@ -140,9 +191,28 @@ test.describe('<%- journey.title %>', {
 <% } %>
   });
 <% } %>
-<% if (journey.accessibility?.enabled) { %>
+<% if (journey.data && journey.data.cleanup && journey.data.cleanup !== 'none') { %>
 
-  // Accessibility audits
+  // Data cleanup strategy: <%= journey.data.cleanup %>
+  test.afterEach(async () => {
+<% if (journey.data.cleanup === 'required') { %>
+    // Required cleanup - test fails if cleanup fails
+    // Note: Implement cleanupTestData() in your test fixtures
+    // await cleanupTestData(testData);
+<% } else if (journey.data.cleanup === 'best-effort') { %>
+    // Best-effort cleanup - test passes even if cleanup fails
+    // Note: Implement cleanupTestData() in your test fixtures
+    // try {
+    //   await cleanupTestData(testData);
+    // } catch (error) {
+    //   console.warn('Cleanup failed (best-effort):', error);
+    // }
+<% } %>
+  });
+<% } %>
+<% if (journey.accessibility?.enabled && journey.accessibility.timing !== 'inTest') { %>
+
+  // Accessibility audits (afterEach mode - runs after each test completes)
   test.afterEach(async ({ page }) => {
 <% const rules = journey.accessibility.rules || []; %>
 <% const exclude = journey.accessibility.exclude || []; %>

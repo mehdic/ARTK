@@ -109,12 +109,23 @@ export const VisualRegressionSchema = z.object({
 });
 
 /**
+ * Accessibility timing mode enum
+ */
+export const AccessibilityTimingSchema = z.enum(['afterEach', 'inTest']);
+
+/**
  * Accessibility configuration schema
  */
 export const AccessibilitySchema = z.object({
   enabled: z.boolean(),
   rules: z.array(z.string()).optional(),
   exclude: z.array(z.string()).optional(),
+  /**
+   * When to run accessibility checks:
+   * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+   * - 'inTest': Run within test steps (fails immediately, better for CI)
+   */
+  timing: AccessibilityTimingSchema.default('afterEach').optional(),
 });
 
 /**

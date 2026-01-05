@@ -192,12 +192,19 @@ export interface VisualRegressionConfig {
 }
 
 /**
+ * Accessibility timing mode
+ */
+export type AccessibilityTiming = 'afterEach' | 'inTest';
+
+/**
  * Accessibility configuration
  */
 export interface AccessibilityConfig {
   enabled: boolean;
   rules?: string[];
   exclude?: string[];
+  /** When to run checks: 'afterEach' (default) or 'inTest' */
+  timing?: AccessibilityTiming;
 }
 
 /**
