@@ -80,6 +80,37 @@ done
 
 echo ""
 
+# Configure VS Code prompt recommendations
+echo -e "${YELLOW}Configuring VS Code prompt recommendations...${NC}"
+VSCODE_SETTINGS="$TARGET_PROJECT/.vscode/settings.json"
+ARTK_PROMPT_RECS='{"artk.init-playbook":true,"artk.discover-foundation":true,"artk.journey-propose":true,"artk.journey-define":true,"artk.journey-clarify":true,"artk.testid-audit":true,"artk.journey-implement":true,"artk.journey-validate":true,"artk.journey-verify":true}'
+export VSCODE_SETTINGS ARTK_PROMPT_RECS
+node - <<'NODE'
+const fs = require('fs');
+const path = require('path');
+
+const settingsPath = process.env.VSCODE_SETTINGS;
+const recs = JSON.parse(process.env.ARTK_PROMPT_RECS);
+
+let settings = {};
+if (fs.existsSync(settingsPath)) {
+  try {
+    settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  } catch (err) {
+    settings = {};
+  }
+}
+
+settings['chat.promptFilesRecommendations'] = {
+  ...(settings['chat.promptFilesRecommendations'] || {}),
+  ...recs,
+};
+
+fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+NODE
+echo -e "  ${CYAN}✓${NC} Updated .vscode/settings.json prompt recommendations"
+
 # Bundle @artk/core so /init prompt can use it
 echo -e "${YELLOW}Bundling @artk/core...${NC}"
 

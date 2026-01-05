@@ -57,6 +57,55 @@ Get-ChildItem -Path $PromptsSource -Filter "artk.*.md" | ForEach-Object {
     $count++
 }
 
+# Configure VS Code prompt recommendations
+Write-Host "Configuring VS Code prompt recommendations..." -ForegroundColor Yellow
+$VscodeDir = Join-Path $TargetProject ".vscode"
+$SettingsPath = Join-Path $VscodeDir "settings.json"
+$PromptRecs = @{
+    "artk.init-playbook" = $true
+    "artk.discover-foundation" = $true
+    "artk.journey-propose" = $true
+    "artk.journey-define" = $true
+    "artk.journey-clarify" = $true
+    "artk.testid-audit" = $true
+    "artk.journey-implement" = $true
+    "artk.journey-validate" = $true
+    "artk.journey-verify" = $true
+}
+
+if (-not (Test-Path $VscodeDir)) {
+    New-Item -ItemType Directory -Force -Path $VscodeDir | Out-Null
+}
+
+$Settings = @{}
+if (Test-Path $SettingsPath) {
+    try {
+        $Loaded = Get-Content $SettingsPath -Raw | ConvertFrom-Json
+        if ($Loaded) {
+            $Loaded.psobject.Properties | ForEach-Object {
+                $Settings[$_.Name] = $_.Value
+            }
+        }
+    } catch {
+        $Settings = @{}
+    }
+}
+
+$ExistingRecs = @{}
+if ($Settings.ContainsKey('chat.promptFilesRecommendations')) {
+    $Settings['chat.promptFilesRecommendations'].psobject.Properties | ForEach-Object {
+        $ExistingRecs[$_.Name] = $_.Value
+    }
+}
+
+$MergedRecs = @{}
+$ExistingRecs.GetEnumerator() | ForEach-Object { $MergedRecs[$_.Key] = $_.Value }
+$PromptRecs.GetEnumerator() | ForEach-Object { $MergedRecs[$_.Key] = $_.Value }
+
+$Settings['chat.promptFilesRecommendations'] = $MergedRecs
+$Settings | ConvertTo-Json -Depth 10 | Set-Content -Path $SettingsPath
+Write-Host "  ✓ Updated .vscode\\settings.json prompt recommendations" -ForegroundColor Cyan
+
 # Also copy init.prompt.md if it exists
 $initPrompt = Join-Path $PromptsSource "init.prompt.md"
 if (Test-Path $initPrompt) {

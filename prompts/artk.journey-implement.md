@@ -3,6 +3,34 @@ name: journey-implement
 description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the Phase 7 harness. Includes post-implementation quality gates: /journey-validate (static) and /journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
 argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false"
 agent: agent
+handoffs:
+  - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
+    agent: artk.init-playbook
+    prompt: "Bootstrap ARTK in this repo"
+  - label: "MANDATORY - /artk.discover-foundation: analyze app and build harness"
+    agent: artk.discover-foundation
+    prompt: "Analyze app and build foundation harness"
+  - label: "OPTIONAL - /artk.journey-propose: propose journeys from discovery"
+    agent: artk.journey-propose
+    prompt: "Propose journeys from discovery outputs"
+  - label: "MANDATORY - /artk.journey-define: create journey file"
+    agent: artk.journey-define
+    prompt: 'id=JRN-#### title="<title>"'
+  - label: "MANDATORY - /artk.journey-clarify: add machine hints"
+    agent: artk.journey-clarify
+    prompt: "id=JRN-####"
+  - label: "RECOMMENDED - /artk.testid-audit: audit selectors and add test hooks"
+    agent: artk.testid-audit
+    prompt: "mode=report"
+  - label: "MANDATORY - /artk.journey-implement: generate tests"
+    agent: artk.journey-implement
+    prompt: "id=JRN-####"
+  - label: "MANDATORY - /artk.journey-validate: static validation gate"
+    agent: artk.journey-validate
+    prompt: "id=JRN-####"
+  - label: "MANDATORY - /artk.journey-verify: run tests and verify"
+    agent: artk.journey-verify
+    prompt: "id=JRN-####"
 ---
 
 # ARTK /journey-implement — Implement Journey as Playwright Tests (Phase 8)

@@ -147,6 +147,17 @@ This is an example Journey to demonstrate the format.
                 'editor.quickSuggestions': {
                     strings: true,
                 },
+                'chat.promptFilesRecommendations': {
+                    'artk.init-playbook': true,
+                    'artk.discover-foundation': true,
+                    'artk.journey-propose': true,
+                    'artk.journey-define': true,
+                    'artk.journey-clarify': true,
+                    'artk.testid-audit': true,
+                    'artk.journey-implement': true,
+                    'artk.journey-validate': true,
+                    'artk.journey-verify': true,
+                },
             };
             writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
             result.created.push('.vscode/settings.json');

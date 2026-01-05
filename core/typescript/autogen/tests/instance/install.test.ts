@@ -170,6 +170,34 @@ describe('installAutogenInstance', () => {
     expect(settings['files.associations']).toBeDefined();
     expect(settings['files.associations']['*.journey.md']).toBe('markdown');
     expect(settings['editor.quickSuggestions']).toBeDefined();
+    expect(settings['chat.promptFilesRecommendations']).toBeDefined();
+    expect(settings['chat.promptFilesRecommendations']['artk.init-playbook']).toBe(
+      true
+    );
+    expect(
+      settings['chat.promptFilesRecommendations']['artk.discover-foundation']
+    ).toBe(true);
+    expect(settings['chat.promptFilesRecommendations']['artk.journey-propose']).toBe(
+      true
+    );
+    expect(settings['chat.promptFilesRecommendations']['artk.journey-define']).toBe(
+      true
+    );
+    expect(settings['chat.promptFilesRecommendations']['artk.journey-clarify']).toBe(
+      true
+    );
+    expect(settings['chat.promptFilesRecommendations']['artk.testid-audit']).toBe(
+      true
+    );
+    expect(
+      settings['chat.promptFilesRecommendations']['artk.journey-implement']
+    ).toBe(true);
+    expect(settings['chat.promptFilesRecommendations']['artk.journey-validate']).toBe(
+      true
+    );
+    expect(settings['chat.promptFilesRecommendations']['artk.journey-verify']).toBe(
+      true
+    );
 
     expect(result.created).toContain('.vscode/settings.json');
   });

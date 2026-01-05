@@ -3,6 +3,34 @@ name: journey-validate
 description: "Phase 8.4: Validate Journey implementation quality (static gates). Checks traceability, schema, tags, module registry, and Playwright best-practice violations (ESLint plugin when available, fallback greps otherwise). Produces a validation report."
 argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|docs/JOURNEY_VALIDATION_<id>.md dryRun=true|false"
 agent: agent
+handoffs:
+  - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
+    agent: artk.init-playbook
+    prompt: "Bootstrap ARTK in this repo"
+  - label: "MANDATORY - /artk.discover-foundation: analyze app and build harness"
+    agent: artk.discover-foundation
+    prompt: "Analyze app and build foundation harness"
+  - label: "OPTIONAL - /artk.journey-propose: propose journeys from discovery"
+    agent: artk.journey-propose
+    prompt: "Propose journeys from discovery outputs"
+  - label: "MANDATORY - /artk.journey-define: create journey file"
+    agent: artk.journey-define
+    prompt: 'id=JRN-#### title="<title>"'
+  - label: "MANDATORY - /artk.journey-clarify: add machine hints"
+    agent: artk.journey-clarify
+    prompt: "id=JRN-####"
+  - label: "RECOMMENDED - /artk.testid-audit: audit selectors and add test hooks"
+    agent: artk.testid-audit
+    prompt: "mode=report"
+  - label: "MANDATORY - /artk.journey-implement: generate tests"
+    agent: artk.journey-implement
+    prompt: "id=JRN-####"
+  - label: "MANDATORY - /artk.journey-validate: static validation gate"
+    agent: artk.journey-validate
+    prompt: "id=JRN-####"
+  - label: "MANDATORY - /artk.journey-verify: run tests and verify"
+    agent: artk.journey-verify
+    prompt: "id=JRN-####"
 ---
 
 # ARTK /journey-validate — Quality Gates for a Journey Implementation (Phase 8.4)
