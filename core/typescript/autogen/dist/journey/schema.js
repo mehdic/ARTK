@@ -95,12 +95,22 @@ export const VisualRegressionSchema = z.object({
     threshold: z.number().min(0).max(1).optional(),
 });
 /**
+ * Accessibility timing mode enum
+ */
+export const AccessibilityTimingSchema = z.enum(['afterEach', 'inTest']);
+/**
  * Accessibility configuration schema
  */
 export const AccessibilitySchema = z.object({
     enabled: z.boolean(),
     rules: z.array(z.string()).optional(),
     exclude: z.array(z.string()).optional(),
+    /**
+     * When to run accessibility checks:
+     * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+     * - 'inTest': Run within test steps (fails immediately, better for CI)
+     */
+    timing: AccessibilityTimingSchema.default('afterEach'),
 });
 /**
  * Performance budgets schema
@@ -116,7 +126,7 @@ export const PerformanceSchema = z.object({
     })
         .optional(),
     /** Timeout for collecting performance metrics in ms (default: 3000) */
-    collectTimeout: z.number().positive().default(3000).optional(),
+    collectTimeout: z.number().positive().optional(),
 });
 /**
  * Test data set schema for parameterized/data-driven tests

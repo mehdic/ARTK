@@ -164,20 +164,32 @@ export declare const VisualRegressionSchema: z.ZodObject<{
     threshold?: number | undefined;
 }>;
 /**
+ * Accessibility timing mode enum
+ */
+export declare const AccessibilityTimingSchema: z.ZodEnum<["afterEach", "inTest"]>;
+/**
  * Accessibility configuration schema
  */
 export declare const AccessibilitySchema: z.ZodObject<{
     enabled: z.ZodBoolean;
     rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    /**
+     * When to run accessibility checks:
+     * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+     * - 'inTest': Run within test steps (fails immediately, better for CI)
+     */
+    timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
+    timing: "afterEach" | "inTest";
     exclude?: string[] | undefined;
     rules?: string[] | undefined;
 }, {
     enabled: boolean;
     exclude?: string[] | undefined;
     rules?: string[] | undefined;
+    timing?: "afterEach" | "inTest" | undefined;
 }>;
 /**
  * Performance budgets schema
@@ -201,7 +213,7 @@ export declare const PerformanceSchema: z.ZodObject<{
         ttfb?: number | undefined;
     }>>;
     /** Timeout for collecting performance metrics in ms (default: 3000) */
-    collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    collectTimeout: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
     budgets?: {
@@ -394,14 +406,22 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         enabled: z.ZodBoolean;
         rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     }, {
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     }>>;
     performance: z.ZodOptional<z.ZodObject<{
         enabled: z.ZodBoolean;
@@ -422,7 +442,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
             ttfb?: number | undefined;
         }>>;
         /** Timeout for collecting performance metrics in ms (default: 3000) */
-        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -493,6 +513,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
     } | undefined;
     accessibility?: {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     } | undefined;
@@ -562,6 +583,7 @@ export declare const JourneyFrontmatterSchema: z.ZodObject<{
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     } | undefined;
     performance?: {
         enabled: boolean;
@@ -749,14 +771,22 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         enabled: z.ZodBoolean;
         rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     }, {
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     }>>;
     performance: z.ZodOptional<z.ZodObject<{
         enabled: z.ZodBoolean;
@@ -777,7 +807,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
             ttfb?: number | undefined;
         }>>;
         /** Timeout for collecting performance metrics in ms (default: 3000) */
-        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -850,6 +880,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     accessibility?: {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     } | undefined;
@@ -919,6 +950,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     } | undefined;
     performance?: {
         enabled: boolean;
@@ -1000,6 +1032,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
     } | undefined;
     accessibility?: {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     } | undefined;
@@ -1069,6 +1102,7 @@ export declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     } | undefined;
     performance?: {
         enabled: boolean;
@@ -1256,14 +1290,22 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         enabled: z.ZodBoolean;
         rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     }, {
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     }>>;
     performance: z.ZodOptional<z.ZodObject<{
         enabled: z.ZodBoolean;
@@ -1284,7 +1326,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             ttfb?: number | undefined;
         }>>;
         /** Timeout for collecting performance metrics in ms (default: 3000) */
-        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -1357,6 +1399,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     accessibility?: {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     } | undefined;
@@ -1426,6 +1469,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     } | undefined;
     performance?: {
         enabled: boolean;
@@ -1507,6 +1551,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     accessibility?: {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     } | undefined;
@@ -1576,6 +1621,7 @@ export declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     } | undefined;
     performance?: {
         enabled: boolean;
@@ -1761,14 +1807,22 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         enabled: z.ZodBoolean;
         rules: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         exclude: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        /**
+         * When to run accessibility checks:
+         * - 'afterEach': Run after each test (default, catches issues but doesn't fail individual tests)
+         * - 'inTest': Run within test steps (fails immediately, better for CI)
+         */
+        timing: z.ZodDefault<z.ZodEnum<["afterEach", "inTest"]>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     }, {
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     }>>;
     performance: z.ZodOptional<z.ZodObject<{
         enabled: z.ZodBoolean;
@@ -1789,7 +1843,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
             ttfb?: number | undefined;
         }>>;
         /** Timeout for collecting performance metrics in ms (default: 3000) */
-        collectTimeout: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        collectTimeout: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         budgets?: {
@@ -1866,6 +1920,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     accessibility?: {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     } | undefined;
@@ -1935,6 +1990,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     } | undefined;
     performance?: {
         enabled: boolean;
@@ -2016,6 +2072,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
     } | undefined;
     accessibility?: {
         enabled: boolean;
+        timing: "afterEach" | "inTest";
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
     } | undefined;
@@ -2085,6 +2142,7 @@ export declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObje
         enabled: boolean;
         exclude?: string[] | undefined;
         rules?: string[] | undefined;
+        timing?: "afterEach" | "inTest" | undefined;
     } | undefined;
     performance?: {
         enabled: boolean;
