@@ -1031,10 +1031,14 @@ Planned prompt file list:
 
 Standard structure (each prompt):
 - YAML frontmatter: mode/description (as supported)
+- YAML frontmatter: `handoffs` (optional) to surface clickable next commands in VS Code Copilot
 - Inputs section (if any)
 - Process steps (scan → ask → write → update backlog/registry)
 - Outputs section (files to create/update)
 - Invariants section (must regenerate backlog, must update journey metadata)
+
+VS Code prompt UX:
+- Configure `.vscode/settings.json` with `chat.promptFilesRecommendations` to show `/artk.*` commands as recommended actions at chat start.
 
 ### 5.2 Fallback for non-supported IDEs
 Prompt files availability can vary by IDE; maintain `docs/PROMPTS.md` as copy/paste equivalents for consistent access across teams.

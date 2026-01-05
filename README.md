@@ -65,6 +65,8 @@ All work is done through Copilot slash commands. No CLI required.
 | `.artk/core/` | @artk/core library (auth, config, fixtures) |
 | `.artk/autogen/` | AutoGen engine (used internally by prompts) |
 
+VS Code prompt UX: ARTK prompt files include `handoffs` so Copilot can show clickable next commands, and installers add `chat.promptFilesRecommendations` to `.vscode/settings.json` to surface `/artk.*` commands as recommended actions at chat start.
+
 ## Copilot Slash Commands
 
 ### Setup Command
