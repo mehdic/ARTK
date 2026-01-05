@@ -32,6 +32,10 @@ All work is done through Copilot slash commands. No CLI required.
 │  /artk.discover-foundation   Analyze app + build Playwright harness     │
 │  /artk.journey-propose       Auto-propose Journeys from discovery       │
 │                                                                         │
+│  TESTABILITY (recommended before implementation)                        │
+│  ─────────────────────────────────────────────                          │
+│  /artk.testid-audit        Audit selectors + add stable test hooks       │
+│                                                                         │
 │  JOURNEY LIFECYCLE                                                      │
 │  ─────────────────                                                      │
 │  /artk.journey-define    Create Journey (proposed → defined)            │
@@ -78,6 +82,12 @@ All work is done through Copilot slash commands. No CLI required.
 | `/artk.discover-foundation` | Analyze app routes, auth, testability + build Playwright harness |
 | `/artk.journey-propose` | Auto-propose Journeys from discovery results |
 
+### Testability Command
+
+| Command | Purpose |
+|---------|---------|
+| `/artk.testid-audit` | Audit brittle selectors and recommend (or apply) stable test hooks |
+
 ### Journey Lifecycle Commands
 
 | Command | Purpose |
@@ -104,6 +114,7 @@ All work is done through Copilot slash commands. No CLI required.
 /artk.init-playbook             # Bootstrap project + guardrails
 /artk.discover-foundation       # Analyze app + create harness
 /artk.journey-propose           # Get suggested Journeys
+/artk.testid-audit mode=report  # Audit selectors and plan stable test hooks
 
 # 3. For each Journey:
 /artk.journey-define id=JRN-0001 title="User Login"
@@ -191,7 +202,8 @@ ARTK/
 │   ├── artk.journey-clarify.md
 │   ├── artk.journey-implement.md
 │   ├── artk.journey-validate.md
-│   └── artk.journey-verify.md
+│   ├── artk.journey-verify.md
+│   └── artk.testid-audit.md
 ├── core/typescript/
 │   ├── src/                    # @artk/core source
 │   └── autogen/                # @artk/core-autogen source
