@@ -1975,7 +1975,7 @@ ARTK/
 │
 ├── prompts/                           # Updated prompts
 ├── docs/
-│   ├── ARTK_Master_Launch_Document_v0.6.md
+│   ├── ARTK_Master_Launch_Document_v0.7.md
 │   ├── CONFIG_REFERENCE.md            # New
 │   └── ITSS_INTEGRATION_GUIDE.md      # New
 │

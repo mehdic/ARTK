@@ -185,7 +185,7 @@ proposed → defined → clarified → implemented
 
 ## Documentation
 
-- `docs/ARTK_Master_Launch_Document_v0.6.md` - Full specification
+- `docs/ARTK_Master_Launch_Document_v0.7.md` - Full specification
 - `docs/ARTK_Journey_Lifecycle_v0.1.md` - Journey status lifecycle
 
 ## Repository Structure

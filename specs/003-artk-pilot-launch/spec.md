@@ -470,7 +470,7 @@ ITSS Project (ignore/req-apps-it-service-shop/)
 
 ## Related Documents
 
-- `docs/ARTK_Master_Launch_Document_v0.6.md` - Master playbook
+- `docs/ARTK_Master_Launch_Document_v0.7.md` - Master playbook
 - `specs/001-artk-core-v1/` - Core library spec (COMPLETED)
 - `specs/002-artk-e2e-independent-architecture/` - Architecture spec
 - `research/2026-01-01_project_roadmap_analysis.md` - Roadmap analysis

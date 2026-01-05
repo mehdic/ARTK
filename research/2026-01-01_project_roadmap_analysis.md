@@ -249,7 +249,7 @@ This gives us:
 
 | Artifact | Path |
 |----------|------|
-| Master Document | `docs/ARTK_Master_Launch_Document_v0.6.md` |
+| Master Document | `docs/ARTK_Master_Launch_Document_v0.7.md` |
 | 001 Spec (Core) | `specs/001-artk-core-v1/` |
 | 002 Spec (Architecture) | `specs/002-artk-e2e-independent-architecture/` |
 | Core TypeScript | `core/typescript/` |

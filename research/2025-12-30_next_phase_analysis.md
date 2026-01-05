@@ -302,5 +302,5 @@ This approach validates the system before investing in polish, documentation, or
 - Specification: `docs/ARTK_Core_v1_Specification.md`
 - Critical review: `research/2025-12-30_artk_core_v1_critical_review.md`
 - Implementation fixes: `specs/001-artk-core-v1/implementation-fixes.md`
-- Master plan: `docs/ARTK_Master_Launch_Document_v0.6.md`
+- Master plan: `docs/ARTK_Master_Launch_Document_v0.7.md`
 - ITSS reference: `ignore/req-apps-it-service-shop/`
