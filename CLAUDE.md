@@ -137,6 +137,7 @@ When the user asks to "ultrathink" about a topic, create a research document:
 
 Use the main install script to install everything (prompts + core + autogen CLI):
 
+**Unix/macOS/Linux:**
 ```bash
 # From anywhere, run:
 /Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
@@ -144,6 +145,16 @@ Use the main install script to install everything (prompts + core + autogen CLI)
 # Example:
 /Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh ~/projects/req-apps-it-service-shop
 /Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
+```
+
+**Windows (PowerShell):**
+```powershell
+# From anywhere, run:
+C:\Users\...\ARTK\scripts\install-prompts.ps1 C:\path\to\your-project
+
+# Example:
+C:\Users\...\ARTK\scripts\install-prompts.ps1 C:\projects\req-apps-it-service-shop
+C:\Users\...\ARTK\scripts\install-prompts.ps1 .
 ```
 
 **What it installs:**
@@ -161,22 +172,39 @@ Use the main install script to install everything (prompts + core + autogen CLI)
 
 Use the vendor installation script to install just @artk/core:
 
+**Unix/macOS/Linux:**
 ```bash
 /Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh /path/to/your-project
 ```
 
+**Windows (PowerShell):**
+```powershell
+C:\Users\...\ARTK\core\typescript\scripts\install-to-project.ps1 C:\path\to\your-project
+```
+
 **Pro tip - create aliases:**
 
-Add to your `~/.zshrc` or `~/.bashrc`:
-
+**Unix/macOS/Linux** - Add to your `~/.zshrc` or `~/.bashrc`:
 ```bash
 alias artk-install="/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh"
 alias artk-core-install="/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh"
 ```
 
+**Windows (PowerShell)** - Add to your PowerShell profile (`$PROFILE`):
+```powershell
+function artk-install { & "C:\Users\...\ARTK\scripts\install-prompts.ps1" @args }
+function artk-core-install { & "C:\Users\...\ARTK\core\typescript\scripts\install-to-project.ps1" @args }
+```
+
 Then just run:
 ```bash
+# Unix/macOS/Linux
 cd ~/projects/my-playwright-project
+artk-install .
+```
+```powershell
+# Windows
+cd C:\projects\my-playwright-project
 artk-install .
 ```
 

@@ -4,9 +4,20 @@ ARTK is a standardized kit for building and maintaining automated regression tes
 
 ## Quick Start
 
+**Unix/macOS/Linux:**
 ```bash
 # 1. Install ARTK to your project
 /Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
+
+# 2. Open VS Code with GitHub Copilot
+# 3. In Copilot Chat, run:
+/artk.init-playbook
+```
+
+**Windows (PowerShell):**
+```powershell
+# 1. Install ARTK to your project
+C:\Users\...\ARTK\scripts\install-prompts.ps1 .
 
 # 2. Open VS Code with GitHub Copilot
 # 3. In Copilot Chat, run:
@@ -53,8 +64,14 @@ All work is done through Copilot slash commands. No CLI required.
 
 ## Installation
 
+**Unix/macOS/Linux:**
 ```bash
 /Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
+```
+
+**Windows (PowerShell):**
+```powershell
+C:\Users\...\ARTK\scripts\install-prompts.ps1 C:\path\to\your-project
 ```
 
 **What gets installed:**
