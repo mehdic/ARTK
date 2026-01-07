@@ -2,8 +2,11 @@
 # ARTK Prompts Installation Script (PowerShell)
 # Usage: .\install-prompts.ps1 -TargetPath C:\path\to\target-project
 #
-# Copies ARTK prompt files to the target project's .github\prompts\ directory
-# for use with GitHub Copilot.
+# Installs everything needed for ARTK prompts to work:
+# 1. Copies prompt files to .github\prompts\
+# 2. Bundles @artk/core to .artk\core\ so /init-playbook can use it
+# 3. Bundles @artk/core-autogen to .artk\autogen\ for Journey System CLI tools
+# 4. Configures VS Code prompt recommendations
 #
 
 param(
