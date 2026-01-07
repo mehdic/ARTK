@@ -137,7 +137,7 @@ arguments:
 3. Add `journeySystem` parameter (default: true)
 4. Update README workflow diagram
 5. Keep old prompts for backwards compatibility (deprecated)
-6. Update install-prompts.sh to rename files
+6. Update bootstrap scripts to rename files
 
 ---
 

@@ -179,11 +179,11 @@ Try these paths (first match wins):
 - **Skip Journey System installation** (set `journeySystem=false` internally)
 - Note in completion checklist: "⚠️ Journey System skipped: Core source not found"
 - Provide instructions in final report:
-  ```
-  To install Journey System later:
-  1. Run: /Users/.../ARTK/scripts/install-prompts.sh .
-  2. Re-run: /artk.init-playbook journeySystem=true
-  ```
+      ```text
+      To install Journey System later:
+      Run: /Users/.../ARTK/scripts/bootstrap.sh .
+      Re-run: /artk.init-playbook journeySystem=true
+      ```
 - **Continue with Parts 1, 2, and 4** (Init + Playbook + Finalize)
 ```
 

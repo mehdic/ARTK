@@ -269,48 +269,24 @@ C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 .
 2. Launch Copilot Chat and run: `/artk.init-playbook`
 3. Follow the workflow: `/artk.discover-foundation` → `/artk.journey-propose` → etc.
 
-### Prompts Only Installation (Alternative)
+### Prompts-Only Installation
 
-Use the install-prompts script to install just the Copilot slash commands:
+Prompts-only installation scripts have been removed.
 
-**Windows (PowerShell):**
-```powershell
-# From anywhere, run:
-C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1 C:\path\to\your-project
-
-# Example:
-C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1 C:\projects\req-apps-it-service-shop
-C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1 .
-```
-
-**Unix/macOS/Linux:**
-```bash
-# From anywhere, run:
-/path/to/ARTK/scripts/install-prompts.sh /path/to/your-project
-
-# Example:
-/path/to/ARTK/scripts/install-prompts.sh ~/projects/req-apps-it-service-shop
-/path/to/ARTK/scripts/install-prompts.sh .
-```
-
-**What it installs:**
-| Location | Contents |
-|----------|----------|
-| `.github/prompts/` | Copilot slash commands (all `/artk.*` commands) |
-
-**After installation:**
-1. Open VS Code, launch Copilot Chat, run: `/artk.init-playbook`
+Use the bootstrap installer instead (it installs prompts as part of the full setup). If you want the lightest-touch install, use the bootstrap script with `-SkipNpm` (PowerShell) so it doesn't run `npm install`.
 
 ### @artk/core Only (Alternative)
 
 Use the vendor installation script to install just @artk/core:
 
 **Unix/macOS/Linux:**
+
 ```bash
 /Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh /path/to/your-project
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
 C:\Users\...\ARTK\core\typescript\scripts\install-to-project.ps1 C:\path\to\your-project
 ```
@@ -318,25 +294,27 @@ C:\Users\...\ARTK\core\typescript\scripts\install-to-project.ps1 C:\path\to\your
 **Pro tip - create aliases:**
 
 **Windows (PowerShell)** - Add to your PowerShell profile (`$PROFILE`):
+
 ```powershell
 function artk-install { & "C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1" @args }
-function artk-prompts { & "C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1" @args }
 function artk-export { & "C:\data\workspaces\ARTK-public\scripts\export-patches.ps1" @args }
 ```
 
 **Unix/macOS/Linux** - Add to your `~/.zshrc` or `~/.bashrc`:
+
 ```bash
 alias artk-install="/path/to/ARTK/scripts/bootstrap.sh"
-alias artk-prompts="/path/to/ARTK/scripts/install-prompts.sh"
 alias artk-export="/path/to/ARTK/scripts/export-patches.sh"
 ```
 
 Then just run:
+
 ```powershell
 # Windows
 cd C:\projects\my-playwright-project
 artk-install .
 ```
+
 ```bash
 # Unix/macOS/Linux
 cd ~/projects/my-playwright-project
@@ -366,34 +344,41 @@ C:\data\workspaces\ARTK-public\scripts\export-patches.ps1 -OutputDir C:\temp\my-
 ```
 
 **What it does:**
+
 1. Detects all unpushed commits on your current branch
 2. Generates `.patch` files for each commit
 3. Creates a `README.txt` with instructions
 4. Outputs to `./patches/` directory by default
 
 **Transfer and apply on another PC:**
+
 1. Transfer the entire `patches/` folder (USB, email, cloud, etc.)
 2. On the other PC, navigate to the ARTK repository
 3. Apply all patches: `git am patches/*.patch`
 4. Push: `git push`
 
 **With alias:**
+
 ```powershell
 # Windows
 artk-export
 ```
+
 ```bash
 # Unix/macOS/Linux
 artk-export
 ```
 
+
 ## Active Technologies
+
 - TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation) (001-artk-core-v1)
 - File system (storage states in `.auth-states/`, config in `artk.config.yml`) (001-artk-core-v1)
-- TypeScript 5.x (Node.js 18.0.0+) for scripts; Bash for install scripts (with PowerShell parity for Windows) + @artk/core 1.0.0+, @playwright/test 1.40.0+, yaml (config parsing), zod (schema validation) (002-artk-e2e-independent-architecture)
+- TypeScript 5.x (Node.js 18.0.0+) for scripts; Bash/PowerShell bootstrap scripts + @artk/core 1.0.0+, @playwright/test 1.40.0+, yaml (config parsing), zod (schema validation) (002-artk-e2e-independent-architecture)
 - File-based (YAML config, JSON context, Markdown journeys) (002-artk-e2e-independent-architecture)
 - TypeScript 5.x (Node.js 18.0.0+) + Bash/PowerShell scripts + Playwright 1.40+, @artk/core (built in 001), Zod, yaml, otplib (003-artk-pilot-launch)
 - File-based (artk.config.yml, .auth-states/*.json, .artk/context.json) (003-artk-pilot-launch)
 
 ## Recent Changes
+
 - 001-artk-core-v1: Added TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)

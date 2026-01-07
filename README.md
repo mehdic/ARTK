@@ -7,7 +7,7 @@ ARTK is a standardized kit for building and maintaining automated regression tes
 **Unix/macOS/Linux:**
 ```bash
 # 1. Install ARTK to your project
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/bootstrap.sh .
 
 # 2. Open VS Code with GitHub Copilot
 # 3. In Copilot Chat, run:
@@ -17,7 +17,7 @@ ARTK is a standardized kit for building and maintaining automated regression tes
 **Windows (PowerShell):**
 ```powershell
 # 1. Install ARTK to your project
-C:\Users\...\ARTK\scripts\install-prompts.ps1 .
+C:\Users\...\ARTK\scripts\bootstrap.ps1 .
 
 # 2. Open VS Code with GitHub Copilot
 # 3. In Copilot Chat, run:
@@ -66,68 +66,57 @@ All work is done through Copilot slash commands. No CLI required.
 
 **Unix/macOS/Linux:**
 ```bash
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/bootstrap.sh /path/to/your-project
 ```
 
 **Windows (PowerShell):**
 ```powershell
-C:\Users\...\ARTK\scripts\install-prompts.ps1 C:\path\to\your-project
+C:\Users\...\ARTK\scripts\bootstrap.ps1 C:\path\to\your-project
 ```
 
 **What gets installed:**
 
-| Location | Contents |
-|----------|----------|
-| `.github/prompts/` | Copilot slash commands (all `/artk.*` commands) |
-| `.artk/core/` | @artk/core library (auth, config, fixtures) |
-| `.artk/autogen/` | AutoGen engine (used internally by prompts) |
+- `artk-e2e/` - E2E workspace (Playwright config, tests, journeys)
+- `artk-e2e/vendor/artk-core/` - @artk/core library (auth, config, fixtures)
+- `.github/prompts/` - Copilot slash commands (all `/artk.*` commands)
+- `.artk/context.json` - ARTK context metadata
 
-VS Code prompt UX: ARTK prompt files include `handoffs` so Copilot can show clickable next commands, and installers add `chat.promptFilesRecommendations` to `.vscode/settings.json` to surface `/artk.*` commands as recommended actions at chat start.
+VS Code prompt UX: ARTK prompt files include `handoffs` so Copilot can show clickable next commands, and the bootstrap script adds `chat.promptFilesRecommendations` to `.vscode/settings.json` to surface `/artk.*` commands as recommended actions at chat start.
 
 ## Copilot Slash Commands
 
 ### Setup Command
 
-| Command | Purpose |
-|---------|---------|
-| `/artk.init-playbook` | Bootstrap ARTK + Playbook + Journey System (all-in-one) |
+- `/artk.init-playbook` - Bootstrap ARTK + Playbook + Journey System (all-in-one)
 
 **Note:** Use `journeySystem=false` to skip BACKLOG.md automation if not needed.
 
 ### Discovery Commands
 
-| Command | Purpose |
-|---------|---------|
-| `/artk.discover-foundation` | Analyze app routes, auth, testability + build Playwright harness |
-| `/artk.journey-propose` | Auto-propose Journeys from discovery results |
+- `/artk.discover-foundation` - Analyze app routes, auth, testability + build harness
+- `/artk.journey-propose` - Auto-propose Journeys from discovery results
 
 ### Testability Command
 
-| Command | Purpose |
-|---------|---------|
-| `/artk.testid-audit` | Audit brittle selectors and recommend (or apply) stable test hooks |
+- `/artk.testid-audit` - Audit brittle selectors and recommend (or apply) stable hooks
 
 ### Journey Lifecycle Commands
 
-| Command | Purpose |
-|---------|---------|
-| `/artk.journey-define` | Create a new Journey file with frontmatter |
-| `/artk.journey-clarify` | Add machine hints for deterministic execution |
-| `/artk.journey-implement` | Generate Playwright tests from Journey |
-| `/artk.journey-validate` | Static validation (schema, tags, lint) |
-| `/artk.journey-verify` | Run tests, collect evidence, auto-heal failures |
+- `/artk.journey-define` - Create a new Journey file with frontmatter
+- `/artk.journey-clarify` - Add machine hints for deterministic execution
+- `/artk.journey-implement` - Generate Playwright tests from Journey
+- `/artk.journey-validate` - Static validation (schema, tags, lint)
+- `/artk.journey-verify` - Run tests, collect evidence, auto-heal failures
 
 ### Maintenance Command (Coming Soon)
 
-| Command | Purpose |
-|---------|---------|
-| `/artk.journey-maintain` | Quarantine flaky tests, deprecate obsolete Journeys |
+- `/artk.journey-maintain` - Quarantine flaky tests, deprecate obsolete Journeys
 
 ## Typical Usage Flow
 
 ```bash
 # 1. Install ARTK
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
+/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/bootstrap.sh .
 
 # 2. In VS Code Copilot Chat:
 /artk.init-playbook             # Bootstrap project + guardrails
@@ -185,7 +174,7 @@ Navigate to the login page.
 
 ## Journey Lifecycle
 
-```
+```text
 proposed → defined → clarified → implemented
                                       ↓
                               quarantined (flaky)
@@ -193,14 +182,13 @@ proposed → defined → clarified → implemented
                               deprecated (obsolete)
 ```
 
-| Status | Requirements |
-|--------|--------------|
-| `proposed` | Initial idea, minimal structure |
-| `defined` | Has frontmatter + acceptance criteria |
-| `clarified` | Has machine hints for each step |
-| `implemented` | Has linked tests, validated, verified |
-| `quarantined` | Requires `owner`, `statusReason`, `links.issues[]` |
-| `deprecated` | Requires `statusReason` |
+
+- `proposed` - Initial idea, minimal structure
+- `defined` - Has frontmatter + acceptance criteria
+- `clarified` - Has machine hints for each step
+- `implemented` - Has linked tests, validated, verified
+- `quarantined` - Requires `owner`, `statusReason`, `links.issues[]`
+- `deprecated` - Requires `statusReason`
 
 ## Documentation
 
@@ -209,10 +197,10 @@ proposed → defined → clarified → implemented
 
 ## Repository Structure
 
-```
+```text
 ARTK/
 ├── scripts/
-│   └── install-prompts.sh     # Main installer
+│   └── bootstrap.sh           # Main installer
 ├── prompts/                    # Copilot slash commands
 │   ├── artk.init-playbook.md       # Setup (includes Journey System)
 │   ├── artk.discover-foundation.md

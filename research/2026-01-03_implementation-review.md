@@ -28,7 +28,7 @@ The merged prompt references steps that don't fully exist:
 
 **Step 9-11 reference Core detection/installation, but:**
 - Where is the Core source? The prompt says "auto-detect" from paths like `<repoRoot>/artk-core-journeys`
-- But we install from `.artk/core/` (copied by install-prompts.sh)
+- But we install from `.artk/core/` (copied by bootstrap)
 - **The auto-detect paths don't match what we actually install**
 
 **Broken flow:**
@@ -307,7 +307,7 @@ Both prompts say "if still unknown, stop and instruct user to run `/init-playboo
 
 Step 10 says if Core source not found, "Ask the user for a path."
 
-**But:** The Core should already be at `.artk/core/` from install-prompts.sh. Why are we looking for "artk-core-journeys"?
+**But:** The Core should already be at `.artk/core/` from bootstrap. Why are we looking for "artk-core-journeys"?
 
 **This is a vestige of the old journey-system prompt that wasn't properly adapted.**
 
