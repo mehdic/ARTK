@@ -271,5 +271,5 @@ Write-Host "  1. cd artk-e2e"
 Write-Host "  2. Open VS Code and use /artk.init-playbook in Copilot Chat"
 Write-Host ""
 Write-Host "Run tests:" -ForegroundColor Cyan
-Write-Host "  cd artk-e2e && npm test"
+Write-Host "  cd artk-e2e; npm test"
 Write-Host ""
