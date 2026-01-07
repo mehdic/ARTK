@@ -14,21 +14,44 @@ Company PC: Work → Export patches → Patches sync automatically → Home PC: 
 ```
 
 ### On Company PC (Cannot Push):
+
+**Using GitHub Copilot (Recommended):**
+```
+/export-patches
+```
+This runs the export script and shows detailed output.
+
+**Or manually:**
 ```powershell
-# After making commits locally:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\export-patches.ps1
 ```
+
 This creates patch files in `./patches/` which are automatically synced to Home PC.
 
 ### On Home PC (Can Push):
+
+**Using GitHub Copilot (Recommended):**
+```
+/apply-patches
+```
+This applies patches, pushes to GitHub, and archives them.
+
+**Or manually:**
 ```bash
-# When patches folder syncs with new patches:
 ./scripts/apply-patches.sh
 
-# Or manually:
+# Or even more manually:
 git am patches/*.patch
 git push
 ```
+
+### Internal Copilot Prompts (ARTK Repo Only)
+
+The ARTK repo has two internal prompts in `.github/prompts/`:
+- `/export-patches` - Company PC: Export commits as patches
+- `/apply-patches` - Home PC: Apply patches and push to GitHub
+
+**These prompts are NOT deployed to client projects.** They are only available when working in the ARTK repository itself.
 
 **Important:** When working on Home PC directly, commit and push normally. The patch workflow is ONLY for Company PC changes.
 
