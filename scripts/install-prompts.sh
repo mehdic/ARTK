@@ -162,7 +162,7 @@ echo "  .artk/core/       - @artk/core library"
 echo "  .artk/autogen/    - @artk/core-autogen CLI"
 echo ""
 echo -e "${CYAN}Next step:${NC}"
-echo "  Open VS Code, launch Copilot Chat, and run: /artk.init"
+echo "  Open VS Code, launch Copilot Chat, and run: /artk.init-playbook"
 echo ""
 echo -e "${CYAN}Available commands:${NC}"
 for file in "$PROMPTS_TARGET"/*.prompt.md; do

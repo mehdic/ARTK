@@ -126,8 +126,6 @@ Get-ChildItem -Path $PromptsTarget -Filter "*.prompt.md" | ForEach-Object {
     Write-Host "  /$command"
 }
 Write-Host ""
-Write-Host "Usage:" -ForegroundColor Yellow
-Write-Host "  1. Open GitHub Copilot Chat in VS Code"
-Write-Host "  2. Type a command like: /artk.init"
-Write-Host "  3. Copilot will use the prompt to guide the operation"
+Write-Host "Next step:" -ForegroundColor Cyan
+Write-Host "  Open VS Code, launch Copilot Chat, and run: /artk.init-playbook"
 Write-Host ""

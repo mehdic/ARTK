@@ -224,7 +224,7 @@ cat > "$TARGET_PROJECT/.artk/context.json" << CONTEXT
   "initialized_at": "$(date -Iseconds)",
   "bootstrap_script": "$SCRIPT_DIR/bootstrap.sh",
   "artk_repo": "$ARTK_REPO",
-  "next_suggested": "/discover"
+  "next_suggested": "/artk.init-playbook"
 }
 CONTEXT
 
@@ -264,7 +264,7 @@ echo "  .artk/context.json     - ARTK context"
 echo ""
 echo -e "${CYAN}Next steps:${NC}"
 echo "  1. cd artk-e2e"
-echo "  2. Open VS Code and use /artk.discover in Copilot Chat"
+echo "  2. Open VS Code and use /artk.init-playbook in Copilot Chat"
 echo ""
 echo -e "${CYAN}Run tests:${NC}"
 echo "  cd artk-e2e && npm test"

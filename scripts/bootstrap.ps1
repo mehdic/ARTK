@@ -222,7 +222,7 @@ $ContextJson = @"
   "initialized_at": "$(Get-Date -Format "yyyy-MM-ddTHH:mm:ssK")",
   "bootstrap_script": "$($ScriptDir -replace '\\', '\\')\\bootstrap.ps1",
   "artk_repo": "$($ArtkRepo -replace '\\', '\\')",
-  "next_suggested": "/discover"
+  "next_suggested": "/artk.init-playbook"
 }
 "@
 Set-Content -Path (Join-Path $ArtkDir "context.json") -Value $ContextJson
@@ -268,7 +268,7 @@ Write-Host "  .artk/context.json     - ARTK context"
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. cd artk-e2e"
-Write-Host "  2. Open VS Code and use /artk.discover in Copilot Chat"
+Write-Host "  2. Open VS Code and use /artk.init-playbook in Copilot Chat"
 Write-Host ""
 Write-Host "Run tests:" -ForegroundColor Cyan
 Write-Host "  cd artk-e2e && npm test"
