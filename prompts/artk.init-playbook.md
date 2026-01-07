@@ -360,13 +360,19 @@ Migrate content and remove? [yes/no/review]:
 
 ### 7B) Create/Update `.github/copilot-instructions.md`
 
-If the file does not exist: create it with the full content below.
-If the file exists:
-  - First check if the `## ARTK E2E Testing Framework` section already exists (search for the header)
-  - If the section exists: skip appending (to avoid duplicates)
-  - If the section does not exist: append the `## ARTK E2E Testing Framework` section
+**IMPORTANT: Always preserve existing content. Never overwrite or delete existing sections.**
 
-**Template:**
+**If the file does not exist:**
+- Create it with the full template below (includes header + Project Overview + ARTK section)
+
+**If the file already exists:**
+- **Preserve ALL existing content** (headers, sections, custom instructions)
+- Check if the `## ARTK E2E Testing Framework` section already exists (search for the exact header)
+- If the ARTK section exists: skip (to avoid duplicates)
+- If the ARTK section does NOT exist: **append ONLY the ARTK section** (from `## ARTK E2E Testing Framework` through the end) to the bottom of the file
+- Do NOT add duplicate headers like `# Copilot Instructions` or `## Project Overview`
+
+**Full template (for new files):**
 
 ```markdown
 # Copilot Instructions
@@ -424,6 +430,61 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 ```
 
 **Replace `<ARTK_ROOT>` with the actual path** (e.g., `artk-e2e` or `e2e/artk`).
+
+**Section to append (for existing files):**
+
+When appending to an existing `.github/copilot-instructions.md`, add ONLY this section:
+
+```markdown
+## ARTK E2E Testing Framework
+
+ARTK (Automatic Regression Testing Kit) is installed in this project at `<ARTK_ROOT>/`.
+Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
+
+### General Rules
+
+- No hardcoded URLs — use the config loader (`config/env.ts`)
+- No secrets in code — auth uses storage state files
+- No fixed sleeps — use Playwright auto-waits
+- All tests must be isolated and order-independent
+- Ask for context if something is unclear
+
+### Test Files (`<ARTK_ROOT>/**/*.ts`)
+
+- Use Playwright auto-waits and web-first assertions
+- Prefer user-facing locators (role, label, text) over CSS selectors
+- Use `data-testid` only when semantic locators aren't available
+- Keep tests thin — push complexity into page object modules
+- Never use `page.waitForTimeout()` or fixed delays
+- Include journey ID in test description for traceability
+- Register cleanup callbacks for any test data created
+
+### Journey Files (`<ARTK_ROOT>/journeys/**/*.md`)
+
+- Every Journey requires valid YAML frontmatter
+- Required fields: id, title, tier, status, actor, scope, modules
+- Status `implemented` requires non-empty `tests[]` array
+- Status `quarantined` requires owner, statusReason, and links.issues[]
+- Use two-layer structure: Acceptance Criteria (what) + Steps (how)
+- Steps should include Machine Hints for deterministic execution
+
+### Modules (`<ARTK_ROOT>/src/modules/**/*.ts`)
+
+- Use Page Object pattern — one class per page/component
+- Export factory functions (e.g., `createLoginPage(page)`)
+- No hardcoded selectors — use config or constants
+- Document public methods with JSDoc
+- Foundation modules (auth, nav, selectors, data) are shared
+- Feature modules are Journey-specific
+
+### Fixtures
+
+- Import from `@artk/core/fixtures` — do not create custom fixtures
+- Available: `authenticatedPage`, `adminPage`, `config`, `runId`, `testData`
+- Use `testData.cleanup()` to register cleanup callbacks
+```
+
+(Replace `<ARTK_ROOT>` with the actual path)
 
 ---
 
