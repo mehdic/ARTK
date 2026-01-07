@@ -34,7 +34,7 @@ This creates patch files in `./patches/` which are automatically synced to Home 
 ```
 /apply-patches
 ```
-This applies patches, pushes to GitHub, and archives them.
+This applies patches, fixes any issues automatically, pushes to GitHub, and deletes the patches.
 
 **Or manually:**
 ```bash
@@ -49,7 +49,9 @@ git push
 
 The ARTK repo has two internal prompts in `.github/prompts/`:
 - `/export-patches` - Company PC: Export commits as patches
-- `/apply-patches` - Home PC: Apply patches and push to GitHub
+- `/apply-patches` - Home PC: Autonomously apply patches, fix issues, push, and clean up
+
+**The `/apply-patches` prompt is autonomous:** It automatically handles merge conflicts, whitespace errors, already-applied patches, and other issues without stopping. It deletes patches after successful application.
 
 **These prompts are NOT deployed to client projects.** They are only available when working in the ARTK repository itself.
 

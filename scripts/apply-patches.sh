@@ -91,24 +91,21 @@ echo ""
 echo -e "${GREEN}✓ Patches applied and pushed successfully!${NC}"
 echo ""
 
-# Archive applied patches
-echo -e "${CYAN}Archiving applied patches...${NC}"
-mkdir -p "$ARCHIVE_DIR"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-ARCHIVE_SUBDIR="$ARCHIVE_DIR/$TIMESTAMP"
-mkdir -p "$ARCHIVE_SUBDIR"
+# Delete applied patches
+echo -e "${CYAN}Cleaning up patches...${NC}"
 
 echo "$PATCH_FILES" | while read -r patch; do
-    mv "$patch" "$ARCHIVE_SUBDIR/"
-    echo "  → $(basename "$patch")"
+    rm "$patch"
+    echo "  → Deleted $(basename "$patch")"
 done
 
-# Move README.txt if present
+# Delete README.txt if present
 if [ -f "$PATCHES_DIR/README.txt" ]; then
-    mv "$PATCHES_DIR/README.txt" "$ARCHIVE_SUBDIR/"
+    rm "$PATCHES_DIR/README.txt"
+    echo "  → Deleted README.txt"
 fi
 
-echo -e "${GREEN}✓ Patches archived to: $ARCHIVE_SUBDIR${NC}"
+echo -e "${GREEN}✓ Patches cleaned up${NC}"
 echo ""
 
 echo -e "${CYAN}╔════════════════════════════════════════════╗${NC}"

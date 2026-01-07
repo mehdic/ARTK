@@ -1,51 +1,137 @@
 ---
-mode: command
-description: "Apply patches from Company PC and push to GitHub (Home PC only)"
+mode: agent
+description: "Apply patches from Company PC, fix any issues, and push to GitHub (Home PC only)"
 ---
 
 # Apply Patches from Company PC
 
 **This prompt is for HOME PC use only** (where you CAN push to GitHub).
 
-## What it does
+You are an autonomous agent that applies patches from Company PC, handles any issues automatically, and cleans up when done.
 
-1. Checks for patch files in `./patches/` (synced from Company PC)
-2. Applies them to your local branch using `git am`
-3. Pushes to GitHub
-4. Archives applied patches to `patches/.applied/TIMESTAMP/`
+## What You Must Do
 
-## Steps
+1. Check for patch files in `./patches/` (synced from Company PC)
+2. If no patches found: report and exit
+3. Pull latest changes from remote
+4. Apply patches using `git am patches/*.patch`
+5. **If issues occur: FIX THEM AUTOMATICALLY** (see below)
+6. Push to GitHub
+7. **Delete applied patches** (patches/*.patch and patches/README.txt)
+8. Confirm success
 
-1. Check if patches exist:
-   ```bash
-   ls patches/*.patch 2>/dev/null || echo "No patches found"
-   ```
+## Execution Steps
 
-2. Run the apply script:
-   ```bash
-   ./scripts/apply-patches.sh
-   ```
+### Step 1: Check for patches
+```bash
+ls patches/*.patch 2>/dev/null
+```
 
-3. Verify changes were pushed:
-   ```bash
-   git log --oneline -3
-   ```
+If no patches: Report "No patches to apply" and exit.
+
+### Step 2: Check working directory is clean
+```bash
+git status --porcelain
+```
+
+If not clean:
+- **Auto-fix:** Commit any uncommitted changes with message "chore: auto-commit before applying patches"
+- Or stash if appropriate
+
+### Step 3: Pull latest changes
+```bash
+git pull
+```
+
+### Step 4: Apply patches
+```bash
+git am patches/*.patch
+```
+
+### Step 5: Handle Issues Automatically
+
+**Issue: Merge conflicts**
+```
+Applying: Some commit message
+error: patch failed: somefile.txt:10
+Falling back to 3-way merge...
+```
+
+**Auto-fix:**
+1. Check conflict files: `git status`
+2. Read conflicting files
+3. Resolve conflicts intelligently:
+   - If trivial (whitespace, import order): auto-resolve
+   - If code conflict: analyze both versions, merge intelligently
+   - Keep both changes when safe
+4. Stage resolved files: `git add <files>`
+5. Continue: `git am --continue`
+
+**Issue: Patch already applied**
+```
+error: patch does not apply
+```
+
+**Auto-fix:**
+1. Skip: `git am --skip`
+2. Continue with next patch
+
+**Issue: Whitespace errors**
+```
+warning: squelched 3 whitespace errors
+```
+
+**Auto-fix:** Ignore (non-critical)
+
+### Step 6: Push to GitHub
+```bash
+git push
+```
+
+### Step 7: Clean up patches
+```bash
+rm patches/*.patch
+rm patches/README.txt 2>/dev/null || true
+```
+
+### Step 8: Report success
+Show:
+- Number of patches applied
+- Commits added (git log)
+- Confirmation patches were deleted
+
+## Important Autonomy Rules
+
+**You MUST fix issues automatically. Do NOT stop and ask the user.**
+
+Examples of automatic fixes:
+- Merge conflicts → Read files, resolve intelligently, continue
+- Whitespace errors → Ignore and continue
+- Already applied → Skip and continue
+- Working directory dirty → Commit or stash automatically
+
+**Only stop if:**
+- No patches to apply (normal, just report)
+- Critical error you absolutely cannot fix (rare)
 
 ## Expected Output
 
+When successful:
 ```
-╔════════════════════════════════════════════╗
-║     ARTK Patch Application Script         ║
-╚════════════════════════════════════════════╝
+Checking for patches...
+✓ Found 3 patches
 
-Found 3 patch file(s) to apply:
-  - 0001-Fix-something.patch
-  - 0002-Add-feature.patch
-  - 0003-Update-docs.patch
+Pulling latest changes...
+✓ Up to date
 
-Pulling latest changes from remote...
 Applying patches...
-✓ All patches applied successfully
+  → Applying: Fix something
+  → Applying: Add feature
+  → Applying: Update docs (conflict detected)
+    → Resolving conflicts in src/file.ts
+    → Merged both changes
+  → Continuing...
+✓ All patches applied
 
 Applied commits:
   abc1234 Fix something
@@ -53,69 +139,41 @@ Applied commits:
   ghi9012 Update docs
 
 Pushing to GitHub...
-✓ Patches applied and pushed successfully!
+✓ Pushed successfully
 
-Archiving applied patches...
-  → 0001-Fix-something.patch
-  → 0002-Add-feature.patch
-  → 0003-Update-docs.patch
-✓ Patches archived to: patches/.applied/20260107_143000
+Cleaning up patches...
+  → Deleted 0001-Fix-something.patch
+  → Deleted 0002-Add-feature.patch
+  → Deleted 0003-Update-docs.patch
+  → Deleted README.txt
+✓ Patches cleaned up
 
 ╔════════════════════════════════════════════╗
-║           All Done! ✓                      ║
+║     All Patches Applied & Pushed ✓        ║
 ╚════════════════════════════════════════════╝
 ```
 
-## What Happens
+## Troubleshooting Guide (For Reference Only)
 
-1. **Pull**: Gets latest changes from GitHub
-2. **Apply**: Uses `git am` to apply each patch in order
-3. **Push**: Pushes all applied commits to GitHub
-4. **Archive**: Moves patches to timestamped archive folder
+You should handle these automatically:
 
-## Error: No patches to apply
+**Conflict resolution strategy:**
+1. Read both versions (ours vs theirs)
+2. If changes are in different areas: keep both
+3. If changes overlap: intelligently merge (prefer safer option)
+4. If imports/whitespace: auto-fix
+5. Mark resolved and continue
 
-If you see "No new patches to apply", it means:
-- The patches/ folder is empty, OR
-- All patches were already applied and archived
+**Already applied patches:**
+- Skip with `git am --skip`
+- Continue with remaining patches
 
-Wait for your sync tool to sync new patches from Company PC.
-
-## Error: Working directory not clean
-
-If you see this error:
-```
-Error: Working directory not clean
-Please commit or stash your changes first.
-```
-
-You have uncommitted changes. Either:
-- Commit them: `git add . && git commit -m "your message"`
-- Stash them: `git stash`
-- Discard them: `git reset --hard` (be careful!)
-
-Then run `/apply-patches` again.
-
-## Error: Patch application failed
-
-If `git am` fails with conflicts:
-```
-Error: Patch application failed
-
-To see the failed patch:
-  git am --show-current-patch
-
-To abort:
-  git am --abort
-```
-
-This means the patch conflicts with your local changes. To fix:
-1. Run `git am --show-current-patch` to see the conflict
-2. Run `git am --abort` to cancel
-3. Manually merge the changes from Company PC
+**Uncommitted changes:**
+- Commit with: `git add . && git commit -m "chore: auto-commit before patches"`
+- Then continue
 
 ## Notes
 
 - **NEVER run this on Company PC** - use `/export-patches` instead
-- Archives are kept in `patches/.applied/` for history (git-ignored)
-- You can manually apply patches: `git am patches/*.patch && git push`
+- Patches are deleted (not archived) after successful application
+- If you cannot fix an issue, explain what you tried and what the user needs to do manually
