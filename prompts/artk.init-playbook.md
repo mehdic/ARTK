@@ -127,7 +127,7 @@ Output proposed configuration:
 6) **Data sensitivity**: `none`, `mask PII`, `disable artifacts`
 7) **Test hooks allowed?**: `data-testid` allowed: yes/no/unknown
 8) **Ownership model**: Who fixes broken E2E? `feature_team`, `platform`, `shared`
-9) **Suite tiers**: Default `smoke`, `release` (+ optional `regression`)
+9) **Suite tiers**: Default `smoke`, `release`, `regression`
 10) **Test data strategy**: `seed`, `create_ui`, `create_api`, `reuse_stable`
 11) **Flake posture**: `retries_ci_only` (default), `no_retries`, `retries_everywhere`
 12) **No-go zones**: Any areas to NOT test? (3rd-party, regulated flows)
@@ -148,7 +148,7 @@ mfa: unknown
 artifacts: mask
 test_hooks: yes
 ownership: feature_team
-tiers: [smoke, release]
+tiers: [smoke, release, regression]
 data: create_api
 flake: retries_ci_only
 no_go: ["payment provider"]
@@ -223,7 +223,8 @@ Base structure:
   "scripts": {
     "test": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
-    "test:release": "playwright test --grep @release"
+    "test:release": "playwright test --grep @release",
+    "test:regression": "playwright test --grep @regression"
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
