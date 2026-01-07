@@ -231,38 +231,75 @@ When the user asks to "ultrathink" about a topic, create a research document:
 
 ### Full Installation (Recommended)
 
-Use the main install script to install everything (prompts + core + autogen CLI):
-
-**Unix/macOS/Linux:**
-```bash
-# From anywhere, run:
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh /path/to/your-project
-
-# Example:
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh ~/projects/req-apps-it-service-shop
-/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh .
-```
+Use the bootstrap script to install everything (prompts + core + structure):
 
 **Windows (PowerShell):**
 ```powershell
 # From anywhere, run:
-C:\Users\...\ARTK\scripts\install-prompts.ps1 C:\path\to\your-project
+C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 C:\path\to\your-project
 
 # Example:
-C:\Users\...\ARTK\scripts\install-prompts.ps1 C:\projects\req-apps-it-service-shop
-C:\Users\...\ARTK\scripts\install-prompts.ps1 .
+C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 C:\projects\req-apps-it-service-shop
+C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 .
+```
+
+**Unix/macOS/Linux:**
+```bash
+# From anywhere, run:
+/path/to/ARTK/scripts/bootstrap.sh /path/to/your-project
+
+# Example:
+/path/to/ARTK/scripts/bootstrap.sh ~/projects/req-apps-it-service-shop
+/path/to/ARTK/scripts/bootstrap.sh .
 ```
 
 **What it installs:**
 | Location | Contents |
 |----------|----------|
-| `.github/prompts/` | Copilot slash commands (`/artk.init`, `/artk.journey-implement`, etc.) |
-| `.artk/core/` | @artk/core library (auth, config, fixtures) |
-| `.artk/autogen/` | @artk/core-autogen CLI (generate, validate, verify) |
+| `artk-e2e/` | Test directory structure (tests, journeys, docs, .auth-states) |
+| `artk-e2e/vendor/artk-core/` | @artk/core library (auth, config, fixtures) |
+| `.github/prompts/` | Copilot slash commands (`/artk.init-playbook`, `/artk.journey-implement`, etc.) |
+| `.artk/context.json` | ARTK context metadata |
+| `artk-e2e/package.json` | Dependencies and scripts |
+| `artk-e2e/playwright.config.ts` | Playwright configuration |
+| `artk-e2e/artk.config.yml` | ARTK configuration |
 
 **After installation:**
-1. Open VS Code, launch Copilot Chat, run: `/artk.init`
-2. Use AutoGen CLI: `node .artk/autogen/dist/cli/index.js generate "journeys/*.md"`
+1. Open VS Code in the target project
+2. Launch Copilot Chat and run: `/artk.init-playbook`
+3. Follow the workflow: `/artk.discover-foundation` → `/artk.journey-propose` → etc.
+
+### Prompts Only Installation (Alternative)
+
+Use the install-prompts script to install just the Copilot slash commands:
+
+**Windows (PowerShell):**
+```powershell
+# From anywhere, run:
+C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1 C:\path\to\your-project
+
+# Example:
+C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1 C:\projects\req-apps-it-service-shop
+C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1 .
+```
+
+**Unix/macOS/Linux:**
+```bash
+# From anywhere, run:
+/path/to/ARTK/scripts/install-prompts.sh /path/to/your-project
+
+# Example:
+/path/to/ARTK/scripts/install-prompts.sh ~/projects/req-apps-it-service-shop
+/path/to/ARTK/scripts/install-prompts.sh .
+```
+
+**What it installs:**
+| Location | Contents |
+|----------|----------|
+| `.github/prompts/` | Copilot slash commands (all `/artk.*` commands) |
+
+**After installation:**
+1. Open VS Code, launch Copilot Chat, run: `/artk.init-playbook`
 
 ### @artk/core Only (Alternative)
 
@@ -280,28 +317,74 @@ C:\Users\...\ARTK\core\typescript\scripts\install-to-project.ps1 C:\path\to\your
 
 **Pro tip - create aliases:**
 
-**Unix/macOS/Linux** - Add to your `~/.zshrc` or `~/.bashrc`:
-```bash
-alias artk-install="/Users/chaouachimehdi/IdeaProjects/ARTK/scripts/install-prompts.sh"
-alias artk-core-install="/Users/chaouachimehdi/IdeaProjects/ARTK/core/typescript/scripts/install-to-project.sh"
-```
-
 **Windows (PowerShell)** - Add to your PowerShell profile (`$PROFILE`):
 ```powershell
-function artk-install { & "C:\Users\...\ARTK\scripts\install-prompts.ps1" @args }
-function artk-core-install { & "C:\Users\...\ARTK\core\typescript\scripts\install-to-project.ps1" @args }
+function artk-install { & "C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1" @args }
+function artk-prompts { & "C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1" @args }
+function artk-export { & "C:\data\workspaces\ARTK-public\scripts\export-patches.ps1" @args }
+```
+
+**Unix/macOS/Linux** - Add to your `~/.zshrc` or `~/.bashrc`:
+```bash
+alias artk-install="/path/to/ARTK/scripts/bootstrap.sh"
+alias artk-prompts="/path/to/ARTK/scripts/install-prompts.sh"
+alias artk-export="/path/to/ARTK/scripts/export-patches.sh"
 ```
 
 Then just run:
+```powershell
+# Windows
+cd C:\projects\my-playwright-project
+artk-install .
+```
 ```bash
 # Unix/macOS/Linux
 cd ~/projects/my-playwright-project
 artk-install .
 ```
+
+## Transferring Changes Between Computers
+
+When you can't push to the remote repository (e.g., permission issues), use the export-patches script to create patch files for transfer:
+
+**Export unpushed commits as patches:**
+
 ```powershell
 # Windows
-cd C:\projects\my-playwright-project
-artk-install .
+C:\data\workspaces\ARTK-public\scripts\export-patches.ps1
+
+# Or with custom output directory:
+C:\data\workspaces\ARTK-public\scripts\export-patches.ps1 -OutputDir C:\temp\my-patches
+```
+
+```bash
+# Unix/macOS/Linux
+/path/to/ARTK/scripts/export-patches.sh
+
+# Or with custom output directory:
+/path/to/ARTK/scripts/export-patches.sh --output-dir ~/temp/my-patches
+```
+
+**What it does:**
+1. Detects all unpushed commits on your current branch
+2. Generates `.patch` files for each commit
+3. Creates a `README.txt` with instructions
+4. Outputs to `./patches/` directory by default
+
+**Transfer and apply on another PC:**
+1. Transfer the entire `patches/` folder (USB, email, cloud, etc.)
+2. On the other PC, navigate to the ARTK repository
+3. Apply all patches: `git am patches/*.patch`
+4. Push: `git push`
+
+**With alias:**
+```powershell
+# Windows
+artk-export
+```
+```bash
+# Unix/macOS/Linux
+artk-export
 ```
 
 ## Active Technologies

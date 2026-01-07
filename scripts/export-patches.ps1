@@ -1,10 +1,14 @@
-#
-# Export local commits as patches for syncing to another PC (PowerShell)
-# Usage: .\export-patches.ps1 [-OutputDir "C:\path\to\output"]
-#
-# This script exports all commits that exist locally but not on origin/main
-# as patch files, ready to be synced and applied on another PC.
-#
+<#
+ARTK Export Patches Script
+
+Exports all commits that exist locally but are not in the upstream tracking branch
+into .patch files for transfer to another PC.
+
+Usage:
+    .\scripts\export-patches.ps1
+    .\scripts\export-patches.ps1 -OutputDir .\patches
+    .\scripts\export-patches.ps1 -OutputDir C:\temp\artk-patches
+#>
 
 param(
     [string]$OutputDir = ".\patches"
@@ -12,92 +16,137 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║     ARTK Patch Export Script               ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host " ARTK Patch Export Script" -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Get current branch
-$Branch = git rev-parse --abbrev-ref HEAD
-Write-Host "Current branch: " -ForegroundColor Cyan -NoNewline
-Write-Host $Branch
-
-# Check if we have upstream
-$UpstreamExists = git rev-parse --verify "origin/$Branch" 2>$null
-if (-not $UpstreamExists) {
-    Write-Host "Warning: No upstream branch origin/$Branch" -ForegroundColor Yellow
-    $Upstream = "origin/main"
-} else {
-    $Upstream = "origin/$Branch"
+function Fail([string]$Message) {
+    Write-Host "Error: $Message" -ForegroundColor Red
+    exit 1
 }
 
-# Count commits ahead
+# Verify git repo
 try {
-    $CommitsAhead = [int](git rev-list --count "$Upstream..HEAD" 2>$null)
+    git rev-parse --git-dir | Out-Null
 } catch {
-    $CommitsAhead = 0
+    Fail "Not in a git repository. Run this from inside the repo."
 }
 
-if ($CommitsAhead -eq 0) {
-    Write-Host "✓ No local commits to export (already pushed)" -ForegroundColor Green
+$CurrentBranch = (git rev-parse --abbrev-ref HEAD).Trim()
+if (-not $CurrentBranch) {
+    Fail "Unable to determine current branch."
+}
+
+# Determine upstream (preferred) or fall back to origin/<branch>, then origin/main.
+$Upstream = $null
+try {
+    $Upstream = (git rev-parse --abbrev-ref "@{upstream}" 2>$null).Trim()
+} catch {
+    $Upstream = $null
+}
+
+if (-not $Upstream) {
+    $candidate = "origin/$CurrentBranch"
+    git rev-parse --verify $candidate 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $Upstream = $candidate
+    } else {
+        $Upstream = "origin/main"
+    }
+}
+
+# Ensure upstream exists (otherwise format-patch range will fail)
+git rev-parse --verify $Upstream 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Fail "Upstream '$Upstream' not found. Run 'git fetch' and/or set upstream."
+}
+
+# Collect unpushed commits
+$commitList = @(git rev-list --reverse "$Upstream..HEAD" 2>$null)
+if ($LASTEXITCODE -ne 0) {
+    Fail "Failed to compute commit range '$Upstream..HEAD'."
+}
+
+if ($commitList.Count -eq 0) {
+    Write-Host "No unpushed commits found. Nothing to export." -ForegroundColor Green
     exit 0
 }
 
-Write-Host "Found $CommitsAhead local commit(s) to export" -ForegroundColor Yellow
-Write-Host ""
+Write-Host "Branch:   $CurrentBranch" -ForegroundColor Cyan
+Write-Host "Upstream: $Upstream" -ForegroundColor Cyan
+Write-Host "Commits:  $($commitList.Count)" -ForegroundColor Yellow
 
-# Show commits that will be exported
-Write-Host "Commits to export:" -ForegroundColor Cyan
-git log --oneline "$Upstream..HEAD"
-Write-Host ""
+# Prepare output directory
+if (Test-Path $OutputDir) {
+    Get-ChildItem -Path $OutputDir -File -Filter "*.patch" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path (Join-Path $OutputDir "README.txt") -Force -ErrorAction SilentlyContinue
+} else {
+    New-Item -ItemType Directory -Path $OutputDir | Out-Null
+}
 
-# Create output directory
-New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+# Generate patches
+$patchFiles = @(git format-patch "$Upstream..HEAD" -o $OutputDir)
+if ($LASTEXITCODE -ne 0 -or $patchFiles.Count -eq 0) {
+    Fail "Failed to generate patch files via git format-patch."
+}
 
-# Export patches
-Write-Host "Exporting patches to: $OutputDir" -ForegroundColor Cyan
-git format-patch $Upstream -o $OutputDir
+$outputDirFull = (Resolve-Path -Path $OutputDir).Path
+$patchFilesFull = @(
+    $patchFiles | ForEach-Object {
+        try {
+            (Resolve-Path -Path $_).Path
+        } catch {
+            # git may return a relative filename; fall back to joining with output dir
+            (Join-Path -Path $outputDirFull -ChildPath (Split-Path -Leaf $_))
+        }
+    }
+)
 
-# Get list of exported patches
-$PatchFiles = Get-ChildItem -Path $OutputDir -Filter "*.patch" | ForEach-Object { "  - $($_.FullName)" }
+$readmePath = Join-Path $OutputDir "README.txt"
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$readme = @(
+    "ARTK Patch Export"
+    "==============="
+    ""
+    "Created:  $timestamp"
+    "Branch:   $CurrentBranch"
+    "Upstream: $Upstream"
+    "Commits:  $($commitList.Count)"
+    "Output:   $outputDirFull"
+    ""
+    "Patch files:"
+)
 
-# Create README
-$Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$OutputDirFull = (Resolve-Path $OutputDir).Path
-$ReadmeContent = @"
-ARTK Patch Export
-===============
+$readme += @(
+    $patchFilesFull | ForEach-Object { "  - $_" }
+)
 
-Created:  $Timestamp
-Branch:   $Branch
-Upstream: $Upstream
-Commits:  $CommitsAhead
-Output:   $OutputDirFull
+$readme += @(
+    ""
+    "Apply on another PC:"
+    "  1) Copy this folder to the other PC"
+    "  2) In the repo on the other PC:"
+    "       git am patches/*.patch"
+    "  3) Then push:"
+    "       git push"
+    ""
+    "If git am fails, abort with:"
+    "  git am --abort"
+)
 
-Patch files:
-$($PatchFiles -join "`n")
+Set-Content -Path $readmePath -Value ($readme -join "`r`n") -Encoding UTF8
 
-Apply on another PC:
-  1) Sync this folder to the other PC (your sync tool handles this)
-  2) In the repo on the other PC:
-       .\scripts\apply-patches.ps1
-     Or manually:
-       git am patches\*.patch
-       git push
+Write-Host "" 
+Write-Host "Created patch files in: $OutputDir" -ForegroundColor Green
+Write-Host "" 
+Write-Host "Next:" -ForegroundColor Cyan
+Write-Host "  - Transfer '$OutputDir' to your other PC"
+Write-Host "  - Apply: git am patches/*.patch"
 
-If git am fails, abort with:
-  git am --abort
-"@
-
-Set-Content -Path (Join-Path $OutputDir "README.txt") -Value $ReadmeContent
-
-Write-Host ""
-Write-Host "✓ Exported $CommitsAhead patch(es)" -ForegroundColor Green
-Write-Host ""
-Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Your sync tool will sync the patches folder to Home PC"
-Write-Host "  2. On Home PC, run: .\scripts\apply-patches.ps1"
-Write-Host ""
-Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║         Export Complete! ✓                 ║" -ForegroundColor Green
-Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Green
+# Open instructions in Notepad for convenience
+try {
+    Start-Process -FilePath "notepad.exe" -ArgumentList @($readmePath) | Out-Null
+} catch {
+    Write-Host "Note: Could not open Notepad automatically. README is at: $readmePath" -ForegroundColor Yellow
+}
