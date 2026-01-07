@@ -13,45 +13,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Company PC: Work → Export patches → Patches sync automatically → Home PC: Apply patches → Push to GitHub
 ```
 
-### On Company PC (Cannot Push):
+### Optimized Workflow (Minimal Effort)
+
+**On Company PC (Cannot Push):**
+1. Make changes → commit locally
+2. Run `/export-patches` (creates patch files that auto-sync to Home PC)
+3. After patches applied on Home PC, run `/sync-from-github` (cleans up duplicate commits)
+
+**On Home PC (Can Push):**
+1. Run `/apply-patches` (applies patches, fixes issues, pushes to GitHub)
+
+**Total effort:** 3 commands, zero manual intervention.
+
+### Detailed Commands
+
+#### Company PC: Export Patches
 
 **Using GitHub Copilot (Recommended):**
 ```
 /export-patches
 ```
-This runs the export script and shows detailed output.
 
 **Or manually:**
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\export-patches.ps1
 ```
 
-This creates patch files in `./patches/` which are automatically synced to Home PC.
+This creates patch files in `./patches/` which are automatically synced to Home PC via your external sync tool.
 
-### On Home PC (Can Push):
+#### Home PC: Apply Patches
 
 **Using GitHub Copilot (Recommended):**
 ```
 /apply-patches
 ```
-This applies patches, fixes any issues automatically, pushes to GitHub, and deletes the patches.
 
 **Or manually:**
 ```bash
 ./scripts/apply-patches.sh
-
-# Or even more manually:
-git am patches/*.patch
-git push
 ```
+
+This applies patches, fixes any issues automatically, pushes to GitHub, and deletes the patches.
+
+#### Company PC: Sync After Patches Applied
+
+**Using GitHub Copilot (Recommended):**
+```
+/sync-from-github
+```
+
+**Or manually:**
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\sync-from-github.ps1
+```
+
+**Why this is needed:** When patches are applied with `git am`, they create new commits with different hashes. This script:
+- Fetches latest from GitHub
+- Detects if your local commits were already applied via patches
+- Automatically resets your branch to origin (removes duplicate commits)
+- Cleans up leftover patch files
+
+**This prevents the "3 local commits not pushed" problem after pulling from GitHub.**
 
 ### Internal Copilot Prompts (ARTK Repo Only)
 
-The ARTK repo has two internal prompts in `.github/prompts/`:
+The ARTK repo has three internal prompts in `.github/prompts/`:
 - `/export-patches` - Company PC: Export commits as patches
-- `/apply-patches` - Home PC: Autonomously apply patches, fix issues, push, and clean up
+- `/sync-from-github` - Company PC: Sync branch after patches applied, remove duplicates
+- `/apply-patches` - Home PC: Autonomously apply patches, fix issues, push, clean up
 
-**The `/apply-patches` prompt is autonomous:** It automatically handles merge conflicts, whitespace errors, already-applied patches, and other issues without stopping. It deletes patches after successful application.
+**These prompts are autonomous and handle all edge cases automatically:**
+- `/apply-patches` handles merge conflicts, whitespace errors, already-applied patches
+- `/sync-from-github` detects duplicate commits and resets branch safely
+- Both scripts are fail-safe and warn if unsafe operations detected
 
 **These prompts are NOT deployed to client projects.** They are only available when working in the ARTK repository itself.
 
