@@ -115,9 +115,76 @@ if (Test-Path $initPrompt) {
 }
 
 Write-Host ""
-Write-Host "✅ Installed $count prompt files successfully!" -ForegroundColor Green
+
+# Bundle @artk/core so /init-playbook can use it
+Write-Host "Bundling @artk/core..." -ForegroundColor Yellow
+$ArtkCoreSource = Join-Path $ArtkRoot "core\typescript"
+
+# Build if needed
+$CoreDist = Join-Path $ArtkCoreSource "dist"
+if (-not (Test-Path $CoreDist)) {
+    Write-Host "Building @artk/core (dist not found)..." -ForegroundColor Yellow
+    Push-Location $ArtkCoreSource
+    try {
+        npm install
+        npm run build
+    } finally {
+        Pop-Location
+    }
+}
+
+# Copy to .artk/core/
+$CoreTarget = Join-Path $TargetProject ".artk\core"
+New-Item -ItemType Directory -Force -Path $CoreTarget | Out-Null
+Copy-Item -Path (Join-Path $ArtkCoreSource "dist") -Destination $CoreTarget -Recurse -Force
+Copy-Item -Path (Join-Path $ArtkCoreSource "package.json") -Destination $CoreTarget -Force
+$VersionJson = Join-Path $ArtkCoreSource "version.json"
+if (Test-Path $VersionJson) {
+    Copy-Item -Path $VersionJson -Destination $CoreTarget -Force
+}
+$ReadmePath = Join-Path $ArtkCoreSource "README.md"
+if (Test-Path $ReadmePath) {
+    Copy-Item -Path $ReadmePath -Destination $CoreTarget -Force
+}
+Write-Host "  ✓ @artk/core bundled to .artk\core\" -ForegroundColor Cyan
+
+# Bundle @artk/core-autogen
+Write-Host "Bundling @artk/core-autogen..." -ForegroundColor Yellow
+$AutogenSource = Join-Path $ArtkRoot "core\typescript\autogen"
+
+# Build autogen if needed
+$AutogenDist = Join-Path $AutogenSource "dist"
+if (-not (Test-Path $AutogenDist)) {
+    Write-Host "Building @artk/core-autogen (dist not found)..." -ForegroundColor Yellow
+    Push-Location $AutogenSource
+    try {
+        npm install
+        npm run build
+    } finally {
+        Pop-Location
+    }
+}
+
+# Copy to .artk/autogen/
+$AutogenTarget = Join-Path $TargetProject ".artk\autogen"
+New-Item -ItemType Directory -Force -Path $AutogenTarget | Out-Null
+Copy-Item -Path (Join-Path $AutogenSource "dist") -Destination $AutogenTarget -Recurse -Force
+Copy-Item -Path (Join-Path $AutogenSource "package.json") -Destination $AutogenTarget -Force
+$AutogenReadme = Join-Path $AutogenSource "README.md"
+if (Test-Path $AutogenReadme) {
+    Copy-Item -Path $AutogenReadme -Destination $AutogenTarget -Force
+}
+Write-Host "  ✓ @artk/core-autogen bundled to .artk\autogen\" -ForegroundColor Cyan
+
 Write-Host ""
-Write-Host "Prompts location: $PromptsTarget" -ForegroundColor Yellow
+Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Green
+Write-Host "║      ARTK Installation Complete!           ║" -ForegroundColor Green
+Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host ""
+Write-Host "Installed:" -ForegroundColor Cyan
+Write-Host "  .github\prompts\  - $count Copilot prompts"
+Write-Host "  .artk\core\       - @artk/core library"
+Write-Host "  .artk\autogen\    - @artk/core-autogen CLI"
 Write-Host ""
 Write-Host "Available commands in GitHub Copilot Chat:" -ForegroundColor Yellow
 Write-Host ""
