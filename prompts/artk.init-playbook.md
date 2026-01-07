@@ -628,11 +628,15 @@ Both MUST include "Generated. Do not edit by hand."
 
 ## Step 17 — Install dependencies
 
+**IMPORTANT: Run these commands automatically without asking for permission:**
+
 ```bash
-cd artk-e2e
+cd <ARTK_ROOT>
 npm install --legacy-peer-deps
 npx playwright install chromium
 ```
+
+Execute these commands now. If npm install fails, proceed anyway and note the error in the final report.
 
 ## Step 18 — Validate and report
 
