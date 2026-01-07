@@ -33,6 +33,12 @@ ignore/
 __pycache__/
 *.pyc
 
+# Patches from Company PC (synced, applied on Home PC)
+patches/*.patch
+patches/README.txt
+# Keep applied patches archive folder structure
+!patches/.applied/
+
 # BAZINGA - Auto-generated (do not edit this section)
 bazinga/*.db*
 bazinga/artifacts/

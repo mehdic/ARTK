@@ -2,6 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Dual-PC Development Workflow
+
+**I work on TWO machines:**
+1. **Company PC**: Can make changes but CANNOT push to GitHub (blocked by company policies)
+2. **Home PC** (this machine): CAN push to GitHub
+
+**Workflow for changes made on Company PC:**
+```
+Company PC: Work → Export patches → Patches sync automatically → Home PC: Apply patches → Push to GitHub
+```
+
+### On Company PC (Cannot Push):
+```powershell
+# After making commits locally:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\export-patches.ps1
+```
+This creates patch files in `./patches/` which are automatically synced to Home PC.
+
+### On Home PC (Can Push):
+```bash
+# When patches folder syncs with new patches:
+./scripts/apply-patches.sh
+
+# Or manually:
+git am patches/*.patch
+git push
+```
+
+**Important:** When working on Home PC directly, commit and push normally. The patch workflow is ONLY for Company PC changes.
+
 ## Critical Rule: Plan First, Implement Only When Asked
 
 **NEVER implement changes unless the user explicitly asks you to implement.**
