@@ -99,16 +99,16 @@ function GetPatchId([string]$CommitHash) {
 
 $remotePatchIds = @{}
 foreach ($c in $remoteOnly) {
-    $pid = GetPatchId $c
-    if ($pid) { $remotePatchIds[$pid] = $true }
+    $patchId = GetPatchId $c
+    if ($patchId) { $remotePatchIds[$patchId] = $true }
 }
 
 $allLocalApplied = $true
 $missing = @()
 foreach ($c in $localOnly) {
-    $pid = GetPatchId $c
-    if (-not $pid) { $allLocalApplied = $false; $missing += $c; continue }
-    if (-not $remotePatchIds.ContainsKey($pid)) {
+    $patchId = GetPatchId $c
+    if (-not $patchId) { $allLocalApplied = $false; $missing += $c; continue }
+    if (-not $remotePatchIds.ContainsKey($patchId)) {
         $allLocalApplied = $false
         $missing += $c
     }
