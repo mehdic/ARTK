@@ -1,8 +1,7 @@
 ---
 mode: agent
-description: "Bootstrap ARTK + generate Playbook + install Journey system - complete setup in one command"
+description: "Bootstrap ARTK + generate Playbook + install Journey system - complete setup in one command (all mandatory)"
 arguments:
-  - journeySystem: true|false  # Default: true. Set false to skip Journey system installation
   - mode: quick|standard|deep
   - root: path
   - lang: ts|js
@@ -44,10 +43,10 @@ You are **ARTK Init+Playbook**, the combined bootstrapper that installs the *Aut
 
 ARTK is a **standardized kit that plugs on top of GitHub Copilot** to help teams **build and continuously maintain complete, end-to-end automated regression test suites** for existing applications (using Playwright), so releases stop shipping regressions by accident.
 
-This command does THREE things in one:
+This command does THREE things in one (ALL MANDATORY):
 1. **Init**: Bootstrap the ARTK workspace (structure, config, dependencies)
 2. **Playbook**: Generate permanent guardrails (PLAYBOOK.md, Copilot instructions)
-3. **Journey System**: Install Journey schema, templates, backlog automation (optional, enabled by default)
+3. **Journey System**: Install Journey schema, templates, backlog automation
 
 ## Non-negotiables (permanent guardrails)
 
@@ -60,7 +59,6 @@ This command does THREE things in one:
 ## Inputs (parse from arguments if provided)
 
 Supported key=value arguments (all optional):
-- `journeySystem`: `true | false` (default: `true`) — Set to false to skip Journey system installation
 - `mode`: `quick | standard | deep` (default: `standard`)
 - `root`: where ARTK workspace lives (default: computed after scan)
 - `app`: app name/path (monorepo) to target first (default: inferred)
@@ -68,7 +66,7 @@ Supported key=value arguments (all optional):
 - `pm`: package manager `npm | pnpm | yarn` (default: inferred from lockfile)
 - `dryRun`: `true | false` (default: false)
 
-**Journey System specific inputs** (only used if `journeySystem=true`):
+**Journey System inputs:**
 - `coreSource`: where Core is available in the current workspace (default: auto-detect)
 - `coreInstall`: `vendor | submodule | subtree | npm` (default: `vendor`)
 - `coreInstallDir`: where to install the Core (default: `<ARTK_ROOT>/.artk/core/journeys`)
@@ -113,6 +111,15 @@ Output proposed configuration:
 
 ## Step 4 — Ask minimum questions (one-shot)
 
+**IMPORTANT: Inference-first approach. Always proceed with inferred defaults. Only wait for user input if critical information is truly missing and cannot be inferred.**
+
+### Execution flow:
+1. You already scanned the repo and inferred answers in Steps 1-3
+2. Present your inferred configuration in a compact format (show defaults)
+3. Ask ONLY if something critical is truly ambiguous (e.g., multiple apps and you can't pick one)
+4. **Proceed immediately with inferred values** - do NOT wait for user to confirm every setting
+5. User can always re-run with explicit arguments if defaults are wrong
+
 ### Standard mode questionnaire (at most 15 questions combining init + playbook + journey system)
 
 **Init questions:**
@@ -132,7 +139,7 @@ Output proposed configuration:
 11) **Flake posture**: `retries_ci_only` (default), `no_retries`, `retries_everywhere`
 12) **No-go zones**: Any areas to NOT test? (3rd-party, regulated flows)
 
-**Journey System questions (only if journeySystem=true):**
+**Journey System questions:**
 13) **Journey ID prefix**: Default `JRN` (e.g., JRN-0001)
 14) **Journey layout**: `flat` (all in one folder) or `staged` (by status)
 15) **Procedural steps required?**: Default yes (require UI walkthrough in Journeys)
@@ -174,7 +181,7 @@ procedural: yes
     PLAYBOOK.md          # Generated in Part 2
     ARCHITECTURE.md
     ENVIRONMENTS.md
-  journeys/              # Created in Part 3 (if journeySystem=true)
+  journeys/              # Created in Part 3
     BACKLOG.md
     index.json
     journeys.config.yml
@@ -184,7 +191,7 @@ procedural: yes
     journeys/
   src/
     modules/
-  tools/                 # Created in Part 3 (if journeySystem=true)
+  tools/                 # Created in Part 3
     journeys/
       generate.js
       validate.js
@@ -235,13 +242,13 @@ Base structure:
 }
 ```
 
-**If `journeySystem=true`**, add Journey scripts to the `scripts` section:
+Add Journey scripts to the `scripts` section:
 ```json
 "journeys:generate": "node tools/journeys/generate.js",
 "journeys:validate": "node tools/journeys/validate.js"
 ```
 
-**If `journeySystem=true`**, add Journey dependencies to `devDependencies`:
+Add Journey dependencies to `devDependencies`:
 ```json
 "ajv": "^8.12.0",
 "yaml": "^2.3.0",
@@ -257,7 +264,7 @@ Create `.artk/context.json` in project root:
   "artkRoot": "<absolute path>/artk-e2e",
   "targets": [...],
   "initialized_at": "<ISO8601>",
-  "journeySystem": true,
+  "journeySystemInstalled": true,
   "next_suggested": "/discover-foundation"
 }
 ```
@@ -331,6 +338,8 @@ Do NOT create separate files in `.github/instructions/` — those require a VS C
 
 ### 7A) Detect and cleanup orphan instruction files
 
+**Auto-migrate by default. Only ask in `deep` mode.**
+
 Before creating/updating Copilot instructions, check for orphaned instruction files from older ARTK installations:
 
 **Check for:** `.github/instructions/*.instructions.md` files (e.g., `artk.instructions.md`, `journeys.instructions.md`)
@@ -341,21 +350,27 @@ These files are **orphaned** if:
 - User has not explicitly customized them for non-ARTK purposes
 
 **Migration approach:**
+
+**In `quick` or `standard` mode (default behavior):**
 1. List detected orphan files
-2. Show user a summary of what content they contain
-3. Ask: "These orphan instruction files were found. They're no longer used since ARTK now uses a single `.github/copilot-instructions.md` file. Should I migrate their ARTK content and remove them? (yes/no/review)"
-4. If yes: extract any ARTK-specific sections, merge into `.github/copilot-instructions.md`, delete orphan files
-5. If no: leave them alone and note in completion checklist
-6. If review: show full content for user review before proceeding
+2. **Automatically migrate and rename** (safer than delete)
+3. Extract ARTK-specific sections
+4. Merge into `.github/copilot-instructions.md`
+5. Rename orphan files to `.backup` (e.g., `artk.instructions.md.backup`)
+6. Note in completion checklist: "Migrated orphan instruction files: [list]"
 
-**Example orphan detection output:**
+**In `deep` mode only:**
+1. List detected orphan files
+2. Show summary of content
+3. Ask: "Migrate content and remove? [yes/no]" (default: yes if no response after 10 seconds)
+4. Proceed based on response
+
+**Example migration output (standard mode):**
 ```
-⚠️  Found orphan instruction files from older ARTK:
-- .github/instructions/artk.instructions.md (254 lines, ARTK E2E rules)
-- .github/instructions/journeys.instructions.md (89 lines, Journey validation)
-
-These are no longer needed (ARTK now uses single copilot-instructions.md).
-Migrate content and remove? [yes/no/review]:
+ℹ️  Migrating orphan instruction files from older ARTK:
+  → .github/instructions/artk.instructions.md → .github/copilot-instructions.md
+  → Renamed to .github/instructions/artk.instructions.md.backup
+  ✓ Migration complete
 ```
 
 ### 7B) Create/Update `.github/copilot-instructions.md`
@@ -488,9 +503,9 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 
 ---
 
-# PART 3: JOURNEY SYSTEM (Conditional — only if journeySystem=true)
+# PART 3: JOURNEY SYSTEM (MANDATORY)
 
-**Skip this entire section if `journeySystem=false`.**
+**This section is mandatory. Journey System is a core part of ARTK.**
 
 ## Step 8 — Detect existing Journey Instance
 Check under `<ARTK_ROOT>/journeys/` for:
@@ -520,51 +535,38 @@ IF journeys.config.yml exists AND (
    → Old Journey System detected
 ```
 
-**Migration guidance to provide:**
+**Migration approach:**
 
-If old Journey System is detected, inform the user:
+**Auto-migrate by default. Journey files are preserved, so migration is safe.**
 
-```
-⚠️  Detected existing Journey System installation (older version)
+**In `quick` or `standard` mode (default behavior):**
+1. Show brief migration summary
+2. **Automatically proceed with migration** (backup config first)
+3. Execute migration steps
+4. Note in completion checklist: "Migrated from old Journey System"
 
-Found Journey files and config, but Core installation is missing or outdated.
+**In `deep` mode only:**
+1. Show detailed migration guidance (paths, steps, impact)
+2. Ask: "Proceed with migration? [yes/no/review]" (default: yes if no response after 10 seconds)
+3. If review: Show config content and Journey file list
+4. Proceed with migration
 
-Migration path:
-1. Your existing Journey files (.md) are safe and will be preserved
-2. Journey System now uses a Core-based architecture with:
-   - Core schema and tools installed at: <ARTK_ROOT>/.artk/core/journeys
-   - Wrapper scripts that call Core tools
-   - Pinned Core version in artk.config.yml
-
-3. This init-playbook will:
-   ✓ Install/upgrade Core to latest version
-   ✓ Update journeys.config.yml with new structure
-   ✓ Create wrapper scripts (tools/journeys/*.js)
-   ✓ Regenerate BACKLOG.md and index.json using new Core tools
-   ✓ Preserve all existing Journey markdown files
-
-4. Manual steps (if needed):
-   - Review journeys.config.yml for any custom settings to preserve
-   - Update Journey frontmatter if validation fails (Core will report issues)
-
-Proceed with migration? [yes/no/review]:
-```
-
-**Migration actions (if user confirms yes):**
-1. Back up existing `journeys.config.yml` to `journeys.config.yml.backup`
+**Migration actions (always executed, automatic in standard mode):**
+1. Back up existing `journeys.config.yml` to `journeys.config.yml.backup-<timestamp>`
 2. Proceed with normal Core installation (Steps 9-11)
 3. Merge any custom settings from backup into new config
-4. Run validation on existing Journey files and report any frontmatter issues
+4. Run validation on existing Journey files and report any frontmatter issues (non-blocking)
 5. Note in completion checklist: "Migrated from old Journey System"
 
-**If user selects review:**
-- Show existing config file content
-- List all Journey files and their frontmatter status
-- Ask again after review
-
-**If user selects no:**
-- Warn: "Skipping Journey System migration. You may encounter issues with outdated tools."
-- Note in completion checklist: "Old Journey System detected but migration declined"
+**Example migration output (standard mode):**
+```
+ℹ️  Migrating old Journey System to Core-based architecture:
+  → Backing up journeys.config.yml
+  → Installing Core v1.x to .artk/core/journeys
+  → Creating wrapper scripts
+  → Regenerating BACKLOG.md and index.json
+  ✓ Migration complete - all Journey files preserved
+```
 
 ## Step 9 — Detect installed ARTK Core (Journeys)
 Default install dir: `<ARTK_ROOT>/.artk/core/journeys` unless overridden.
@@ -671,13 +673,22 @@ Core tools require Node deps: `ajv`, `yaml`, `fast-glob`, `minimist`.
 These should already be in `package.json` from Step 5E.
 
 ## Step 16 — Generate or stub outputs
-If Journey files exist:
-- Generate BACKLOG.md and index.json content deterministically (you may do this by invoking the generator logic conceptually; if tool execution is unavailable, generate content by reading/parsing Journeys yourself).
 
-If no Journey files exist yet:
-- Create stub generated files with headers and zero counts.
+**IMPORTANT: Always create actual files. Never just "conceptually" generate.**
 
-Generated outputs live at:
+**If Journey files exist:**
+1. **Option A (preferred):** Execute the wrapper script:
+   ```bash
+   cd <ARTK_ROOT>
+   node tools/journeys/generate.js
+   ```
+2. **Option B (fallback):** If tool execution fails, manually parse Journey files and write BACKLOG.md + index.json yourself using the Write tool
+3. **Never skip this step** - files MUST be created
+
+**If no Journey files exist yet:**
+- Create stub files with proper headers and zero counts
+
+Generated outputs (MUST exist after this step):
 - `<ARTK_ROOT>/journeys/BACKLOG.md`
 - `<ARTK_ROOT>/journeys/index.json`
 
@@ -701,14 +712,28 @@ Execute these commands now. If npm install fails, proceed anyway and note the er
 
 ## Step 18 — Validate and report
 
-Print:
-- Created/Updated files checklist
+**This is the FINAL step. Print completion report and END WORKFLOW.**
+
+Print completion report:
+- Created/Updated files checklist (use checklist from lines 805-822)
 - Key guardrails summary (locator policy, flake policy, ownership)
 - Journey System status (installed/skipped)
+- Any warnings or notes from migration/installation
 - Next commands in order:
-  - `/discover-foundation` (analyze app + build Playwright harness)
-  - `/journey-propose` (auto-identify high-signal Journeys)
-  - `/journey-define` (create Journey files)
+  - `/artk.discover-foundation` (analyze app + build Playwright harness)
+  - `/artk.journey-propose` (auto-identify high-signal Journeys)
+  - `/artk.journey-define` (create Journey files)
+
+**Print completion banner:**
+```
+╔════════════════════════════════════════════╗
+║    ARTK INIT-PLAYBOOK COMPLETE ✓           ║
+╚════════════════════════════════════════════╝
+
+Next step: /artk.discover-foundation
+```
+
+**END OF WORKFLOW. Do not wait for user input.**
 
 ---
 
@@ -795,7 +820,7 @@ Provide a compact reply template if asking questions.
 - [ ] `docs/PLAYBOOK.md` generated with governance rules
 - [ ] Copilot instructions created/updated
 
-## Journey System (if journeySystem=true)
+## Journey System (mandatory)
 - [ ] Core installed/upgraded at `<coreInstallDir>`
 - [ ] `artk.config.yml` updated with Core pin info
 - [ ] `journeys/journeys.config.yml` present and sane
@@ -812,4 +837,4 @@ Provide a compact reply template if asking questions.
 # Final note
 If anything is ambiguous, ask in the single grouped questionnaire and proceed once answered.
 
-If the user explicitly passed `journeySystem=false`, skip Part 3 entirely and note in the completion summary that Journey System can be installed later by re-running with `journeySystem=true`.
+**Journey System is mandatory** - init-playbook always installs all three parts: Init + Playbook + Journey System. There is no option to skip any part.
