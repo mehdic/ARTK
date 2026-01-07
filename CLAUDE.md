@@ -43,7 +43,7 @@ This creates patch files in `./patches/` which are automatically synced to Home 
 
 #### Home PC: Apply Patches
 
-**Using Claude Code (Recommended):**
+**Using Claude Code or Codex:**
 ```
 /apply-patches
 ```
@@ -84,6 +84,9 @@ The ARTK repo has internal prompts for the dual-PC workflow:
 - `/sync-from-github` - Sync branch after patches applied, remove duplicates
 
 **Claude Code prompts** (`.claude/prompts/` - for Home PC):
+- `/apply-patches` - Autonomously apply patches, fix issues, push, clean up
+
+**Codex CLI prompts** (`.codex/commands/` - for Home PC):
 - `/apply-patches` - Autonomously apply patches, fix issues, push, clean up
 
 **These prompts are autonomous and handle all edge cases automatically:**
