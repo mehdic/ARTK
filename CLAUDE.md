@@ -43,7 +43,7 @@ This creates patch files in `./patches/` which are automatically synced to Home 
 
 #### Home PC: Apply Patches
 
-**Using GitHub Copilot (Recommended):**
+**Using Claude Code (Recommended):**
 ```
 /apply-patches
 ```
@@ -75,17 +75,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\sync-from-github.p
 
 **This prevents the "3 local commits not pushed" problem after pulling from GitHub.**
 
-### Internal Copilot Prompts (ARTK Repo Only)
+### Internal Development Prompts (ARTK Repo Only)
 
-The ARTK repo has three internal prompts in `.github/prompts/`:
-- `/export-patches` - Company PC: Export commits as patches
-- `/sync-from-github` - Company PC: Sync branch after patches applied, remove duplicates
-- `/apply-patches` - Home PC: Autonomously apply patches, fix issues, push, clean up
+The ARTK repo has internal prompts for the dual-PC workflow:
+
+**GitHub Copilot prompts** (`.github/prompts/` - for Company PC):
+- `/export-patches` - Export commits as patches
+- `/sync-from-github` - Sync branch after patches applied, remove duplicates
+
+**Claude Code prompts** (`.claude/prompts/` - for Home PC):
+- `/apply-patches` - Autonomously apply patches, fix issues, push, clean up
 
 **These prompts are autonomous and handle all edge cases automatically:**
 - `/apply-patches` handles merge conflicts, whitespace errors, already-applied patches
 - `/sync-from-github` detects duplicate commits and resets branch safely
-- Both scripts are fail-safe and warn if unsafe operations detected
+- All scripts are fail-safe and warn if unsafe operations detected
 
 **These prompts are NOT deployed to client projects.** They are only available when working in the ARTK repository itself.
 
