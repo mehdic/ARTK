@@ -275,6 +275,8 @@ Prompts-only installation scripts have been removed.
 
 Use the bootstrap installer instead (it installs prompts as part of the full setup). If you want the lightest-touch install, use the bootstrap script with `-SkipNpm` (PowerShell) so it doesn't run `npm install`.
 
+**Windows shell assumption:** When giving Windows commands, assume the session is already PowerShell. Invoke scripts directly (no `powershell -File` wrapper needed).
+
 ### @artk/core Only (Alternative)
 
 Use the vendor installation script to install just @artk/core:
