@@ -26,6 +26,190 @@ ARTK_REPO="$(dirname "$SCRIPT_DIR")"
 ARTK_CORE="$ARTK_REPO/core/typescript"
 ARTK_PROMPTS="$ARTK_REPO/prompts"
 
+# Helpers for Playwright browser cache
+infer_github_repo() {
+    local origin_url
+    origin_url=$(git -C "$ARTK_REPO" remote get-url origin 2>/dev/null || true)
+    if [ -z "$origin_url" ]; then
+        return 1
+    fi
+
+    origin_url="${origin_url%.git}"
+    if [[ "$origin_url" == git@github.com:* ]]; then
+        echo "${origin_url#git@github.com:}"
+        return 0
+    fi
+
+    if [[ "$origin_url" == https://github.com/* ]]; then
+        echo "${origin_url#https://github.com/}"
+        return 0
+    fi
+
+    if [[ "$origin_url" == http://github.com/* ]]; then
+        echo "${origin_url#http://github.com/}"
+        return 0
+    fi
+
+    return 1
+}
+
+detect_os_arch() {
+    local os_name
+    local arch_name
+
+    case "$(uname -s)" in
+        Darwin) os_name="macos" ;;
+        Linux) os_name="linux" ;;
+        *) os_name="unknown" ;;
+    esac
+
+    case "$(uname -m)" in
+        x86_64|amd64) arch_name="x64" ;;
+        arm64|aarch64) arch_name="arm64" ;;
+        *) arch_name="unknown" ;;
+    esac
+
+    echo "$os_name" "$arch_name"
+}
+
+download_file() {
+    local url="$1"
+    local dest="$2"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$url" -o "$dest"
+        return $?
+    fi
+
+    if command -v wget >/dev/null 2>&1; then
+        wget -q "$url" -O "$dest"
+        return $?
+    fi
+
+    return 1
+}
+
+sha256_file() {
+    local file="$1"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+        return 0
+    fi
+
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file" | awk '{print $1}'
+        return 0
+    fi
+
+    return 1
+}
+
+download_playwright_browsers() {
+    local browsers_path="$1"
+    local repo="${ARTK_PLAYWRIGHT_BROWSERS_REPO:-}"
+
+    if [ -z "$repo" ]; then
+        repo="$(infer_github_repo || true)"
+    fi
+
+    if [ -z "$repo" ]; then
+        echo -e "${YELLOW}Release repo not set; skipping Playwright browser cache download.${NC}"
+        return 1
+    fi
+
+    local playwright_version_path="$ARTK_E2E/node_modules/@playwright/test/package.json"
+    local playwright_core_path="$ARTK_E2E/node_modules/playwright-core/package.json"
+    local browsers_json_path="$ARTK_E2E/node_modules/playwright-core/browsers.json"
+
+    if [ ! -f "$browsers_json_path" ]; then
+        echo -e "${YELLOW}Missing browsers.json; skipping Playwright browser cache download.${NC}"
+        return 1
+    fi
+
+    local playwright_version=""
+    if [ -f "$playwright_version_path" ]; then
+        playwright_version=$(node -e "const pkg=require(process.argv[1]); console.log(pkg.version);" "$playwright_version_path" 2>/dev/null || true)
+    elif [ -f "$playwright_core_path" ]; then
+        playwright_version=$(node -e "const pkg=require(process.argv[1]); console.log(pkg.version);" "$playwright_core_path" 2>/dev/null || true)
+    fi
+
+    local chromium_rev
+    chromium_rev=$(node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); const chromium=data.browsers.find(b=>b.name==='chromium'); if (!chromium) process.exit(1); console.log(chromium.revision);" "$browsers_json_path" 2>/dev/null || true)
+
+    if [ -z "$chromium_rev" ]; then
+        echo -e "${YELLOW}Unable to determine Chromium revision; skipping Playwright browser cache download.${NC}"
+        return 1
+    fi
+
+    local os_arch
+    os_arch=$(detect_os_arch)
+    local os_name
+    local arch_name
+    os_name=$(echo "$os_arch" | awk '{print $1}')
+    arch_name=$(echo "$os_arch" | awk '{print $2}')
+
+    if [ "$os_name" = "unknown" ] || [ "$arch_name" = "unknown" ]; then
+        echo -e "${YELLOW}Unsupported OS/arch ($os_name/$arch_name); skipping Playwright browser cache download.${NC}"
+        return 1
+    fi
+
+    local tag="${ARTK_PLAYWRIGHT_BROWSERS_TAG:-}"
+    if [ -z "$tag" ] && [ -n "$playwright_version" ]; then
+        tag="playwright-browsers-$playwright_version"
+    fi
+
+    if [ -z "$tag" ]; then
+        echo -e "${YELLOW}Release tag not set; skipping Playwright browser cache download.${NC}"
+        return 1
+    fi
+
+    local asset="chromium-$chromium_rev-$os_name-$arch_name.zip"
+    local base_url="https://github.com/$repo/releases/download/$tag"
+    local zip_path="$browsers_path/$asset"
+    local sha_path="$zip_path.sha256"
+
+    mkdir -p "$browsers_path"
+
+    if [ -d "$browsers_path/chromium-$chromium_rev" ]; then
+        echo -e "${CYAN}Playwright browsers already cached for revision $chromium_rev.${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}Downloading Playwright browsers from release cache...${NC}"
+    if ! download_file "$base_url/$asset" "$zip_path"; then
+        echo -e "${YELLOW}Failed to download $asset${NC}"
+        return 1
+    fi
+
+    if ! download_file "$base_url/$asset.sha256" "$sha_path"; then
+        echo -e "${YELLOW}Failed to download $asset.sha256${NC}"
+        return 1
+    fi
+
+    local expected_hash
+    expected_hash=$(awk '{print $1}' "$sha_path" | tr -d '\r')
+    local actual_hash
+    actual_hash=$(sha256_file "$zip_path" || true)
+
+    if [ -z "$expected_hash" ] || [ -z "$actual_hash" ] || [ "$expected_hash" != "$actual_hash" ]; then
+        echo -e "${YELLOW}Playwright browser cache checksum mismatch.${NC}"
+        return 1
+    fi
+
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -q "$zip_path" -d "$browsers_path" || return 1
+    elif command -v bsdtar >/dev/null 2>&1; then
+        bsdtar -xf "$zip_path" -C "$browsers_path" || return 1
+    else
+        echo -e "${YELLOW}unzip or bsdtar is required to extract Playwright browsers.${NC}"
+        return 1
+    fi
+
+    rm -f "$zip_path" "$sha_path"
+    return 0
+}
+
 # Parse arguments
 TARGET=""
 SKIP_NPM=false
@@ -228,6 +412,15 @@ cat > "$TARGET_PROJECT/.artk/context.json" << CONTEXT
 }
 CONTEXT
 
+# .artk/.gitignore
+cat > "$TARGET_PROJECT/.artk/.gitignore" << 'ARTKIGNORE'
+# ARTK temporary files
+browsers/
+heal-logs/
+*.heal.json
+selector-catalog.local.json
+ARTKIGNORE
+
 # .gitignore additions
 cat > "$ARTK_E2E/.gitignore" << 'GITIGNORE'
 node_modules/
@@ -242,11 +435,20 @@ GITIGNORE
 if [ "$SKIP_NPM" = false ]; then
     echo -e "${YELLOW}[6/6] Running npm install...${NC}"
     cd "$ARTK_E2E"
-    npm install --legacy-peer-deps
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --legacy-peer-deps
 
-    # Install Playwright browsers
-    echo -e "${YELLOW}Installing Playwright browsers...${NC}"
-    npx playwright install chromium
+    BROWSERS_CACHE_DIR="$TARGET_PROJECT/.artk/browsers"
+    mkdir -p "$BROWSERS_CACHE_DIR"
+    export PLAYWRIGHT_BROWSERS_PATH="$BROWSERS_CACHE_DIR"
+
+    if download_playwright_browsers "$BROWSERS_CACHE_DIR"; then
+        export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+        echo -e "${CYAN}Using release-hosted Playwright browsers cache.${NC}"
+    else
+        echo -e "${YELLOW}Release cache unavailable; installing Playwright browsers...${NC}"
+        unset PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        npx playwright install chromium
+    fi
 else
     echo -e "${CYAN}[6/6] Skipping npm install (--skip-npm)${NC}"
 fi

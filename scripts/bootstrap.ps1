@@ -25,6 +25,154 @@ $ArtkRepo = Split-Path -Parent $ScriptDir
 $ArtkCore = Join-Path $ArtkRepo "core\typescript"
 $ArtkPrompts = Join-Path $ArtkRepo "prompts"
 
+function Resolve-GitHubRepo {
+    param([string]$RepoRoot)
+
+    if ($env:ARTK_PLAYWRIGHT_BROWSERS_REPO) {
+        return $env:ARTK_PLAYWRIGHT_BROWSERS_REPO
+    }
+
+    if (-not $RepoRoot) {
+        return $null
+    }
+
+    try {
+        $originUrl = git -C $RepoRoot remote get-url origin 2>$null
+    } catch {
+        return $null
+    }
+
+    if (-not $originUrl) {
+        return $null
+    }
+
+    if ($originUrl -match 'github\.com[:/](?<repo>[^/]+/[^/]+?)(\.git)?$') {
+        return $Matches.repo
+    }
+
+    return $null
+}
+
+function Resolve-OsArch {
+    if ($IsWindows) {
+        $osName = "windows"
+    } elseif ($IsMacOS) {
+        $osName = "macos"
+    } elseif ($IsLinux) {
+        $osName = "linux"
+    } else {
+        $osName = "unknown"
+    }
+
+    $archName = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
+        "X64" { "x64" }
+        "Arm64" { "arm64" }
+        "X86" { "x86" }
+        default { "unknown" }
+    }
+
+    return @{
+        Os = $osName
+        Arch = $archName
+    }
+}
+
+function Resolve-PlaywrightVersion {
+    param([string]$ArtkE2e)
+
+    $paths = @(
+        (Join-Path $ArtkE2e "node_modules\@playwright\test\package.json"),
+        (Join-Path $ArtkE2e "node_modules\playwright-core\package.json")
+    )
+
+    foreach ($path in $paths) {
+        if (Test-Path $path) {
+            return (Get-Content $path -Raw | ConvertFrom-Json).version
+        }
+    }
+
+    return $null
+}
+
+function Resolve-ChromiumRevision {
+    param([string]$ArtkE2e)
+
+    $browsersJson = Join-Path $ArtkE2e "node_modules\playwright-core\browsers.json"
+    if (-not (Test-Path $browsersJson)) {
+        return $null
+    }
+
+    $data = Get-Content $browsersJson -Raw | ConvertFrom-Json
+    $chromium = $data.browsers | Where-Object { $_.name -eq "chromium" } | Select-Object -First 1
+    return $chromium.revision
+}
+
+function Download-PlaywrightBrowsers {
+    param(
+        [string]$ArtkE2e,
+        [string]$ArtkRepo,
+        [string]$BrowsersPath
+    )
+
+    $repo = Resolve-GitHubRepo -RepoRoot $ArtkRepo
+    if (-not $repo) {
+        Write-Host "Release repo not set; skipping Playwright browser cache download." -ForegroundColor Yellow
+        return $false
+    }
+
+    $playwrightVersion = Resolve-PlaywrightVersion -ArtkE2e $ArtkE2e
+    $chromiumRevision = Resolve-ChromiumRevision -ArtkE2e $ArtkE2e
+
+    if (-not $chromiumRevision) {
+        Write-Host "Unable to determine Chromium revision; skipping Playwright browser cache download." -ForegroundColor Yellow
+        return $false
+    }
+
+    $osArch = Resolve-OsArch
+    if ($osArch.Os -eq "unknown" -or $osArch.Arch -eq "unknown") {
+        Write-Host "Unsupported OS/arch ($($osArch.Os)/$($osArch.Arch)); skipping Playwright browser cache download." -ForegroundColor Yellow
+        return $false
+    }
+
+    $tag = if ($env:ARTK_PLAYWRIGHT_BROWSERS_TAG) { $env:ARTK_PLAYWRIGHT_BROWSERS_TAG } elseif ($playwrightVersion) { "playwright-browsers-$playwrightVersion" } else { $null }
+    if (-not $tag) {
+        Write-Host "Release tag not set; skipping Playwright browser cache download." -ForegroundColor Yellow
+        return $false
+    }
+
+    $asset = "chromium-$chromiumRevision-$($osArch.Os)-$($osArch.Arch).zip"
+    $baseUrl = "https://github.com/$repo/releases/download/$tag"
+    $zipPath = Join-Path $BrowsersPath $asset
+    $shaPath = "$zipPath.sha256"
+
+    New-Item -ItemType Directory -Force -Path $BrowsersPath | Out-Null
+
+    if (Test-Path (Join-Path $BrowsersPath "chromium-$chromiumRevision")) {
+        Write-Host "Playwright browsers already cached for revision $chromiumRevision." -ForegroundColor Cyan
+        return $true
+    }
+
+    try {
+        Write-Host "Downloading Playwright browsers from release cache..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile $zipPath -UseBasicParsing
+        Invoke-WebRequest -Uri "$baseUrl/$asset.sha256" -OutFile $shaPath -UseBasicParsing
+
+        $expectedHash = ((Get-Content $shaPath -Raw) -split '\s+')[0].Trim().ToLowerInvariant()
+        $actualHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if (-not $expectedHash -or $expectedHash -ne $actualHash) {
+            throw "Playwright browser cache checksum mismatch."
+        }
+
+        Expand-Archive -Path $zipPath -DestinationPath $BrowsersPath -Force
+        Remove-Item $zipPath, $shaPath -Force -ErrorAction SilentlyContinue
+        return $true
+    } catch {
+        Write-Host "Release cache download failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Remove-Item $zipPath, $shaPath -Force -ErrorAction SilentlyContinue
+        return $false
+    }
+}
+
 # Resolve target path
 try {
     $TargetProject = (Resolve-Path $TargetPath).Path
@@ -227,6 +375,16 @@ $ContextJson = @"
 "@
 Set-Content -Path (Join-Path $ArtkDir "context.json") -Value $ContextJson
 
+# .artk/.gitignore
+$ArtkGitIgnore = @"
+# ARTK temporary files
+browsers/
+heal-logs/
+*.heal.json
+selector-catalog.local.json
+"@
+Set-Content -Path (Join-Path $ArtkDir ".gitignore") -Value $ArtkGitIgnore
+
 # .gitignore additions
 $GitIgnore = @"
 node_modules/
@@ -243,11 +401,22 @@ if (-not $SkipNpm) {
     Write-Host "[6/6] Running npm install..." -ForegroundColor Yellow
     Push-Location $ArtkE2e
     try {
+        $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
         npm install --legacy-peer-deps
+        Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
 
-        # Install Playwright browsers
-        Write-Host "Installing Playwright browsers..." -ForegroundColor Yellow
-        npx playwright install chromium
+        $browsersCacheDir = Join-Path $TargetProject ".artk\browsers"
+        New-Item -ItemType Directory -Force -Path $browsersCacheDir | Out-Null
+        $env:PLAYWRIGHT_BROWSERS_PATH = $browsersCacheDir
+
+        if (Download-PlaywrightBrowsers -ArtkE2e $ArtkE2e -ArtkRepo $ArtkRepo -BrowsersPath $browsersCacheDir) {
+            $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+            Write-Host "Using release-hosted Playwright browsers cache." -ForegroundColor Cyan
+        } else {
+            Write-Host "Release cache unavailable; installing Playwright browsers..." -ForegroundColor Yellow
+            Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
+            npx playwright install chromium
+        }
     } finally {
         Pop-Location
     }

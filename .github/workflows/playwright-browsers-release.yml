@@ -1,0 +1,103 @@
+name: Build Playwright Browser Cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      playwright_version:
+        description: Playwright version (e.g. 1.40.0)
+        required: true
+        default: "1.40.0"
+      release_tag:
+        description: Release tag (optional). Default: playwright-browsers-<version>
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+      playwright_version: ${{ steps.tag.outputs.playwright_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          version="${{ inputs.playwright_version }}"
+          tag="${{ inputs.release_tag }}"
+          if [ -z "$tag" ]; then
+            tag="playwright-browsers-$version"
+          fi
+          echo "playwright_version=$version" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create release if missing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.tag.outputs.release_tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists."
+          else
+            gh release create "$tag" -t "$tag" -n "Playwright browser cache"
+          fi
+
+  build_browsers:
+    needs: create_release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    env:
+      RELEASE_TAG: ${{ needs.create_release.outputs.release_tag }}
+      PLAYWRIGHT_VERSION: ${{ needs.create_release.outputs.playwright_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright (Unix)
+        if: runner.os != 'Windows'
+        run: npm install --no-save --no-package-lock @playwright/test@${PLAYWRIGHT_VERSION}
+
+      - name: Install Playwright (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: npm install --no-save --no-package-lock @playwright/test@$env:PLAYWRIGHT_VERSION
+
+      - name: Build browser asset (Unix)
+        if: runner.os != 'Windows'
+        run: bash scripts/build-playwright-browsers-release.sh --project-dir "$GITHUB_WORKSPACE" --output-dir "$GITHUB_WORKSPACE/playwright-browsers-release"
+
+      - name: Build browser asset (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\scripts\build-playwright-browsers-release.ps1 -ProjectDir $env:GITHUB_WORKSPACE -OutputDir (Join-Path $env:GITHUB_WORKSPACE "playwright-browsers-release")
+
+      - name: Upload assets (Unix)
+        if: runner.os != 'Windows'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$RELEASE_TAG" playwright-browsers-release/*.zip playwright-browsers-release/*.sha256 --clobber
+
+      - name: Upload assets (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $assets = @(
+            "playwright-browsers-release\\*.zip",
+            "playwright-browsers-release\\*.sha256"
+          )
+          gh release upload $env:RELEASE_TAG $assets --clobber
