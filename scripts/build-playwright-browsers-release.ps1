@@ -27,21 +27,46 @@ if ($KeepBrowsers) {
 }
 
 function Resolve-OsArch {
-    if ($IsWindows) {
+    $osName = "unknown"
+    if ($IsWindows -eq $true) {
         $osName = "windows"
-    } elseif ($IsMacOS) {
+    } elseif ($IsMacOS -eq $true) {
         $osName = "macos"
-    } elseif ($IsLinux) {
+    } elseif ($IsLinux -eq $true) {
         $osName = "linux"
-    } else {
-        $osName = "unknown"
+    } elseif ($env:OS -eq "Windows_NT") {
+        $osName = "windows"
     }
 
-    $archName = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
-        "X64" { "x64" }
-        "Arm64" { "arm64" }
-        "X86" { "x86" }
-        default { "unknown" }
+    $archName = "unknown"
+    $runtimeArch = $null
+    try {
+        $runtimeArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    } catch {
+        $runtimeArch = $null
+    }
+
+    if ($runtimeArch) {
+        $archName = switch ($runtimeArch) {
+            "X64" { "x64" }
+            "Arm64" { "arm64" }
+            "X86" { "x86" }
+            default { "unknown" }
+        }
+    } else {
+        $archRaw = $env:PROCESSOR_ARCHITEW6432
+        if (-not $archRaw) {
+            $archRaw = $env:PROCESSOR_ARCHITECTURE
+        }
+        if ($archRaw) {
+            $archName = switch ($archRaw.ToLowerInvariant()) {
+                "amd64" { "x64" }
+                "x64" { "x64" }
+                "arm64" { "arm64" }
+                "x86" { "x86" }
+                default { "unknown" }
+            }
+        }
     }
 
     return @{
