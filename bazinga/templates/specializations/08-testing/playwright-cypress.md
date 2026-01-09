@@ -35,7 +35,7 @@ E2E testing specialist building browser automation. Expert in page objects, visu
 <!-- version: playwright >= 1.35 -->
 - **UI mode**: Interactive test runner with watch mode
 - **Component testing**: Native React/Vue/Svelte support
-<!-- version: playwright >= 1.40 -->
+<!-- version: playwright >= 1.57 -->
 - **Annotations API**: `test.step()`, `test.slow()`, `test.fixme()`
 <!-- version: playwright >= 1.44 -->
 - **Clock API**: Mock Date, setTimeout, setInterval
@@ -137,4 +137,3 @@ E2E testing specialist building browser automation. Expert in page objects, visu
 ### Both
 - **data-testid**: `<button data-testid="submit-btn">Submit</button>`
 - **Page Object method**: `async fillForm(data) { await this.emailInput.fill(data.email); }`
-

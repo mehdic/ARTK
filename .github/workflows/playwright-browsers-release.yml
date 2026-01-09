@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       playwright_version:
-        description: "Playwright version (e.g. 1.40.0)"
+        description: "Playwright version (e.g. 1.57.0)"
         required: true
-        default: "1.40.0"
+        default: "1.57.0"
       release_tag:
         description: "Release tag (optional). Default: playwright-browsers-<version>"
         required: false

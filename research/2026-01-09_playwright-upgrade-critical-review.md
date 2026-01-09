@@ -1,4 +1,4 @@
-# Critical Review: Playwright 1.40 → 1.57 Upgrade Implementation
+# Critical Review: Playwright 1.57 → 1.57 Upgrade Implementation
 
 **Date:** 2026-01-09
 **Topic:** Brutal honesty review of the Playwright upgrade implementation
@@ -85,7 +85,7 @@ git status
 
 I updated 10 files but **MISSED 14 MORE FILES** with version references:
 
-#### Files with `1.40` that were NOT updated:
+#### Files with `1.57` that were NOT updated:
 
 **Workflow files:**
 - `.github/workflows/playwright-browsers-release.yml` (lines 7, 9)
@@ -157,7 +157,7 @@ KillShell b6ec2cc
 **Severity:** MODERATE
 **Status:** BROKEN
 
-The `dist/` folder contains built artifacts from Playwright 1.40.0 era but:
+The `dist/` folder contains built artifacts from Playwright 1.57.0 era but:
 - Source code references 1.57.0
 - `package.json` declares 1.57.0 dependency
 - **BUT** `dist/` cannot be rebuilt due to TypeScript error
@@ -280,8 +280,8 @@ DTS Build error
 **Scenario:** GitHub Actions workflow tries to download Playwright browsers
 
 **What happens:**
-- Workflow still references 1.40.0 as default
-- Mismatch between installed Playwright (1.57.0) and expected browser version (1.40.0)
+- Workflow still references 1.57.0 as default
+- Mismatch between installed Playwright (1.57.0) and expected browser version (1.57.0)
 - Browser downloads may fail or use wrong version
 
 **Impact:** MODERATE - CI tests may use wrong browser version
@@ -294,7 +294,7 @@ DTS Build error
 
 **What happens:**
 - Bootstrap script templates out `package.json` with `^1.57.0`
-- User reads prompt file showing example with `^1.40.0`
+- User reads prompt file showing example with `^1.57.0`
 - Confusion about which version to use
 - Potential for users to manually downgrade thinking there's an error
 
@@ -349,9 +349,9 @@ git commit -m "chore: add package-lock.json for Playwright 1.57.0 upgrade"
 ```yaml
 # File: .github/workflows/playwright-browsers-release.yml
 # Lines 7-9: Change from:
-        description: "Playwright version (e.g. 1.40.0)"
+        description: "Playwright version (e.g. 1.57.0)"
         required: true
-        default: "1.40.0"
+        default: "1.57.0"
 
 # To:
         description: "Playwright version (e.g. 1.57.0)"
@@ -366,7 +366,7 @@ git commit -m "chore: add package-lock.json for Playwright 1.57.0 upgrade"
 ```markdown
 # File: prompts/artk.init-playbook.md
 # Line 239: Change from:
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.57.0",
 
 # To:
     "@playwright/test": "^1.57.0",
@@ -562,6 +562,6 @@ The upgrade is **NOT PRODUCTION READY** and should **NOT BE MERGED** in its curr
 
 ## 📖 REFERENCES
 
-- Original plan: `research/2026-01-08_playwright-1.40-to-1.57-upgrade.md`
+- Original plan: `research/2026-01-08_playwright-1.57-to-1.57-upgrade.md`
 - Completion report: `research/2026-01-09_playwright-upgrade-completed.md` (INACCURATE)
 - This critical review: `research/2026-01-09_playwright-upgrade-critical-review.md`

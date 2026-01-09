@@ -28,7 +28,7 @@ npm error code E401 (Font Awesome private registry)
 This happened because we tried to add `@artk/core` to the **same** `package.json` as a React Native web application. The dependency resolver tried to reconcile:
 - React 18 (application)
 - React Native 0.82 (application)
-- Playwright 1.40+ (ARTK)
+- Playwright 1.57+ (ARTK)
 - Font Awesome Pro (application, private registry)
 
 **These have nothing to do with each other.** E2E tests don't need React. They need a browser.
@@ -127,7 +127,7 @@ test('user can checkout', async ({ page }) => {
 ```json
 {
   "dependencies": {
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.57.0",
     "zod": "^3.22.4",
     "yaml": "^2.3.4",
     "otplib": "^12.0.1"
@@ -177,7 +177,7 @@ my-app/
   },
   "devDependencies": {
     "@artk/core": "file:../vendor/artk-core",
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.57.0"
   }
 }
 ```
@@ -205,7 +205,7 @@ cat > "$E2E_DIR/package.json" << 'EOF'
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.57.0"
   }
 }
 EOF

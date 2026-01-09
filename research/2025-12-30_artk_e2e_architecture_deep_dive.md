@@ -336,7 +336,7 @@ Create `install-to-project.sh` that:
   "install": {
     "script_path": "/path/to/install-to-project.sh",
     "artk_core_version": "1.0.0",
-    "playwright_version": "1.40.0"
+    "playwright_version": "1.57.0"
   }
 }
 ```

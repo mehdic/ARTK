@@ -1,7 +1,7 @@
-# Playwright Upgrade Analysis: 1.40 → 1.57
+# Playwright Upgrade Analysis: 1.57 → 1.57
 
 **Date:** 2026-01-08
-**Topic:** Feasibility and effort analysis for upgrading ARTK from Playwright 1.40 to 1.57
+**Topic:** Feasibility and effort analysis for upgrading ARTK from Playwright 1.57 to 1.57
 
 ---
 
@@ -24,7 +24,7 @@
 ```json
 {
   "dependencies": {
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.57.0",
     "otplib": "^12.0.1",
     "yaml": "^2.3.4",
     "zod": "^3.22.4"
@@ -37,7 +37,7 @@
 {
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.57.0",
     "typescript": "^5.3.0"
   }
 }
@@ -52,8 +52,8 @@
 
 ## Version Jump Analysis
 
-**Versions spanned:** 1.40 → 1.57 (17 minor releases)
-- 1.40.0 (December 2023)
+**Versions spanned:** 1.57 → 1.57 (17 minor releases)
+- 1.57.0 (December 2023)
 - 1.41.0 through 1.57.0 (January 2026)
 - ~13 months of development
 
@@ -250,7 +250,7 @@ playwright test --last-failed
 ### Phase 1: Update Dependencies (30 minutes)
 
 **Files to update:**
-1. `core/typescript/package.json` - Change `^1.40.0` → `^1.57.0`
+1. `core/typescript/package.json` - Change `^1.57.0` → `^1.57.0`
 2. `scripts/bootstrap.sh` - Update line 311
 3. `scripts/bootstrap.ps1` - Update equivalent line
 
@@ -301,7 +301,7 @@ npm test
 - `docs/` - Any version-specific docs
 
 **Changes:**
-- Replace `1.40` → `1.57`
+- Replace `1.57` → `1.57`
 - Add note about Chrome for Testing
 - Add `--last-failed` to workflow docs
 
@@ -367,7 +367,7 @@ If issues arise:
 ```bash
 # Rollback core library
 cd core/typescript
-npm install @playwright/test@^1.40.0
+npm install @playwright/test@^1.57.0
 npm test
 git checkout -- package.json package-lock.json
 
@@ -516,7 +516,7 @@ git checkout -- scripts/bootstrap.sh scripts/bootstrap.ps1
 
 ## Conclusion
 
-**Upgrade from Playwright 1.40 → 1.57 is LOW RISK and HIGH REWARD.**
+**Upgrade from Playwright 1.57 → 1.57 is LOW RISK and HIGH REWARD.**
 
 ### Why Upgrade?
 
