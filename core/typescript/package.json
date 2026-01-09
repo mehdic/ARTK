@@ -85,7 +85,7 @@
     "version:update": "node scripts/update-version.js"
   },
   "dependencies": {
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.57.0",
     "otplib": "^12.0.1",
     "yaml": "^2.3.4",
     "zod": "^3.22.4"

@@ -3,7 +3,7 @@
   "releaseDate": "2025-12-29",
   "description": "ARTK Core v1 - Initial release with config-driven setup, OIDC auth, fixtures, locators, assertions, data harness, and reporters",
   "minNodeVersion": "18.0.0",
-  "minPlaywrightVersion": "1.40.0",
+  "minPlaywrightVersion": "1.57.0",
   "breakingChanges": [],
   "features": [
     "Config-driven test setup via artk.config.yml",

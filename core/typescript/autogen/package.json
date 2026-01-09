@@ -57,7 +57,7 @@
   },
   "peerDependencies": {
     "@artk/core": ">=1.0.0",
-    "@playwright/test": ">=1.40.0"
+    "@playwright/test": ">=1.57.0"
   },
   "peerDependenciesMeta": {
     "@artk/core": {

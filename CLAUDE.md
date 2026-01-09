@@ -374,13 +374,13 @@ artk-export
 
 ## Active Technologies
 
-- TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation) (001-artk-core-v1)
+- TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.57.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation) (001-artk-core-v1)
 - File system (storage states in `.auth-states/`, config in `artk.config.yml`) (001-artk-core-v1)
-- TypeScript 5.x (Node.js 18.0.0+) for scripts; Bash/PowerShell bootstrap scripts + @artk/core 1.0.0+, @playwright/test 1.40.0+, yaml (config parsing), zod (schema validation) (002-artk-e2e-independent-architecture)
+- TypeScript 5.x (Node.js 18.0.0+) for scripts; Bash/PowerShell bootstrap scripts + @artk/core 1.0.0+, @playwright/test 1.57.0+, yaml (config parsing), zod (schema validation) (002-artk-e2e-independent-architecture)
 - File-based (YAML config, JSON context, Markdown journeys) (002-artk-e2e-independent-architecture)
-- TypeScript 5.x (Node.js 18.0.0+) + Bash/PowerShell scripts + Playwright 1.40+, @artk/core (built in 001), Zod, yaml, otplib (003-artk-pilot-launch)
+- TypeScript 5.x (Node.js 18.0.0+) + Bash/PowerShell scripts + Playwright 1.57+, @artk/core (built in 001), Zod, yaml, otplib (003-artk-pilot-launch)
 - File-based (artk.config.yml, .auth-states/*.json, .artk/context.json) (003-artk-pilot-launch)
 
 ## Recent Changes
 
-- 001-artk-core-v1: Added TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)
+- 001-artk-core-v1: Added TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.57.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)

@@ -300,7 +300,7 @@ describe('generatePackageJsonObject', () => {
     it('should include @playwright/test', () => {
       const pkg = generatePackageJsonObject();
 
-      expect(pkg.devDependencies['@playwright/test']).toBe('^1.40.0');
+      expect(pkg.devDependencies['@playwright/test']).toBe('^1.57.0');
     });
 
     it('should use custom playwright version', () => {
@@ -418,7 +418,7 @@ describe('generatePackageJson', () => {
 
 describe('DEPENDENCY_VERSIONS', () => {
   it('should have playwright version', () => {
-    expect(DEPENDENCY_VERSIONS.playwright).toBe('^1.40.0');
+    expect(DEPENDENCY_VERSIONS.playwright).toBe('^1.57.0');
   });
 
   it('should have typescript version', () => {
@@ -498,6 +498,6 @@ describe('edge cases', () => {
 
     expect(pkg.name).toBe('partial-override');
     expect(pkg.description).toBe('ARTK E2E Testing Suite'); // default
-    expect(pkg.devDependencies['@playwright/test']).toBe('^1.40.0'); // default
+    expect(pkg.devDependencies['@playwright/test']).toBe('^1.57.0'); // default
   });
 });

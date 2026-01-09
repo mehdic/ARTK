@@ -23,7 +23,7 @@ This library is organized into 8 core modules:
 ## Requirements
 
 - **Node.js**: 18.0.0 or higher
-- **Playwright**: 1.40.0 or higher
+- **Playwright**: 1.57.0 or higher
 - **TypeScript**: 5.3 or higher
 
 ## Dependencies
@@ -352,7 +352,7 @@ ARTK Core v1 has been validated against a real-world pilot project (IT Service S
 - **Total Journeys**: 15 (8 implemented, 7 proposed)
 - **Test Files Generated**: 8 Playwright test files
 - **Detection Accuracy**: 100% (React SPA, Vite, Ant Design, Keycloak)
-- **Framework**: Playwright 1.40.0+
+- **Framework**: Playwright 1.57.0+
 - **Authentication**: OIDC with PKCE (Keycloak)
 
 ### Validated Features

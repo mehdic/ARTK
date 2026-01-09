@@ -13,7 +13,7 @@
  * const packageJson = generatePackageJson({
  *   projectName: 'my-e2e-tests',
  *   artkCoreVersion: '1.0.0',
- *   playwrightVersion: '^1.40.0',
+ *   playwrightVersion: '^1.57.0',
  * });
  *
  * await fs.writeFile('artk-e2e/package.json', packageJson);
@@ -45,7 +45,7 @@ export interface PackageJsonOptions {
 
   /**
    * Version of @playwright/test to use.
-   * @default '^1.40.0'
+   * @default '^1.57.0'
    */
   playwrightVersion?: string;
 
@@ -90,7 +90,7 @@ const DEFAULT_OPTIONS: Required<PackageJsonOptions> = {
   projectName: 'artk-e2e-tests',
   description: 'ARTK E2E Testing Suite',
   artkCoreVersion: '1.0.0',
-  playwrightVersion: '^1.40.0',
+  playwrightVersion: '^1.57.0',
   additionalScripts: {},
   additionalDependencies: {},
   additionalDevDependencies: {},
@@ -264,7 +264,7 @@ export function validateProjectName(name: string): {
  * Default versions for ARTK E2E dependencies.
  */
 export const DEPENDENCY_VERSIONS = {
-  playwright: '^1.40.0',
+  playwright: '^1.57.0',
   typescript: '^5.3.3',
   artkCore: '1.0.0',
   node: '>=18.0.0',

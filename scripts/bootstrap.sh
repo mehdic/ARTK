@@ -308,7 +308,7 @@ cat > "$ARTK_E2E/package.json" << 'PKGJSON'
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.57.0",
     "typescript": "^5.3.0"
   }
 }

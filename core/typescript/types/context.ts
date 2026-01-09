@@ -40,7 +40,7 @@ export const CONTEXT_SCHEMA_VERSION = '1.0' as const;
  *   ],
  *   install: {
  *     artk_core_version: '1.0.0',
- *     playwright_version: '1.40.0',
+ *     playwright_version: '1.57.0',
  *     script_path: '/path/to/install-to-project.sh'
  *   }
  * };
