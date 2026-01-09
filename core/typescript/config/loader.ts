@@ -334,7 +334,7 @@ export function loadConfig(options: LoadConfigOptions = {}): LoadConfigResult {
   }
 
   // Resolve environment variables
-  let resolvedConfig = resolveEnvVarsInObject(rawConfig, resolveOptions);
+  let resolvedConfig = resolveEnvVarsInObject(rawConfig, resolveOptions) as Record<string, unknown>;
 
   // Validate version is supported (reject future versions)
   const configVersion = (resolvedConfig.version as number | undefined) ?? 0;

@@ -16,7 +16,7 @@ This research document captures technical decisions, dependency analysis, and ar
 |-----------|---------|-----------|
 | Node.js | 18.0.0+ | LTS with native fetch, stable ESM support |
 | TypeScript | 5.x | Latest features, strict mode for type safety |
-| Playwright | 1.40.0+ | Browser automation, storage state API, fixtures |
+| Playwright | 1.57.0+ | Browser automation, storage state API, fixtures |
 
 ### 1.2 Core Dependencies
 
@@ -31,7 +31,7 @@ This research document captures technical decisions, dependency analysis, and ar
 | Dependency | Purpose | Version |
 |------------|---------|---------|
 | `vitest` | Unit testing | ^1.0.0 |
-| `@playwright/test` | Integration/E2E testing | ^1.40.0 |
+| `@playwright/test` | Integration/E2E testing | ^1.57.0 |
 | `typescript` | TypeScript compiler | ^5.3.0 |
 | `tsup` | Build/bundling | ^8.0.0 |
 

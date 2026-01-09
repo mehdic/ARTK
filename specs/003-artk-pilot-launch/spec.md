@@ -450,7 +450,7 @@ ITSS Project (ignore/req-apps-it-service-shop/)
 |------------|--------|-------|
 | 001-artk-core-v1 | COMPLETED | 116/116 tasks done |
 | Node.js 18+ | Required | Runtime |
-| Playwright 1.40+ | Required | Test framework |
+| Playwright 1.57+ | Required | Test framework |
 | ITSS project access | Required | Pilot target |
 | ITSS test accounts | Required | Auth testing |
 

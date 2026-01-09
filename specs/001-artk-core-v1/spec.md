@@ -276,7 +276,7 @@ As an AI assistant (GitHub Copilot, Claude), I want updated ARTK prompts that re
 
 ## Assumptions
 
-- Target project uses Playwright 1.40.0 or higher
+- Target project uses Playwright 1.57.0 or higher
 - Node.js 18.0.0 or higher is available
 - OIDC identity provider is accessible from test environment
 - Test accounts exist with known credentials stored in environment variables

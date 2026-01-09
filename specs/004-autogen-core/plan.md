@@ -24,7 +24,7 @@ Build `@artk/core-autogen` - a deterministic test generation engine that transfo
 - yaml (config parsing)
 - zod (schema validation)
 - eslint-plugin-playwright (static rules)
-- @playwright/test 1.40.0+
+- @playwright/test 1.57.0+
 
 **Storage**: File-based (YAML config, JSON catalog/registry, Markdown journeys)
 **Testing**: vitest for unit tests, Playwright for integration tests

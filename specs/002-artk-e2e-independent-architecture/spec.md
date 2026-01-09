@@ -459,7 +459,7 @@ cat > "$ARTK_E2E/package.json" << 'EOF'
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.57.0"
   }
 }
 EOF
@@ -664,7 +664,7 @@ For projects that already have @artk/core in their main package.json:
 ## 7. Dependencies
 
 - Node.js 18.0.0+
-- @playwright/test 1.40.0+
+- @playwright/test 1.57.0+
 - @artk/core 1.0.0+
 - Git (for root detection)
 

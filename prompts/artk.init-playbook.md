@@ -236,7 +236,7 @@ Base structure:
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
     "@artk/core-autogen": "file:./vendor/artk-autogen",
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.57.0",
     "typescript": "^5.3.0"
   }
 }

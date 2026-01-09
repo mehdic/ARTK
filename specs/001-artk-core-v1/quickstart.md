@@ -10,7 +10,7 @@ ARTK Core v1 is a vendorable Playwright infrastructure library that provides con
 ## Prerequisites
 
 - Node.js 18.0.0 or higher
-- Playwright 1.40.0 or higher
+- Playwright 1.57.0 or higher
 - Access to OIDC Identity Provider (if using OIDC auth)
 - Test user accounts with credentials available as environment variables
 

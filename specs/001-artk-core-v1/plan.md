@@ -10,7 +10,7 @@ ARTK Core v1 is a vendorable Playwright infrastructure library providing config-
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x (Node.js 18.0.0+)
-**Primary Dependencies**: Playwright 1.40.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)
+**Primary Dependencies**: Playwright 1.57.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)
 **Storage**: File system (storage states in `.auth-states/`, config in `artk.config.yml`)
 **Testing**: Vitest (unit tests), Playwright Test (integration/e2e)
 **Target Platform**: Node.js (vendorable library for Playwright projects)

@@ -10,7 +10,7 @@ Complete the ARTK E2E independent architecture (remaining 002 tasks) and validat
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x (Node.js 18.0.0+) + Bash/PowerShell scripts
-**Primary Dependencies**: Playwright 1.40+, @artk/core (built in 001), Zod, yaml, otplib
+**Primary Dependencies**: Playwright 1.57+, @artk/core (built in 001), Zod, yaml, otplib
 **Storage**: File-based (artk.config.yml, .auth-states/*.json, .artk/context.json)
 **Testing**: Playwright Test + Manual workflow validation (prompts executed against ITSS)
 **Target Platform**: Cross-platform (macOS, Linux, Windows - per US2)

@@ -27,7 +27,28 @@
 export * from './target.js';
 
 // Context types (inter-prompt communication)
-export * from './context.js';
+// Explicit exports to avoid duplicates with schemas.js
+export type {
+  ArtkContext,
+  PilotPhase,
+  PilotContext,
+  DetectedTarget,
+  DiscoveryContext,
+  JourneyStats,
+  ArtkContextExtended,
+} from './context.js';
+export {
+  CONTEXT_SCHEMA_VERSION,
+  isArtkContext,
+  MAX_TARGETS,
+  MIN_TARGETS,
+  PilotContextSchema,
+  DetectedTargetSchema,
+  DiscoveryContextSchema,
+  JourneyStatsSchema,
+  ArtkContextExtendedSchema,
+  validateArtkContextExtended,
+} from './context.js';
 
 // Config types (artk.config.yml)
 export * from './config.js';
@@ -41,5 +62,6 @@ export * from './detection.js';
 // Submodule types (git submodule state)
 export * from './submodule.js';
 
-// Zod schemas and validation helpers
+// Zod schemas and validation helpers (canonical source)
+// ArtkContextSchema, ArtkTargetSchema, validateArtkContext from here
 export * from './schemas.js';

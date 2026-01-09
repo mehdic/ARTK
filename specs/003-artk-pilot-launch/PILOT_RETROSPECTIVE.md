@@ -34,7 +34,7 @@ Created `artk-e2e/package.json` before running install:
     "test:ui": "playwright test --ui"
   },
   "devDependencies": {
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.57.0"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -87,7 +87,7 @@ added 250 packages, and audited 252 packages in 27s
 {
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.57.0"
   }
 }
 ```

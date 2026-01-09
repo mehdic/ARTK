@@ -300,7 +300,7 @@ A developer wants common terms in Journeys to map to consistent module methods.
 ## Assumptions
 
 - ARTK Core foundation harness is already installed in target repos
-- Playwright 1.40+ is installed with browsers available
+- Playwright 1.57+ is installed with browsers available
 - Target repos use TypeScript
 - Journey files follow ARTK Journey schema
 - GitHub Copilot is available and instruction files are supported

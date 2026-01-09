@@ -15,7 +15,7 @@ Create ARTK E2E test suites as independent, self-contained directories at the pr
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x (Node.js 18.0.0+) for scripts; Bash for install scripts (with PowerShell parity for Windows)
-**Primary Dependencies**: @artk/core 1.0.0+, @playwright/test 1.40.0+, yaml (config parsing), zod (schema validation)
+**Primary Dependencies**: @artk/core 1.0.0+, @playwright/test 1.57.0+, yaml (config parsing), zod (schema validation)
 **Storage**: File-based (YAML config, JSON context, Markdown journeys)
 **Testing**: Playwright Test for E2E, Vitest for unit tests of detection/config logic
 **Target Platform**: macOS (primary), Linux (CI), Windows (full support - releases blocked on Windows failures)
@@ -134,4 +134,4 @@ artk-e2e/                        # Created by install script
 - `quickstart.md` - Getting started guide with CI/CD integration examples
 
 **Agent Context Updated:**
-- `CLAUDE.md` - Updated with TypeScript 5.x, Playwright 1.40+, file-based storage
+- `CLAUDE.md` - Updated with TypeScript 5.x, Playwright 1.57+, file-based storage

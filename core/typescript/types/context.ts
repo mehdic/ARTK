@@ -351,9 +351,11 @@ export const JourneyStatsSchema = z.object({
 });
 
 /**
- * Zod schema for base ArtkContext.
+ * Zod schema for base ArtkContext (internal use only).
+ * Note: The canonical ArtkContextSchema in schemas.ts has additional validation.
+ * This simpler version is used here for .extend() support.
  */
-export const ArtkContextSchema = z.object({
+const ArtkContextSchemaBase = z.object({
   version: z.literal(CONTEXT_SCHEMA_VERSION),
   initialized_at: z.string(),
   project: z.object({
@@ -371,7 +373,7 @@ export const ArtkContextSchema = z.object({
 /**
  * Zod schema for extended ArtkContext with pilot fields.
  */
-export const ArtkContextExtendedSchema = ArtkContextSchema.extend({
+export const ArtkContextExtendedSchema = ArtkContextSchemaBase.extend({
   pilot: PilotContextSchema.optional(),
   detectedTargets: z.array(DetectedTargetSchema).optional(),
   discovery: DiscoveryContextSchema.optional(),
@@ -379,12 +381,14 @@ export const ArtkContextExtendedSchema = ArtkContextSchema.extend({
 });
 
 /**
- * Validates an ArtkContext object using Zod.
+ * Validates an ArtkContext object using Zod (internal version).
+ * Note: This uses the base schema. For full validation with refinements,
+ * use validateArtkContext from schemas.ts.
  */
 export function validateArtkContext(
   value: unknown
 ): { success: true; data: ArtkContext } | { success: false; error: z.ZodError } {
-  const result = ArtkContextSchema.safeParse(value);
+  const result = ArtkContextSchemaBase.safeParse(value);
   if (result.success) {
     return { success: true, data: result.data };
   }

@@ -217,7 +217,7 @@ When ARTK Core updates:
   "version": "1.0.0",
   "updated": "2024-12-29T10:00:00Z",
   "compatibility": {
-    "playwright": ">=1.40.0",
+    "playwright": ">=1.57.0",
     "node": ">=18.0.0"
   }
 }

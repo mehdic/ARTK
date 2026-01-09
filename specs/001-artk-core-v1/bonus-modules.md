@@ -238,7 +238,7 @@ interface PackageJsonOptions {
   projectName?: string;                     // Default: 'artk-e2e-tests'
   description?: string;                     // Default: 'ARTK E2E Testing Suite'
   artkCoreVersion?: string;                 // Default: '1.0.0'
-  playwrightVersion?: string;               // Default: '^1.40.0'
+  playwrightVersion?: string;               // Default: '^1.57.0'
   additionalScripts?: Record<string, string>;
   additionalDependencies?: Record<string, string>;
   additionalDevDependencies?: Record<string, string>;
