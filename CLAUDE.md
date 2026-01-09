@@ -295,6 +295,91 @@ When the user asks to "ultrathink" about a topic, create a research document:
 3. **Purpose:** Capture architectural decisions, analysis, and strategic thinking for future reference
 4. **Naming:** Use lowercase with underscores for the topic slug (e.g., `generalization_analysis`, `auth_patterns`, `cli_design`)
 
+## Installing Playwright Browsers on Restricted Networks
+
+**Problem:** Company networks often block Playwright browser downloads but allow npm and Docker.
+
+**Solution:** Extract browsers from official Playwright Docker image and install them manually.
+
+### Extract Browsers (On Personal Computer with Internet)
+
+**Using provided script:**
+
+```bash
+# Unix/Mac:
+./scripts/extract-browsers-from-docker.sh v1.57.0
+
+# Windows (PowerShell):
+.\scripts\extract-browsers-from-docker.ps1 -Version "v1.57.0"
+```
+
+**Manual extraction:**
+
+```bash
+# Pull Docker image
+docker pull mcr.microsoft.com/playwright:v1.57.0-focal
+
+# Create container (don't run it)
+docker create --name playwright-extract mcr.microsoft.com/playwright:v1.57.0-focal
+
+# Extract browsers
+docker cp playwright-extract:/ms-playwright ./playwright-browsers/
+
+# Clean up container
+docker rm playwright-extract
+
+# Package for transfer
+tar -czf playwright-browsers-v1.57.0.tar.gz playwright-browsers/
+```
+
+**Result:** `playwright-browsers-v1.57.0.tar.gz` (~500-600MB) ready to transfer.
+
+### Install Extracted Browsers (On Company PC)
+
+**Using provided script:**
+
+```powershell
+# Windows (PowerShell):
+.\scripts\install-extracted-browsers.ps1 -TarballPath "playwright-browsers-v1.57.0.tar.gz"
+```
+
+**Manual installation:**
+
+```powershell
+# Windows (PowerShell):
+tar -xzf playwright-browsers-v1.57.0.tar.gz
+$PlaywrightCache = "$env:LOCALAPPDATA\ms-playwright"
+New-Item -ItemType Directory -Force -Path $PlaywrightCache
+Copy-Item -Path "playwright-browsers\ms-playwright\*" -Destination $PlaywrightCache -Recurse -Force
+```
+
+```bash
+# Mac/Linux:
+tar -xzf playwright-browsers-v1.57.0.tar.gz
+mkdir -p ~/.cache/ms-playwright
+cp -r playwright-browsers/ms-playwright/* ~/.cache/ms-playwright/
+```
+
+### Install npm Packages (Skip Browser Download)
+
+```powershell
+# Windows (PowerShell) - temporary:
+$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+npm install
+
+# Windows (PowerShell) - permanent (add to profile):
+Add-Content $PROFILE "`$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'"
+```
+
+```bash
+# Mac/Linux:
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
+```
+
+**See:** `research/2026-01-08_extract-browsers-from-docker.md` for detailed guide.
+
+---
+
 ## Installing ARTK to Another Project
 
 ### Full Installation (Recommended)
