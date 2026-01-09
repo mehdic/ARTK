@@ -135,6 +135,14 @@ core/
       tools/node/              # generate.js and validate.js scripts
 ```
 
+## Testing
+
+Run both core test suites from the repo root:
+
+```bash
+npm run test:all
+```
+
 ## Key Concepts
 
 ### Journey
