@@ -137,11 +137,71 @@ core/
 
 ## Testing
 
+### Prerequisites
+
+Before running tests, ensure Playwright browsers are installed:
+
+```bash
+# From repo root
+cd core/typescript
+npx playwright install chromium
+cd ../..
+```
+
+**Why needed:** Some test suites (`assertions/__tests__/loading.test.ts`, `assertions/__tests__/table.test.ts`, `assertions/__tests__/toast.test.ts`) require Playwright's headless browser shell.
+
+### Running Tests
+
 Run both core test suites from the repo root:
 
 ```bash
 npm run test:all
 ```
+
+This runs:
+1. `npm --prefix core/typescript run test:unit` - Core TypeScript unit tests (~42 test files, ~1,332 tests)
+2. `npm --prefix core/typescript/autogen test` - Autogen tests (~38 test files, ~791 tests)
+
+**Total:** ~2,123 tests across ~80 test files
+
+### Validating Test Results
+
+**Proper validation steps:**
+
+1. Save full output:
+   ```bash
+   npm run test:all > test-output.txt 2>&1
+   echo "Exit code: $?" >> test-output.txt
+   ```
+
+2. Check for failures:
+   ```bash
+   grep -i "fail" test-output.txt
+   grep -E "Test Files.*failed|Tests.*failed" test-output.txt
+   ```
+
+3. Check final summary (at the very end):
+   ```bash
+   tail -20 test-output.txt
+   ```
+
+4. Verify exit code was 0:
+   ```bash
+   npm run test:all && echo "✅ All tests passed" || echo "❌ Tests failed"
+   ```
+
+**Expected output on success:**
+```
+Test Files  42 passed (42)
+     Tests  1332 passed (1332)
+
+Test Files  38 passed (38)
+     Tests  791 passed (791)
+```
+
+**Common failures:**
+- Missing Playwright browsers → Run `npx playwright install chromium` in `core/typescript/`
+- Missing dependencies → Run `npm install` in repo root and `core/typescript/`
 
 ## Key Concepts
 
