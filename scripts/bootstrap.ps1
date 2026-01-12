@@ -23,6 +23,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ArtkRepo = Split-Path -Parent $ScriptDir
 $ArtkCore = Join-Path $ArtkRepo "core\typescript"
+$ArtkAutogen = Join-Path $ArtkCore "autogen"
 $ArtkPrompts = Join-Path $ArtkRepo "prompts"
 
 function Resolve-GitHubRepo {
@@ -139,6 +140,15 @@ function Download-PlaywrightBrowsers {
         [string]$BrowsersPath
     )
 
+    $timeoutSec = 30
+    if ($env:ARTK_PLAYWRIGHT_BROWSERS_TIMEOUT_SEC) {
+        try {
+            $timeoutSec = [int]$env:ARTK_PLAYWRIGHT_BROWSERS_TIMEOUT_SEC
+        } catch {
+            $timeoutSec = 30
+        }
+    }
+
     $repo = Resolve-GitHubRepo -RepoRoot $ArtkRepo
     if (-not $repo) {
         Write-Host "Release repo not set; skipping Playwright browser cache download." -ForegroundColor Yellow
@@ -179,8 +189,8 @@ function Download-PlaywrightBrowsers {
 
     try {
         Write-Host "Downloading Playwright browsers from release cache..." -ForegroundColor Yellow
-        Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile $zipPath -UseBasicParsing
-        Invoke-WebRequest -Uri "$baseUrl/$asset.sha256" -OutFile $shaPath -UseBasicParsing
+        Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile $zipPath -UseBasicParsing -TimeoutSec $timeoutSec
+        Invoke-WebRequest -Uri "$baseUrl/$asset.sha256" -OutFile $shaPath -UseBasicParsing -TimeoutSec $timeoutSec
 
         $expectedHash = ((Get-Content $shaPath -Raw) -split '\s+')[0].Trim().ToLowerInvariant()
         $actualHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -209,72 +219,106 @@ function Test-CiEnvironment {
         ($env:USERNAME -in @("jenkins", "gitlab-runner", "circleci"))
 }
 
-function Get-BrowserVersion {
-    param([string]$Path)
+function Get-BrowserVersionResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
 
     if (-not (Test-Path $Path)) {
-        return $null
+        return @{ Version = $null; Error = "not found" }
     }
 
     try {
-        $job = Start-Job -ScriptBlock { param($exe) & $exe --version } -ArgumentList $Path
-        $completed = Wait-Job $job -Timeout 5
-        if (-not $completed) {
-            Stop-Job $job -Force
-            Remove-Job $job
-            return $null
+        $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+        $raw = $info.ProductVersion
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            $raw = $info.FileVersion
         }
 
-        $output = Receive-Job $job -ErrorAction SilentlyContinue
-        Remove-Job $job
-
-        if ($output) {
-            $match = [regex]::Match($output, '\d+\.\d+\.\d+\.\d+')
-            if ($match.Success) {
-                return $match.Value
-            }
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            return @{ Version = $null; Error = "no file version" }
         }
+
+        # Accept both 3-part and 4-part versions (some channels/installs vary).
+        $match = [regex]::Match($raw, '\d+\.\d+\.\d+(?:\.\d+)?')
+        if ($match.Success) {
+            return @{ Version = $match.Value; Error = $null }
+        }
+
+        # Fall back to the raw version string if it exists.
+        return @{ Version = $raw.Trim(); Error = $null }
     } catch {
-        return $null
+        return @{ Version = $null; Error = $_.Exception.Message }
     }
-
-    return $null
 }
 
 function Resolve-AvailableBrowser {
+    param(
+        [string]$LogPath
+    )
+
+    $logLines = New-Object System.Collections.Generic.List[string]
+
+    $programFilesX86 = [System.Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    if ([string]::IsNullOrWhiteSpace($programFilesX86)) {
+        $programFilesX86 = "C:\Program Files (x86)"
+    }
+
+    $programFiles64 = $env:ProgramW6432
+    if ([string]::IsNullOrWhiteSpace($programFiles64)) {
+        $programFiles64 = $env:ProgramFiles
+    }
+
     $edgePaths = @(
-        "$env:ProgramFiles(x86)\Microsoft\Edge\Application\msedge.exe",
+        "$programFilesX86\Microsoft\Edge\Application\msedge.exe",
+        "$programFiles64\Microsoft\Edge\Application\msedge.exe",
         "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
         "$env:LOCALAPPDATA\Microsoft\Edge\Application\msedge.exe",
         "$env:USERPROFILE\AppData\Local\Microsoft\Edge\Application\msedge.exe"
     )
 
     foreach ($path in $edgePaths) {
-        $version = Get-BrowserVersion -Path $path
-        if ($version) {
+        $result = Get-BrowserVersionResult -Path $path
+        if (Test-Path $path) {
             return @{
                 Channel = "msedge"
-                Version = $version
+                Version = $result.Version
                 Path = $path
             }
         }
+
+        $logLines.Add("msedge: $path => $($result.Error)")
     }
 
     $chromePaths = @(
+        "$programFiles64\Google\Chrome\Application\chrome.exe",
         "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
-        "$env:ProgramFiles(x86)\Google\Chrome\Application\chrome.exe",
+        "$programFilesX86\Google\Chrome\Application\chrome.exe",
         "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
         "$env:USERPROFILE\AppData\Local\Google\Chrome\Application\chrome.exe"
     )
 
     foreach ($path in $chromePaths) {
-        $version = Get-BrowserVersion -Path $path
-        if ($version) {
+        $result = Get-BrowserVersionResult -Path $path
+        if (Test-Path $path) {
             return @{
                 Channel = "chrome"
-                Version = $version
+                Version = $result.Version
                 Path = $path
             }
+        }
+
+        $logLines.Add("chrome: $path => $($result.Error)")
+    }
+
+    if ($LogPath) {
+        try {
+            $header = "System browser detection log (" + (Get-Date -Format "yyyy-MM-ddTHH:mm:ssK") + ")"
+            $content = @($header, "") + $logLines.ToArray()
+            $content | Set-Content -Path $LogPath
+        } catch {
+            # Best-effort only.
         }
     }
 
@@ -372,6 +416,96 @@ browsers:
     Set-Content -Path $ConfigPath -Value $content
 }
 
+function Ensure-ArtkConfigHasBrowsersSection {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigPath,
+
+        [string]$Channel = "bundled",
+        [string]$Strategy = "auto"
+    )
+
+    if (-not (Test-Path $ConfigPath)) {
+        return
+    }
+
+    $existing = Get-Content -Path $ConfigPath -Raw
+    if ([string]::IsNullOrWhiteSpace($existing)) {
+        return
+    }
+
+    if ([regex]::IsMatch($existing, '(?m)^\s*browsers\s*:')) {
+        return
+    }
+
+    $browsersBlock = @"
+
+browsers:
+  enabled:
+    - chromium
+  channel: $Channel
+  strategy: $Strategy
+  viewport:
+    width: 1280
+    height: 720
+  headless: true
+"@
+
+    Set-Content -Path $ConfigPath -Value ($existing.TrimEnd() + $browsersBlock)
+}
+
+function Set-ArtkConfigBrowsersChannel {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Channel
+    )
+
+    if (-not (Test-Path $ConfigPath)) {
+        return $false
+    }
+
+    $existing = Get-Content -Path $ConfigPath -Raw
+    if ([string]::IsNullOrWhiteSpace($existing)) {
+        return $false
+    }
+
+    if (-not [regex]::IsMatch($existing, '(?m)^\s*browsers\s*:')) {
+        return $false
+    }
+
+    $pattern = '(?ms)(^\s*browsers\s*:\s*\r?\n.*?^\s*channel\s*:\s*)([^\r\n]+)'
+    $re = [regex]::new(
+        $pattern,
+        [System.Text.RegularExpressions.RegexOptions]::Multiline -bor [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+
+    if ($re.IsMatch($existing)) {
+        $updated = $re.Replace($existing, "`$1$Channel", 1)
+        if ($updated -ne $existing) {
+            Set-Content -Path $ConfigPath -Value $updated
+            return $true
+        }
+
+        return $false
+    }
+
+    # browsers block exists but has no channel line; insert directly under it.
+    $insertPattern = '(?m)^(\s*browsers\s*:\s*)$'
+    $insertRe = [regex]::new($insertPattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
+    if ($insertRe.IsMatch($existing)) {
+        $updated = $insertRe.Replace($existing, "`$1`r`n  channel: $Channel", 1)
+        if ($updated -ne $existing) {
+            Set-Content -Path $ConfigPath -Value $updated
+            return $true
+        }
+    }
+
+    return $false
+}
+
 # Resolve target path
 try {
     $TargetProject = (Resolve-Path $TargetPath).Path
@@ -393,7 +527,7 @@ Write-Host ""
 # Step 1: Build @artk/core if needed
 $CoreDist = Join-Path $ArtkCore "dist"
 if (-not (Test-Path $CoreDist)) {
-    Write-Host "[1/6] Building @artk/core..." -ForegroundColor Yellow
+    Write-Host "[1/7] Building @artk/core..." -ForegroundColor Yellow
     Push-Location $ArtkCore
     try {
         npm install
@@ -402,13 +536,14 @@ if (-not (Test-Path $CoreDist)) {
         Pop-Location
     }
 } else {
-  Write-Host "[1/6] @artk/core already built" -ForegroundColor Cyan
+    Write-Host "[1/7] @artk/core already built" -ForegroundColor Cyan
 }
 
 # Step 2: Create artk-e2e structure
-Write-Host "[2/6] Creating artk-e2e/ structure..." -ForegroundColor Yellow
+Write-Host "[2/7] Creating artk-e2e/ structure..." -ForegroundColor Yellow
 @(
     "vendor\artk-core",
+    "vendor\artk-core-autogen",
     "tests",
     "docs",
     "journeys",
@@ -419,7 +554,7 @@ Write-Host "[2/6] Creating artk-e2e/ structure..." -ForegroundColor Yellow
 }
 
 # Step 3: Copy @artk/core to vendor
-Write-Host "[3/6] Installing @artk/core to vendor/..." -ForegroundColor Yellow
+Write-Host "[3/7] Installing @artk/core to vendor/..." -ForegroundColor Yellow
 $VendorTarget = Join-Path $ArtkE2e "vendor\artk-core"
 Copy-Item -Path (Join-Path $ArtkCore "dist") -Destination $VendorTarget -Recurse -Force
 Copy-Item -Path (Join-Path $ArtkCore "package.json") -Destination $VendorTarget -Force
@@ -432,8 +567,24 @@ if (Test-Path $ReadmePath) {
     Copy-Item -Path $ReadmePath -Destination $VendorTarget -Force
 }
 
+Write-Host "[3/7] Installing @artk/core-autogen to vendor/..." -ForegroundColor Yellow
+$AutogenVendorTarget = Join-Path $ArtkE2e "vendor\artk-core-autogen"
+$AutogenDist = Join-Path $ArtkAutogen "dist"
+if (-not (Test-Path $AutogenDist)) {
+    Write-Host "Error: Missing @artk/core-autogen dist output at $AutogenDist" -ForegroundColor Red
+    Write-Host "Build it first (from ARTK repo):" -ForegroundColor Yellow
+    Write-Host "  cd $ArtkAutogen; npm install; npm run build" -ForegroundColor Yellow
+    exit 1
+}
+Copy-Item -Path $AutogenDist -Destination $AutogenVendorTarget -Recurse -Force
+Copy-Item -Path (Join-Path $ArtkAutogen "package.json") -Destination $AutogenVendorTarget -Force
+$AutogenReadmePath = Join-Path $ArtkAutogen "README.md"
+if (Test-Path $AutogenReadmePath) {
+    Copy-Item -Path $AutogenReadmePath -Destination $AutogenVendorTarget -Force
+}
+
 # Step 4: Install prompts
-Write-Host "[4/6] Installing prompts to .github/prompts/..." -ForegroundColor Yellow
+Write-Host "[4/7] Installing prompts to .github/prompts/..." -ForegroundColor Yellow
 $PromptsTarget = Join-Path $TargetProject ".github\prompts"
 New-Item -ItemType Directory -Force -Path $PromptsTarget | Out-Null
 
@@ -444,7 +595,7 @@ Get-ChildItem -Path $ArtkPrompts -Filter "artk.*.md" | ForEach-Object {
 }
 
 # Step 5: Create configuration files
-Write-Host "[5/6] Creating configuration files..." -ForegroundColor Yellow
+Write-Host "[5/7] Creating configuration files..." -ForegroundColor Yellow
 
 # Detect project name from target directory
 $ProjectName = Split-Path -Leaf $TargetProject
@@ -464,6 +615,7 @@ $PackageJson = @"
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
+        "@artk/core-autogen": "file:./vendor/artk-core-autogen",
     "@playwright/test": "^1.57.0",
     "typescript": "^5.3.0"
   }
@@ -524,7 +676,16 @@ Set-Content -Path (Join-Path $ArtkE2e "tsconfig.json") -Value $TsConfig
 $configGenerated = $false
 $configPath = Join-Path $ArtkE2e "artk.config.yml"
 if (Test-Path $configPath) {
-    Write-Host "artk.config.yml already exists - preserving existing configuration" -ForegroundColor Cyan
+    $channel = if ($env:ARTK_BROWSER_CHANNEL) { $env:ARTK_BROWSER_CHANNEL } else { "bundled" }
+    $strategy = if ($env:ARTK_BROWSER_STRATEGY) { $env:ARTK_BROWSER_STRATEGY } else { "auto" }
+
+    $existingConfig = Get-Content -Path $configPath -Raw
+    if (-not [regex]::IsMatch($existingConfig, '(?m)^\s*browsers\s*:')) {
+        Write-Host "artk.config.yml exists but browsers config is missing - adding browsers section" -ForegroundColor Yellow
+        Ensure-ArtkConfigHasBrowsersSection -ConfigPath $configPath -Channel $channel -Strategy $strategy
+    } else {
+        Write-Host "artk.config.yml already exists - preserving existing configuration" -ForegroundColor Cyan
+    }
 } else {
     $channel = if ($env:ARTK_BROWSER_CHANNEL) { $env:ARTK_BROWSER_CHANNEL } else { "bundled" }
     $strategy = if ($env:ARTK_BROWSER_STRATEGY) { $env:ARTK_BROWSER_STRATEGY } else { "auto" }
@@ -571,163 +732,159 @@ Set-Content -Path (Join-Path $ArtkE2e ".gitignore") -Value $GitIgnore
 
 # Step 6: Run npm install
 if (-not $SkipNpm) {
-    Write-Host "[6/6] Running npm install and configuring browsers..." -ForegroundColor Yellow
+    Write-Host "[6/7] Running npm install..." -ForegroundColor Yellow
     Push-Location $ArtkE2e
-    $configBackup = "$configPath.bootstrap-backup"
-    $bootstrapSucceeded = $false
-
-    if (Test-Path $configPath) {
-        Copy-Item -Path $configPath -Destination $configBackup -Force
-    }
-
-    function Install-BundledChromium {
-        param([string]$LogPath)
-
-        $output = & npx playwright install chromium 2>&1
-        $exitCode = $LASTEXITCODE
-        $output | Set-Content -Path $LogPath
-        return ($exitCode -eq 0)
-    }
-
-    $installLog = Join-Path ([System.IO.Path]::GetTempPath()) "playwright-install.log"
     try {
+        # Install npm deps without triggering Playwright browser download.
         $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
-        npm install --legacy-peer-deps
-        Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
 
+        $logsDir = Join-Path $TargetProject ".artk\logs"
+        New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
+        $npmLogOut = Join-Path $logsDir "npm-install.out.log"
+        $npmLogErr = Join-Path $logsDir "npm-install.err.log"
+
+        $exitCode = 1
+        try {
+            $proc = Start-Process -FilePath "npm" -ArgumentList @("install", "--legacy-peer-deps") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $npmLogOut -RedirectStandardError $npmLogErr
+            $exitCode = $proc.ExitCode
+        } catch {
+            $exitCode = 1
+            "Start-Process failed: $($_.Exception.Message)" | Set-Content -Path $npmLogErr
+        }
+
+        if ($exitCode -eq 0) {
+            Write-Host "npm install: SUCCESS" -ForegroundColor Green
+        } else {
+            $errSnippet = $null
+            try {
+                if (Test-Path $npmLogErr) {
+                    $errSnippet = (Get-Content -Path $npmLogErr -Tail 12 -ErrorAction SilentlyContinue) -join "`n"
+                }
+                if ([string]::IsNullOrWhiteSpace($errSnippet) -and (Test-Path $npmLogOut)) {
+                    $errSnippet = (Get-Content -Path $npmLogOut -Tail 12 -ErrorAction SilentlyContinue) -join "`n"
+                }
+            } catch {
+                $errSnippet = $null
+            }
+
+            Write-Host "npm install: FAILURE (exit code $exitCode)" -ForegroundColor Red
+            if ($errSnippet) {
+                Write-Host $errSnippet -ForegroundColor Red
+            }
+            Write-Host "Details saved to: $npmLogOut" -ForegroundColor DarkGray
+            Write-Host "Details saved to: $npmLogErr" -ForegroundColor DarkGray
+            exit 1
+        }
+
+        Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
+    } finally {
+        Pop-Location
+    }
+} else {
+    Write-Host "[6/7] Skipping npm install (-SkipNpm)" -ForegroundColor Cyan
+}
+
+# Step 7: Configure/install browsers
+if (-not $SkipNpm) {
+    Write-Host "[7/7] Configuring browsers..." -ForegroundColor Yellow
+    Push-Location $ArtkE2e
+    try {
+        $finalBrowserChannel = "bundled"
+        $finalBrowserStrategy = "auto"
+        $finalBrowserPath = $null
+
+        # Use a repo-local cache so developers don't fight global caches.
         $browsersCacheDir = Join-Path $TargetProject ".artk\browsers"
         New-Item -ItemType Directory -Force -Path $browsersCacheDir | Out-Null
         $env:PLAYWRIGHT_BROWSERS_PATH = $browsersCacheDir
 
-        $browserChannel = "bundled"
-        $browserStrategy = "auto"
-        $browserInfo = @{
-            Channel = "bundled"
-            Version = $null
-            Path = $null
-        }
+        $browsersReady = $false
 
-        if (Test-Path $configPath) {
-            $match = Select-String -Path $configPath -Pattern '^\s*strategy:\s*([a-z-]+)' | Select-Object -First 1
-            if ($match -and $match.Matches.Count -gt 0) {
-                $existingStrategy = $match.Matches[0].Groups[1].Value
-                if ($existingStrategy -and $existingStrategy -ne "auto") {
-                    $browserStrategy = $existingStrategy
-                    Write-Host "Respecting existing strategy preference: $browserStrategy" -ForegroundColor Cyan
-                }
-            }
-        }
-
-        if (Test-CiEnvironment -and $browserStrategy -ne "system-only") {
-            Write-Host "CI environment detected - using bundled browsers for reproducibility" -ForegroundColor Cyan
-            $browserChannel = "bundled"
-        } elseif ($browserStrategy -eq "bundled-only") {
-            Write-Host "Strategy 'bundled-only' - forcing bundled browser install" -ForegroundColor Cyan
-            Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
-            if (Install-BundledChromium -LogPath $installLog) {
-                $browserChannel = "bundled"
-            } else {
-                Write-Host "ERROR: Bundled Chromium install failed and strategy is 'bundled-only'" -ForegroundColor Red
-                if (Test-Path $installLog) {
-                    Get-Content $installLog -Tail 10 | ForEach-Object { Write-Host $_ }
-                }
-                throw "Bundled Chromium install failed"
-            }
-        } elseif ($browserStrategy -eq "system-only") {
-            Write-Host "Strategy 'system-only' - detecting system browsers" -ForegroundColor Cyan
-            $browserInfo = Resolve-AvailableBrowser
-            $browserChannel = $browserInfo.Channel
-            if ($browserChannel -eq "bundled") {
-                Write-Host "ERROR: No system browsers found and strategy is 'system-only'" -ForegroundColor Red
-                Write-Host "Solutions:" -ForegroundColor Yellow
-                Write-Host "  1. Install Microsoft Edge: https://microsoft.com/edge"
-                Write-Host "  2. Install Google Chrome: https://google.com/chrome"
-                Write-Host "  3. Change strategy in artk.config.yml to 'auto' or 'prefer-bundled'"
-                throw "No system browsers found"
-            }
-        } elseif (Download-PlaywrightBrowsers -ArtkE2e $ArtkE2e -ArtkRepo $ArtkRepo -BrowsersPath $browsersCacheDir) {
-            Write-Host "✓ Using pre-built browser cache from release" -ForegroundColor Cyan
+        # Prefer GitHub release-hosted browser cache if available; otherwise fallback to standard install.
+        if (Download-PlaywrightBrowsers -ArtkE2e $ArtkE2e -ArtkRepo $ArtkRepo -BrowsersPath $browsersCacheDir) {
             $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
-            $browserChannel = "bundled"
-        } elseif ($browserStrategy -eq "prefer-system") {
-            Write-Host "Strategy 'prefer-system' - checking system browsers first" -ForegroundColor Cyan
-            $browserInfo = Resolve-AvailableBrowser
-            $browserChannel = $browserInfo.Channel
-
-            if ($browserChannel -ne "bundled") {
-                Write-Host "✓ Using system browser: $browserChannel" -ForegroundColor Cyan
-            } else {
-                Write-Host "No system browsers found, attempting bundled install..." -ForegroundColor Yellow
-                Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
-                if (Install-BundledChromium -LogPath $installLog) {
-                    $browserChannel = "bundled"
-                } else {
-                    Write-Host "ERROR: Both system and bundled browsers unavailable" -ForegroundColor Red
-                    throw "No available browsers"
-                }
-            }
+            Write-Host "Using release-hosted Playwright browsers cache." -ForegroundColor Cyan
+            $browsersReady = $true
+            $finalBrowserChannel = "bundled"
+            $finalBrowserStrategy = "release-cache"
         } else {
-            Write-Host "Release cache unavailable. Attempting bundled Chromium install..." -ForegroundColor Yellow
+            Write-Host "Release cache unavailable; installing Playwright browsers..." -ForegroundColor Yellow
             Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
 
-            if (Install-BundledChromium -LogPath $installLog) {
-                Write-Host "✓ Bundled Chromium installed successfully" -ForegroundColor Cyan
-                $browserChannel = "bundled"
-            } else {
-                Write-Host "Bundled install failed. Detecting system browsers..." -ForegroundColor Yellow
-                $browserInfo = Resolve-AvailableBrowser
-                $browserChannel = $browserInfo.Channel
+            $logsDir = Join-Path $TargetProject ".artk\logs"
+            New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
+            $pwInstallLogOut = Join-Path $logsDir "playwright-browser-install.out.log"
+            $pwInstallLogErr = Join-Path $logsDir "playwright-browser-install.err.log"
 
-                if ($browserChannel -eq "msedge") {
-                    Write-Host "✓ Microsoft Edge detected - using system browser" -ForegroundColor Cyan
-                } elseif ($browserChannel -eq "chrome") {
-                    Write-Host "✓ Google Chrome detected - using system browser" -ForegroundColor Cyan
+            # The Playwright installer can emit very noisy download errors on restricted networks.
+            # Using Start-Process avoids PowerShell surfacing stderr as a terminating NativeCommandError.
+            $exitCode = 1
+            try {
+                $proc = Start-Process -FilePath "npx" -ArgumentList @("playwright", "install", "chromium") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $pwInstallLogOut -RedirectStandardError $pwInstallLogErr
+                $exitCode = $proc.ExitCode
+            } catch {
+                $exitCode = 1
+                "Start-Process failed: $($_.Exception.Message)" | Set-Content -Path $pwInstallLogErr
+            }
+
+            if ($exitCode -eq 0) {
+                $browsersReady = $true
+                $finalBrowserChannel = "bundled"
+                $finalBrowserStrategy = "bundled-install"
+            } else {
+                Write-Host "Failed to install Playwright browsers (exit code $exitCode)." -ForegroundColor Yellow
+                Write-Host "Details saved to: $pwInstallLogOut" -ForegroundColor DarkGray
+                Write-Host "Details saved to: $pwInstallLogErr" -ForegroundColor DarkGray
+            }
+        }
+
+        if (-not $browsersReady) {
+            $detectLog = $null
+            try {
+                $logsDir2 = Join-Path $TargetProject ".artk\logs"
+                New-Item -ItemType Directory -Force -Path $logsDir2 | Out-Null
+                $detectLog = Join-Path $logsDir2 "system-browser-detect.log"
+            } catch {
+                $detectLog = $null
+            }
+
+            $fallback = Resolve-AvailableBrowser -LogPath $detectLog
+            if ($fallback -and $fallback.Channel -and $fallback.Channel -ne "bundled") {
+                # Ensure config has browsers section, then force channel to system browser.
+                Ensure-ArtkConfigHasBrowsersSection -ConfigPath $configPath -Channel $fallback.Channel -Strategy "system"
+                $changed = Set-ArtkConfigBrowsersChannel -ConfigPath $configPath -Channel $fallback.Channel
+
+                $finalBrowserChannel = $fallback.Channel
+                $finalBrowserStrategy = "system"
+                $finalBrowserPath = $fallback.Path
+
+                if ($fallback.Channel -eq "msedge") {
+                    Write-Host "Playwright browsers could not be downloaded. Using Microsoft Edge (msedge) as the default browser channel." -ForegroundColor Yellow
                 } else {
-                    Write-Host "ERROR: No browsers available" -ForegroundColor Red
-                    Write-Host "ARTK tried:" -ForegroundColor Yellow
-                    Write-Host "  1. Pre-built browser cache: Unavailable"
-                    Write-Host "  2. Bundled Chromium install: Failed"
-                    if (Test-Path $installLog) {
-                        Get-Content $installLog -Tail 5 | ForEach-Object { Write-Host $_ }
-                    }
-                    Write-Host "  3. System Microsoft Edge: Not found"
-                    Write-Host "  4. System Google Chrome: Not found"
-                    Write-Host "Solutions:" -ForegroundColor Yellow
-                    Write-Host "  1. Install Microsoft Edge: https://microsoft.com/edge"
-                    Write-Host "  2. Install Google Chrome: https://google.com/chrome"
-                    Write-Host "  3. Grant permissions for Playwright browser installation"
-                    Write-Host "  4. Contact your IT administrator for assistance"
-                    throw "No browsers available"
+                    Write-Host "Playwright browsers could not be downloaded. Using system browser channel '$($fallback.Channel)' as the default." -ForegroundColor Yellow
+                }
+
+                if ($fallback.Path) {
+                    Write-Host "Detected browser: $($fallback.Path)" -ForegroundColor Cyan
+                }
+            } else {
+                Write-Host "Playwright browsers could not be downloaded and no system browser was detected. Tests may not run until browsers are installed." -ForegroundColor Yellow
+                if ($detectLog) {
+                    Write-Host "System browser detection details saved to: $detectLog" -ForegroundColor DarkGray
                 }
             }
         }
 
-        if ($configGenerated) {
-            Write-ArtkConfig -ConfigPath $configPath -ProjectName $ProjectName -Channel $browserChannel -Strategy $browserStrategy
-        }
-
-        $contextPath = Join-Path $TargetProject ".artk\context.json"
-        Write-BrowserMetadata -ContextPath $contextPath -BrowserInfo $browserInfo
-
-        $env:ARTK_BROWSER_CHANNEL = $browserChannel
-        $env:ARTK_BROWSER_STRATEGY = $browserStrategy
-
-        $bootstrapSucceeded = $true
-        Write-Host "Browser configuration complete: channel=$browserChannel, strategy=$browserStrategy" -ForegroundColor Green
+        # Persist for final summary outside the Push-Location scope.
+        $script:FinalBrowserChannel = $finalBrowserChannel
+        $script:FinalBrowserStrategy = $finalBrowserStrategy
+        $script:FinalBrowserPath = $finalBrowserPath
+        $script:BrowsersCacheDir = $browsersCacheDir
     } finally {
-        if (-not $bootstrapSucceeded) {
-            Write-Host "Bootstrap failed, rolling back changes..." -ForegroundColor Red
-            if (Test-Path $configBackup) {
-                Move-Item -Path $configBackup -Destination $configPath -Force
-                Write-Host "Config rolled back" -ForegroundColor Yellow
-            }
-        } elseif (Test-Path $configBackup) {
-            Remove-Item $configBackup -Force
-        }
         Pop-Location
     }
 } else {
-    Write-Host "[6/6] Skipping npm install (-SkipNpm)" -ForegroundColor Cyan
+    Write-Host "[7/7] Skipping browser installation (-SkipNpm)" -ForegroundColor Cyan
 }
 
 Write-Host ""
@@ -735,11 +892,28 @@ Write-Host "==========================================" -ForegroundColor Green
 Write-Host " ARTK Installation Complete!" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Created:" -ForegroundColor Cyan
-Write-Host "  artk-e2e/              - E2E test workspace"
-Write-Host "  artk-e2e/vendor/       - @artk/core library"
-Write-Host "  .github/prompts/       - Copilot prompts"
-Write-Host "  .artk/context.json     - ARTK context"
+Write-Host "Installed:" -ForegroundColor Cyan
+Write-Host "  artk-e2e/                             - E2E test workspace"
+Write-Host "  artk-e2e/vendor/artk-core/            - @artk/core (vendored)"
+Write-Host "  artk-e2e/vendor/artk-core-autogen/    - @artk/core-autogen (vendored)"
+Write-Host "  artk-e2e/package.json                 - Test workspace dependencies"
+Write-Host "  artk-e2e/playwright.config.ts         - Playwright configuration"
+Write-Host "  artk-e2e/tsconfig.json                - TypeScript configuration"
+Write-Host "  artk-e2e/artk.config.yml              - ARTK configuration"
+Write-Host "  .github/prompts/                      - Copilot prompts"
+Write-Host "  .artk/context.json                    - ARTK context"
+Write-Host "  .artk/browsers/                       - Playwright browsers cache (repo-local)"
+Write-Host "  .artk/logs/                           - Bootstrap logs (npm + Playwright)"
+
+if ($script:FinalBrowserChannel) {
+    Write-Host "" 
+    Write-Host "Browser configuration:" -ForegroundColor Cyan
+    Write-Host "  channel:  $($script:FinalBrowserChannel)"
+    Write-Host "  strategy: $($script:FinalBrowserStrategy)"
+    if ($script:FinalBrowserPath) {
+        Write-Host "  path:     $($script:FinalBrowserPath)"
+    }
+}
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. cd artk-e2e"
