@@ -258,6 +258,8 @@ export const DEFAULT_VIEWPORT_HEIGHT = 720;
 /** Default browsers configuration */
 export const DEFAULT_BROWSERS: BrowsersConfig = {
   enabled: ['chromium'],
+  channel: 'bundled',
+  strategy: 'auto',
   viewport: {
     width: DEFAULT_VIEWPORT_WIDTH,
     height: DEFAULT_VIEWPORT_HEIGHT,

@@ -331,6 +331,16 @@ cd ~/projects/my-playwright-project
 artk-install .
 ```
 
+## Browser Fallback Support
+
+ARTK bootstrap selects a browser channel and stores metadata in `artk-e2e/artk.config.yml` and `.artk/context.json`.
+
+- `browsers.channel`: `bundled` | `msedge` | `chrome` | `chrome-beta` | `chrome-dev`
+- `browsers.strategy`: `auto` | `prefer-bundled` | `prefer-system` | `bundled-only` | `system-only`
+- Manual override: edit `artk-e2e/artk.config.yml` and set `browsers.channel` or `browsers.strategy`
+- Runtime validation: generated Playwright config validates the channel at startup
+- Troubleshooting: install the requested browser or set `channel: bundled` and re-run bootstrap
+
 ## Transferring Changes Between Computers
 
 When you can't push to the remote repository (e.g., permission issues), use the export-patches script to create patch files for transfer:

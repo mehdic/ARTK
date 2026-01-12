@@ -41,6 +41,23 @@ This library is organized into 8 core modules:
 - `eslint` - Code linting
 - `prettier` - Code formatting
 
+## Browser Configuration
+
+ARTK supports bundled and system-installed Chromium channels through `browsers.channel` and bootstrap strategy control via `browsers.strategy`:
+
+```yaml
+browsers:
+  enabled:
+    - chromium
+  channel: msedge
+  strategy: prefer-system
+```
+
+Supported channels: `bundled`, `msedge`, `chrome`, `chrome-beta`, `chrome-dev`.
+Strategies: `auto`, `prefer-bundled`, `prefer-system`, `bundled-only`, `system-only`.
+
+Generated Playwright configs validate the configured channel at startup and provide actionable errors when the browser is missing.
+
 ## Development
 
 ### Install Dependencies

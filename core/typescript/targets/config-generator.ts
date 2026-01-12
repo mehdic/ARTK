@@ -27,6 +27,7 @@
  * ```
  */
 
+import type { BrowserChannel, BrowserStrategy } from '../config/types.js';
 import type { ArtkEnvironmentUrls } from '../types/config.js';
 import type { ArtkTargetType } from '../types/target.js';
 import { createLogger } from '../utils/logger.js';
@@ -119,6 +120,18 @@ export interface ConfigGeneratorOptions {
   browsers?: ('chromium' | 'firefox' | 'webkit')[];
 
   /**
+   * Browser channel selection.
+   * @default 'bundled'
+   */
+  browserChannel?: BrowserChannel;
+
+  /**
+   * Browser strategy preference.
+   * @default 'auto'
+   */
+  browserStrategy?: BrowserStrategy;
+
+  /**
    * Whether to include timeout configuration.
    * @default true
    */
@@ -140,6 +153,8 @@ const DEFAULT_OPTIONS: Partial<ConfigGeneratorOptions> = {
   storageStateDir: '.auth-states',
   includeBrowserConfig: true,
   browsers: ['chromium'],
+  browserChannel: 'bundled',
+  browserStrategy: 'auto',
   includeTimeouts: true,
   includeComments: true,
 };
@@ -243,6 +258,8 @@ export function generateArtkConfig(options: ConfigGeneratorOptions): string {
     for (const browser of opts.browsers || ['chromium']) {
       lines.push(`    - ${browser}`);
     }
+    lines.push(`  channel: ${opts.browserChannel}`);
+    lines.push(`  strategy: ${opts.browserStrategy}`);
     lines.push('  headless: true');
     lines.push('');
   }

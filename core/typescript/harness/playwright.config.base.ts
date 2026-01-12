@@ -28,7 +28,7 @@
 
 import * as path from 'node:path';
 
-import type { ARTKConfig, BrowserType } from '../config/types.js';
+import type { ARTKConfig, BrowserChannel, BrowserType } from '../config/types.js';
 import type {
   HarnessOptions,
   PlaywrightConfigOutput,
@@ -148,6 +148,16 @@ export function getAllTierSettings(
 // =============================================================================
 
 /**
+ * Map ARTK browser channel to Playwright channel option
+ */
+function mapBrowserChannel(channel?: BrowserChannel): string | undefined {
+  if (!channel || channel === 'bundled') {
+    return undefined;
+  }
+  return channel;
+}
+
+/**
  * Generate Playwright 'use' configuration from ARTK config
  *
  * Creates the shared settings object that applies to all projects.
@@ -180,6 +190,8 @@ export function getUseOptions(
   // Map trace mode
   const traceMode = mapCaptureMode(config.artifacts.trace.mode);
 
+  const playwrightChannel = mapBrowserChannel(config.browsers.channel);
+
   return {
     baseURL,
     viewport: {
@@ -188,6 +200,7 @@ export function getUseOptions(
     },
     headless: config.browsers.headless,
     ...(config.browsers.slowMo && { slowMo: config.browsers.slowMo }),
+    ...(playwrightChannel && { channel: playwrightChannel }),
     screenshot: screenshotMode,
     video: videoMode,
     trace: traceMode,

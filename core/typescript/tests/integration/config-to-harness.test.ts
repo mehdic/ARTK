@@ -169,6 +169,8 @@ browsers:
   enabled:
     - chromium
     - firefox
+  channel: msedge
+  strategy: auto
   viewport:
     width: 1280
     height: 720
@@ -443,6 +445,16 @@ describe('Config-to-Harness Integration (T108)', () => {
 
       const useOptions = getUseOptions(config);
       expect(useOptions.headless).toBe(true);
+    });
+
+    it('applies browser channel when configured', () => {
+      const { config } = loadConfig({
+        configPath: configFilePath,
+        baseDir: tempDir,
+      });
+
+      const useOptions = getUseOptions(config);
+      expect(useOptions.channel).toBe('msedge');
     });
 
     it('applies test ID attribute setting', () => {

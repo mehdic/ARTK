@@ -210,6 +210,159 @@ download_playwright_browsers() {
     return 0
 }
 
+is_ci_environment() {
+    [ -n "$CI" ] || \
+    [ -n "$GITHUB_ACTIONS" ] || \
+    [ -n "$GITLAB_CI" ] || \
+    [ -n "$JENKINS_HOME" ] || \
+    [ -n "$CIRCLECI" ] || \
+    [ -n "$TRAVIS" ] || \
+    [ -n "$TF_BUILD" ] || \
+    [ "$USER" = "jenkins" ] || \
+    [ "$USER" = "gitlab-runner" ] || \
+    [ "$USER" = "circleci" ]
+}
+
+detect_available_browser() {
+    # Returns JSON: { "channel": "msedge|chrome|bundled", "version": "...", "path": "..." }
+
+    local timeout_cmd=""
+    if command -v timeout >/dev/null 2>&1; then
+        timeout_cmd="timeout"
+    elif command -v gtimeout >/dev/null 2>&1; then
+        timeout_cmd="gtimeout"
+    fi
+
+    test_browser() {
+        local browser_path="$1"
+        local timeout_duration=5
+        local version_output=""
+
+        if [ ! -x "$browser_path" ] && ! command -v "$browser_path" >/dev/null 2>&1; then
+            return 1
+        fi
+
+        local tmp_output
+        tmp_output=$(mktemp)
+
+        if [ -n "$timeout_cmd" ]; then
+            if "$timeout_cmd" "$timeout_duration" "$browser_path" --version >"$tmp_output" 2>/dev/null; then
+                version_output=$(cat "$tmp_output")
+            fi
+        else
+            "$browser_path" --version >"$tmp_output" 2>/dev/null &
+            local pid=$!
+            local elapsed=0
+
+            while kill -0 "$pid" 2>/dev/null; do
+                if [ "$elapsed" -ge "$timeout_duration" ]; then
+                    kill "$pid" 2>/dev/null || true
+                    wait "$pid" 2>/dev/null || true
+                    rm -f "$tmp_output"
+                    return 1
+                fi
+                sleep 1
+                elapsed=$((elapsed + 1))
+            done
+
+            wait "$pid" 2>/dev/null
+            if [ $? -eq 0 ]; then
+                version_output=$(cat "$tmp_output")
+            fi
+        fi
+
+        rm -f "$tmp_output"
+
+        if [ -n "$version_output" ]; then
+            echo "$version_output"
+            return 0
+        fi
+        return 1
+    }
+
+    local edge_paths=(
+        "microsoft-edge"
+        "microsoft-edge-stable"
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+        "/snap/bin/microsoft-edge"
+        "/var/lib/flatpak/exports/bin/com.microsoft.Edge"
+    )
+
+    for edge_path in "${edge_paths[@]}"; do
+        local version
+        version=$(test_browser "$edge_path")
+        if [ $? -eq 0 ]; then
+            local version_num
+            version_num=$(echo "$version" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            echo "{\"channel\":\"msedge\",\"version\":\"$version_num\",\"path\":\"$edge_path\"}"
+            return 0
+        fi
+    done
+
+    local chrome_paths=(
+        "google-chrome"
+        "google-chrome-stable"
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        "/usr/bin/google-chrome-stable"
+        "/snap/bin/chromium"
+        "/var/lib/flatpak/exports/bin/com.google.Chrome"
+        "/usr/local/bin/chrome"
+    )
+
+    for chrome_path in "${chrome_paths[@]}"; do
+        local version
+        version=$(test_browser "$chrome_path")
+        if [ $? -eq 0 ]; then
+            local version_num
+            version_num=$(echo "$version" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            echo "{\"channel\":\"chrome\",\"version\":\"$version_num\",\"path\":\"$chrome_path\"}"
+            return 0
+        fi
+    done
+
+    echo "{\"channel\":\"bundled\",\"version\":null,\"path\":null}"
+    return 0
+}
+
+log_browser_metadata() {
+    local browser_info="$1"
+    local context_file="$TARGET_PROJECT/.artk/context.json"
+
+    local channel
+    channel=$(echo "$browser_info" | sed -n 's/.*"channel":"\([^"]*\)".*/\1/p' | head -1)
+    local version
+    version=$(echo "$browser_info" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1)
+    local path
+    path=$(echo "$browser_info" | sed -n 's/.*"path":"\([^"]*\)".*/\1/p' | head -1)
+
+    local context="{}"
+    if [ -f "$context_file" ]; then
+        context=$(cat "$context_file")
+    fi
+
+    if command -v jq >/dev/null 2>&1; then
+        echo "$context" | jq \
+            --arg channel "$channel" \
+            --arg version "$version" \
+            --arg path "$path" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.browser = {channel: $channel, version: $version, path: $path, detected_at: $timestamp}' \
+            > "$context_file"
+    else
+        cat > "$context_file" <<EOF
+{
+  "version": "1.0",
+  "browser": {
+    "channel": "$channel",
+    "version": "$version",
+    "path": "$path",
+    "detected_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOF
+    fi
+}
+
 # Parse arguments
 TARGET=""
 SKIP_NPM=false
@@ -287,11 +440,76 @@ for file in "$ARTK_PROMPTS"/artk.*.md; do
     fi
 done
 
+write_artk_config() {
+    local project_name="$1"
+    local channel="${2:-bundled}"
+    local strategy="${3:-auto}"
+    local timestamp
+    timestamp=$(date -Iseconds)
+
+    cat > "$ARTK_E2E/artk.config.yml" << 'ARTKCONFIG'
+# ARTK Configuration
+# Generated by bootstrap.sh on __TIMESTAMP__
+
+version: "1.0"
+
+app:
+  name: "__PROJECT_NAME__"
+  type: web
+  description: "E2E tests for __PROJECT_NAME__"
+
+environments:
+  local:
+    baseUrl: ${ARTK_BASE_URL:-http://localhost:3000}
+  intg:
+    baseUrl: ${ARTK_INTG_URL:-https://intg.example.com}
+  ctlq:
+    baseUrl: ${ARTK_CTLQ_URL:-https://ctlq.example.com}
+  prod:
+    baseUrl: ${ARTK_PROD_URL:-https://example.com}
+
+auth:
+  provider: oidc
+  storageStateDir: ./.auth-states
+  # roles:
+  #   admin:
+  #     username: ${ADMIN_USER}
+  #     password: ${ADMIN_PASS}
+
+settings:
+  parallel: true
+  retries: 2
+  timeout: 30000
+  traceOnFailure: true
+
+browsers:
+  enabled:
+    - chromium
+  channel: __CHANNEL__
+  strategy: __STRATEGY__
+  viewport:
+    width: 1280
+    height: 720
+  headless: true
+ARTKCONFIG
+
+    # Perform safe substitutions
+    sed -i.bak \
+        -e "s|__TIMESTAMP__|${timestamp}|g" \
+        -e "s|__PROJECT_NAME__|${project_name}|g" \
+        -e "s|__CHANNEL__|${channel}|g" \
+        -e "s|__STRATEGY__|${strategy}|g" \
+        "$ARTK_E2E/artk.config.yml"
+    rm -f "$ARTK_E2E/artk.config.yml.bak"
+}
+
 # Step 5: Create configuration files
 echo -e "${YELLOW}[5/6] Creating configuration files...${NC}"
 
 # Detect project name from target directory
 PROJECT_NAME=$(basename "$TARGET_PROJECT")
+
+CONFIG_GENERATED=false
 
 # package.json
 cat > "$ARTK_E2E/package.json" << 'PKGJSON'
@@ -362,41 +580,12 @@ cat > "$ARTK_E2E/tsconfig.json" << 'TSCONFIG'
 TSCONFIG
 
 # artk.config.yml
-cat > "$ARTK_E2E/artk.config.yml" << ARTKCONFIG
-# ARTK Configuration
-# Generated by bootstrap.sh on $(date -Iseconds)
-
-version: "1.0"
-
-app:
-  name: "$PROJECT_NAME"
-  type: web
-  description: "E2E tests for $PROJECT_NAME"
-
-environments:
-  local:
-    baseUrl: \${ARTK_BASE_URL:-http://localhost:3000}
-  intg:
-    baseUrl: \${ARTK_INTG_URL:-https://intg.example.com}
-  ctlq:
-    baseUrl: \${ARTK_CTLQ_URL:-https://ctlq.example.com}
-  prod:
-    baseUrl: \${ARTK_PROD_URL:-https://example.com}
-
-auth:
-  provider: oidc
-  storageStateDir: ./.auth-states
-  # roles:
-  #   admin:
-  #     username: \${ADMIN_USER}
-  #     password: \${ADMIN_PASS}
-
-settings:
-  parallel: true
-  retries: 2
-  timeout: 30000
-  traceOnFailure: true
-ARTKCONFIG
+if [ -f "$ARTK_E2E/artk.config.yml" ]; then
+    echo -e "${CYAN}artk.config.yml already exists - preserving existing configuration${NC}"
+else
+    write_artk_config "$PROJECT_NAME" "${ARTK_BROWSER_CHANNEL:-bundled}" "${ARTK_BROWSER_STRATEGY:-auto}"
+    CONFIG_GENERATED=true
+fi
 
 # Create context file
 mkdir -p "$TARGET_PROJECT/.artk"
@@ -433,22 +622,151 @@ GITIGNORE
 
 # Step 6: Run npm install
 if [ "$SKIP_NPM" = false ]; then
-    echo -e "${YELLOW}[6/6] Running npm install...${NC}"
+    echo -e "${YELLOW}[6/6] Running npm install and configuring browsers...${NC}"
+
+    setup_rollback_trap() {
+        trap 'rollback_on_error' ERR EXIT
+    }
+
+    rollback_on_error() {
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Bootstrap failed, rolling back changes...${NC}"
+            if [ -f "$ARTK_E2E/artk.config.yml.bootstrap-backup" ]; then
+                mv "$ARTK_E2E/artk.config.yml.bootstrap-backup" "$ARTK_E2E/artk.config.yml"
+                echo -e "${YELLOW}Config rolled back${NC}"
+            fi
+        fi
+        trap - ERR EXIT
+    }
+
+    install_bundled_chromium() {
+        local log_file="$1"
+        npx playwright install chromium 2>&1 | tee "$log_file"
+        local status=${PIPESTATUS[0]}
+        return "$status"
+    }
+
     cd "$ARTK_E2E"
+
+    if [ -f "$ARTK_E2E/artk.config.yml" ]; then
+        cp "$ARTK_E2E/artk.config.yml" "$ARTK_E2E/artk.config.yml.bootstrap-backup"
+    fi
+
+    setup_rollback_trap
+
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --legacy-peer-deps
 
     BROWSERS_CACHE_DIR="$TARGET_PROJECT/.artk/browsers"
     mkdir -p "$BROWSERS_CACHE_DIR"
     export PLAYWRIGHT_BROWSERS_PATH="$BROWSERS_CACHE_DIR"
 
-    if download_playwright_browsers "$BROWSERS_CACHE_DIR"; then
-        export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-        echo -e "${CYAN}Using release-hosted Playwright browsers cache.${NC}"
-    else
-        echo -e "${YELLOW}Release cache unavailable; installing Playwright browsers...${NC}"
-        unset PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
-        npx playwright install chromium
+    BROWSER_CHANNEL="bundled"
+    BROWSER_STRATEGY="auto"
+    BROWSER_INFO="{\"channel\":\"bundled\",\"version\":null,\"path\":null}"
+
+    if [ -f "$ARTK_E2E/artk.config.yml" ]; then
+        EXISTING_STRATEGY=$(grep "^  strategy:" "$ARTK_E2E/artk.config.yml" | awk '{print $2}' 2>/dev/null || echo "auto")
+        if [ -n "$EXISTING_STRATEGY" ] && [ "$EXISTING_STRATEGY" != "auto" ]; then
+            BROWSER_STRATEGY="$EXISTING_STRATEGY"
+            echo -e "${CYAN}Respecting existing strategy preference: $BROWSER_STRATEGY${NC}"
+        fi
     fi
+
+    if is_ci_environment && [ "$BROWSER_STRATEGY" != "system-only" ]; then
+        echo -e "${CYAN}CI environment detected - using bundled browsers for reproducibility${NC}"
+        BROWSER_CHANNEL="bundled"
+    elif [ "$BROWSER_STRATEGY" = "bundled-only" ]; then
+        echo -e "${CYAN}Strategy 'bundled-only' - forcing bundled browser install${NC}"
+        unset PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        if install_bundled_chromium "/tmp/playwright-install.log"; then
+            BROWSER_CHANNEL="bundled"
+        else
+            echo -e "${RED}ERROR: Bundled Chromium install failed and strategy is 'bundled-only'${NC}"
+            tail -10 /tmp/playwright-install.log
+            exit 1
+        fi
+    elif [ "$BROWSER_STRATEGY" = "system-only" ]; then
+        echo -e "${CYAN}Strategy 'system-only' - detecting system browsers${NC}"
+        BROWSER_INFO=$(detect_available_browser)
+        BROWSER_CHANNEL=$(echo "$BROWSER_INFO" | sed -n 's/.*"channel":"\([^"]*\)".*/\1/p' | head -1)
+        if [ "$BROWSER_CHANNEL" = "bundled" ]; then
+            echo -e "${RED}ERROR: No system browsers found and strategy is 'system-only'${NC}"
+            echo -e "${YELLOW}Solutions:${NC}"
+            echo -e "  1. Install Microsoft Edge: https://microsoft.com/edge"
+            echo -e "  2. Install Google Chrome: https://google.com/chrome"
+            echo -e "  3. Change strategy in artk.config.yml to 'auto' or 'prefer-bundled'"
+            exit 1
+        fi
+    elif download_playwright_browsers "$BROWSERS_CACHE_DIR"; then
+        echo -e "${CYAN}✓ Using pre-built browser cache from release${NC}"
+        export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+        BROWSER_CHANNEL="bundled"
+    elif [ "$BROWSER_STRATEGY" = "prefer-system" ]; then
+        echo -e "${CYAN}Strategy 'prefer-system' - checking system browsers first${NC}"
+        BROWSER_INFO=$(detect_available_browser)
+        BROWSER_CHANNEL=$(echo "$BROWSER_INFO" | sed -n 's/.*"channel":"\([^"]*\)".*/\1/p' | head -1)
+
+        if [ "$BROWSER_CHANNEL" != "bundled" ]; then
+            echo -e "${CYAN}✓ Using system browser: $BROWSER_CHANNEL${NC}"
+        else
+            echo -e "${YELLOW}No system browsers found, attempting bundled install...${NC}"
+            unset PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+            if install_bundled_chromium "/tmp/playwright-install.log"; then
+                BROWSER_CHANNEL="bundled"
+            else
+                echo -e "${RED}ERROR: Both system and bundled browsers unavailable${NC}"
+                exit 1
+            fi
+        fi
+    else
+        echo -e "${YELLOW}Release cache unavailable. Attempting bundled Chromium install...${NC}"
+        unset PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+
+        if install_bundled_chromium "/tmp/playwright-install.log"; then
+            echo -e "${CYAN}✓ Bundled Chromium installed successfully${NC}"
+            BROWSER_CHANNEL="bundled"
+        else
+            echo -e "${YELLOW}Bundled install failed. Detecting system browsers...${NC}"
+            BROWSER_INFO=$(detect_available_browser)
+            BROWSER_CHANNEL=$(echo "$BROWSER_INFO" | sed -n 's/.*"channel":"\([^"]*\)".*/\1/p' | head -1)
+
+            if [ "$BROWSER_CHANNEL" = "msedge" ]; then
+                echo -e "${CYAN}✓ Microsoft Edge detected - using system browser${NC}"
+            elif [ "$BROWSER_CHANNEL" = "chrome" ]; then
+                echo -e "${CYAN}✓ Google Chrome detected - using system browser${NC}"
+            else
+                echo -e "${RED}ERROR: No browsers available${NC}"
+                echo -e "${YELLOW}ARTK tried:${NC}"
+                echo -e "  1. Pre-built browser cache: Unavailable"
+                echo -e "  2. Bundled Chromium install: Failed"
+                tail -5 /tmp/playwright-install.log
+                echo -e "  3. System Microsoft Edge: Not found"
+                echo -e "  4. System Google Chrome: Not found"
+                echo -e "${YELLOW}Solutions:${NC}"
+                echo -e "  1. Install Microsoft Edge: https://microsoft.com/edge"
+                echo -e "  2. Install Google Chrome: https://google.com/chrome"
+                echo -e "  3. Grant permissions for Playwright browser installation"
+                echo -e "  4. Contact your IT administrator for assistance"
+                exit 1
+            fi
+        fi
+    fi
+
+    if [ "$CONFIG_GENERATED" = true ]; then
+        write_artk_config "$PROJECT_NAME" "$BROWSER_CHANNEL" "$BROWSER_STRATEGY"
+    fi
+
+    log_browser_metadata "$BROWSER_INFO"
+
+    rm -f "$ARTK_E2E/artk.config.yml.bootstrap-backup"
+    trap - ERR EXIT
+
+    export ARTK_BROWSER_CHANNEL="$BROWSER_CHANNEL"
+    export ARTK_BROWSER_STRATEGY="$BROWSER_STRATEGY"
+
+    cd "$TARGET_PROJECT"
+
+    echo -e "${GREEN}Browser configuration complete: channel=$BROWSER_CHANNEL, strategy=$BROWSER_STRATEGY${NC}"
 else
     echo -e "${CYAN}[6/6] Skipping npm install (--skip-npm)${NC}"
 fi

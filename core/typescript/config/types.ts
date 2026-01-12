@@ -703,6 +703,21 @@ export interface TraceConfig {
 export type BrowserType = 'chromium' | 'firefox' | 'webkit';
 
 /**
+ * Browser channel selection
+ */
+export type BrowserChannel = 'bundled' | 'msedge' | 'chrome' | 'chrome-beta' | 'chrome-dev';
+
+/**
+ * Browser selection strategy
+ */
+export type BrowserStrategy =
+  | 'auto'
+  | 'prefer-bundled'
+  | 'prefer-system'
+  | 'bundled-only'
+  | 'system-only';
+
+/**
  * Browser configuration
  *
  * @see data-model.md Section 1.13
@@ -710,6 +725,12 @@ export type BrowserType = 'chromium' | 'firefox' | 'webkit';
 export interface BrowsersConfig {
   /** Enabled browser types */
   readonly enabled: BrowserType[];
+
+  /** Browser channel selection */
+  readonly channel?: BrowserChannel;
+
+  /** Browser selection strategy */
+  readonly strategy?: BrowserStrategy;
 
   /** Viewport size */
   readonly viewport: ViewportSize;

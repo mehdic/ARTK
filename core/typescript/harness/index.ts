@@ -69,6 +69,8 @@ export type {
   BrowserType,
 } from './types.js';
 
+export type { BrowserValidationResult } from './browser-validator.js';
+
 // =============================================================================
 // Configuration Factory Exports
 // =============================================================================
@@ -132,3 +134,5 @@ export {
   mergeReporterConfigs,
   hasReporter,
 } from './reporters.js';
+
+export { validateBrowserChannel } from './browser-validator.js';

@@ -171,6 +171,9 @@ export interface UseOptions {
   /** Slow down operations by this amount (ms) */
   readonly slowMo?: number;
 
+  /** Browser channel selection */
+  readonly channel?: string;
+
   /** Screenshot capture mode */
   readonly screenshot: 'off' | 'on' | 'only-on-failure';
 

@@ -185,14 +185,18 @@ describe('generatePlaywrightConfig', () => {
       const config = generatePlaywrightConfig({ useArtkHarness: true });
 
       expect(config).toContain("import { loadArtkConfig } from '@artk/core/config'");
+      expect(config).toContain("import { validateBrowserChannel } from '@artk/core/harness'");
       expect(config).toContain('const artkConfig = loadArtkConfig()');
+      expect(config).toContain('async globalSetup()');
     });
 
     it('should not import loadArtkConfig when useArtkHarness is false', () => {
       const config = generatePlaywrightConfig({ useArtkHarness: false });
 
       expect(config).not.toContain("import { loadArtkConfig } from '@artk/core/config'");
+      expect(config).not.toContain("import { validateBrowserChannel } from '@artk/core/harness'");
       expect(config).not.toContain('const artkConfig = loadArtkConfig()');
+      expect(config).not.toContain('globalSetup');
     });
 
     it('should use artkConfig.getTargetUrl when harness enabled with targets', () => {

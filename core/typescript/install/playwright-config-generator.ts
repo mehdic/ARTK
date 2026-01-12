@@ -227,6 +227,7 @@ export function generatePlaywrightConfig(
   lines.push(`import { defineConfig, devices } from '@playwright/test';`);
   if (opts.useArtkHarness) {
     lines.push(`import { loadArtkConfig } from '@artk/core/config';`);
+    lines.push(`import { validateBrowserChannel } from '@artk/core/harness';`);
   }
   lines.push('');
 
@@ -273,6 +274,29 @@ export function generatePlaywrightConfig(
   lines.push(`  expect: {`);
   lines.push(`    timeout: ${opts.expectTimeout},`);
   lines.push(`  },`);
+
+  if (opts.useArtkHarness) {
+    lines.push('');
+    lines.push(`  // Global setup: validate browser availability`);
+    lines.push(`  async globalSetup() {`);
+    lines.push(`    const config = loadArtkConfig();`);
+    lines.push(`    if (config.browsers.channel && config.browsers.channel !== 'bundled') {`);
+    lines.push(`      const validation = await validateBrowserChannel(config.browsers.channel);`);
+    lines.push(`      if (!validation.available) {`);
+    lines.push(`        console.error('\\nBrowser validation failed:\\n');`);
+    lines.push(`        console.error(\`  Configured: \${config.browsers.channel}\`);`);
+    lines.push(`        console.error('  Status: Not available');`);
+    lines.push(`        console.error(\`  Reason: \${validation.reason}\\n\`);`);
+    lines.push(`        console.error('Solutions:');`);
+    lines.push(`        console.error('  1. Install the browser (see reason above)');`);
+    lines.push(`        console.error(\`  2. Edit artk.config.yml and remove or change 'channel'\`);`);
+    lines.push(`        console.error('  3. Run bootstrap again to auto-detect browsers\\n');`);
+    lines.push(`        throw new Error(\`Browser \${config.browsers.channel} not available\`);`);
+    lines.push(`      }`);
+    lines.push(`      console.log(\`Browser validated: \${config.browsers.channel} v\${validation.version}\`);`);
+    lines.push(`    }`);
+    lines.push(`  },`);
+  }
 
   // Reporter
   if (opts.includeReporter) {

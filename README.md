@@ -83,6 +83,21 @@ C:\Users\...\ARTK\scripts\bootstrap.ps1 C:\path\to\your-project
 
 VS Code prompt UX: ARTK prompt files include `handoffs` so Copilot can show clickable next commands, and the bootstrap script adds `chat.promptFilesRecommendations` to `.vscode/settings.json` to surface `/artk.*` commands as recommended actions at chat start.
 
+## Browser Selection
+
+Bootstrap detects available browsers and writes the chosen channel and strategy to `artk-e2e/artk.config.yml`:
+
+```yaml
+browsers:
+  enabled:
+    - chromium
+  channel: bundled
+  strategy: auto
+```
+
+Strategies: `auto`, `prefer-bundled`, `prefer-system`, `bundled-only`, `system-only`.
+Metadata is recorded in `.artk/context.json`, and generated Playwright configs validate the selected channel at startup.
+
 ## Copilot Slash Commands
 
 ### Setup Command

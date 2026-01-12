@@ -492,6 +492,18 @@ export const ArtifactsConfigSchema = z.object({
 /** Browser type schema */
 const BrowserTypeSchema = z.enum(['chromium', 'firefox', 'webkit']);
 
+/** Browser channel schema */
+const BrowserChannelSchema = z.enum(['bundled', 'msedge', 'chrome', 'chrome-beta', 'chrome-dev']);
+
+/** Browser strategy schema */
+const BrowserStrategySchema = z.enum([
+  'auto',
+  'prefer-bundled',
+  'prefer-system',
+  'bundled-only',
+  'system-only',
+]);
+
 /** Viewport size schema */
 export const ViewportSizeSchema = z.object({
   width: positiveInt,
@@ -499,12 +511,26 @@ export const ViewportSizeSchema = z.object({
 });
 
 /** Browsers configuration schema */
-export const BrowsersConfigSchema = z.object({
-  enabled: z.array(BrowserTypeSchema).min(1, 'At least one browser required').default(['chromium']),
-  viewport: ViewportSizeSchema.default(DEFAULT_BROWSERS.viewport),
-  headless: z.boolean().default(DEFAULT_BROWSERS.headless),
-  slowMo: positiveInt.optional(),
-});
+export const BrowsersConfigSchema = z
+  .object({
+    enabled: z.array(BrowserTypeSchema).min(1, 'At least one browser required').default(['chromium']),
+    channel: BrowserChannelSchema.optional().default(DEFAULT_BROWSERS.channel ?? 'bundled'),
+    strategy: BrowserStrategySchema.optional().default(DEFAULT_BROWSERS.strategy ?? 'auto'),
+    viewport: ViewportSizeSchema.default(DEFAULT_BROWSERS.viewport),
+    headless: z.boolean().default(DEFAULT_BROWSERS.headless),
+    slowMo: positiveInt.optional(),
+  })
+  .refine(
+    (config) => {
+      if (config.channel === 'msedge' || config.channel.startsWith('chrome')) {
+        return config.enabled.includes('chromium');
+      }
+      return true;
+    },
+    {
+      message: "channel 'msedge' or 'chrome' requires 'chromium' in enabled browsers",
+    }
+  );
 
 // =============================================================================
 // Journeys Schemas
