@@ -25,6 +25,7 @@ coverage/
 artk-artifacts/
 playwright-report/
 test-results/
+.artk/
 
 # Example/reference projects (never commit)
 ignore/
