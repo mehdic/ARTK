@@ -325,10 +325,16 @@ Questions (please answer in one reply):
    - [ ] SSO/OIDC (redirect to identity provider)
    - [ ] token/API (bearer token, no UI login)
    - [ ] none (no auth required)
+3) **Local auth bypass?** (if dev mode skips auth)
+   - [ ] no
+   - [ ] yes, identityless (no role/identity locally)
+   - [ ] yes, mock identity (roles enforced, switchable)
+   - Toggle/flag (env var, hostname rule, config key):
 
 Reply format:
 app: web-app
 auth: form-login
+bypass: yes, mock identity (DEV_USER_ROLE)
 ```
 Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 
@@ -346,18 +352,19 @@ Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 
 **Playbook questions (ask if ambiguous):**
 5) **Auth approach**: `form-login`, `SSO/OIDC`, `token/session`, `none`
-6) **MFA/captcha in non-prod?**: yes/no/unknown
-7) **Data sensitivity**: `none`, `mask PII`, `disable artifacts`
-8) **Test hooks allowed?**: `data-testid` allowed: yes/no/unknown
-9) **Ownership model**: `feature_team`, `platform`, `shared`
-10) **Test data strategy**: `seed`, `create_ui`, `create_api`, `reuse_stable`
-11) **Flake posture**: `retries_ci_only`, `no_retries`, `retries_everywhere`
-12) **No-go zones**: areas to NOT test (3rd-party, regulated flows)
+6) **Local auth bypass mode**: `no | identityless | mock-identity` + toggle/flag
+7) **MFA/captcha in non-prod?**: yes/no/unknown
+8) **Data sensitivity**: `none`, `mask PII`, `disable artifacts`
+9) **Test hooks allowed?**: `data-testid` allowed: yes/no/unknown
+10) **Ownership model**: `feature_team`, `platform`, `shared`
+11) **Test data strategy**: `seed`, `create_ui`, `create_api`, `reuse_stable`
+12) **Flake posture**: `retries_ci_only`, `no_retries`, `retries_everywhere`
+13) **No-go zones**: areas to NOT test (3rd-party, regulated flows)
 
 **Journey System questions (rarely needed):**
-13) **Journey ID prefix**: default `JRN`
-14) **Journey layout**: `flat` or `staged`
-15) **Procedural steps required?**: yes/no
+14) **Journey ID prefix**: default `JRN`
+15) **Journey layout**: `flat` or `staged`
+16) **Procedural steps required?**: yes/no
 
 ### Safe defaults (use these if not asking)
 
@@ -368,6 +375,8 @@ Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 | Package manager | From lockfile, else `npm` |
 | Environment | `local` @ detected dev URL or framework default (Vite: 5173, Next/CRA: 3000, Angular: 4200) |
 | Auth | `form-login` (safe default) |
+| Local auth bypass | `unknown` |
+| Local auth bypass envs | `[local]` |
 | MFA/captcha | `unknown` |
 | Data sensitivity | `none` |
 | Test hooks | `yes` (allow data-testid) |
@@ -499,7 +508,17 @@ Must include:
 - `app:` (name, type, description)
 - `environments:` (local, intg, ctlq, prod with baseUrl)
 - `auth:` (provider, roles, storageState)
+- `auth.bypass:` (mode, toggle, environments)
 - `selectors:`, `assertions:`, `data:`, `fixtures:`, `tiers:`, `reporters:`, `artifacts:`
+
+`auth.bypass` shape (persist even if `unknown`):
+```yaml
+auth:
+  bypass:
+    mode: unknown           # none | identityless | mock-identity | unknown
+    toggle: ""              # env var / host rule / config key (optional)
+    environments: [local]   # where bypass applies (default: [local])
+```
 
 ### 5E) Create package.json
 Base structure:

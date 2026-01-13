@@ -56,6 +56,7 @@ These are not “style preferences”. They are how you avoid flaky, unreadable 
 - **Use web-first assertions** that wait and retry; for complex async, use `expect.poll` or `expect.toPass` instead of sleeps.
 - **Keep tests isolated**. Each test should be independently runnable and not depend on previous tests.
 - **Auth must reuse storageState** created by the setup project and stored in an ignored directory; never commit it.
+- **Local auth bypass**: do not add per-test conditionals. Use tags/projects so `@auth/@rbac` can be skipped or run per environment.
 - **Use tags** (`@JRN-####`, `@smoke/@release/@regression`, `@scope-*`) so teams can filter runs via `--grep`.
 - **Collect traces smartly**. Prefer traces retained on failure (and first-failure tracing where supported) rather than capturing everything always.
 
@@ -319,6 +320,11 @@ If AutoGen generates blocked steps, either:
 
 **CRITICAL: Import from ARTK Core Fixtures**
 
+**Auth/RBAC tagging rules (mandatory when applicable):**
+- Add `@auth` if the Journey validates login, logout, redirects to IdP, or unauthenticated access behavior.
+- Add `@rbac` if the Journey validates role-based access (admin vs user, permission gates).
+- Do **not** add `@auth`/`@rbac` for pure public pages or generic business flows unless access control is being asserted.
+
 ```typescript
 // tests/<tier>/<JRN-ID>__<slug>.spec.ts
 import { test, expect } from '@artk/core/fixtures';
@@ -493,6 +499,7 @@ Ask only when necessary:
 
 # Completion checklist (print at end)
 - [ ] Test file(s) created/updated with `@JRN-####` and tier tag
+- [ ] `@auth` / `@rbac` tags present when access control is asserted
 - [ ] Tests use harness fixtures and foundation modules
 - [ ] No hardcoded URLs; env loader used
 - [ ] Web-first assertions used; no timing sleeps

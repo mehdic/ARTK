@@ -103,6 +103,12 @@ Write outputs under `<ARTK_ROOT>/docs/`:
 
 1) `docs/DISCOVERY.md` - Route inventory, feature areas, auth entry points
 2) `docs/TESTABILITY.md` - Locator readiness, data feasibility, async risks
+3) `docs/DISCOVERY.md` must include an **Environment Matrix** section (see Step D0), managed by:
+```
+<!-- ARTK:BEGIN environment-matrix -->
+...managed content...
+<!-- ARTK:END environment-matrix -->
+```
 
 Optional machine outputs under `docs/discovery/`:
 - `docs/discovery/routes.json`
@@ -135,6 +141,23 @@ Load context from `.artk/context.json`:
 If context has `interactive_fallback_needed: true`:
 - Prompt user to confirm/correct detected targets before proceeding
 - Update context.json with confirmed values
+
+Also load `artk.config.yml` (if present) and enumerate configured environments.
+Produce an **Environment Matrix** in `docs/DISCOVERY.md` and regenerate it on every run.
+If `artk.config.yml` has no `environments`, create a single `local` row and mark unknowns.
+
+The Environment Matrix must include, per environment:
+- base URL
+- auth mode classification: `required | bypassed-identityless | bypassed-mock-identity | unknown`
+- role fidelity: `real | none | unknown`
+- test policy (what tags/projects should run here)
+- credential requirements (real secrets vs none)
+
+Classification rules (be conservative):
+- `required`: login/SSO routes present OR protected routes redirect/401 in this env.
+- `bypassed-identityless`: no login flow, no user identity visible, protected routes accessible, RBAC appears off.
+- `bypassed-mock-identity`: a user identity is injected locally and RBAC still enforced; roles are switchable via toggle/flag.
+- `unknown`: conflicting or insufficient signals.
 
 ## Step D1 — Identify app candidates (monorepo-aware)
 
@@ -208,10 +231,12 @@ Collect:
 - SSO/OIDC hints (`oidc`, `saml`, `msal`, `auth0`, `keycloak`)
 - route guards/middleware (Angular guards, Next middleware, React auth wrappers)
 - role checks and permission gates
+- local bypass signals (env flags, host checks, dev-only auth modules, mock user injection)
 
 Output:
 - "Auth entry points" table
 - "Role/permission hints" list
+- "Local auth bypass signals" list with inferred mode (identityless vs mock-identity) if possible
 
 Do NOT request credentials.
 
@@ -238,6 +263,7 @@ Do NOT request credentials.
 - environment access limitations
 - base URLs and config files
 - dependencies on external services (payments, mail, LDAP)
+- local auth bypass impact on coverage (what cannot be validated in that env)
 
 ### E) Observability hooks
 - correlation IDs, logging, debug panels, test-mode flags
@@ -443,6 +469,11 @@ test('authenticate', async ({ page, context }, testInfo) => {
 ```
 
 **DO NOT implement custom storage state logic.** Use core providers.
+
+If the app supports **local auth bypass**, document how to run tests safely:
+- **Identityless bypass** (no role/identity): run only unauthenticated project(s) and skip `@auth/@rbac` tests locally.
+- **Mock identity bypass** (roles enforced): you may run `@rbac` locally using the role toggle; still run `@auth` in staging/CI with real IdP.
+- Prefer a single runner-level switch (project selection or tag filters), not per-test conditionals.
 
 ## Step F5 — Create baseline fixtures
 

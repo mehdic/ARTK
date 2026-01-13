@@ -128,30 +128,30 @@ This is a monorepo with core package at `core/typescript/`:
 
 ### Tests for User Story 3
 
-- [ ] T046 [P] [US3] Unit test for import-meta-usage rule in core/typescript/tests/validation/rules/import-meta-usage.test.ts
-- [ ] T047 [P] [US3] Unit test for dirname-usage rule in core/typescript/tests/validation/rules/dirname-usage.test.ts
-- [ ] T048 [P] [US3] Unit test for import-paths rule in core/typescript/tests/validation/rules/import-paths.test.ts
-- [ ] T049 [P] [US3] Unit test for dependency-compat rule in core/typescript/tests/validation/rules/dependency-compat.test.ts
-- [ ] T050 [P] [US3] Unit test for rollback transaction in core/typescript/tests/validation/rollback.test.ts
-- [ ] T051 [US3] Integration test for validation + rollback workflow in core/typescript/tests/validation/runner.test.ts
+- [x] T046 [P] [US3] Unit test for import-meta-usage rule in core/typescript/tests/validation/rules/import-meta-usage.test.ts
+- [x] T047 [P] [US3] Unit test for dirname-usage rule in core/typescript/tests/validation/rules/dirname-usage.test.ts
+- [x] T048 [P] [US3] Unit test for import-paths rule in core/typescript/tests/validation/rules/import-paths.test.ts
+- [x] T049 [P] [US3] Unit test for dependency-compat rule in core/typescript/tests/validation/rules/dependency-compat.test.ts
+- [x] T050 [P] [US3] Unit test for rollback transaction in core/typescript/tests/validation/rollback.test.ts
+- [x] T051 [US3] Integration test for validation + rollback workflow in core/typescript/tests/validation/runner.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T052 [P] [US3] Create ValidationRule interface in core/typescript/src/validation/types.ts
-- [ ] T053 [P] [US3] Implement import-meta-usage rule (regex check) in core/typescript/src/validation/rules/import-meta-usage.ts (FR-022)
-- [ ] T054 [P] [US3] Implement dirname-usage rule (regex check) in core/typescript/src/validation/rules/dirname-usage.ts (FR-022)
-- [ ] T055 [P] [US3] Implement import-paths rule (resolve check) in core/typescript/src/validation/rules/import-paths.ts (FR-023)
-- [ ] T056 [P] [US3] Implement dependency-compat rule (package.json check) in core/typescript/src/validation/rules/dependency-compat.ts (FR-024, FR-025)
-- [ ] T057 [US3] Implement ValidationRunner in core/typescript/src/validation/runner.ts (orchestrates all rules, FR-021)
-- [ ] T058 [US3] Add 10-second timeout to validation in core/typescript/src/validation/runner.ts (FR-029)
-- [ ] T059 [US3] Implement file tracking during generation in core/typescript/src/validation/runner.ts (track all generated files, FR-032)
-- [ ] T060 [US3] Implement rollback transaction logic in core/typescript/src/validation/rollback.ts (write-to-temp-then-rename pattern, FR-033)
-- [ ] T061 [US3] Add .artk/validation-results.json persistence in core/typescript/src/validation/runner.ts (preserve during rollback, FR-031, FR-034)
-- [ ] T062 [US3] Add rollback confirmation message with file list in core/typescript/src/validation/rollback.ts (FR-035)
-- [ ] T063 [US3] Add --skip-validation flag support in core/typescript/src/validation/runner.ts (FR-030)
-- [ ] T064 [US3] Add configurable strictness levels (error/warning/ignore) in core/typescript/src/validation/runner.ts (FR-028)
-- [ ] T065 [US3] Add detailed error reporting (file, line, message, suggestedFix) in core/typescript/src/validation/runner.ts (FR-027)
-- [ ] T066 [US3] Export validateFoundation() from core/typescript/src/validation/index.ts
+- [x] T052 [P] [US3] Create ValidationRule interface in core/typescript/validation/types.ts
+- [x] T053 [P] [US3] Implement import-meta-usage rule (regex check) in core/typescript/validation/rules/import-meta-usage.ts (FR-022)
+- [x] T054 [P] [US3] Implement dirname-usage rule (regex check) in core/typescript/validation/rules/dirname-usage.ts (FR-022)
+- [x] T055 [P] [US3] Implement import-paths rule (resolve check) in core/typescript/validation/rules/import-paths.ts (FR-023)
+- [x] T056 [P] [US3] Implement dependency-compat rule (package.json check) in core/typescript/validation/rules/dependency-compat.ts (FR-024, FR-025)
+- [x] T057 [US3] Implement ValidationRunner in core/typescript/validation/runner.ts (orchestrates all rules, FR-021)
+- [x] T058 [US3] Add 10-second timeout to validation in core/typescript/validation/runner.ts (FR-029)
+- [x] T059 [US3] Implement file tracking during generation in core/typescript/validation/runner.ts (track all generated files, FR-032)
+- [x] T060 [US3] Implement rollback transaction logic in core/typescript/validation/rollback.ts (write-to-temp-then-rename pattern, FR-033)
+- [x] T061 [US3] Add .artk/validation-results.json persistence in core/typescript/validation/runner.ts (preserve during rollback, FR-031, FR-034)
+- [x] T062 [US3] Add rollback confirmation message with file list in core/typescript/validation/rollback.ts (FR-035)
+- [x] T063 [US3] Add --skip-validation flag support in core/typescript/validation/runner.ts (FR-030)
+- [x] T064 [US3] Add configurable strictness levels (error/warning/ignore) in core/typescript/validation/runner.ts (FR-028)
+- [x] T065 [US3] Add detailed error reporting (file, line, message, suggestedFix) in core/typescript/validation/runner.ts (FR-027)
+- [x] T066 [US3] Export validateFoundation() from core/typescript/validation/index.ts
 
 **Checkpoint**: At this point, validation gate should catch all module system mismatches, rollback should work, validation history should be preserved
 
