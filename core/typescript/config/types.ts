@@ -114,6 +114,25 @@ export interface EnvironmentConfig {
 export type AuthProviderType = 'oidc' | 'form' | 'token' | 'custom';
 
 /**
+ * Local auth bypass mode classification.
+ */
+export type AuthBypassMode = 'none' | 'identityless' | 'mock-identity' | 'unknown';
+
+/**
+ * Local auth bypass configuration.
+ */
+export interface AuthBypassConfig {
+  /** Bypass mode classification */
+  readonly mode: AuthBypassMode;
+
+  /** Env var / host rule / config key that enables bypass (optional) */
+  readonly toggle?: string;
+
+  /** Environments where bypass applies (optional) */
+  readonly environments?: readonly string[];
+}
+
+/**
  * Authentication provider and role definitions
  *
  * @see data-model.md Section 1.4
@@ -127,6 +146,9 @@ export interface AuthConfig {
 
   /** Role definitions */
   readonly roles: Readonly<Record<string, RoleConfig>>;
+
+  /** Local auth bypass configuration (optional) */
+  readonly bypass?: AuthBypassConfig;
 
   /** OIDC-specific configuration (required when provider: 'oidc') */
   readonly oidc?: OIDCConfig;

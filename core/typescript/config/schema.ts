@@ -237,6 +237,21 @@ export const RolesSchema = z.record(z.string(), RoleConfigSchema);
 /** Auth provider type schema */
 const AuthProviderTypeSchema = z.enum(['oidc', 'form', 'token', 'custom']);
 
+/** Auth bypass mode schema */
+const AuthBypassModeSchema = z.enum([
+  'none',
+  'identityless',
+  'mock-identity',
+  'unknown',
+]);
+
+/** Auth bypass configuration schema */
+export const AuthBypassConfigSchema = z.object({
+  mode: AuthBypassModeSchema.default('unknown'),
+  toggle: z.string().optional(),
+  environments: z.array(z.string()).optional(),
+});
+
 /** Auth configuration schema with provider-specific validation */
 export const AuthConfigSchema = z
   .object({
@@ -245,6 +260,7 @@ export const AuthConfigSchema = z
     roles: RolesSchema.refine((roles) => Object.keys(roles).length > 0, {
       message: 'At least one role must be defined',
     }),
+    bypass: AuthBypassConfigSchema.optional(),
     oidc: OIDCConfigSchema,
     form: FormAuthConfigSchema,
   })

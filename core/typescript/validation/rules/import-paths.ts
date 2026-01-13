@@ -42,17 +42,29 @@ function hasExtension(importPath: string): boolean {
 }
 
 /**
- * Check if a position is inside a comment or string (different from actual imports)
+ * Check if a position is inside a comment or string literal
  */
-function isInComment(content: string, position: number): boolean {
+function isInCommentOrString(content: string, position: number): boolean {
   const before = content.substring(0, position);
 
   // Check if in single-line comment
   const lastNewline = before.lastIndexOf('\n');
   const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
   const lineBefore = before.substring(lineStart);
-  if (lineBefore.includes('//')) {
-    return true;
+
+  // Simple heuristic: if we see a // before any string starts on this line
+  const commentIndex = lineBefore.indexOf('//');
+  if (commentIndex !== -1) {
+    // Make sure the // is not inside a string
+    const quotesBefore = lineBefore.substring(0, commentIndex);
+    const singleQuotes = (quotesBefore.match(/'/g) || []).length;
+    const doubleQuotes = (quotesBefore.match(/"/g) || []).length;
+    const backticks = (quotesBefore.match(/`/g) || []).length;
+
+    // If odd number of quotes, the // might be in a string, otherwise comment
+    if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0 && backticks % 2 === 0) {
+      return true;
+    }
   }
 
   // Check if in block comment
@@ -62,7 +74,37 @@ function isInComment(content: string, position: number): boolean {
     return true;
   }
 
-  return false;
+  // Check if inside a string literal
+  // This is a simple check: count unescaped quotes before position
+  let inString = false;
+  let stringChar = '';
+  let escaped = false;
+
+  for (let i = 0; i < position; i++) {
+    const char = content[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"' || char === "'" || char === '`') {
+      if (!inString) {
+        inString = true;
+        stringChar = char;
+      } else if (char === stringChar) {
+        inString = false;
+        stringChar = '';
+      }
+    }
+  }
+
+  return inString;
 }
 
 /**
@@ -102,8 +144,8 @@ function extractImportPaths(
     while ((match = pattern.exec(content)) !== null) {
       const position = match.index;
 
-      // Skip if in comment
-      if (isInComment(content, position)) {
+      // Skip if in comment or string literal
+      if (isInCommentOrString(content, position)) {
         continue;
       }
 

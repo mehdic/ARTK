@@ -413,11 +413,23 @@ EOF
 # Parse arguments
 TARGET=""
 SKIP_NPM=false
+FORCE_DETECT=false
+SKIP_VALIDATION=false
+TEMPLATE_VARIANT=""
 
 for arg in "$@"; do
     case $arg in
         --skip-npm)
             SKIP_NPM=true
+            ;;
+        --force-detect)
+            FORCE_DETECT=true
+            ;;
+        --skip-validation)
+            SKIP_VALIDATION=true
+            ;;
+        --template-variant=*)
+            TEMPLATE_VARIANT="${arg#*=}"
             ;;
         *)
             if [ -z "$TARGET" ]; then
@@ -430,11 +442,19 @@ done
 if [ -z "$TARGET" ]; then
     echo -e "${RED}Error: Target project path required${NC}"
     echo ""
-    echo "Usage: $0 /path/to/target-project [--skip-npm]"
+    echo "Usage: $0 /path/to/target-project [options]"
     echo ""
-    echo "Example:"
+    echo "Options:"
+    echo "  --skip-npm                    Skip npm install"
+    echo "  --force-detect                Force environment re-detection"
+    echo "  --skip-validation             Skip validation of generated code"
+    echo "  --template-variant=<variant>  Force template variant (commonjs|esm)"
+    echo ""
+    echo "Examples:"
     echo "  $0 ~/projects/my-app"
     echo "  $0 . --skip-npm"
+    echo "  $0 ~/projects/esm-app --template-variant=esm"
+    echo "  $0 ~/projects/existing --force-detect"
     exit 1
 fi
 
@@ -638,8 +658,56 @@ else
     CONFIG_GENERATED=true
 fi
 
-# Create context file
+# Create context file with environment detection
 mkdir -p "$TARGET_PROJECT/.artk"
+
+# Detect environment if needed
+DETECTED_VARIANT=""
+if [ -n "$TEMPLATE_VARIANT" ]; then
+    echo -e "${CYAN}Using manual template variant: $TEMPLATE_VARIANT${NC}"
+    DETECTED_VARIANT="$TEMPLATE_VARIANT"
+elif [ "$FORCE_DETECT" = true ] || [ ! -f "$TARGET_PROJECT/.artk/context.json" ]; then
+    echo -e "${YELLOW}Detecting environment...${NC}"
+
+    # Run detection script
+    DETECTION_SCRIPT="$ARTK_CORE/scripts/detect-env.sh"
+    if [ -f "$DETECTION_SCRIPT" ]; then
+        DETECTION_RESULT=$("$DETECTION_SCRIPT" "$TARGET_PROJECT" 2>/dev/null || echo '{"detection":{"moduleSystem":"unknown"}}')
+        MODULE_SYSTEM=$(echo "$DETECTION_RESULT" | grep -o '"moduleSystem":"[^"]*"' | cut -d'"' -f4)
+
+        case "$MODULE_SYSTEM" in
+            esm)
+                DETECTED_VARIANT="esm"
+                echo -e "${GREEN}✓ Detected ESM module system${NC}"
+                ;;
+            commonjs)
+                DETECTED_VARIANT="commonjs"
+                echo -e "${GREEN}✓ Detected CommonJS module system${NC}"
+                ;;
+            *)
+                DETECTED_VARIANT="commonjs"
+                echo -e "${YELLOW}⚠ Could not detect module system, defaulting to CommonJS${NC}"
+                ;;
+        esac
+    else
+        DETECTED_VARIANT="commonjs"
+        echo -e "${YELLOW}⚠ Detection script not found, defaulting to CommonJS${NC}"
+    fi
+else
+    # Read existing variant from context.json
+    if [ -f "$TARGET_PROJECT/.artk/context.json" ]; then
+        DETECTED_VARIANT=$(grep -o '"templateVariant":"[^"]*"' "$TARGET_PROJECT/.artk/context.json" | cut -d'"' -f4 || echo "commonjs")
+        echo -e "${CYAN}Using existing template variant: $DETECTED_VARIANT${NC}"
+    else
+        DETECTED_VARIANT="commonjs"
+    fi
+fi
+
+# Fallback to commonjs if variant is empty
+if [ -z "$DETECTED_VARIANT" ]; then
+    DETECTED_VARIANT="commonjs"
+fi
+
 cat > "$TARGET_PROJECT/.artk/context.json" << CONTEXT
 {
   "version": "1.0",
@@ -648,9 +716,71 @@ cat > "$TARGET_PROJECT/.artk/context.json" << CONTEXT
   "initialized_at": "$(date -Iseconds)",
   "bootstrap_script": "$SCRIPT_DIR/bootstrap.sh",
   "artk_repo": "$ARTK_REPO",
+  "templateVariant": "$DETECTED_VARIANT",
   "next_suggested": "/artk.init-playbook"
 }
 CONTEXT
+
+# Generate foundation modules from templates
+echo -e "${YELLOW}[5.5/7] Generating foundation modules...${NC}"
+
+GENERATION_SCRIPT="$ARTK_CORE/scripts/generate-foundation.ts"
+
+if [ ! -f "$GENERATION_SCRIPT" ]; then
+    echo -e "${YELLOW}⚠️  Generation script not found, skipping foundation module generation${NC}"
+    echo -e "${YELLOW}   Expected: $GENERATION_SCRIPT${NC}"
+else
+    # Check if Node.js is available
+    if ! command -v node >/dev/null 2>&1; then
+        echo -e "${RED}Error: Node.js is required but not found${NC}"
+        exit 1
+    fi
+
+    # Build the TypeScript if needed (for development)
+    if [ -f "$ARTK_CORE/tsconfig.json" ] && [ ! -f "$ARTK_CORE/dist/templates/generator.js" ]; then
+        echo -e "${YELLOW}Building @artk/core...${NC}"
+        cd "$ARTK_CORE"
+        npm run build >/dev/null 2>&1 || true
+        cd "$TARGET_PROJECT"
+    fi
+
+    # Run generation script
+    set +e
+    GENERATION_LOG="$TARGET_PROJECT/.artk/logs/template-generation.log"
+    mkdir -p "$(dirname "$GENERATION_LOG")"
+
+    node "$GENERATION_SCRIPT" \
+        --projectRoot="$TARGET_PROJECT" \
+        --variant="$DETECTED_VARIANT" \
+        --verbose \
+        > "$GENERATION_LOG" 2>&1
+
+    GENERATION_STATUS=$?
+    set -e
+
+    if [ "$GENERATION_STATUS" -eq 0 ]; then
+        echo -e "${GREEN}✓ Foundation modules generated successfully (variant: $DETECTED_VARIANT)${NC}"
+
+        # Show what was generated
+        if [ -d "$ARTK_E2E/foundation" ]; then
+            echo -e "${CYAN}  Generated modules:${NC}"
+            find "$ARTK_E2E/foundation" -name "*.ts" -type f | while read -r file; do
+                echo -e "${CYAN}    - ${file#$ARTK_E2E/}${NC}"
+            done
+        fi
+    else
+        echo -e "${RED}✗ Foundation module generation failed${NC}"
+        echo -e "${YELLOW}Details saved to: $GENERATION_LOG${NC}"
+        tail -20 "$GENERATION_LOG" || true
+
+        if [ "$SKIP_VALIDATION" = false ]; then
+            echo -e "${RED}Aborting bootstrap due to generation failure${NC}"
+            exit 1
+        else
+            echo -e "${YELLOW}Continuing despite generation failure (--skip-validation)${NC}"
+        fi
+    fi
+fi
 
 # .artk/.gitignore
 cat > "$TARGET_PROJECT/.artk/.gitignore" << 'ARTKIGNORE'
