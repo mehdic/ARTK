@@ -16,7 +16,10 @@ export default defineConfig({
     'types/index.ts',
     'detection/index.ts',
     'targets/index.ts',
-    'install/index.ts'
+    'install/index.ts',
+    'schemas/index.ts',
+    'compat/index.ts',
+    'validation/index.ts'
   ],
   format: ['esm'],
   dts: true,

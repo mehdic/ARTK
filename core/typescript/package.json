@@ -65,10 +65,24 @@
     "./types": {
       "import": "./dist/types/index.js",
       "types": "./dist/types/index.d.ts"
-    }
+    },
+    "./schemas": {
+      "import": "./dist/schemas/index.js",
+      "types": "./dist/schemas/index.d.ts"
+    },
+    "./compat": {
+      "import": "./dist/compat/index.js",
+      "types": "./dist/compat/index.d.ts"
+    },
+    "./validation": {
+      "import": "./dist/validation/index.js",
+      "types": "./dist/validation/index.d.ts"
+    },
+    "./templates/*": "./templates/*"
   },
   "files": [
     "dist",
+    "templates",
     "version.json",
     "README.md"
   ],
@@ -87,6 +101,7 @@
   "dependencies": {
     "@playwright/test": "^1.57.0",
     "otplib": "^12.0.1",
+    "strip-json-comments": "^5.0.3",
     "yaml": "^2.3.4",
     "zod": "^3.22.4"
   },

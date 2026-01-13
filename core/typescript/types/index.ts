@@ -65,3 +65,31 @@ export * from './submodule.js';
 // Zod schemas and validation helpers (canonical source)
 // ArtkContextSchema, ArtkTargetSchema, validateArtkContext from here
 export * from './schemas.js';
+
+// Environment Context types (Foundation Module System Compatibility - US1)
+export type {
+  ModuleSystem,
+  TemplateSource,
+  DetectionConfidence,
+  DetectionMethod,
+  NodeVersionParsed,
+  EnvironmentContext,
+  DetectionOptions,
+  DetectionResult as EnvDetectionResult,
+} from './environment-context.js';
+
+// Validation Result types (Foundation Module System Compatibility - US3)
+export type {
+  ValidationSeverity,
+  ValidationStatus,
+  StrictnessLevel,
+  ValidationRuleId,
+  ValidationIssue,
+  ValidationRuleResult,
+  ValidationResult,
+  ValidationOptions,
+  ValidationRuleConfig,
+  ValidationRule,
+  GenerationTransaction,
+  RollbackResult,
+} from './validation-result.js';

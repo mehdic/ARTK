@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://artk.dev/schemas/environment-context.json",
+  "title": "EnvironmentContext",
+  "description": "Detected project environment configuration for ARTK foundation generation",
+  "type": "object",
+  "required": [
+    "moduleSystem",
+    "nodeVersion",
+    "nodeVersionParsed",
+    "tsModule",
+    "supportsImportMeta",
+    "supportsBuiltinDirname",
+    "templateVariant",
+    "templateSource",
+    "detectionTimestamp",
+    "detectionConfidence",
+    "detectionMethod",
+    "warnings"
+  ],
+  "properties": {
+    "moduleSystem": {
+      "type": "string",
+      "enum": ["commonjs", "esm"],
+      "description": "Detected module system from package.json or tsconfig.json"
+    },
+    "nodeVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of Node.js (e.g., '18.12.1')"
+    },
+    "nodeVersionParsed": {
+      "type": "object",
+      "required": ["major", "minor", "patch"],
+      "properties": {
+        "major": {
+          "type": "integer",
+          "minimum": 18,
+          "description": "Major version number (must be >= 18)"
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "patch": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "tsModule": {
+      "type": ["string", "null"],
+      "description": "TypeScript module setting from tsconfig.json, or null if not present"
+    },
+    "supportsImportMeta": {
+      "type": "boolean",
+      "description": "true if Node 18+ and ESM environment"
+    },
+    "supportsBuiltinDirname": {
+      "type": "boolean",
+      "description": "true if Node 20.11.0+ (has import.meta.dirname built-in)"
+    },
+    "templateVariant": {
+      "type": "string",
+      "enum": ["commonjs", "esm"],
+      "description": "Which template set was used for generation"
+    },
+    "templateSource": {
+      "type": "string",
+      "enum": ["bundled", "local-override"],
+      "description": "Where templates came from (bundled with @artk/core or local override)"
+    },
+    "detectionTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when detection ran"
+    },
+    "detectionConfidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Confidence level based on signal consistency"
+    },
+    "detectionMethod": {
+      "type": "string",
+      "enum": ["package.json", "tsconfig.json", "fallback"],
+      "description": "Primary method that determined module system"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of warnings encountered during detection"
+    }
+  },
+  "examples": [
+    {
+      "moduleSystem": "commonjs",
+      "nodeVersion": "18.12.1",
+      "nodeVersionParsed": {
+        "major": 18,
+        "minor": 12,
+        "patch": 1
+      },
+      "tsModule": "commonjs",
+      "supportsImportMeta": false,
+      "supportsBuiltinDirname": false,
+      "templateVariant": "commonjs",
+      "templateSource": "bundled",
+      "detectionTimestamp": "2026-01-13T15:30:00.000Z",
+      "detectionConfidence": "high",
+      "detectionMethod": "package.json",
+      "warnings": []
+    }
+  ]
+}

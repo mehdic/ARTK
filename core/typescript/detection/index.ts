@@ -26,3 +26,6 @@ export * from './directory-heuristics.js';
 // Main detection classes
 export * from './frontend-detector.js';
 export * from './submodule-checker.js';
+
+// Environment detection (Foundation Module System Compatibility)
+export * from './env/index.js';

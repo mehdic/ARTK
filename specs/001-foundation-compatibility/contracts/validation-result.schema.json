@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://artk.dev/schemas/validation-result.json",
+  "title": "ValidationResult",
+  "description": "Outcome of foundation module validation for audit trail",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "environmentContext",
+    "executionTime",
+    "status",
+    "rules",
+    "errors",
+    "warnings",
+    "validatedFiles",
+    "rollbackPerformed",
+    "rollbackSuccess"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when validation ran"
+    },
+    "environmentContext": {
+      "type": "string",
+      "description": "Hash or reference to EnvironmentContext used"
+    },
+    "executionTime": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000,
+      "description": "Milliseconds taken to validate (max 10 seconds per FR-029)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passed", "failed", "warnings"],
+      "description": "Overall validation status"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ValidationRuleResult"
+      },
+      "description": "Individual rule execution results"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ValidationIssue"
+      },
+      "description": "Critical issues that must be fixed"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ValidationIssue"
+      },
+      "description": "Non-critical issues for developer awareness"
+    },
+    "validatedFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of file paths that were validated"
+    },
+    "rollbackPerformed": {
+      "type": "boolean",
+      "description": "true if automatic rollback was triggered (FR-033)"
+    },
+    "rollbackSuccess": {
+      "type": ["boolean", "null"],
+      "description": "null if no rollback, true if successful, false if failed"
+    }
+  },
+  "definitions": {
+    "ValidationRuleResult": {
+      "type": "object",
+      "required": ["ruleId", "pass", "affectedFiles", "message"],
+      "properties": {
+        "ruleId": {
+          "type": "string",
+          "description": "Unique identifier for the rule (e.g., 'import-meta-usage')"
+        },
+        "pass": {
+          "type": "boolean",
+          "description": "true if rule passed, false if violations found"
+        },
+        "affectedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files with violations (empty if rule passed)"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable summary of rule result"
+        }
+      }
+    },
+    "ValidationIssue": {
+      "type": "object",
+      "required": ["file", "line", "column", "severity", "ruleId", "message", "suggestedFix"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Absolute path to file with issue"
+        },
+        "line": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Line number (null if not applicable)"
+        },
+        "column": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Column number (null if not available)"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning"],
+          "description": "Issue severity level"
+        },
+        "ruleId": {
+          "type": "string",
+          "description": "Rule that detected this issue"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable description of the issue"
+        },
+        "suggestedFix": {
+          "type": ["string", "null"],
+          "description": "Suggestion for how to fix the issue (null if no suggestion)"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "timestamp": "2026-01-13T15:35:00.000Z",
+      "environmentContext": "commonjs-node-18.12.1",
+      "executionTime": 245,
+      "status": "failed",
+      "rules": [
+        {
+          "ruleId": "import-meta-usage",
+          "pass": false,
+          "affectedFiles": ["artk-e2e/src/modules/foundation/auth/login.ts"],
+          "message": "import.meta usage detected in CommonJS environment"
+        }
+      ],
+      "errors": [
+        {
+          "file": "/Users/user/project/artk-e2e/src/modules/foundation/auth/login.ts",
+          "line": 5,
+          "column": 15,
+          "severity": "error",
+          "ruleId": "import-meta-usage",
+          "message": "import.meta.url is not available in CommonJS environments",
+          "suggestedFix": "Replace with getDirname() from @artk/core/compat"
+        }
+      ],
+      "warnings": [],
+      "validatedFiles": [
+        "artk-e2e/src/modules/foundation/auth/login.ts",
+        "artk-e2e/src/modules/foundation/config/env.ts"
+      ],
+      "rollbackPerformed": true,
+      "rollbackSuccess": true
+    }
+  ]
+}
