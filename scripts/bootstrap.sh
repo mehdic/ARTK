@@ -593,28 +593,15 @@ PKGJSON
 
 # playwright.config.ts
 cat > "$ARTK_E2E/playwright.config.ts" << 'PWCONFIG'
-import { defineConfig, devices } from '@playwright/test';
+import { loadConfig } from '@artk/core/config';
+import { createPlaywrightConfig } from '@artk/core/harness';
 
-export default defineConfig({
-  testDir: './tests',
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+const { config, activeEnvironment } = loadConfig();
 
-  use: {
-    baseURL: process.env.ARTK_BASE_URL || 'http://localhost:3000',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-  },
-
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-  ],
+export default createPlaywrightConfig({
+  config,
+  activeEnvironment,
+  tier: process.env.ARTK_TIER || 'regression',
 });
 PWCONFIG
 

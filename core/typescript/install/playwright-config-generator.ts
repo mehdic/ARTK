@@ -325,6 +325,13 @@ export function generatePlaywrightConfig(
   lines.push('');
   lines.push(`    // Headless mode`);
   lines.push(`    headless: isCI || ${opts.headless},`);
+  if (opts.useArtkHarness) {
+    lines.push('');
+    lines.push(`    // Browser channel`);
+    lines.push(`    ...(artkConfig.browsers.channel && artkConfig.browsers.channel !== 'bundled'`);
+    lines.push(`      ? { channel: artkConfig.browsers.channel }`);
+    lines.push(`      : {}),`);
+  }
   lines.push(`  },`);
 
   // Projects (browsers and targets)

@@ -217,6 +217,13 @@ describe('generatePlaywrightConfig', () => {
 
       expect(config).toContain("process.env.BASE_URL || 'http://localhost:3000'");
     });
+
+    it('should include browser channel mapping when harness enabled', () => {
+      const config = generatePlaywrightConfig({ useArtkHarness: true });
+
+      expect(config).toContain('artkConfig.browsers.channel');
+      expect(config).toContain('channel: artkConfig.browsers.channel');
+    });
   });
 
   describe('browser configuration', () => {
