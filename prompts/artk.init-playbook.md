@@ -90,6 +90,8 @@ Supported key=value arguments (all optional):
 - `lang`: Playwright language harness `ts | js` (default: `ts`)
 - `pm`: package manager `npm | pnpm | yarn` (default: inferred from lockfile)
 - `dryRun`: `true | false` (default: `false`)
+- `yes`: `true | false` — non-interactive mode, skip questionnaire (default: `false`)
+- `reconfigure`: `true | false` — force questionnaire even in Mode C (default: `false`)
 
 ### dryRun behavior
 
@@ -247,18 +249,49 @@ Output proposed configuration:
 ### First: Check execution mode from Step 1
 
 **Mode C (Re-run):** ARTK is already installed and current.
+
+**First, check for reconfiguration triggers:**
+
+1. **Explicit reconfigure:** `reconfigure=true` argument provided
+2. **Incomplete config:** Any critical field is `unknown` or missing:
+   - `auth.bypass.mode` is `unknown`
+   - `auth.provider` is missing
+   - Other critical fields not set
+
+**If reconfigure trigger detected:**
+```
+📋 ARTK installed at demo/ (v1.0.0)
+  ⚠️ Configuration review needed:
+    • auth.bypass.mode: unknown (incomplete)
+
+Options:
+  1) Configure missing/unknown values (recommended)
+  2) Skip and validate only
+
+[1/2, or press Enter for 1]:
+```
+
+If user chooses 1 (or presses Enter): → Run Step 4A (analysis) + Step 4B (questionnaire) + Step 4C (apply)
+If user chooses 2: → Skip to validation
+
+**If no reconfigure trigger (config is complete):**
 ```
 📋 ARTK already installed at demo/
   • Version: 1.0.0 (current)
   • Core: installed at .artk/core/journeys
   • Journeys: 3 found
+  • Config: ✓ complete
 
 ✓ Running validation only...
 ```
 Then skip to Step 16 (regenerate BACKLOG.md) → Step 18 (report). Do NOT re-scaffold.
 
-**Mode C explicit path:** Step 1 → Step 2 → Step 3 → Step 4 (detect Mode C) → Step 16 → Step 18
-**Skip entirely:** Steps 5-15, 17 (no scaffolding, no install)
+**Mode C paths:**
+- **Complete config:** Step 1 → Step 2 → Step 3 → Step 4 (detect Mode C, no triggers) → Step 16 → Step 18
+- **Incomplete config:** Step 1 → Step 2 → Step 3 → Step 4 (detect trigger) → Step 4A/4B/4C → Step 16 → Step 18
+- **Explicit reconfigure:** Same as incomplete config path
+
+**Skip entirely in Mode C:** Steps 5-15, 17 (no scaffolding, no install — config update only if triggered)
 
 **Mode B (Upgrade):** ARTK exists but needs updates.
 ```
@@ -266,93 +299,180 @@ Then skip to Step 16 (regenerate BACKLOG.md) → Step 18 (report). Do NOT re-sca
   • Current version: 0.9.0
   • Core: not installed (will install)
   • Journeys: 3 found (will preserve)
-
-✓ Proceeding with upgrade...
 ```
-Then continue to Step 5 with MERGE behavior (preserve existing, add missing).
+→ Continue to the questionnaire below (same as Mode A, with "keep previous" option).
 
 **Mode A (Fresh):** No ARTK detected.
-→ Continue to the decision below.
+→ Continue to the questionnaire below.
 
 ---
 
-### For Mode A only: Decide whether to ask questions
+### For Mode A and Mode B: Configuration Questionnaire
 
-After completing Steps 1-3, you have two choices:
+**IMPORTANT: Both fresh installs AND upgrades go through the questionnaire.**
 
-### Choice A: You CAN infer everything → PROCEED IMMEDIATELY
+This ensures:
+- Fresh installs get proper configuration
+- Upgrades can fix misconfigured or "unknown" values
+- Users always have a chance to review/adjust settings
 
-If your repo scan gave you enough information to fill all required values, then:
-1. Log your inferred configuration (brief summary)
-2. **Immediately continue to Step 5** — do NOT wait for user confirmation
-3. User can re-run with explicit arguments later if defaults are wrong
+---
 
-**Example of proceeding:**
+### Step 4A: Analyze the project (REQUIRED before asking questions)
+
+Before presenting the questionnaire, you MUST analyze the project to discover:
+
+1. **Auth patterns** — Look for:
+   - OIDC/OAuth configs: `.env*`, `auth.config.*`, `oidc.*`, `oauth.*`
+   - Login components: `**/login*`, `**/Login*`, `**/signin*`, `**/SignIn*`
+   - Auth libraries: Check `package.json` for `oidc-client`, `@azure/msal`, `auth0`, `passport`
+   - Auth bypass flags: Search for `BYPASS`, `MOCK_USER`, `DEV_AUTH`, `SKIP_AUTH` in env files
+
+2. **App structure** — Identify:
+   - Frontend framework (Vite, Next.js, Angular, CRA)
+   - Dev server port
+   - Multiple apps in monorepo
+
+3. **Existing E2E setup** — Check for:
+   - Playwright config
+   - Cypress config
+   - Test directories
+
+**Example analysis output:**
 ```
-📋 Inferred configuration (Mode A: Fresh Install):
-  • App: demo (Vite frontend @ http://localhost:5173/)
-  • Root: demo/e2e (existing Playwright setup)
-  • Package manager: npm
-  • Auth: form-login (inferred from login page)
-
-✓ All required info inferred. Proceeding with scaffold...
+🔍 Project Analysis:
+  • Framework: Vite (detected vite.config.ts)
+  • Dev URL: http://localhost:5173
+  • Auth library: @azure/msal-browser (OIDC)
+  • Auth bypass: Found VITE_BYPASS_AUTH in .env.development
+  • Login page: src/pages/Login.tsx
 ```
-Then immediately execute Step 5.
 
-### Choice B: You CANNOT infer critical values → ASK IN ONE SHOT
+---
 
-If something critical is truly ambiguous (e.g., multiple apps and no clear primary, no detectable auth pattern), then:
-1. Present what you DID infer
-2. Ask ONLY the questions you need answered — in a single grouped block
-3. Provide a compact answer template
-4. **WAIT for user response**
-5. After response, immediately continue to Step 5
+### Step 4B: Present questionnaire with analysis results
 
-**Example of asking:**
+Present the questionnaire in ONE grouped block. For Mode B, include the "keep previous" option showing current values.
+
+**Mode A Example (Fresh Install):**
 ```
-📋 Repo scan complete (Mode A: Fresh Install). Need clarification:
+📋 Configuration needed (Mode A: Fresh Install)
 
-Inferred:
-  • Package manager: npm
-  • ARTK root: e2e/artk
-  • Auth: unknown (no login patterns detected)
+🔍 Analysis results:
+  • App: iss-frontend (Vite @ http://localhost:5173)
+  • Auth: OIDC detected (@azure/msal-browser)
+  • Bypass: VITE_BYPASS_AUTH found in .env.development
 
-Questions (please answer in one reply):
+Questions (answer all, or press Enter to accept defaults):
 
-1) **Target app**: Found 3 apps — `web-app/`, `admin-portal/`, `mobile-web/`. Which one first?
-2) **Auth approach**: How does authentication work?
+1) **Target app**: iss-frontend (detected)
+   → [Enter to accept, or specify different app]
+
+2) **Auth approach**:
+   - [x] SSO/OIDC (recommended - detected @azure/msal-browser)
    - [ ] form-login (username/password form)
-   - [ ] SSO/OIDC (redirect to identity provider)
    - [ ] token/API (bearer token, no UI login)
    - [ ] none (no auth required)
-3) **Local auth bypass?** (if dev mode skips auth)
+
+3) **Local auth bypass?**
+   - [ ] no (require full auth locally)
+   - [ ] identityless (skip auth, no role info)
+   - [x] mock-identity (recommended - found VITE_BYPASS_AUTH)
+   - Toggle: VITE_BYPASS_AUTH
+   - Environments: [local]
+
+4) **MFA/captcha in non-prod?**: unknown
+   - [ ] yes (will need workaround)
    - [ ] no
-   - [ ] yes, identityless (no role/identity locally)
-   - [ ] yes, mock identity (roles enforced, switchable)
-   - Toggle/flag (env var, hostname rule, config key):
+   - [x] unknown (will investigate later)
+
+5) **Test data strategy**:
+   - [x] create_api (recommended - create via API, cleanup after)
+   - [ ] seed (pre-seeded data)
+   - [ ] create_ui (create via UI)
+   - [ ] reuse_stable (use existing stable data)
+
+Reply format (or just press Enter for defaults):
+auth: oidc
+bypass: mock-identity, VITE_BYPASS_AUTH, [local]
+mfa: unknown
+data: create_api
+```
+
+**Mode B Example (Upgrade with "Keep Previous" option):**
+```
+📋 Configuration review (Mode B: Upgrade from v0.9.0)
+
+📂 Current settings in artk.config.yml:
+  • Auth approach: oidc
+  • Auth bypass: unknown ⚠️
+  • MFA/captcha: unknown
+  • Test data: create_api
+  • Flake posture: retries_ci_only
+
+🔍 Analysis results:
+  • Auth bypass: Found VITE_BYPASS_AUTH in .env.development
+  • Login page: src/pages/Login.tsx (OIDC flow)
+
+Questions (answer all, or choose "keep" to preserve current):
+
+1) **Auth approach**:
+   - [x] keep previous: oidc
+   - [ ] SSO/OIDC
+   - [ ] form-login
+   - [ ] token/API
+   - [ ] none
+
+2) **Local auth bypass?** (currently: unknown ⚠️)
+   - [ ] keep previous: unknown ⚠️ (not recommended)
+   - [ ] no (require full auth locally)
+   - [ ] identityless (skip auth, no role info)
+   - [x] mock-identity (recommended - found VITE_BYPASS_AUTH)
+   - Toggle: VITE_BYPASS_AUTH
+   - Environments: [local]
+
+3) **MFA/captcha in non-prod?** (currently: unknown)
+   - [x] keep previous: unknown
+   - [ ] yes
+   - [ ] no
+
+4) **Test data strategy** (currently: create_api)
+   - [x] keep previous: create_api
+   - [ ] seed
+   - [ ] create_ui
+   - [ ] reuse_stable
+
+5) **Flake posture** (currently: retries_ci_only)
+   - [x] keep previous: retries_ci_only
+   - [ ] no_retries
+   - [ ] retries_everywhere
 
 Reply format:
-app: web-app
-auth: form-login
-bypass: yes, mock identity (DEV_USER_ROLE)
+auth: keep
+bypass: mock-identity, VITE_BYPASS_AUTH, [local]
+mfa: keep
+data: keep
+flake: keep
+
+Shortcuts:
+  • Enter → Accept [x] recommendations (bypass WILL change to mock-identity)
+  • "keep all" → Keep ALL current values (bypass stays unknown ⚠️)
+  • "defaults" → Use all safe defaults (ignore current and analysis)
 ```
-Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 
 ---
 
-### Standard mode questionnaire (reference for what MAY be asked)
+### Full questionnaire reference (all possible questions)
 
-**Only ask these if you truly cannot infer. Most can be defaulted.**
+**Init questions:**
+1) **Target app** — which app/path to target first
+2) **ARTK root path** — where to place ARTK workspace
+3) **Package manager** — npm/pnpm/yarn
+4) **Primary environment + base URL** — dev server URL
 
-**Init questions (ask if ambiguous):**
-1) **Target app** — only if multiple UIs detected and no clear primary
-2) **ARTK root path** — only if placement logic (Step 2) is ambiguous
-3) **Package manager** — only if no lockfile found
-4) **Primary environment + base URL** — only if no dev server detected
-
-**Playbook questions (ask if ambiguous):**
+**Playbook questions:**
 5) **Auth approach**: `form-login`, `SSO/OIDC`, `token/session`, `none`
-6) **Local auth bypass mode**: `no | identityless | mock-identity` + toggle/flag
+6) **Local auth bypass mode**: `no | identityless | mock-identity` + toggle/flag + environments
 7) **MFA/captcha in non-prod?**: yes/no/unknown
 8) **Data sensitivity**: `none`, `mask PII`, `disable artifacts`
 9) **Test hooks allowed?**: `data-testid` allowed: yes/no/unknown
@@ -366,7 +486,7 @@ Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 15) **Journey layout**: `flat` or `staged`
 16) **Procedural steps required?**: yes/no
 
-### Safe defaults (use these if not asking)
+### Safe defaults (use if user presses Enter or doesn't answer)
 
 | Value | Default |
 |-------|---------|
@@ -374,8 +494,8 @@ Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 | ARTK root | Per Step 2 logic |
 | Package manager | From lockfile, else `npm` |
 | Environment | `local` @ detected dev URL or framework default (Vite: 5173, Next/CRA: 3000, Angular: 4200) |
-| Auth | `form-login` (safe default) |
-| Local auth bypass | `unknown` |
+| Auth | Inferred from analysis, else `form-login` |
+| Local auth bypass | Inferred from analysis, else `unknown` |
 | Local auth bypass envs | `[local]` |
 | MFA/captcha | `unknown` |
 | Data sensitivity | `none` |
@@ -391,9 +511,185 @@ Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 
 ---
 
-**REMINDER: After this step, you MUST be in one of these states:**
-1. **Waiting for user reply** (if you asked questions in Mode A)
-2. **Actively executing Step 5** (Mode A with inferred defaults, or Mode B upgrade)
+### Question policy by mode
+
+| Mode | Questions | "Keep Previous" Option |
+|------|-----------|------------------------|
+| `quick` | ≤5 critical questions only | Yes (Mode B) |
+| `standard` | All questions with smart defaults | Yes (Mode B) |
+| `deep` | All questions, more detail | Yes (Mode B) |
+
+**Quick mode critical questions (exactly these 5):**
+
+| # | Question | When to Ask |
+|---|----------|-------------|
+| 1 | Target app | If multiple apps detected |
+| 2 | Auth approach | Always (foundational) |
+| 3 | Local auth bypass | Always (critical for test execution) |
+| 4 | Test data strategy | Always (affects test isolation) |
+| 5 | MFA/captcha | If auth is SSO/OIDC |
+
+**Skip in quick mode (use defaults):**
+- ARTK root path (use computed)
+- Package manager (use detected)
+- Environment/URL (use detected)
+- Data sensitivity (default: none)
+- Test hooks (default: yes)
+- Ownership model (default: feature_team)
+- Flake posture (default: retries_ci_only)
+- No-go zones (default: empty)
+- Journey system questions (defaults always work)
+
+---
+
+### Recommendation logic (how to mark `[x]`)
+
+For each question, determine which option to mark as recommended `[x]`:
+
+**Rule 1: Analysis trumps defaults**
+- If analysis inferred a value → recommend that value
+- Example: Found `@azure/msal-browser` → recommend `SSO/OIDC`
+
+**Rule 2: Valid current values are preserved (Mode B)**
+- If current value is set AND valid (not `unknown`) → recommend `keep previous`
+- Example: Current `auth: oidc` → recommend `keep previous: oidc`
+
+**Rule 3: Unknown/missing triggers change recommendation**
+- If current value is `unknown` or missing → recommend analysis value or default
+- Mark "keep previous: unknown" as `(not recommended)`
+- Example: Current `bypass: unknown`, found `VITE_BYPASS_AUTH` → recommend `mock-identity`
+
+**Rule 4: Analysis contradiction**
+- If analysis finds something DIFFERENT from current → recommend analysis value
+- But show "keep previous" prominently (user may have reasons)
+
+**Priority order for recommendations:**
+1. Analysis-inferred value (highest confidence)
+2. Current value if valid (user explicitly set it)
+3. Safe default (lowest confidence)
+
+---
+
+### Response shortcuts (clarified behavior)
+
+| Shortcut | Behavior | Use When |
+|----------|----------|----------|
+| `Enter` (empty) | Accept all `[x]` recommendations | You trust the analysis/recommendations |
+| `keep all` | Preserve ALL current values | You want no changes (Mode B only) |
+| `defaults` | Use all safe defaults | Ignore both current and analysis |
+
+**Important distinction:**
+- `Enter` may CHANGE values (if analysis recommends something different)
+- `keep all` will NOT change values (even if analysis found issues)
+
+**Show this in questionnaire footer:**
+```
+Shortcuts:
+  • Enter → Accept recommendations (auth.bypass WILL change to mock-identity)
+  • "keep all" → Keep ALL current values (auth.bypass stays unknown)
+```
+
+---
+
+**In ALL modes:**
+- Always analyze the project FIRST (Step 4A)
+- Pre-fill answers based on analysis
+- Show "keep previous" for Mode B with current values
+- Mark recommended answers with `[x]` using the logic above
+- Allow user to press Enter to accept recommendations
+- Clearly show what Enter vs keep all will do
+
+---
+
+### Step 4C: Parse and apply questionnaire answers (CRITICAL)
+
+After user responds, you MUST process their answers before proceeding:
+
+**Response parsing rules:**
+
+| User Input | Interpretation |
+|------------|----------------|
+| `Enter` (empty) | Accept all recommendations marked `[x]` |
+| `keep all` | Preserve ALL current values (Mode B only) |
+| `key: value` | Set that specific key to value |
+| `keep` for a key | Preserve current value for that key |
+| Natural language | Extract intent (e.g., "I want OIDC" → `auth: oidc`) |
+
+**If user provides partial answers:**
+- For answered questions: use provided value
+- For unanswered questions: use recommendation `[x]`
+- Confirm: "Using recommendations for unanswered questions: [list]. Proceeding..."
+
+**If user input is unparseable:**
+- Ask for clarification: "I didn't understand your answer for [question]. Did you mean [options]?"
+- Do NOT proceed until critical questions are resolved
+
+**Apply answers to configuration:**
+
+**Mode A (Fresh Install):**
+1. Create `artk.config.yml` with all questionnaire values
+2. Use analysis-inferred values for any skipped questions
+3. Use safe defaults for anything not covered
+
+**Mode B (Upgrade):**
+1. Read existing `artk.config.yml`
+2. For each answer:
+   - If `keep` → preserve existing value (no change)
+   - If different from current → UPDATE that key
+   - If `keep all` → skip all updates
+3. Write updated config (YAML merge, not overwrite)
+4. Preserve any custom keys user added manually
+5. Log each change: `✓ Updated: auth.bypass.mode = mock-identity (was: unknown)`
+
+**Example Mode B update log:**
+```
+Applying configuration changes...
+  ✓ Preserved: auth.provider = oidc (keep)
+  ✓ Updated: auth.bypass.mode = mock-identity (was: unknown)
+  ✓ Updated: auth.bypass.toggle = VITE_BYPASS_AUTH (was: empty)
+  ✓ Preserved: data.strategy = create_api (keep)
+  ✓ Preserved: flake.posture = retries_ci_only (keep)
+```
+
+**Validation before proceeding:**
+- All critical fields must have values (not `unknown` unless explicitly chosen)
+- If validation fails: ask user to provide missing values
+- Only proceed to Step 5 when config is complete
+
+---
+
+### Non-interactive mode (`--yes` or `CI=true`)
+
+If running non-interactively (detected via `--yes` argument or `CI` environment variable):
+
+1. **Skip questionnaire presentation** — don't wait for user
+2. **Auto-configure using priority:**
+   - Analysis-inferred values (highest priority)
+   - Current values from existing config (Mode B)
+   - Safe defaults (lowest priority)
+3. **Log auto-configuration:**
+   ```
+   ℹ️ Non-interactive mode detected
+   Auto-configuring with:
+     • auth.provider = oidc (inferred from @azure/msal-browser)
+     • auth.bypass.mode = mock-identity (inferred from VITE_BYPASS_AUTH)
+     • data.strategy = create_api (default)
+   ```
+4. **Proceed immediately to Step 5**
+
+**Warning for non-interactive with unknowns:**
+If critical values cannot be inferred and would remain `unknown`:
+```
+⚠️ Non-interactive mode: Could not infer auth.bypass.mode
+  Using: unknown (may cause test failures)
+  Fix: Run interactively or set in artk.config.yml
+```
+
+---
+
+**REMINDER: After Step 4C, you MUST be in one of these states:**
+1. **Configuration applied** → proceed to Step 5
+2. **Awaiting clarification** → user gave unparseable input, waiting for retry
 3. **Jumped to Step 16** (Mode C re-run — skip scaffolding entirely)
 
 **Never be in a state of "I described what I'll do next" with no action.**
@@ -402,7 +698,7 @@ Then WAIT for the user's reply. After reply, immediately continue to Step 5.
 
 **Skip this step entirely in Mode C (re-run).** Jump to Step 16.
 
-**In Mode B (upgrade):** Only create MISSING files. Never overwrite existing.
+**In Mode B (upgrade):** Only create MISSING files. artk.config.yml was already updated in Step 4C.
 
 ### 5A) Create directory structure
 ```

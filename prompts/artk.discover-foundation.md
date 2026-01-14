@@ -930,7 +930,7 @@ Auth Flow (optional):    ✓ PASS / ⏭ SKIPPED / ✗ FAIL
 Overall: READY / NEEDS FIXES
 
 Next steps:
-- If READY: Proceed to /journey-propose
+- If READY: Proceed to /artk.testid-audit (strongly recommended) then /journey-propose
 - If NEEDS FIXES: Address errors above before continuing
 ═══════════════════════════════════════════════════════════════════
 ```
@@ -964,4 +964,5 @@ Next steps:
 - [ ] Validation summary output
 
 ### Next Commands
+- `/artk.testid-audit` (strongly recommended before generating tests)
 - `/journey-propose` (auto-identify high-signal Journeys)
