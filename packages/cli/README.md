@@ -205,20 +205,19 @@ For detailed architecture documentation and implementation notes, see:
 
 | Module | Purpose |
 |--------|---------|
-| `src/lib/bootstrap.ts` | Core installation logic |
+| `src/lib/bootstrap.ts` | Core installation logic (calls @artk/core generator) |
 | `src/lib/environment.ts` | Environment detection (ESM/CommonJS) |
 | `src/lib/browser-resolver.ts` | Browser fallback chain with logging |
 | `src/lib/config-validator.ts` | Zod-based artk.config.yml validation |
 | `src/lib/prompts.ts` | Interactive CLI prompts with TTY detection |
-| `src/lib/template-processor.ts` | Foundation module generation |
 | `src/lib/logger.ts` | Structured console output |
 
-### Known Issues
+### Resolved Issues (v1.0.1)
 
-See the [architecture review](../../research/2026-01-14_cli_critical_review.md) for a complete list. Key items:
+The following issues from the [architecture review](../../research/2026-01-14_cli_critical_review.md) have been resolved:
 
-1. **Template Generator Duplication** - CLI has a separate template processor instead of using @artk/core's generator
-2. **Browser Installation** - CLI skips `playwright install` during npm install
+1. ~~**Template Generator Duplication**~~ - **FIXED**: CLI now calls @artk/core's `generate-foundation.ts` script directly, ensuring feature parity with the shell script bootstrap
+2. ~~**Browser Installation**~~ - **FIXED**: CLI now explicitly runs `npx playwright install chromium` after npm install when using bundled browsers, with automatic fallback to system browsers if installation fails
 
 ## License
 

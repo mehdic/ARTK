@@ -38,7 +38,7 @@ export interface BrowserResolverOptions {
 export async function resolveBrowser(
   targetPath: string,
   logger?: Logger,
-  options: { strategy?: BrowserStrategy; logsDir?: string } = {}
+  options: { strategy?: BrowserStrategy; logsDir?: string; skipBundled?: boolean } = {}
 ): Promise<BrowserInfo> {
   const log = logger || new Logger();
   const artkE2ePath = path.join(targetPath, 'artk-e2e');
@@ -54,6 +54,12 @@ export async function resolveBrowser(
 
   // Determine effective strategy
   let strategy = options.strategy || 'auto';
+
+  // If skipBundled is set, force system-only strategy
+  if (options.skipBundled) {
+    log.debug('skipBundled option set - using system browsers only');
+    strategy = 'system-only';
+  }
 
   // CI environment forces bundled browsers for reproducibility
   if (isCI() && strategy !== 'system-only') {

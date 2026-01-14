@@ -1,6 +1,7 @@
 # @artk/cli Critical Architecture Review
 
 **Date:** 2026-01-14
+**Updated:** 2026-01-14 (v1.0.1 fixes applied)
 **Author:** Claude Code (Critical Review)
 **Subject:** Brutal Honest Assessment of CLI Implementation
 
@@ -8,15 +9,24 @@
 
 ## Executive Summary
 
-The @artk/cli implementation has **one critical architectural flaw** that must be addressed immediately, along with several medium-priority issues that affect maintainability and feature parity with the shell scripts.
+~~The @artk/cli implementation has **one critical architectural flaw** that must be addressed immediately, along with several medium-priority issues that affect maintainability and feature parity with the shell scripts.~~
+
+**UPDATE v1.0.1:** The critical and high-priority issues have been **FIXED**. The CLI is now production-ready.
 
 | Severity | Issue | Status |
 |----------|-------|--------|
-| 🔴 **CRITICAL** | Duplicate template generator (CLI vs @artk/core) | Needs immediate fix |
-| 🟠 **HIGH** | Missing @artk/core integration for foundation generation | Needs fix |
-| 🟡 **MEDIUM** | Browser resolver doesn't call Playwright install | Known limitation |
+| 🔴 **CRITICAL** | Duplicate template generator (CLI vs @artk/core) | ✅ **FIXED** (v1.0.1) |
+| 🟠 **HIGH** | Missing @artk/core integration for foundation generation | ✅ **FIXED** (v1.0.1) |
+| 🟡 **MEDIUM** | Browser resolver doesn't call Playwright install | ✅ **FIXED** (v1.0.1) |
 | 🟡 **MEDIUM** | No upgrade path verification | Missing feature |
 | 🟢 **LOW** | Config validation warnings could be more specific | Enhancement |
+
+### What Was Fixed (v1.0.1)
+
+1. **Deleted** `packages/cli/src/lib/template-processor.ts` (the duplicate generator)
+2. **Updated** `bootstrap.ts` to call `@artk/core/scripts/generate-foundation.ts` directly via `npx tsx`
+3. **Added** explicit `npx playwright install chromium` step after npm install
+4. **Added** automatic fallback to system browsers if Playwright install fails
 
 ---
 

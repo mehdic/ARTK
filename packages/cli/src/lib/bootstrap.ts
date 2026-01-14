@@ -13,7 +13,6 @@ import { fileURLToPath } from 'url';
 import { Logger } from './logger.js';
 import { detectEnvironment, type EnvironmentInfo } from './environment.js';
 import { resolveBrowser, updateArtkConfigBrowser, type BrowserInfo } from './browser-resolver.js';
-import { generateFoundationModules, type TemplateContext } from './template-processor.js';
 import { validateArtkConfig } from './config-validator.js';
 import { promptVariant, isInteractive } from './prompts.js';
 
@@ -193,6 +192,30 @@ export async function bootstrap(
     if (!options.skipBrowsers && !options.skipNpm) {
       logger.step(7, 7, 'Configuring browsers...');
       browserInfo = await resolveBrowser(resolvedPath, logger, { logsDir });
+
+      // Install Playwright browsers if using bundled channel
+      if (browserInfo.channel === 'bundled') {
+        logger.debug('Installing Playwright browsers...');
+        try {
+          execSync('npx playwright install chromium', {
+            cwd: artkE2ePath,
+            stdio: 'pipe',
+            env: { ...process.env },
+            timeout: 300000, // 5 minute timeout
+          });
+          logger.debug('Playwright browsers installed');
+        } catch (error) {
+          // Non-blocking - browser resolver already configured fallback
+          logger.warning('Playwright browser installation failed, using system browser fallback');
+          // Update browser info to use system browser
+          if (browserInfo.channel === 'bundled') {
+            browserInfo = await resolveBrowser(resolvedPath, logger, {
+              logsDir,
+              skipBundled: true,
+            });
+          }
+        }
+      }
 
       // Update config with browser info
       const configPath = path.join(artkE2ePath, 'artk.config.yml');
@@ -482,32 +505,30 @@ playwright-report/
 `
   );
 
-  // Foundation modules generation
-  const assetsDir = getAssetsDir();
-  const templateContext: TemplateContext = {
-    projectName: options.projectName,
-    projectRoot: projectPath,
-    artkRoot: 'artk-e2e',
-    artkCorePath: '@artk/core',
-    configPath: 'config',
-    authStatePath: '.auth-states',
-    baseURL: 'http://localhost:3000',
-    generatedAt: new Date().toISOString(),
-    moduleSystem: options.variant,
-  };
-
-  const foundationResult = await generateFoundationModules(
-    artkE2ePath,
-    assetsDir,
-    templateContext,
-    logger
-  );
-
-  if (!foundationResult.success) {
-    logger.warning('Some foundation modules failed to generate');
-    for (const error of foundationResult.errors) {
-      logger.debug(`  ${error.file}: ${error.error}`);
+  // Foundation modules generation using @artk/core's generator
+  // This ensures feature parity with shell script bootstrap
+  const coreGeneratorPath = path.join(artkE2ePath, 'vendor', 'artk-core', 'scripts', 'generate-foundation.ts');
+  if (fs.existsSync(coreGeneratorPath)) {
+    logger.debug('Generating foundation modules via @artk/core...');
+    try {
+      // Use tsx to run the TypeScript generator directly
+      execSync(
+        `npx tsx "${coreGeneratorPath}" --projectRoot="${projectPath}" --variant="${options.variant}"`,
+        {
+          cwd: artkE2ePath,
+          stdio: 'pipe',
+          env: { ...process.env },
+        }
+      );
+      logger.debug('Foundation modules generated successfully');
+    } catch (error) {
+      // Non-blocking - foundation modules will be created by /artk.discover-foundation
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warning(`Foundation module generation failed (non-blocking): ${errorMessage}`);
+      logger.debug('Foundation modules will be created by /artk.discover-foundation prompt');
     }
+  } else {
+    logger.debug('Foundation generator not found in vendor, using stubs only');
   }
 
   // Create additional module stubs (selectors, data, features)

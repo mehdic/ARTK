@@ -72,6 +72,7 @@ interface BrowserInfo {
 declare function resolveBrowser(targetPath: string, logger?: Logger, options?: {
     strategy?: BrowserStrategy;
     logsDir?: string;
+    skipBundled?: boolean;
 }): Promise<BrowserInfo>;
 
 /**
