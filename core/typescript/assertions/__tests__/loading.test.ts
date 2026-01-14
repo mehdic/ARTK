@@ -279,9 +279,11 @@ describe('Loading State Assertions', () => {
             loader.textContent = 'Loading...';
             container.appendChild(loader);
 
+            // 500ms is enough time for Playwright to observe the element
+            // while still being short enough to test the complete flow
             setTimeout(() => {
               loader.remove();
-            }, 150);
+            }, 500);
           });
         }
       });
@@ -291,7 +293,7 @@ describe('Loading State Assertions', () => {
         async () => {
           await page.click('#trigger');
         },
-        { timeout: 3000 }
+        { timeout: 5000 }
       );
 
       // Loading should be complete
