@@ -243,7 +243,7 @@ Ensure equivalents exist for:
 - selectors/locators
 - data/run-id/builders
 
-If missing: stop and instruct `/foundation-build`.
+If missing: stop and instruct `/discover-foundation`.
 
 ### 6.2 Feature modules
 Create missing feature modules only when needed.

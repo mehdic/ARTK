@@ -121,7 +121,7 @@ Default: `standard`
    - nearest `artk.config.yml` up the tree
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/init-playbook` first.
 
 ## Step 1 — Determine whether this is “create” or “promote”
 If `source=` is provided:

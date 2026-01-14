@@ -86,19 +86,19 @@ Before running any tests, verify ARTK Core v1 is properly integrated:
      - `dist/locators/`, `dist/assertions/`, `dist/data/`
      - `dist/auth/`, `dist/reporters/`
    - ✅ `<ARTK_ROOT>/.core/package.json` exists with correct version
-   - ❌ If missing: Run `/init` to install core framework
+   - ❌ If missing: Run `/init-playbook` to install core framework
 
 2. **artk.config.yml valid:**
    - ✅ Valid ARTK Core v1 schema (validated by `@artk/core/config`)
    - ✅ `version: "1.0"` field present
    - ✅ Required sections: `app`, `environments`, `auth`, `selectors`, `tiers`
-   - ❌ If invalid: Fix config or run `/init` to regenerate
+   - ❌ If invalid: Fix config or run `/init-playbook` to regenerate
 
 3. **Playwright config uses core harness:**
    - ✅ `playwright.config.ts` imports from `@artk/core/harness`
    - ✅ Uses `createPlaywrightConfig()` factory
    - ✅ Config loads via `loadConfig()` from `@artk/core/config`
-   - ❌ If manual config: Run `/foundation-build` to regenerate
+   - ❌ If manual config: Run `/discover-foundation` to regenerate
 
 4. **Tests use core fixtures:**
    - ✅ Test files import from `@artk/core/fixtures`
@@ -126,11 +126,11 @@ Before running any tests, verify ARTK Core v1 is properly integrated:
 
 | Failed Check | Command to Run | Description |
 |--------------|----------------|-------------|
-| Core missing | `/init` | Install ARTK Core framework |
+| Core missing | `/init-playbook` | Install ARTK Core framework |
 | Config invalid | Fix `artk.config.yml` | Update to Core v1 schema |
-| Config uses manual Playwright | `/foundation-build` | Regenerate using core harness |
+| Config uses manual Playwright | `/discover-foundation` | Regenerate using core harness |
 | Tests use custom fixtures | `/journey-implement id=... --fix-imports` | Re-implement with core imports |
-| No auth setup | Check config + run `/foundation-build` | Configure auth in config |
+| No auth setup | Check config + run `/discover-foundation` | Configure auth in config |
 | No tests | `/journey-implement id=...` | Implement the Journey |
 | Environment unreachable | Fix network/VPN | Cannot verify without access |
 
@@ -442,4 +442,3 @@ Always end with:
 - **Flaky backends**: stabilize with explicit completion checks, not retries forever.
 - **Retry side effects**: prefer tracing that captures the *first failure* when supported.
 - **Non-deterministic UI** (feature flags/permissions): require actor/role clarification or mark blocked.
-

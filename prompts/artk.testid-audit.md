@@ -42,6 +42,7 @@ This command must:
 2) Produce a **human-readable Fix Report** (table) + a **machine plan** (JSON/YAML).
 3) Make **no code changes** unless the user explicitly approves.
 4) If approved, apply **only safe, additive changes** (add attributes / forward props), then regenerate the report.
+5) Recommend only **agent-executable** next steps (no external team plans).
 
 ---
 
@@ -221,6 +222,10 @@ In chat, present:
 **C)** Apply nothing (report only)
 
 Do not proceed without an explicit answer.
+
+After presenting choices, also ask:
+**"Do you want me to apply the plan now, or skip implementation and move to the next ARTK prompt (`/journey-propose` or `/journey-define`)?"**
+Do NOT suggest `/artk.journey-generate`, `/artk.smoke-test`, or internal repo test commands.
 
 ---
 

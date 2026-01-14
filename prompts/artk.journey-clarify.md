@@ -140,7 +140,7 @@ If any are unknown or blocked, keep status as `defined` (or `proposed`) and list
    - nearest `artk.config.yml`
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/init-playbook` first.
 
 ## Step 1 — Load Journey file
 - If `id=` provided, resolve using `<ARTK_ROOT>/journeys/index.json` if present.

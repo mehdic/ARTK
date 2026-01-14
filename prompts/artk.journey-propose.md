@@ -38,7 +38,7 @@ You are running **ARTK Phase 5**.
 ARTK is a standardized kit that plugs into GitHub Copilot (repository instructions + prompt files + structured artifacts) to help teams build and continuously maintain **complete automated regression testing suites** for existing applications. These suites cover end-to-end **Journeys**, detect regressions early, and keep behavior stable across releases.
 
 This command generates a **high-signal proposed Journey backlog** with **module dependency hints**, using:
-- outputs from `/discover` (Phase 4), plus
+- outputs from `/discover-foundation` (Phase 4), plus
 - **change risk signals** (code churn / hotspots), and
 - **incident/bug history signals** (ticket references, postmortems, changelog “fixes”)
 
@@ -199,7 +199,7 @@ At the end print:
 2) **Load context from `.artk/context.json`:**
 
    Read `<ARTK_ROOT>/.artk/context.json` to get:
-   - `targets[]` - detected frontend targets from /init
+   - `targets[]` - detected frontend targets from /init-playbook
    - `detectedTargets[]` - targets with detection confidence
    - `discovery` - if present, cached discovery results (routes, components)
    - `journeys` - existing journey statistics
@@ -214,7 +214,7 @@ At the end print:
 3) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/`
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/init-playbook` first.
 
 4) Confirm discovery exists:
    - prefer `docs/discovery/*.json`, else `docs/DISCOVERY.md` + `docs/TESTABILITY.md`

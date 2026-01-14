@@ -6,7 +6,7 @@
 
 ---
 
-## Improvement 1: /init - Add Test Infrastructure Scaffolding
+## Improvement 1: /init-playbook - Add Test Infrastructure Scaffolding
 
 **File**: `artk.init.md`
 
@@ -22,7 +22,7 @@
 
 ---
 
-## Improvement 2: /discover - Add Feature Flag Detection
+## Improvement 2: /discover-foundation - Add Feature Flag Detection
 
 **File**: `artk.discover.md`
 
@@ -70,7 +70,7 @@
 
 ---
 
-## Improvement 5: Add /journey-scaffold Command
+## Improvement 5: Add /journey-scaffold Command (proposed, not implemented)
 
 **New File**: `artk.journey-scaffold.md`
 
@@ -97,9 +97,9 @@
 
 | Improvement | Priority | Effort | Impact |
 |-------------|----------|--------|--------|
-| /init scaffolding | HIGH | Medium | High |
+| /init-playbook scaffolding | HIGH | Medium | High |
 | /journey-scaffold | HIGH | High | High |
-| /discover flags | MEDIUM | Low | Medium |
+| /discover-foundation flags | MEDIUM | Low | Medium |
 | /journey-implement auth | MEDIUM | Low | Medium |
 | /journey-propose flags | LOW | Low | Low |
 
