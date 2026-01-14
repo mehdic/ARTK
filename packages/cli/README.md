@@ -194,6 +194,32 @@ browsers:
   strategy: auto
 ```
 
+## Architecture & Implementation Details
+
+For detailed architecture documentation and implementation notes, see:
+
+- **[CLI Architecture Review](../../research/2026-01-14_cli_critical_review.md)** - Critical analysis of the CLI implementation, known issues, and recommendations
+- **[CLI Design Research](../../research/2026-01-10_spec_kit_style_cli.md)** - Original design document based on spec-kit patterns
+
+### Implementation Modules
+
+| Module | Purpose |
+|--------|---------|
+| `src/lib/bootstrap.ts` | Core installation logic |
+| `src/lib/environment.ts` | Environment detection (ESM/CommonJS) |
+| `src/lib/browser-resolver.ts` | Browser fallback chain with logging |
+| `src/lib/config-validator.ts` | Zod-based artk.config.yml validation |
+| `src/lib/prompts.ts` | Interactive CLI prompts with TTY detection |
+| `src/lib/template-processor.ts` | Foundation module generation |
+| `src/lib/logger.ts` | Structured console output |
+
+### Known Issues
+
+See the [architecture review](../../research/2026-01-14_cli_critical_review.md) for a complete list. Key items:
+
+1. **Template Generator Duplication** - CLI has a separate template processor instead of using @artk/core's generator
+2. **Browser Installation** - CLI skips `playwright install` during npm install
+
 ## License
 
 MIT
