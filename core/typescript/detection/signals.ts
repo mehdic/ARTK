@@ -119,6 +119,16 @@ export const SIGNAL_WEIGHTS = {
   'config-file:angular.json': 25,
   'config-file:svelte.config.js': 20,
   'config-file:astro.config.mjs': 20,
+
+  // AG Grid dependencies (indicates data-heavy frontend)
+  'package-dependency:ag-grid-community': 25,
+  'package-dependency:ag-grid-enterprise': 30,
+  'package-dependency:ag-grid-react': 25,
+  'package-dependency:ag-grid-vue': 25,
+  'package-dependency:ag-grid-vue3': 25,
+  'package-dependency:ag-grid-angular': 25,
+  'package-dependency:@ag-grid-community/core': 25,
+  'package-dependency:@ag-grid-enterprise/core': 30,
 } as const;
 
 /**
@@ -194,6 +204,16 @@ export const FRONTEND_PACKAGE_INDICATORS = [
   'parcel',
   '@vitejs/plugin-react',
   '@vitejs/plugin-vue',
+
+  // Data grid libraries (indicates data-heavy frontend)
+  'ag-grid-community',
+  'ag-grid-enterprise',
+  'ag-grid-react',
+  'ag-grid-vue',
+  'ag-grid-vue3',
+  'ag-grid-angular',
+  '@ag-grid-community/core',
+  '@ag-grid-enterprise/core',
 ] as const;
 
 /**
@@ -340,5 +360,51 @@ export function matchesFrontendDirectoryPattern(dirName: string): boolean {
   const normalized = dirName.toLowerCase();
   return FRONTEND_DIRECTORY_PATTERNS.some((pattern) =>
     normalized.includes(pattern)
+  );
+}
+
+/**
+ * AG Grid package indicators for detection.
+ * Used by the grid module to determine if AG Grid helpers should be available.
+ */
+export const AG_GRID_PACKAGE_INDICATORS = [
+  'ag-grid-community',
+  'ag-grid-enterprise',
+  'ag-grid-react',
+  'ag-grid-vue',
+  'ag-grid-vue3',
+  'ag-grid-angular',
+  '@ag-grid-community/core',
+  '@ag-grid-enterprise/core',
+] as const;
+
+/**
+ * Checks if a package name indicates AG Grid usage.
+ *
+ * @param packageName - Name of the package dependency
+ * @returns True if the package indicates AG Grid is used
+ *
+ * @example
+ * ```typescript
+ * isAgGridPackage('ag-grid-react'); // true
+ * isAgGridPackage('react'); // false
+ * ```
+ */
+export function isAgGridPackage(packageName: string): boolean {
+  return AG_GRID_PACKAGE_INDICATORS.includes(
+    packageName as (typeof AG_GRID_PACKAGE_INDICATORS)[number]
+  );
+}
+
+/**
+ * Checks if a package name indicates AG Grid Enterprise usage.
+ *
+ * @param packageName - Name of the package dependency
+ * @returns True if the package indicates AG Grid Enterprise is used
+ */
+export function isAgGridEnterprisePackage(packageName: string): boolean {
+  return (
+    packageName === 'ag-grid-enterprise' ||
+    packageName === '@ag-grid-enterprise/core'
   );
 }

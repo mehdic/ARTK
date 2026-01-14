@@ -105,13 +105,13 @@ function isGlobalReference(
   }
 
   // Check if this is part of a longer variable name
-  const beforeChar = position > 0 ? content[position - 1] : ' ';
-  const afterChar = content[position + varName.length] || ' ';
+  const beforeChar = position > 0 ? (content[position - 1] ?? ' ') : ' ';
+  const afterChar = content[position + varName.length] ?? ' ';
 
   // Valid identifier chars
   const identifierChar = /[a-zA-Z0-9_$]/;
 
-  if (identifierChar.test(beforeChar) || identifierChar.test(afterChar)) {
+  if (identifierChar.test(beforeChar as string) || identifierChar.test(afterChar as string)) {
     return false;
   }
 

@@ -78,6 +78,10 @@
       "import": "./dist/validation/index.js",
       "types": "./dist/validation/index.d.ts"
     },
+    "./grid": {
+      "import": "./dist/grid/index.js",
+      "types": "./dist/grid/index.d.ts"
+    },
     "./templates/*": "./templates/*"
   },
   "files": [

@@ -120,7 +120,7 @@ ARTK has THREE core components (ALL MANDATORY):
 
 | Component | Package Name | Source Location | Install Location | Purpose |
 |-----------|--------------|-----------------|------------------|---------|
-| **Runtime Core** | `@artk/core` | `core/typescript/` | `<ARTK_ROOT>/vendor/artk-core/` | Fixtures, auth, config, locators |
+| **Runtime Core** | `@artk/core` | `core/typescript/` | `<ARTK_ROOT>/vendor/artk-core/` | Fixtures, auth, config, locators, assertions, grid helpers |
 | **AutoGen** | `@artk/core-autogen` | `core/typescript/autogen/` | `<ARTK_ROOT>/vendor/artk-core-autogen/` | Test generation, validation, IR |
 | **Journey Core** | `artk-core-journeys` | `core/artk-core-journeys/artk-core-journeys/` | `<ARTK_ROOT>/.artk/core/journeys/` | Journey schemas, backlog tools |
 
@@ -1035,6 +1035,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - Import from `@artk/core/fixtures` — do not create custom fixtures
 - Available: `authenticatedPage`, `adminPage`, `config`, `runId`, `testData`
 - Use `testData.cleanup()` to register cleanup callbacks
+- For AG Grid testing, import from `@artk/core/grid` for specialized grid helpers
 ```
 
 **Replace `<ARTK_ROOT>` with the actual path** (e.g., `artk-e2e` or `e2e/artk`).
@@ -1090,6 +1091,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - Import from `@artk/core/fixtures` — do not create custom fixtures
 - Available: `authenticatedPage`, `adminPage`, `config`, `runId`, `testData`
 - Use `testData.cleanup()` to register cleanup callbacks
+- For AG Grid testing, import from `@artk/core/grid` for specialized grid helpers
 ```
 
 (Replace `<ARTK_ROOT>` with the actual path)

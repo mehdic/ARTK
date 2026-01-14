@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AG Grid - Grouped Grid Test Fixture</title>
+  <style>
+    /* AG Grid styling simulation */
+    .ag-root-wrapper {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      border: 1px solid #babfc7;
+      width: 100%;
+      height: 500px;
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-header {
+      background: #f8f8f8;
+      border-bottom: 1px solid #babfc7;
+      display: flex;
+      min-height: 48px;
+    }
+    .ag-header-row {
+      display: flex;
+      width: 100%;
+    }
+    .ag-header-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #babfc7;
+      font-weight: 600;
+    }
+    .ag-header-cell[col-id="ag-Grid-AutoColumn"] {
+      min-width: 200px;
+    }
+    .ag-header-cell:not([col-id="ag-Grid-AutoColumn"]) {
+      min-width: 120px;
+    }
+    .ag-body-viewport {
+      flex: 1;
+      overflow: auto;
+    }
+    .ag-row {
+      display: flex;
+      border-bottom: 1px solid #dde2eb;
+      min-height: 42px;
+    }
+    .ag-row:hover {
+      background: #f5f7f7;
+    }
+    .ag-row-group {
+      background: #f0f4f8;
+      font-weight: 600;
+    }
+    .ag-row-level-0 {
+      padding-left: 0;
+    }
+    .ag-row-level-1 {
+      padding-left: 28px;
+    }
+    .ag-row-level-2 {
+      padding-left: 56px;
+    }
+    .ag-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #dde2eb;
+    }
+    .ag-cell[col-id="ag-Grid-AutoColumn"] {
+      min-width: 200px;
+    }
+    .ag-cell:not([col-id="ag-Grid-AutoColumn"]) {
+      min-width: 120px;
+    }
+    /* Group expand/collapse icons */
+    .ag-group-contracted,
+    .ag-group-expanded {
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 8px;
+      border: 1px solid #babfc7;
+      border-radius: 2px;
+      background: white;
+      font-size: 12px;
+    }
+    .ag-group-contracted:hover,
+    .ag-group-expanded:hover {
+      background: #e8f4f8;
+    }
+    .ag-group-contracted::before {
+      content: '▶';
+      font-size: 8px;
+    }
+    .ag-group-expanded::before {
+      content: '▼';
+      font-size: 8px;
+    }
+    .ag-group-value {
+      display: inline;
+    }
+    .ag-group-child-count {
+      color: #666;
+      font-weight: normal;
+      margin-left: 4px;
+    }
+    /* Hidden rows (collapsed) */
+    .ag-row.ag-hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Grouped Grid Test Fixture</h1>
+
+  <div id="grouped-grid" class="ag-root-wrapper" data-testid="grouped-grid">
+    <div class="ag-header">
+      <div class="ag-header-row" role="row">
+        <div class="ag-header-cell" col-id="ag-Grid-AutoColumn" role="columnheader">
+          <span>Department / Team</span>
+        </div>
+        <div class="ag-header-cell" col-id="name" role="columnheader">
+          <span>Name</span>
+        </div>
+        <div class="ag-header-cell" col-id="role" role="columnheader">
+          <span>Role</span>
+        </div>
+        <div class="ag-header-cell" col-id="salary" role="columnheader">
+          <span>Salary</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ag-body-viewport">
+      <div class="ag-center-cols-container">
+        <!-- Engineering Group (Level 0) -->
+        <div class="ag-row ag-row-group ag-row-level-0" role="row" row-index="0" aria-rowindex="1" aria-expanded="true" aria-level="1" tree-level="0" data-group-id="engineering">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell">
+            <span class="ag-group-expanded" data-group="engineering"></span>
+            <span class="ag-group-value">Engineering</span>
+            <span class="ag-group-child-count">(6)</span>
+          </div>
+          <div class="ag-cell" col-id="name" role="gridcell"></div>
+          <div class="ag-cell" col-id="role" role="gridcell"></div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$720,000</div>
+        </div>
+
+        <!-- Frontend Team Group (Level 1) -->
+        <div class="ag-row ag-row-group ag-row-level-1" role="row" row-index="1" aria-rowindex="2" aria-expanded="true" aria-level="2" tree-level="1" data-group-id="frontend" data-parent-group="engineering">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell">
+            <span class="ag-group-expanded" data-group="frontend"></span>
+            <span class="ag-group-value">Frontend Team</span>
+            <span class="ag-group-child-count">(3)</span>
+          </div>
+          <div class="ag-cell" col-id="name" role="gridcell"></div>
+          <div class="ag-cell" col-id="role" role="gridcell"></div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$360,000</div>
+        </div>
+
+        <!-- Frontend Team Members (Level 2 - leaf rows) -->
+        <div class="ag-row ag-row-level-2" role="row" row-index="2" aria-rowindex="3" aria-level="3" data-parent-group="frontend">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Alice Johnson</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Senior Developer</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$140,000</div>
+        </div>
+        <div class="ag-row ag-row-level-2" role="row" row-index="3" aria-rowindex="4" aria-level="3" data-parent-group="frontend">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Bob Smith</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Developer</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$110,000</div>
+        </div>
+        <div class="ag-row ag-row-level-2" role="row" row-index="4" aria-rowindex="5" aria-level="3" data-parent-group="frontend">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Carol Williams</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Junior Developer</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$110,000</div>
+        </div>
+
+        <!-- Backend Team Group (Level 1) -->
+        <div class="ag-row ag-row-group ag-row-level-1" role="row" row-index="5" aria-rowindex="6" aria-expanded="false" aria-level="2" tree-level="1" data-group-id="backend" data-parent-group="engineering">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell">
+            <span class="ag-group-contracted" data-group="backend"></span>
+            <span class="ag-group-value">Backend Team</span>
+            <span class="ag-group-child-count">(3)</span>
+          </div>
+          <div class="ag-cell" col-id="name" role="gridcell"></div>
+          <div class="ag-cell" col-id="role" role="gridcell"></div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$360,000</div>
+        </div>
+
+        <!-- Backend Team Members (Hidden - collapsed) -->
+        <div class="ag-row ag-row-level-2 ag-hidden" role="row" row-index="6" aria-rowindex="7" aria-level="3" data-parent-group="backend">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">David Brown</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Senior Developer</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$140,000</div>
+        </div>
+        <div class="ag-row ag-row-level-2 ag-hidden" role="row" row-index="7" aria-rowindex="8" aria-level="3" data-parent-group="backend">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Eve Davis</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Developer</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$110,000</div>
+        </div>
+        <div class="ag-row ag-row-level-2 ag-hidden" role="row" row-index="8" aria-rowindex="9" aria-level="3" data-parent-group="backend">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Frank Miller</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Junior Developer</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$110,000</div>
+        </div>
+
+        <!-- Sales Group (Level 0) -->
+        <div class="ag-row ag-row-group ag-row-level-0" role="row" row-index="9" aria-rowindex="10" aria-expanded="false" aria-level="1" tree-level="0" data-group-id="sales">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell">
+            <span class="ag-group-contracted" data-group="sales"></span>
+            <span class="ag-group-value">Sales</span>
+            <span class="ag-group-child-count">(4)</span>
+          </div>
+          <div class="ag-cell" col-id="name" role="gridcell"></div>
+          <div class="ag-cell" col-id="role" role="gridcell"></div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$400,000</div>
+        </div>
+
+        <!-- Sales Members (Hidden - collapsed) -->
+        <div class="ag-row ag-row-level-1 ag-hidden" role="row" row-index="10" aria-rowindex="11" aria-level="2" data-parent-group="sales">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Grace Lee</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Sales Manager</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$130,000</div>
+        </div>
+        <div class="ag-row ag-row-level-1 ag-hidden" role="row" row-index="11" aria-rowindex="12" aria-level="2" data-parent-group="sales">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Henry Wilson</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Sales Rep</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$90,000</div>
+        </div>
+        <div class="ag-row ag-row-level-1 ag-hidden" role="row" row-index="12" aria-rowindex="13" aria-level="2" data-parent-group="sales">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Ivy Garcia</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Sales Rep</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$90,000</div>
+        </div>
+        <div class="ag-row ag-row-level-1 ag-hidden" role="row" row-index="13" aria-rowindex="14" aria-level="2" data-parent-group="sales">
+          <div class="ag-cell" col-id="ag-Grid-AutoColumn" role="gridcell"></div>
+          <div class="ag-cell" col-id="name" role="gridcell">Jack Martinez</div>
+          <div class="ag-cell" col-id="role" role="gridcell">Sales Rep</div>
+          <div class="ag-cell" col-id="salary" role="gridcell">$90,000</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Handle group expand/collapse
+    document.querySelectorAll('.ag-group-contracted, .ag-group-expanded').forEach(icon => {
+      icon.addEventListener('click', function() {
+        const groupId = this.dataset.group;
+        const row = this.closest('.ag-row');
+        const isExpanded = row.getAttribute('aria-expanded') === 'true';
+
+        // Toggle expand state
+        row.setAttribute('aria-expanded', (!isExpanded).toString());
+
+        // Toggle icon class
+        if (isExpanded) {
+          this.classList.remove('ag-group-expanded');
+          this.classList.add('ag-group-contracted');
+        } else {
+          this.classList.remove('ag-group-contracted');
+          this.classList.add('ag-group-expanded');
+        }
+
+        // Show/hide child rows
+        const childRows = document.querySelectorAll(`[data-parent-group="${groupId}"]`);
+        childRows.forEach(childRow => {
+          if (isExpanded) {
+            childRow.classList.add('ag-hidden');
+          } else {
+            childRow.classList.remove('ag-hidden');
+            // If this child is also a group, check if it should show its children
+            const childGroupId = childRow.dataset.groupId;
+            if (childGroupId && childRow.getAttribute('aria-expanded') === 'true') {
+              document.querySelectorAll(`[data-parent-group="${childGroupId}"]`).forEach(grandchildRow => {
+                grandchildRow.classList.remove('ag-hidden');
+              });
+            }
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

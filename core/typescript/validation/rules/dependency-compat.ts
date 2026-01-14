@@ -75,8 +75,12 @@ function versionSatisfiesRange(version: string, range: string): boolean {
     return false;
   }
 
-  const [, vMajor, vMinor, vPatch] = versionMatch.map(Number);
-  const [, rMajor, rMinor, rPatch] = rangeMatch.map(Number);
+  const vMajor = Number(versionMatch[1] ?? 0);
+  const vMinor = Number(versionMatch[2] ?? 0);
+  const vPatch = Number(versionMatch[3] ?? 0);
+  const rMajor = Number(rangeMatch[1] ?? 0);
+  const rMinor = Number(rangeMatch[2] ?? 0);
+  const rPatch = Number(rangeMatch[3] ?? 0);
 
   // For >= range (most common case)
   if (range.startsWith('>=')) {
@@ -112,14 +116,15 @@ function extractPackageName(importPath: string): string | null {
   // Handle scoped packages (@scope/package)
   if (importPath.startsWith('@')) {
     const parts = importPath.split('/');
-    if (parts.length >= 2) {
+    if (parts.length >= 2 && parts[0] && parts[1]) {
       return `${parts[0]}/${parts[1]}`;
     }
+    return null;
   }
 
   // Regular packages
   const parts = importPath.split('/');
-  return parts[0];
+  return parts[0] ?? null;
 }
 
 /**
@@ -173,6 +178,8 @@ export class DependencyCompatRule implements ValidationRule {
 
       while ((match = pattern.exec(content)) !== null) {
         const importPath = match[1];
+        if (!importPath) continue;
+
         const packageName = extractPackageName(importPath);
 
         if (packageName && ESM_ONLY_PACKAGES[packageName]) {

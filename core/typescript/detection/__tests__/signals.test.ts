@@ -12,6 +12,7 @@ import {
   FRAMEWORK_DETECTION_MAP,
   FRONTEND_DIRECTORY_PATTERNS,
   FRONTEND_PACKAGE_INDICATORS,
+  AG_GRID_PACKAGE_INDICATORS,
   calculateScore,
   getConfidenceFromScore,
   getSignalCategory,
@@ -20,6 +21,8 @@ import {
   clearWarnedSignalsCache,
   isFrontendPackage,
   matchesFrontendDirectoryPattern,
+  isAgGridPackage,
+  isAgGridEnterprisePackage,
 } from '../signals.js';
 
 // =============================================================================
@@ -440,5 +443,150 @@ describe('clearWarnedSignalsCache', () => {
 
     // Should still work after clearing
     expect(getSignalWeight('package-dependency:react')).toBe(30);
+  });
+});
+
+// =============================================================================
+// AG Grid Detection Tests
+// =============================================================================
+
+describe('AG_GRID_PACKAGE_INDICATORS', () => {
+  it('should include all AG Grid community packages', () => {
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('ag-grid-community');
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('ag-grid-react');
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('ag-grid-vue');
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('ag-grid-vue3');
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('ag-grid-angular');
+  });
+
+  it('should include AG Grid enterprise packages', () => {
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('ag-grid-enterprise');
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('@ag-grid-enterprise/core');
+  });
+
+  it('should include modular AG Grid packages', () => {
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('@ag-grid-community/core');
+    expect(AG_GRID_PACKAGE_INDICATORS).toContain('@ag-grid-enterprise/core');
+  });
+});
+
+describe('SIGNAL_WEIGHTS AG Grid signals', () => {
+  it('should have weights for AG Grid community packages', () => {
+    expect(SIGNAL_WEIGHTS['package-dependency:ag-grid-community']).toBe(25);
+    expect(SIGNAL_WEIGHTS['package-dependency:ag-grid-react']).toBe(25);
+    expect(SIGNAL_WEIGHTS['package-dependency:ag-grid-vue']).toBe(25);
+    expect(SIGNAL_WEIGHTS['package-dependency:ag-grid-vue3']).toBe(25);
+    expect(SIGNAL_WEIGHTS['package-dependency:ag-grid-angular']).toBe(25);
+  });
+
+  it('should have higher weights for AG Grid enterprise packages', () => {
+    expect(SIGNAL_WEIGHTS['package-dependency:ag-grid-enterprise']).toBe(30);
+    expect(SIGNAL_WEIGHTS['package-dependency:@ag-grid-enterprise/core']).toBe(30);
+  });
+
+  it('should have weights for modular AG Grid packages', () => {
+    expect(SIGNAL_WEIGHTS['package-dependency:@ag-grid-community/core']).toBe(25);
+  });
+});
+
+describe('isAgGridPackage', () => {
+  it('should return true for AG Grid community package', () => {
+    expect(isAgGridPackage('ag-grid-community')).toBe(true);
+  });
+
+  it('should return true for AG Grid enterprise package', () => {
+    expect(isAgGridPackage('ag-grid-enterprise')).toBe(true);
+  });
+
+  it('should return true for AG Grid framework adapters', () => {
+    expect(isAgGridPackage('ag-grid-react')).toBe(true);
+    expect(isAgGridPackage('ag-grid-vue')).toBe(true);
+    expect(isAgGridPackage('ag-grid-vue3')).toBe(true);
+    expect(isAgGridPackage('ag-grid-angular')).toBe(true);
+  });
+
+  it('should return true for modular AG Grid packages', () => {
+    expect(isAgGridPackage('@ag-grid-community/core')).toBe(true);
+    expect(isAgGridPackage('@ag-grid-enterprise/core')).toBe(true);
+  });
+
+  it('should return false for non-AG-Grid packages', () => {
+    expect(isAgGridPackage('react')).toBe(false);
+    expect(isAgGridPackage('vue')).toBe(false);
+    expect(isAgGridPackage('lodash')).toBe(false);
+    expect(isAgGridPackage('data-grid')).toBe(false);
+  });
+
+  it('should return false for similar but not AG Grid packages', () => {
+    expect(isAgGridPackage('ag-grid')).toBe(false);
+    expect(isAgGridPackage('react-ag-grid')).toBe(false);
+    expect(isAgGridPackage('@my-org/ag-grid')).toBe(false);
+  });
+});
+
+describe('isAgGridEnterprisePackage', () => {
+  it('should return true for ag-grid-enterprise', () => {
+    expect(isAgGridEnterprisePackage('ag-grid-enterprise')).toBe(true);
+  });
+
+  it('should return true for @ag-grid-enterprise/core', () => {
+    expect(isAgGridEnterprisePackage('@ag-grid-enterprise/core')).toBe(true);
+  });
+
+  it('should return false for community AG Grid packages', () => {
+    expect(isAgGridEnterprisePackage('ag-grid-community')).toBe(false);
+    expect(isAgGridEnterprisePackage('ag-grid-react')).toBe(false);
+    expect(isAgGridEnterprisePackage('@ag-grid-community/core')).toBe(false);
+  });
+
+  it('should return false for non-AG-Grid packages', () => {
+    expect(isAgGridEnterprisePackage('react')).toBe(false);
+    expect(isAgGridEnterprisePackage('enterprise')).toBe(false);
+  });
+});
+
+describe('AG Grid in FRONTEND_PACKAGE_INDICATORS', () => {
+  it('should include AG Grid packages as frontend indicators', () => {
+    expect(FRONTEND_PACKAGE_INDICATORS).toContain('ag-grid-community');
+    expect(FRONTEND_PACKAGE_INDICATORS).toContain('ag-grid-enterprise');
+    expect(FRONTEND_PACKAGE_INDICATORS).toContain('ag-grid-react');
+    expect(FRONTEND_PACKAGE_INDICATORS).toContain('ag-grid-vue');
+    expect(FRONTEND_PACKAGE_INDICATORS).toContain('ag-grid-vue3');
+    expect(FRONTEND_PACKAGE_INDICATORS).toContain('ag-grid-angular');
+  });
+
+  it('should identify AG Grid packages as frontend packages', () => {
+    expect(isFrontendPackage('ag-grid-community')).toBe(true);
+    expect(isFrontendPackage('ag-grid-enterprise')).toBe(true);
+    expect(isFrontendPackage('ag-grid-react')).toBe(true);
+  });
+});
+
+describe('calculateScore with AG Grid signals', () => {
+  it('should calculate score for AG Grid community package', () => {
+    expect(calculateScore(['package-dependency:ag-grid-community'])).toBe(25);
+  });
+
+  it('should calculate score for AG Grid enterprise package', () => {
+    expect(calculateScore(['package-dependency:ag-grid-enterprise'])).toBe(30);
+  });
+
+  it('should combine AG Grid with React for higher score', () => {
+    const signals = [
+      'package-dependency:react',
+      'package-dependency:ag-grid-react',
+    ];
+    expect(calculateScore(signals)).toBe(55); // 30 + 25
+  });
+
+  it('should combine AG Grid enterprise with framework for high confidence', () => {
+    const signals = [
+      'package-dependency:react',
+      'package-dependency:ag-grid-enterprise',
+      'entry-file:src/App.tsx',
+    ];
+    const score = calculateScore(signals);
+    expect(score).toBe(80); // 30 + 30 + 20
+    expect(getConfidenceFromScore(score)).toBe('high');
   });
 });

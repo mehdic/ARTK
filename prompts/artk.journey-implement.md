@@ -403,6 +403,34 @@ await test.step('Wait for data to load', async () => {
 });
 ```
 
+**Use Grid Helpers for AG Grid Testing:**
+```typescript
+import { agGrid } from '@artk/core/grid';
+
+await test.step('Verify orders grid data', async () => {
+  const grid = agGrid(authenticatedPage, 'orders-grid');
+
+  // Wait for grid to be ready
+  await grid.waitForReady();
+  await grid.waitForDataLoaded();
+
+  // Verify data
+  await grid.expectRowCount(10);
+  await grid.expectRowContains({ orderId: '12345', status: 'Active' });
+
+  // Sort and filter
+  await grid.sortByColumn('date', 'desc');
+  await grid.filterByColumn('status', 'Pending');
+
+  // Handle virtualized grids (scrolls to find row)
+  await grid.scrollToRow({ ariaRowIndex: 500 });
+
+  // Enterprise features (if ag-grid-enterprise is used)
+  await grid.expandGroup({ ariaRowIndex: 1 });
+  await grid.expandMasterRow({ ariaRowIndex: 2 });
+});
+```
+
 Tagging (mandatory):
 - `@JRN-####`
 - `@smoke` / `@release` / `@regression`
@@ -493,7 +521,9 @@ Ask only when necessary:
 - **Region-restricted env**: stop and propose runner-in-region (later phase) rather than guessing.
 - **Existing tests present**: update/link rather than duplicate.
 - **Downloads/new tabs/iframes**: use Playwright events and frame locators.
-- **Flaky env**: do not “fix” with timing. Use explicit completion signals or quarantine later.
+- **Flaky env**: do not "fix" with timing. Use explicit completion signals or quarantine later.
+- **AG Grid / Data grids**: Use `@artk/core/grid` helpers instead of raw selectors. Handle virtualization with `scrollToRow()`. For enterprise features (grouping, tree data, master-detail), use the specialized enterprise helpers.
+- **Large datasets in grids**: Use ARIA-based row targeting (`ariaRowIndex`) for virtualized grids that only render visible rows.
 
 ---
 
