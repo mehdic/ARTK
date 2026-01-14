@@ -146,7 +146,7 @@ function detectArtkCore(projectPath: string): boolean {
 /**
  * Detect CI environment
  */
-function detectCI(): boolean {
+export function isCI(): boolean {
   return !!(
     process.env.CI ||
     process.env.GITHUB_ACTIONS ||
@@ -154,8 +154,16 @@ function detectCI(): boolean {
     process.env.JENKINS_HOME ||
     process.env.CIRCLECI ||
     process.env.TRAVIS ||
-    process.env.TF_BUILD
+    process.env.TF_BUILD ||
+    process.env.USER === 'jenkins' ||
+    process.env.USER === 'gitlab-runner' ||
+    process.env.USER === 'circleci'
   );
+}
+
+// Alias for backwards compatibility
+function detectCI(): boolean {
+  return isCI();
 }
 
 /**

@@ -58,8 +58,10 @@ declare class Logger {
  * Implements a fallback chain: release cache → bundled install → system browsers
  */
 
+type BrowserChannel = 'bundled' | 'msedge' | 'chrome' | 'chrome-beta' | 'chrome-dev';
+type BrowserStrategy = 'auto' | 'bundled-only' | 'system-only' | 'prefer-system' | 'prefer-bundled';
 interface BrowserInfo {
-    channel: 'bundled' | 'msedge' | 'chrome' | 'chrome-beta' | 'chrome-dev';
+    channel: BrowserChannel;
     version: string | null;
     path: string | null;
     strategy: 'release-cache' | 'bundled-install' | 'system' | 'auto';
@@ -67,7 +69,10 @@ interface BrowserInfo {
 /**
  * Resolve and configure browsers for Playwright
  */
-declare function resolveBrowser(targetPath: string, logger?: Logger): Promise<BrowserInfo>;
+declare function resolveBrowser(targetPath: string, logger?: Logger, options?: {
+    strategy?: BrowserStrategy;
+    logsDir?: string;
+}): Promise<BrowserInfo>;
 
 /**
  * Bootstrap - Core installation logic

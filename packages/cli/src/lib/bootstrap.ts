@@ -35,6 +35,13 @@ export interface BootstrapResult {
   errors: string[];
 }
 
+interface BackupState {
+  configPath: string | null;
+  configBackupPath: string | null;
+  contextPath: string | null;
+  contextBackupPath: string | null;
+}
+
 /**
  * Bootstrap ARTK in a target project
  */
@@ -48,6 +55,7 @@ export async function bootstrap(
   const resolvedPath = path.resolve(targetPath);
   const artkE2ePath = path.join(resolvedPath, 'artk-e2e');
   const artkDir = path.join(resolvedPath, '.artk');
+  const logsDir = path.join(artkDir, 'logs');
 
   logger.header('ARTK Bootstrap Installation');
   logger.table([
@@ -67,7 +75,37 @@ export async function bootstrap(
     return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ['Already installed'] };
   }
 
+  // Create backup state for rollback
+  const backup: BackupState = {
+    configPath: null,
+    configBackupPath: null,
+    contextPath: null,
+    contextBackupPath: null,
+  };
+
+  // Create logs directory early
+  await fs.ensureDir(logsDir);
+
   try {
+    // Backup existing config if doing a force overwrite
+    if (options.force) {
+      const configPath = path.join(artkE2ePath, 'artk.config.yml');
+      if (fs.existsSync(configPath)) {
+        backup.configPath = configPath;
+        backup.configBackupPath = `${configPath}.bootstrap-backup`;
+        await fs.copy(configPath, backup.configBackupPath);
+        logger.debug('Backed up existing artk.config.yml');
+      }
+
+      const contextPath = path.join(artkDir, 'context.json');
+      if (fs.existsSync(contextPath)) {
+        backup.contextPath = contextPath;
+        backup.contextBackupPath = `${contextPath}.bootstrap-backup`;
+        await fs.copy(contextPath, backup.contextBackupPath);
+        logger.debug('Backed up existing context.json');
+      }
+    }
+
     // Step 1: Detect environment
     logger.step(1, 7, 'Detecting environment...');
     const environment = await detectEnvironment(resolvedPath);
@@ -109,7 +147,7 @@ export async function bootstrap(
     // Step 6: npm install
     if (!options.skipNpm) {
       logger.step(6, 7, 'Running npm install...');
-      await runNpmInstall(artkE2ePath, logger);
+      await runNpmInstall(artkE2ePath, logsDir, logger);
       logger.success('npm install completed');
     } else {
       logger.step(6, 7, 'Skipping npm install (--skip-npm)');
@@ -119,7 +157,7 @@ export async function bootstrap(
     let browserInfo: BrowserInfo | undefined;
     if (!options.skipBrowsers && !options.skipNpm) {
       logger.step(7, 7, 'Configuring browsers...');
-      browserInfo = await resolveBrowser(resolvedPath, logger);
+      browserInfo = await resolveBrowser(resolvedPath, logger, { logsDir });
 
       // Update config with browser info
       const configPath = path.join(artkE2ePath, 'artk.config.yml');
@@ -131,6 +169,9 @@ export async function bootstrap(
     } else {
       logger.step(7, 7, 'Skipping browser configuration');
     }
+
+    // Success - clean up backups
+    await cleanupBackup(backup);
 
     // Success!
     printSuccessSummary(logger, resolvedPath, artkE2ePath, browserInfo);
@@ -148,12 +189,63 @@ export async function bootstrap(
     logger.error(`Bootstrap failed: ${errorMessage}`);
     errors.push(errorMessage);
 
+    // Attempt rollback
+    await rollbackOnFailure(backup, logger);
+
     return {
       success: false,
       projectPath: resolvedPath,
       artkE2ePath,
       errors,
     };
+  }
+}
+
+/**
+ * Roll back changes on failure
+ */
+async function rollbackOnFailure(backup: BackupState, logger: Logger): Promise<void> {
+  logger.warning('Attempting to roll back changes...');
+
+  try {
+    // Restore config backup
+    if (backup.configBackupPath && fs.existsSync(backup.configBackupPath)) {
+      if (backup.configPath) {
+        await fs.copy(backup.configBackupPath, backup.configPath);
+        await fs.remove(backup.configBackupPath);
+        logger.debug('Restored artk.config.yml from backup');
+      }
+    }
+
+    // Restore context backup
+    if (backup.contextBackupPath && fs.existsSync(backup.contextBackupPath)) {
+      if (backup.contextPath) {
+        await fs.copy(backup.contextBackupPath, backup.contextPath);
+        await fs.remove(backup.contextBackupPath);
+        logger.debug('Restored context.json from backup');
+      }
+    }
+
+    logger.warning('Partial rollback completed. Some files may need manual cleanup.');
+  } catch (rollbackError) {
+    logger.error(`Rollback failed: ${rollbackError}`);
+    logger.error('Manual cleanup may be required.');
+  }
+}
+
+/**
+ * Clean up backup files after successful bootstrap
+ */
+async function cleanupBackup(backup: BackupState): Promise<void> {
+  try {
+    if (backup.configBackupPath && fs.existsSync(backup.configBackupPath)) {
+      await fs.remove(backup.configBackupPath);
+    }
+    if (backup.contextBackupPath && fs.existsSync(backup.contextBackupPath)) {
+      await fs.remove(backup.contextBackupPath);
+    }
+  } catch {
+    // Best effort cleanup
   }
 }
 
@@ -490,9 +582,14 @@ export function getCurrentEnv(): string {
 /**
  * Run npm install in artk-e2e directory
  */
-async function runNpmInstall(artkE2ePath: string, logger: Logger): Promise<void> {
+async function runNpmInstall(artkE2ePath: string, logsDir: string, logger: Logger): Promise<void> {
+  const logFile = path.join(logsDir, 'npm-install.log');
+
   return new Promise((resolve, reject) => {
     logger.startSpinner('Installing dependencies...');
+
+    const logLines: string[] = [`npm install started - ${new Date().toISOString()}`];
+    logLines.push(`Working directory: ${artkE2ePath}`);
 
     const child = spawn('npm', ['install', '--legacy-peer-deps'], {
       cwd: artkE2ePath,
@@ -504,30 +601,60 @@ async function runNpmInstall(artkE2ePath: string, logger: Logger): Promise<void>
       stdio: 'pipe',
     });
 
+    let stdout = '';
     let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
 
     child.stderr?.on('data', (data) => {
       stderr += data.toString();
     });
 
     child.on('close', (code) => {
+      logLines.push(`Exit code: ${code}`);
+      logLines.push('--- STDOUT ---');
+      logLines.push(stdout || '(empty)');
+      logLines.push('--- STDERR ---');
+      logLines.push(stderr || '(empty)');
+
+      // Write log file
+      try {
+        fs.writeFileSync(logFile, logLines.join('\n'));
+      } catch {
+        // Best effort
+      }
+
       if (code === 0) {
         logger.succeedSpinner('Dependencies installed');
         resolve();
       } else {
         logger.failSpinner('npm install failed');
-        logger.debug(`stderr: ${stderr}`);
-        reject(new Error(`npm install failed with code ${code}`));
+        logger.debug(`Details saved to: ${logFile}`);
+        reject(new Error(`npm install failed with code ${code}. See ${logFile} for details.`));
       }
     });
 
     child.on('error', (error) => {
+      logLines.push(`Process error: ${error.message}`);
+      try {
+        fs.writeFileSync(logFile, logLines.join('\n'));
+      } catch {
+        // Best effort
+      }
       logger.failSpinner('npm install failed');
       reject(error);
     });
 
     // Timeout after 5 minutes
     setTimeout(() => {
+      logLines.push('TIMEOUT: Installation took longer than 5 minutes');
+      try {
+        fs.writeFileSync(logFile, logLines.join('\n'));
+      } catch {
+        // Best effort
+      }
       child.kill();
       logger.failSpinner('npm install timed out');
       reject(new Error('npm install timed out'));

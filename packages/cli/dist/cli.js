@@ -7,7 +7,9 @@ import * as path3 from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
-import * as fs from 'fs';
+import * as fs2 from 'fs';
+import * as https from 'https';
+import * as crypto from 'crypto';
 import * as semver from 'semver';
 import * as readline from 'readline';
 
@@ -118,17 +120,17 @@ async function detectEnvironment(projectPath) {
 }
 function detectModuleSystem(projectPath) {
   const packageJsonPath = path3.join(projectPath, "package.json");
-  if (fs.existsSync(packageJsonPath)) {
+  if (fs2.existsSync(packageJsonPath)) {
     try {
-      const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+      const pkg = JSON.parse(fs2.readFileSync(packageJsonPath, "utf8"));
       if (pkg.type === "module") {
         return "esm";
       }
       if (pkg.type === "commonjs" || !pkg.type) {
-        const hasEsmConfig = fs.existsSync(path3.join(projectPath, "tsconfig.json"));
+        const hasEsmConfig = fs2.existsSync(path3.join(projectPath, "tsconfig.json"));
         if (hasEsmConfig) {
           try {
-            const tsconfig = JSON.parse(fs.readFileSync(path3.join(projectPath, "tsconfig.json"), "utf8"));
+            const tsconfig = JSON.parse(fs2.readFileSync(path3.join(projectPath, "tsconfig.json"), "utf8"));
             const module = tsconfig.compilerOptions?.module?.toLowerCase();
             if (module && (module.includes("esnext") || module.includes("es20") || module === "nodenext")) {
               return "esm";
@@ -142,9 +144,9 @@ function detectModuleSystem(projectPath) {
     }
   }
   const srcDir = path3.join(projectPath, "src");
-  if (fs.existsSync(srcDir)) {
+  if (fs2.existsSync(srcDir)) {
     try {
-      const files = fs.readdirSync(srcDir, { recursive: true });
+      const files = fs2.readdirSync(srcDir, { recursive: true });
       const hasMjs = files.some((f) => f.endsWith(".mjs"));
       const hasCjs = files.some((f) => f.endsWith(".cjs"));
       if (hasMjs && !hasCjs) return "esm";
@@ -164,7 +166,7 @@ async function detectNpmVersion() {
   }
 }
 async function detectGit(projectPath) {
-  if (fs.existsSync(path3.join(projectPath, ".git"))) {
+  if (fs2.existsSync(path3.join(projectPath, ".git"))) {
     return true;
   }
   try {
@@ -177,16 +179,19 @@ async function detectGit(projectPath) {
 }
 function detectPlaywright(projectPath) {
   const playwrightPath = path3.join(projectPath, "node_modules", "@playwright", "test");
-  return fs.existsSync(playwrightPath);
+  return fs2.existsSync(playwrightPath);
 }
 function detectArtkCore(projectPath) {
   const vendorPath = path3.join(projectPath, "artk-e2e", "vendor", "artk-core");
-  if (fs.existsSync(vendorPath)) return true;
+  if (fs2.existsSync(vendorPath)) return true;
   const nodeModulesPath = path3.join(projectPath, "node_modules", "@artk", "core");
-  return fs.existsSync(nodeModulesPath);
+  return fs2.existsSync(nodeModulesPath);
+}
+function isCI() {
+  return !!(process.env.CI || process.env.GITHUB_ACTIONS || process.env.GITLAB_CI || process.env.JENKINS_HOME || process.env.CIRCLECI || process.env.TRAVIS || process.env.TF_BUILD || process.env.USER === "jenkins" || process.env.USER === "gitlab-runner" || process.env.USER === "circleci");
 }
 function detectCI() {
-  return !!(process.env.CI || process.env.GITHUB_ACTIONS || process.env.GITLAB_CI || process.env.JENKINS_HOME || process.env.CIRCLECI || process.env.TRAVIS || process.env.TF_BUILD);
+  return isCI();
 }
 function getOsArch() {
   let os;
@@ -219,55 +224,151 @@ function getOsArch() {
   }
   return { os, arch };
 }
-async function resolveBrowser(targetPath, logger2) {
+async function resolveBrowser(targetPath, logger2, options = {}) {
   const log = logger2 || new Logger();
   const artkE2ePath = path3.join(targetPath, "artk-e2e");
   const browsersCachePath = path3.join(targetPath, ".artk", "browsers");
-  fs.mkdirSync(browsersCachePath, { recursive: true });
+  const logsDir = options.logsDir || path3.join(targetPath, ".artk", "logs");
+  fs2.mkdirSync(browsersCachePath, { recursive: true });
+  fs2.mkdirSync(logsDir, { recursive: true });
   process.env.PLAYWRIGHT_BROWSERS_PATH = browsersCachePath;
-  log.debug("Attempting to download pre-built browsers from release cache...");
-  const releaseCacheResult = await tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, log);
+  let strategy = options.strategy || "auto";
+  if (isCI() && strategy !== "system-only") {
+    log.info("CI environment detected - using bundled browsers for reproducibility");
+    strategy = "bundled-only";
+  }
+  switch (strategy) {
+    case "bundled-only":
+      return await resolveBundledOnly(artkE2ePath, browsersCachePath, logsDir, log);
+    case "system-only":
+      return await resolveSystemOnly(logsDir, log);
+    case "prefer-system":
+      return await resolvePreferSystem(artkE2ePath, browsersCachePath, logsDir, log);
+    case "prefer-bundled":
+    case "auto":
+    default:
+      return await resolveAuto(artkE2ePath, browsersCachePath, logsDir, log);
+  }
+}
+async function resolveBundledOnly(artkE2ePath, browsersCachePath, logsDir, logger2) {
+  logger2.debug("Strategy: bundled-only - trying release cache...");
+  const releaseCacheResult = await tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, logger2);
   if (releaseCacheResult) {
     return releaseCacheResult;
   }
-  log.debug("Attempting bundled Playwright browser install...");
-  const bundledResult = await tryBundledInstall(artkE2ePath, browsersCachePath, log);
+  logger2.debug("Release cache unavailable, trying bundled install...");
+  const bundledResult = await tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger2);
   if (bundledResult) {
     return bundledResult;
   }
-  log.debug("Detecting system browsers...");
-  const systemResult = await detectSystemBrowser(log);
+  throw new Error(
+    `Strategy is "bundled-only" but bundled browser installation failed.
+Solutions:
+  1. Check network connectivity
+  2. Grant permissions for Playwright browser installation
+  3. Set ARTK_PLAYWRIGHT_BROWSERS_REPO for release cache
+  4. Check logs at: ${logsDir}`
+  );
+}
+async function resolveSystemOnly(logsDir, logger2) {
+  logger2.debug("Strategy: system-only - detecting system browsers...");
+  const systemResult = await detectSystemBrowser(logsDir, logger2);
   if (systemResult.channel !== "bundled") {
     return systemResult;
   }
-  log.warning("No browsers available. Tests may not run until browsers are installed.");
-  return {
-    channel: "bundled",
-    version: null,
-    path: null,
-    strategy: "auto"
-  };
+  throw new Error(
+    `Strategy is "system-only" but no system browsers found.
+Solutions:
+  1. Install Microsoft Edge: https://microsoft.com/edge
+  2. Install Google Chrome: https://google.com/chrome
+  3. Change strategy in artk.config.yml to "auto" or "prefer-bundled"
+  4. Check logs at: ${logsDir}`
+  );
 }
-async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logger2) {
+async function resolvePreferSystem(artkE2ePath, browsersCachePath, logsDir, logger2) {
+  logger2.debug("Strategy: prefer-system - checking system browsers first...");
+  const systemResult = await detectSystemBrowser(logsDir, logger2);
+  if (systemResult.channel !== "bundled") {
+    logger2.success(`Using system browser: ${systemResult.channel}`);
+    return systemResult;
+  }
+  logger2.debug("No system browsers found, falling back to bundled...");
+  const releaseCacheResult = await tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, logger2);
+  if (releaseCacheResult) {
+    return releaseCacheResult;
+  }
+  const bundledResult = await tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger2);
+  if (bundledResult) {
+    return bundledResult;
+  }
+  return failWithDiagnostics(logsDir, logger2);
+}
+async function resolveAuto(artkE2ePath, browsersCachePath, logsDir, logger2) {
+  logger2.debug("Attempting to download pre-built browsers from release cache...");
+  const releaseCacheResult = await tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, logger2);
+  if (releaseCacheResult) {
+    return releaseCacheResult;
+  }
+  logger2.debug("Attempting bundled Playwright browser install...");
+  const bundledResult = await tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger2);
+  if (bundledResult) {
+    return bundledResult;
+  }
+  logger2.debug("Detecting system browsers...");
+  const systemResult = await detectSystemBrowser(logsDir, logger2);
+  if (systemResult.channel !== "bundled") {
+    return systemResult;
+  }
+  return failWithDiagnostics(logsDir, logger2);
+}
+function failWithDiagnostics(logsDir, logger2) {
+  logger2.error("ERROR: No browsers available");
+  logger2.error("ARTK tried:");
+  logger2.error("  1. Pre-built browser cache: Unavailable");
+  logger2.error("  2. Bundled Chromium install: Failed");
+  logger2.error("  3. System Microsoft Edge: Not found");
+  logger2.error("  4. System Google Chrome: Not found");
+  logger2.error("");
+  logger2.error("Solutions:");
+  logger2.error("  1. Install Microsoft Edge: https://microsoft.com/edge");
+  logger2.error("  2. Install Google Chrome: https://google.com/chrome");
+  logger2.error("  3. Set ARTK_PLAYWRIGHT_BROWSERS_REPO for release cache");
+  logger2.error("  4. Grant permissions for Playwright browser installation");
+  logger2.error(`  5. Check logs at: ${logsDir}`);
+  throw new Error("No browsers available. See error messages above for solutions.");
+}
+async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, logger2) {
+  const logFile = path3.join(logsDir, "release-cache-download.log");
+  const logLines = [`Release cache download attempt - ${(/* @__PURE__ */ new Date()).toISOString()}`];
   const browsersJsonPath = path3.join(artkE2ePath, "node_modules", "playwright-core", "browsers.json");
-  if (!fs.existsSync(browsersJsonPath)) {
+  if (!fs2.existsSync(browsersJsonPath)) {
+    logLines.push("browsers.json not found, skipping release cache");
+    writeLogFile(logFile, logLines);
     logger2.debug("browsers.json not found, skipping release cache");
     return null;
   }
   try {
-    const browsersJson = JSON.parse(fs.readFileSync(browsersJsonPath, "utf8"));
+    const browsersJson = JSON.parse(fs2.readFileSync(browsersJsonPath, "utf8"));
     const chromium = browsersJson.browsers?.find((b) => b.name === "chromium");
     if (!chromium?.revision) {
+      logLines.push("Chromium revision not found in browsers.json");
+      writeLogFile(logFile, logLines);
       logger2.debug("Chromium revision not found in browsers.json");
       return null;
     }
+    logLines.push(`Chromium revision: ${chromium.revision}`);
     const { os, arch } = getOsArch();
     if (os === "unknown" || arch === "unknown") {
+      logLines.push(`Unsupported OS/arch: ${os}/${arch}`);
+      writeLogFile(logFile, logLines);
       logger2.debug(`Unsupported OS/arch: ${os}/${arch}`);
       return null;
     }
+    logLines.push(`OS/arch: ${os}/${arch}`);
     const cachedPath = path3.join(browsersCachePath, `chromium-${chromium.revision}`);
-    if (fs.existsSync(cachedPath)) {
+    if (fs2.existsSync(cachedPath)) {
+      logLines.push(`Browsers already cached: ${cachedPath}`);
+      writeLogFile(logFile, logLines);
       logger2.debug(`Browsers already cached: ${cachedPath}`);
       return {
         channel: "bundled",
@@ -278,28 +379,166 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logger2) 
     }
     const playwrightPkgPath = path3.join(artkE2ePath, "node_modules", "@playwright", "test", "package.json");
     let playwrightVersion = "1.57.0";
-    if (fs.existsSync(playwrightPkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(playwrightPkgPath, "utf8"));
+    if (fs2.existsSync(playwrightPkgPath)) {
+      const pkg = JSON.parse(fs2.readFileSync(playwrightPkgPath, "utf8"));
       playwrightVersion = pkg.version;
     }
+    logLines.push(`Playwright version: ${playwrightVersion}`);
     const repo = process.env.ARTK_PLAYWRIGHT_BROWSERS_REPO;
     if (!repo) {
+      logLines.push("ARTK_PLAYWRIGHT_BROWSERS_REPO not set, skipping release cache");
+      writeLogFile(logFile, logLines);
       logger2.debug("ARTK_PLAYWRIGHT_BROWSERS_REPO not set, skipping release cache");
       return null;
     }
     const tag = process.env.ARTK_PLAYWRIGHT_BROWSERS_TAG || `playwright-browsers-${playwrightVersion}`;
     const asset = `chromium-${chromium.revision}-${os}-${arch}.zip`;
-    const url = `https://github.com/${repo}/releases/download/${tag}/${asset}`;
-    logger2.debug(`Downloading from: ${url}`);
-    return null;
+    const baseUrl = `https://github.com/${repo}/releases/download/${tag}`;
+    const zipUrl = `${baseUrl}/${asset}`;
+    const shaUrl = `${baseUrl}/${asset}.sha256`;
+    logLines.push(`Repo: ${repo}`);
+    logLines.push(`Tag: ${tag}`);
+    logLines.push(`Asset: ${asset}`);
+    logLines.push(`URL: ${zipUrl}`);
+    logger2.startSpinner("Downloading pre-built browsers from release cache...");
+    const zipPath = path3.join(browsersCachePath, asset);
+    const shaPath = `${zipPath}.sha256`;
+    try {
+      logLines.push("Downloading ZIP...");
+      await downloadFile(zipUrl, zipPath, 3e4);
+      logLines.push(`ZIP downloaded: ${fs2.statSync(zipPath).size} bytes`);
+      logLines.push("Downloading SHA256...");
+      await downloadFile(shaUrl, shaPath, 1e4);
+      const expectedHash = fs2.readFileSync(shaPath, "utf8").split(/\s+/)[0].trim().toLowerCase();
+      const actualHash = await computeSha256(zipPath);
+      logLines.push(`Expected SHA256: ${expectedHash}`);
+      logLines.push(`Actual SHA256: ${actualHash}`);
+      if (expectedHash !== actualHash) {
+        logLines.push("ERROR: SHA256 checksum mismatch!");
+        writeLogFile(logFile, logLines);
+        logger2.failSpinner("Browser cache checksum mismatch");
+        fs2.unlinkSync(zipPath);
+        fs2.unlinkSync(shaPath);
+        return null;
+      }
+      logLines.push("Checksum verified");
+      logLines.push("Extracting ZIP...");
+      await extractZip(zipPath, browsersCachePath);
+      logLines.push(`Extracted to: ${browsersCachePath}`);
+      fs2.unlinkSync(zipPath);
+      fs2.unlinkSync(shaPath);
+      logLines.push("SUCCESS: Browser cache downloaded and verified");
+      writeLogFile(logFile, logLines);
+      logger2.succeedSpinner("Pre-built browsers downloaded from release cache");
+      return {
+        channel: "bundled",
+        version: chromium.revision,
+        path: path3.join(browsersCachePath, `chromium-${chromium.revision}`),
+        strategy: "release-cache"
+      };
+    } catch (downloadError) {
+      logLines.push(`Download failed: ${downloadError}`);
+      writeLogFile(logFile, logLines);
+      logger2.failSpinner("Release cache download failed");
+      if (fs2.existsSync(zipPath)) fs2.unlinkSync(zipPath);
+      if (fs2.existsSync(shaPath)) fs2.unlinkSync(shaPath);
+      return null;
+    }
   } catch (error) {
+    logLines.push(`Release cache check failed: ${error}`);
+    writeLogFile(logFile, logLines);
     logger2.debug(`Release cache check failed: ${error}`);
     return null;
   }
 }
-async function tryBundledInstall(artkE2ePath, browsersCachePath, logger2) {
+function downloadFile(url, destPath, timeoutMs) {
+  return new Promise((resolve6, reject) => {
+    const file = fs2.createWriteStream(destPath);
+    const request = https.get(url, { timeout: timeoutMs }, (response) => {
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        const redirectUrl = response.headers.location;
+        if (redirectUrl) {
+          file.close();
+          fs2.unlinkSync(destPath);
+          downloadFile(redirectUrl, destPath, timeoutMs).then(resolve6).catch(reject);
+          return;
+        }
+      }
+      if (response.statusCode !== 200) {
+        file.close();
+        fs2.unlinkSync(destPath);
+        reject(new Error(`HTTP ${response.statusCode}: ${url}`));
+        return;
+      }
+      response.pipe(file);
+      file.on("finish", () => {
+        file.close();
+        resolve6();
+      });
+    });
+    request.on("error", (err) => {
+      file.close();
+      if (fs2.existsSync(destPath)) fs2.unlinkSync(destPath);
+      reject(err);
+    });
+    request.on("timeout", () => {
+      request.destroy();
+      file.close();
+      if (fs2.existsSync(destPath)) fs2.unlinkSync(destPath);
+      reject(new Error(`Download timeout: ${url}`));
+    });
+  });
+}
+function computeSha256(filePath) {
+  return new Promise((resolve6, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs2.createReadStream(filePath);
+    stream.on("data", (data) => hash.update(data));
+    stream.on("end", () => resolve6(hash.digest("hex").toLowerCase()));
+    stream.on("error", reject);
+  });
+}
+async function extractZip(zipPath, destDir) {
+  return new Promise((resolve6, reject) => {
+    const commands = [
+      { cmd: "unzip", args: ["-q", zipPath, "-d", destDir] },
+      { cmd: "bsdtar", args: ["-xf", zipPath, "-C", destDir] },
+      { cmd: "tar", args: ["-xzf", zipPath, "-C", destDir] }
+    ];
+    const tryCommand = (index) => {
+      if (index >= commands.length) {
+        reject(new Error("No suitable unzip command found (tried: unzip, bsdtar, tar)"));
+        return;
+      }
+      const { cmd, args } = commands[index];
+      const child = spawn(cmd, args, { stdio: "pipe" });
+      child.on("error", () => {
+        tryCommand(index + 1);
+      });
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve6();
+        } else {
+          tryCommand(index + 1);
+        }
+      });
+    };
+    tryCommand(0);
+  });
+}
+function writeLogFile(logPath, lines) {
+  try {
+    fs2.writeFileSync(logPath, lines.join("\n") + "\n");
+  } catch {
+  }
+}
+async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger2) {
+  const logFile = path3.join(logsDir, "playwright-browser-install.log");
   return new Promise((resolve6) => {
     logger2.startSpinner("Installing Playwright browsers...");
+    const logLines = [`Playwright browser install attempt - ${(/* @__PURE__ */ new Date()).toISOString()}`];
+    logLines.push(`Working directory: ${artkE2ePath}`);
+    logLines.push(`Browsers cache: ${browsersCachePath}`);
     const child = spawn("npx", ["playwright", "install", "chromium"], {
       cwd: artkE2ePath,
       env: {
@@ -318,6 +557,12 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logger2) {
       stderr += data.toString();
     });
     child.on("close", (code) => {
+      logLines.push(`Exit code: ${code}`);
+      logLines.push("--- STDOUT ---");
+      logLines.push(stdout || "(empty)");
+      logLines.push("--- STDERR ---");
+      logLines.push(stderr || "(empty)");
+      writeLogFile(logFile, logLines);
       if (code === 0) {
         logger2.succeedSpinner("Playwright browsers installed");
         resolve6({
@@ -329,33 +574,48 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logger2) {
       } else {
         logger2.failSpinner("Failed to install Playwright browsers");
         logger2.debug(`Exit code: ${code}`);
-        logger2.debug(`stderr: ${stderr}`);
+        logger2.debug(`Details saved to: ${logFile}`);
         resolve6(null);
       }
     });
     child.on("error", (error) => {
+      logLines.push(`Process error: ${error.message}`);
+      writeLogFile(logFile, logLines);
       logger2.failSpinner("Failed to install Playwright browsers");
       logger2.debug(`Error: ${error.message}`);
       resolve6(null);
     });
     setTimeout(() => {
+      logLines.push("TIMEOUT: Installation took longer than 5 minutes");
+      writeLogFile(logFile, logLines);
       child.kill();
       logger2.failSpinner("Browser installation timed out");
       resolve6(null);
     }, 3e5);
   });
 }
-async function detectSystemBrowser(logger2) {
-  const edgeInfo = await tryDetectBrowser("msedge");
+async function detectSystemBrowser(logsDir, logger2) {
+  const logFile = path3.join(logsDir, "system-browser-detect.log");
+  const logLines = [`System browser detection - ${(/* @__PURE__ */ new Date()).toISOString()}`];
+  logLines.push(`Platform: ${process.platform}`);
+  logLines.push("Checking Microsoft Edge...");
+  const edgeInfo = await tryDetectBrowser("msedge", logLines);
   if (edgeInfo) {
+    logLines.push(`SUCCESS: Found Edge at ${edgeInfo.path} (${edgeInfo.version})`);
+    writeLogFile(logFile, logLines);
     logger2.success(`Detected Microsoft Edge: ${edgeInfo.version || "unknown version"}`);
     return edgeInfo;
   }
-  const chromeInfo = await tryDetectBrowser("chrome");
+  logLines.push("Checking Google Chrome...");
+  const chromeInfo = await tryDetectBrowser("chrome", logLines);
   if (chromeInfo) {
+    logLines.push(`SUCCESS: Found Chrome at ${chromeInfo.path} (${chromeInfo.version})`);
+    writeLogFile(logFile, logLines);
     logger2.success(`Detected Google Chrome: ${chromeInfo.version || "unknown version"}`);
     return chromeInfo;
   }
+  logLines.push("No system browsers found");
+  writeLogFile(logFile, logLines);
   return {
     channel: "bundled",
     version: null,
@@ -363,31 +623,38 @@ async function detectSystemBrowser(logger2) {
     strategy: "auto"
   };
 }
-async function tryDetectBrowser(browser, logger2) {
+async function tryDetectBrowser(browser, logLines, logger2) {
   const paths = getBrowserPaths(browser);
   for (const browserPath of paths) {
-    if (fs.existsSync(browserPath)) {
+    logLines.push(`  Checking path: ${browserPath}`);
+    if (fs2.existsSync(browserPath)) {
       const version2 = await getBrowserVersion(browserPath);
+      logLines.push(`    Found! Version: ${version2 || "unknown"}`);
       return {
         channel: browser,
         version: version2,
         path: browserPath,
         strategy: "system"
       };
+    } else {
+      logLines.push("    Not found");
     }
   }
   const commands = browser === "msedge" ? ["microsoft-edge", "microsoft-edge-stable"] : ["google-chrome", "google-chrome-stable"];
   for (const cmd of commands) {
+    logLines.push(`  Checking command: ${cmd}`);
     try {
       const output = execSync(`${cmd} --version`, { encoding: "utf8", stdio: "pipe", timeout: 5e3 });
       const versionMatch = output.match(/(\d+\.\d+\.\d+\.\d+)/);
+      logLines.push(`    Found! Version: ${versionMatch ? versionMatch[1] : "unknown"}`);
       return {
         channel: browser,
         version: versionMatch ? versionMatch[1] : null,
         path: cmd,
         strategy: "system"
       };
-    } catch {
+    } catch (err) {
+      logLines.push(`    Not found: ${err instanceof Error ? err.message : "unknown error"}`);
     }
   }
   return null;
@@ -441,10 +708,10 @@ function getBrowserPaths(browser) {
   return paths;
 }
 function updateArtkConfigBrowser(configPath, browserInfo) {
-  if (!fs.existsSync(configPath)) {
+  if (!fs2.existsSync(configPath)) {
     return;
   }
-  let content = fs.readFileSync(configPath, "utf8");
+  let content = fs2.readFileSync(configPath, "utf8");
   if (!/^\s*browsers\s*:/m.test(content)) {
     content += `
 browsers:
@@ -467,7 +734,7 @@ browsers:
       `$1${browserInfo.strategy}`
     );
   }
-  fs.writeFileSync(configPath, content);
+  fs2.writeFileSync(configPath, content);
 }
 
 // src/lib/bootstrap.ts
@@ -479,6 +746,7 @@ async function bootstrap(targetPath, options = {}) {
   const resolvedPath = path3.resolve(targetPath);
   const artkE2ePath = path3.join(resolvedPath, "artk-e2e");
   const artkDir = path3.join(resolvedPath, ".artk");
+  const logsDir = path3.join(artkDir, "logs");
   logger2.header("ARTK Bootstrap Installation");
   logger2.table([
     { label: "Target", value: resolvedPath },
@@ -492,7 +760,30 @@ async function bootstrap(targetPath, options = {}) {
     logger2.error("ARTK is already installed in this project. Use --force to overwrite.");
     return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ["Already installed"] };
   }
+  const backup = {
+    configPath: null,
+    configBackupPath: null,
+    contextPath: null,
+    contextBackupPath: null
+  };
+  await fs3.ensureDir(logsDir);
   try {
+    if (options.force) {
+      const configPath = path3.join(artkE2ePath, "artk.config.yml");
+      if (fs3.existsSync(configPath)) {
+        backup.configPath = configPath;
+        backup.configBackupPath = `${configPath}.bootstrap-backup`;
+        await fs3.copy(configPath, backup.configBackupPath);
+        logger2.debug("Backed up existing artk.config.yml");
+      }
+      const contextPath = path3.join(artkDir, "context.json");
+      if (fs3.existsSync(contextPath)) {
+        backup.contextPath = contextPath;
+        backup.contextBackupPath = `${contextPath}.bootstrap-backup`;
+        await fs3.copy(contextPath, backup.contextBackupPath);
+        logger2.debug("Backed up existing context.json");
+      }
+    }
     logger2.step(1, 7, "Detecting environment...");
     const environment = await detectEnvironment(resolvedPath);
     const variant = options.variant === "auto" || !options.variant ? environment.moduleSystem === "unknown" ? "commonjs" : environment.moduleSystem : options.variant;
@@ -521,7 +812,7 @@ async function bootstrap(targetPath, options = {}) {
     logger2.success("Configuration files created");
     if (!options.skipNpm) {
       logger2.step(6, 7, "Running npm install...");
-      await runNpmInstall(artkE2ePath, logger2);
+      await runNpmInstall(artkE2ePath, logsDir, logger2);
       logger2.success("npm install completed");
     } else {
       logger2.step(6, 7, "Skipping npm install (--skip-npm)");
@@ -529,7 +820,7 @@ async function bootstrap(targetPath, options = {}) {
     let browserInfo;
     if (!options.skipBrowsers && !options.skipNpm) {
       logger2.step(7, 7, "Configuring browsers...");
-      browserInfo = await resolveBrowser(resolvedPath, logger2);
+      browserInfo = await resolveBrowser(resolvedPath, logger2, { logsDir });
       const configPath = path3.join(artkE2ePath, "artk.config.yml");
       updateArtkConfigBrowser(configPath, browserInfo);
       await updateContextJson(artkDir, { browser: browserInfo });
@@ -537,6 +828,7 @@ async function bootstrap(targetPath, options = {}) {
     } else {
       logger2.step(7, 7, "Skipping browser configuration");
     }
+    await cleanupBackup(backup);
     printSuccessSummary(logger2, resolvedPath, artkE2ePath, browserInfo);
     return {
       success: true,
@@ -550,12 +842,47 @@ async function bootstrap(targetPath, options = {}) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger2.error(`Bootstrap failed: ${errorMessage}`);
     errors.push(errorMessage);
+    await rollbackOnFailure(backup, logger2);
     return {
       success: false,
       projectPath: resolvedPath,
       artkE2ePath,
       errors
     };
+  }
+}
+async function rollbackOnFailure(backup, logger2) {
+  logger2.warning("Attempting to roll back changes...");
+  try {
+    if (backup.configBackupPath && fs3.existsSync(backup.configBackupPath)) {
+      if (backup.configPath) {
+        await fs3.copy(backup.configBackupPath, backup.configPath);
+        await fs3.remove(backup.configBackupPath);
+        logger2.debug("Restored artk.config.yml from backup");
+      }
+    }
+    if (backup.contextBackupPath && fs3.existsSync(backup.contextBackupPath)) {
+      if (backup.contextPath) {
+        await fs3.copy(backup.contextBackupPath, backup.contextPath);
+        await fs3.remove(backup.contextBackupPath);
+        logger2.debug("Restored context.json from backup");
+      }
+    }
+    logger2.warning("Partial rollback completed. Some files may need manual cleanup.");
+  } catch (rollbackError) {
+    logger2.error(`Rollback failed: ${rollbackError}`);
+    logger2.error("Manual cleanup may be required.");
+  }
+}
+async function cleanupBackup(backup) {
+  try {
+    if (backup.configBackupPath && fs3.existsSync(backup.configBackupPath)) {
+      await fs3.remove(backup.configBackupPath);
+    }
+    if (backup.contextBackupPath && fs3.existsSync(backup.contextBackupPath)) {
+      await fs3.remove(backup.contextBackupPath);
+    }
+  } catch {
   }
 }
 async function createDirectoryStructure(artkE2ePath) {
@@ -825,9 +1152,12 @@ export function getCurrentEnv(): string {
 `
   );
 }
-async function runNpmInstall(artkE2ePath, logger2) {
+async function runNpmInstall(artkE2ePath, logsDir, logger2) {
+  const logFile = path3.join(logsDir, "npm-install.log");
   return new Promise((resolve6, reject) => {
     logger2.startSpinner("Installing dependencies...");
+    const logLines = [`npm install started - ${(/* @__PURE__ */ new Date()).toISOString()}`];
+    logLines.push(`Working directory: ${artkE2ePath}`);
     const child = spawn("npm", ["install", "--legacy-peer-deps"], {
       cwd: artkE2ePath,
       env: {
@@ -837,25 +1167,48 @@ async function runNpmInstall(artkE2ePath, logger2) {
       shell: true,
       stdio: "pipe"
     });
+    let stdout = "";
     let stderr = "";
+    child.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
     child.stderr?.on("data", (data) => {
       stderr += data.toString();
     });
     child.on("close", (code) => {
+      logLines.push(`Exit code: ${code}`);
+      logLines.push("--- STDOUT ---");
+      logLines.push(stdout || "(empty)");
+      logLines.push("--- STDERR ---");
+      logLines.push(stderr || "(empty)");
+      try {
+        fs3.writeFileSync(logFile, logLines.join("\n"));
+      } catch {
+      }
       if (code === 0) {
         logger2.succeedSpinner("Dependencies installed");
         resolve6();
       } else {
         logger2.failSpinner("npm install failed");
-        logger2.debug(`stderr: ${stderr}`);
-        reject(new Error(`npm install failed with code ${code}`));
+        logger2.debug(`Details saved to: ${logFile}`);
+        reject(new Error(`npm install failed with code ${code}. See ${logFile} for details.`));
       }
     });
     child.on("error", (error) => {
+      logLines.push(`Process error: ${error.message}`);
+      try {
+        fs3.writeFileSync(logFile, logLines.join("\n"));
+      } catch {
+      }
       logger2.failSpinner("npm install failed");
       reject(error);
     });
     setTimeout(() => {
+      logLines.push("TIMEOUT: Installation took longer than 5 minutes");
+      try {
+        fs3.writeFileSync(logFile, logLines.join("\n"));
+      } catch {
+      }
       child.kill();
       logger2.failSpinner("npm install timed out");
       reject(new Error("npm install timed out"));
@@ -1162,8 +1515,8 @@ async function checkBrowsers() {
     browsers.push("Google Chrome");
   }
   const playwrightBrowsersPath = getPlaywrightBrowsersPath();
-  if (playwrightBrowsersPath && fs.existsSync(playwrightBrowsersPath)) {
-    const entries = fs.readdirSync(playwrightBrowsersPath);
+  if (playwrightBrowsersPath && fs2.existsSync(playwrightBrowsersPath)) {
+    const entries = fs2.readdirSync(playwrightBrowsersPath);
     if (entries.some((e) => e.startsWith("chromium-"))) {
       browsers.push("Playwright Chromium");
     }
@@ -1185,7 +1538,7 @@ async function checkBrowsers() {
 async function checkSystemBrowser(browser) {
   const paths = getBrowserPaths2(browser);
   for (const browserPath of paths) {
-    if (fs.existsSync(browserPath)) {
+    if (fs2.existsSync(browserPath)) {
       return true;
     }
   }
@@ -1303,8 +1656,8 @@ function getVersion() {
       path3.join(__dirname2, "package.json")
     ];
     for (const pkgPath of possiblePaths) {
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      if (fs2.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs2.readFileSync(pkgPath, "utf8"));
         return pkg.version || "0.0.0";
       }
     }
@@ -1320,8 +1673,8 @@ function getCoreVersion() {
       path3.join(__dirname2, "..", "assets", "core", "package.json")
     ];
     for (const pkgPath of possiblePaths) {
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      if (fs2.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs2.readFileSync(pkgPath, "utf8"));
         return pkg.version || "0.0.0";
       }
     }
