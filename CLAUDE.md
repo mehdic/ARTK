@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Reference: Install ARTK to a Client Project
+
+**Full bootstrap command (copy-paste ready):**
+```powershell
+C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 -TargetPath C:\path\to\your-project
+```
+
+**Example:**
+```powershell
+C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 -TargetPath C:\projects\my-app
+```
+
+**Options:**
+- `-TargetPath` (required): Path to target project
+- `-SkipNpm` (optional): Skip `npm install`
+
+---
+
 ## Dual-PC Development Workflow
 
 **I work on TWO machines:**
