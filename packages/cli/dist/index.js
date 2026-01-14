@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 import { createRequire } from 'module';
 import { spawn, execSync } from 'child_process';
-import fs3 from 'fs-extra';
-import * as path3 from 'path';
+import fs5 from 'fs-extra';
+import * as path4 from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
 import * as fs2 from 'fs';
 import * as https from 'https';
 import * as crypto from 'crypto';
+import { z } from 'zod';
+import yaml from 'yaml';
+import * as readline from 'readline';
 import * as semver from 'semver';
 
 createRequire(import.meta.url);
@@ -103,7 +106,7 @@ var Logger = class {
 };
 new Logger();
 async function detectEnvironment(projectPath) {
-  const resolvedPath = path3.resolve(projectPath);
+  const resolvedPath = path4.resolve(projectPath);
   return {
     moduleSystem: detectModuleSystem(resolvedPath),
     nodeVersion: process.version,
@@ -117,7 +120,7 @@ async function detectEnvironment(projectPath) {
   };
 }
 function detectModuleSystem(projectPath) {
-  const packageJsonPath = path3.join(projectPath, "package.json");
+  const packageJsonPath = path4.join(projectPath, "package.json");
   if (fs2.existsSync(packageJsonPath)) {
     try {
       const pkg = JSON.parse(fs2.readFileSync(packageJsonPath, "utf8"));
@@ -125,10 +128,10 @@ function detectModuleSystem(projectPath) {
         return "esm";
       }
       if (pkg.type === "commonjs" || !pkg.type) {
-        const hasEsmConfig = fs2.existsSync(path3.join(projectPath, "tsconfig.json"));
+        const hasEsmConfig = fs2.existsSync(path4.join(projectPath, "tsconfig.json"));
         if (hasEsmConfig) {
           try {
-            const tsconfig = JSON.parse(fs2.readFileSync(path3.join(projectPath, "tsconfig.json"), "utf8"));
+            const tsconfig = JSON.parse(fs2.readFileSync(path4.join(projectPath, "tsconfig.json"), "utf8"));
             const module = tsconfig.compilerOptions?.module?.toLowerCase();
             if (module && (module.includes("esnext") || module.includes("es20") || module === "nodenext")) {
               return "esm";
@@ -141,7 +144,7 @@ function detectModuleSystem(projectPath) {
     } catch {
     }
   }
-  const srcDir = path3.join(projectPath, "src");
+  const srcDir = path4.join(projectPath, "src");
   if (fs2.existsSync(srcDir)) {
     try {
       const files = fs2.readdirSync(srcDir, { recursive: true });
@@ -164,7 +167,7 @@ async function detectNpmVersion() {
   }
 }
 async function detectGit(projectPath) {
-  if (fs2.existsSync(path3.join(projectPath, ".git"))) {
+  if (fs2.existsSync(path4.join(projectPath, ".git"))) {
     return true;
   }
   try {
@@ -176,13 +179,13 @@ async function detectGit(projectPath) {
   }
 }
 function detectPlaywright(projectPath) {
-  const playwrightPath = path3.join(projectPath, "node_modules", "@playwright", "test");
+  const playwrightPath = path4.join(projectPath, "node_modules", "@playwright", "test");
   return fs2.existsSync(playwrightPath);
 }
 function detectArtkCore(projectPath) {
-  const vendorPath = path3.join(projectPath, "artk-e2e", "vendor", "artk-core");
+  const vendorPath = path4.join(projectPath, "artk-e2e", "vendor", "artk-core");
   if (fs2.existsSync(vendorPath)) return true;
-  const nodeModulesPath = path3.join(projectPath, "node_modules", "@artk", "core");
+  const nodeModulesPath = path4.join(projectPath, "node_modules", "@artk", "core");
   return fs2.existsSync(nodeModulesPath);
 }
 function isCI() {
@@ -224,9 +227,9 @@ function getOsArch() {
 }
 async function resolveBrowser(targetPath, logger2, options = {}) {
   const log = logger2 || new Logger();
-  const artkE2ePath = path3.join(targetPath, "artk-e2e");
-  const browsersCachePath = path3.join(targetPath, ".artk", "browsers");
-  const logsDir = options.logsDir || path3.join(targetPath, ".artk", "logs");
+  const artkE2ePath = path4.join(targetPath, "artk-e2e");
+  const browsersCachePath = path4.join(targetPath, ".artk", "browsers");
+  const logsDir = options.logsDir || path4.join(targetPath, ".artk", "logs");
   fs2.mkdirSync(browsersCachePath, { recursive: true });
   fs2.mkdirSync(logsDir, { recursive: true });
   process.env.PLAYWRIGHT_BROWSERS_PATH = browsersCachePath;
@@ -336,9 +339,9 @@ function failWithDiagnostics(logsDir, logger2) {
   throw new Error("No browsers available. See error messages above for solutions.");
 }
 async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, logger2) {
-  const logFile = path3.join(logsDir, "release-cache-download.log");
+  const logFile = path4.join(logsDir, "release-cache-download.log");
   const logLines = [`Release cache download attempt - ${(/* @__PURE__ */ new Date()).toISOString()}`];
-  const browsersJsonPath = path3.join(artkE2ePath, "node_modules", "playwright-core", "browsers.json");
+  const browsersJsonPath = path4.join(artkE2ePath, "node_modules", "playwright-core", "browsers.json");
   if (!fs2.existsSync(browsersJsonPath)) {
     logLines.push("browsers.json not found, skipping release cache");
     writeLogFile(logFile, logLines);
@@ -363,7 +366,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
       return null;
     }
     logLines.push(`OS/arch: ${os}/${arch}`);
-    const cachedPath = path3.join(browsersCachePath, `chromium-${chromium.revision}`);
+    const cachedPath = path4.join(browsersCachePath, `chromium-${chromium.revision}`);
     if (fs2.existsSync(cachedPath)) {
       logLines.push(`Browsers already cached: ${cachedPath}`);
       writeLogFile(logFile, logLines);
@@ -375,7 +378,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
         strategy: "release-cache"
       };
     }
-    const playwrightPkgPath = path3.join(artkE2ePath, "node_modules", "@playwright", "test", "package.json");
+    const playwrightPkgPath = path4.join(artkE2ePath, "node_modules", "@playwright", "test", "package.json");
     let playwrightVersion = "1.57.0";
     if (fs2.existsSync(playwrightPkgPath)) {
       const pkg = JSON.parse(fs2.readFileSync(playwrightPkgPath, "utf8"));
@@ -399,7 +402,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
     logLines.push(`Asset: ${asset}`);
     logLines.push(`URL: ${zipUrl}`);
     logger2.startSpinner("Downloading pre-built browsers from release cache...");
-    const zipPath = path3.join(browsersCachePath, asset);
+    const zipPath = path4.join(browsersCachePath, asset);
     const shaPath = `${zipPath}.sha256`;
     try {
       logLines.push("Downloading ZIP...");
@@ -431,7 +434,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
       return {
         channel: "bundled",
         version: chromium.revision,
-        path: path3.join(browsersCachePath, `chromium-${chromium.revision}`),
+        path: path4.join(browsersCachePath, `chromium-${chromium.revision}`),
         strategy: "release-cache"
       };
     } catch (downloadError) {
@@ -531,7 +534,7 @@ function writeLogFile(logPath, lines) {
   }
 }
 async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger2) {
-  const logFile = path3.join(logsDir, "playwright-browser-install.log");
+  const logFile = path4.join(logsDir, "playwright-browser-install.log");
   return new Promise((resolve3) => {
     logger2.startSpinner("Installing Playwright browsers...");
     const logLines = [`Playwright browser install attempt - ${(/* @__PURE__ */ new Date()).toISOString()}`];
@@ -593,7 +596,7 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger
   });
 }
 async function detectSystemBrowser(logsDir, logger2) {
-  const logFile = path3.join(logsDir, "system-browser-detect.log");
+  const logFile = path4.join(logsDir, "system-browser-detect.log");
   const logLines = [`System browser detection - ${(/* @__PURE__ */ new Date()).toISOString()}`];
   logLines.push(`Platform: ${process.platform}`);
   logLines.push("Checking Microsoft Edge...");
@@ -734,27 +737,547 @@ browsers:
   }
   fs2.writeFileSync(configPath, content);
 }
+function processTemplate(template, context) {
+  let result = template;
+  for (const [key, value] of Object.entries(context)) {
+    const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+    result = result.replace(placeholder, String(value));
+  }
+  return result;
+}
+async function generateFoundationModules(artkE2ePath, assetsDir, context, logger2) {
+  const result = {
+    success: true,
+    filesGenerated: [],
+    errors: [],
+    warnings: []
+  };
+  const modules = [
+    { template: "auth/login.ts", target: "src/modules/foundation/auth/login.ts" },
+    { template: "config/env.ts", target: "src/modules/foundation/config/env.ts" },
+    { template: "navigation/nav.ts", target: "src/modules/foundation/navigation/nav.ts" }
+  ];
+  const variant = context.moduleSystem === "esm" ? "esm" : "commonjs";
+  const templatesDir = path4.join(assetsDir, "core", "templates", variant);
+  if (!fs2.existsSync(templatesDir)) {
+    logger2.warning(`Template directory not found: ${templatesDir}`);
+    logger2.debug("Generating basic foundation stubs instead");
+    result.warnings.push("Templates not found, generated basic stubs");
+    await generateBasicStubs(artkE2ePath, context, logger2);
+    return result;
+  }
+  for (const module of modules) {
+    const templatePath = path4.join(templatesDir, module.template);
+    const targetPath = path4.join(artkE2ePath, module.target);
+    try {
+      if (!fs2.existsSync(templatePath)) {
+        logger2.debug(`Template not found: ${templatePath}`);
+        result.warnings.push(`Template not found: ${module.template}`);
+        continue;
+      }
+      const templateContent = fs2.readFileSync(templatePath, "utf8");
+      const processedContent = processTemplate(templateContent, context);
+      const targetDir = path4.dirname(targetPath);
+      if (!fs2.existsSync(targetDir)) {
+        fs2.mkdirSync(targetDir, { recursive: true });
+      }
+      fs2.writeFileSync(targetPath, processedContent, "utf8");
+      result.filesGenerated.push(targetPath);
+      logger2.debug(`Generated: ${module.target}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      result.errors.push({ file: module.target, error: errorMessage });
+      result.success = false;
+      logger2.debug(`Failed to generate ${module.target}: ${errorMessage}`);
+    }
+  }
+  await generateIndexFiles(artkE2ePath, context, logger2);
+  return result;
+}
+async function generateBasicStubs(artkE2ePath, context, logger2) {
+  const foundationPath = path4.join(artkE2ePath, "src", "modules", "foundation");
+  const loginStub = context.moduleSystem === "esm" ? getEsmLoginStub(context) : getCjsLoginStub(context);
+  await writeFile(path4.join(foundationPath, "auth", "login.ts"), loginStub);
+  const envStub = context.moduleSystem === "esm" ? getEsmEnvStub(context) : getCjsEnvStub(context);
+  await writeFile(path4.join(foundationPath, "config", "env.ts"), envStub);
+  const navStub = context.moduleSystem === "esm" ? getEsmNavStub(context) : getCjsNavStub(context);
+  await writeFile(path4.join(foundationPath, "navigation", "nav.ts"), navStub);
+  logger2.debug("Generated basic foundation stubs");
+}
+async function generateIndexFiles(artkE2ePath, context, logger2) {
+  const foundationPath = path4.join(artkE2ePath, "src", "modules", "foundation");
+  await writeFile(
+    path4.join(foundationPath, "index.ts"),
+    `/**
+ * Foundation Modules - Core testing infrastructure
+ * Generated for: ${context.projectName}
+ * Generated at: ${context.generatedAt}
+ *
+ * These modules provide:
+ * - Auth: Login flows and storage state management
+ * - Config: Environment configuration loading
+ * - Navigation: Route helpers and URL builders
+ */
+
+export * from './auth/login';
+export * from './config/env';
+export * from './navigation/nav';
+`
+  );
+  await writeFile(
+    path4.join(foundationPath, "auth", "index.ts"),
+    `/**
+ * Authentication Module
+ * Generated for: ${context.projectName}
+ */
+export * from './login';
+`
+  );
+  await writeFile(
+    path4.join(foundationPath, "config", "index.ts"),
+    `/**
+ * Configuration Module
+ * Generated for: ${context.projectName}
+ */
+export * from './env';
+`
+  );
+  await writeFile(
+    path4.join(foundationPath, "navigation", "index.ts"),
+    `/**
+ * Navigation Module
+ * Generated for: ${context.projectName}
+ */
+export * from './nav';
+`
+  );
+  logger2.debug("Generated foundation index files");
+}
+async function writeFile(filePath, content) {
+  const dir = path4.dirname(filePath);
+  if (!fs2.existsSync(dir)) {
+    fs2.mkdirSync(dir, { recursive: true });
+  }
+  fs2.writeFileSync(filePath, content, "utf8");
+}
+function getEsmLoginStub(context) {
+  return `/**
+ * ESM Authentication Login Module
+ * Generated for: ${context.projectName}
+ * Generated at: ${context.generatedAt}
+ */
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+import * as fs from 'fs';
+import type { Page } from '@playwright/test';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Perform login action
+ */
+export async function login(page: Page, username: string, password: string): Promise<void> {
+  // Navigate to login page
+  await page.goto('/login');
+
+  // Fill credentials - update selectors for your app
+  await page.fill('[data-testid="username"]', username);
+  await page.fill('[data-testid="password"]', password);
+
+  // Submit
+  await page.click('[data-testid="login-button"]');
+
+  // Wait for navigation
+  await page.waitForURL('**/dashboard');
+}
+
+/**
+ * Save authentication state
+ */
+export async function saveAuthState(page: Page, statePath?: string): Promise<void> {
+  const fullPath = statePath || path.join('${context.artkRoot}', '${context.authStatePath}', 'user.json');
+  await page.context().storageState({ path: fullPath });
+}
+`;
+}
+function getCjsLoginStub(context) {
+  return `/**
+ * CommonJS Authentication Login Module
+ * Generated for: ${context.projectName}
+ * Generated at: ${context.generatedAt}
+ */
+import * as path from 'path';
+import * as fs from 'fs';
+import type { Page } from '@playwright/test';
+
+/**
+ * Perform login action
+ */
+export async function login(page: Page, username: string, password: string): Promise<void> {
+  // Navigate to login page
+  await page.goto('/login');
+
+  // Fill credentials - update selectors for your app
+  await page.fill('[data-testid="username"]', username);
+  await page.fill('[data-testid="password"]', password);
+
+  // Submit
+  await page.click('[data-testid="login-button"]');
+
+  // Wait for navigation
+  await page.waitForURL('**/dashboard');
+}
+
+/**
+ * Save authentication state
+ */
+export async function saveAuthState(page: Page, statePath?: string): Promise<void> {
+  const fullPath = statePath || path.join('${context.artkRoot}', '${context.authStatePath}', 'user.json');
+  await page.context().storageState({ path: fullPath });
+}
+`;
+}
+function getEsmEnvStub(context) {
+  return `/**
+ * ESM Environment Configuration Module
+ * Generated for: ${context.projectName}
+ * Generated at: ${context.generatedAt}
+ */
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+import * as fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export interface EnvironmentConfig {
+  name: string;
+  baseURL: string;
+  timeout?: number;
+}
+
+/**
+ * Get base URL for current environment
+ */
+export function getBaseURL(env?: string): string {
+  const targetEnv = env || process.env.ARTK_ENV || 'local';
+
+  // Try to load from artk.config.yml
+  const configPath = path.join(__dirname, '..', '..', '..', 'artk.config.yml');
+  if (fs.existsSync(configPath)) {
+    // Dynamic import for ESM
+    const yaml = await import('yaml');
+    const config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
+    return config.environments?.[targetEnv]?.baseUrl || '${context.baseURL}';
+  }
+
+  // Fallback defaults
+  const defaults: Record<string, string> = {
+    local: '${context.baseURL}',
+    intg: 'https://intg.example.com',
+    ctlq: 'https://ctlq.example.com',
+    prod: 'https://example.com',
+  };
+
+  return defaults[targetEnv] || defaults.local;
+}
+
+export function getCurrentEnv(): string {
+  return process.env.ARTK_ENV || 'local';
+}
+`;
+}
+function getCjsEnvStub(context) {
+  return `/**
+ * CommonJS Environment Configuration Module
+ * Generated for: ${context.projectName}
+ * Generated at: ${context.generatedAt}
+ */
+import * as path from 'path';
+import * as fs from 'fs';
+
+export interface EnvironmentConfig {
+  name: string;
+  baseURL: string;
+  timeout?: number;
+}
+
+/**
+ * Get base URL for current environment
+ */
+export function getBaseURL(env?: string): string {
+  const targetEnv = env || process.env.ARTK_ENV || 'local';
+
+  // Try to load from artk.config.yml
+  const configPath = path.join(__dirname, '..', '..', '..', 'artk.config.yml');
+  if (fs.existsSync(configPath)) {
+    const yaml = require('yaml');
+    const config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
+    return config.environments?.[targetEnv]?.baseUrl || '${context.baseURL}';
+  }
+
+  // Fallback defaults
+  const defaults: Record<string, string> = {
+    local: '${context.baseURL}',
+    intg: 'https://intg.example.com',
+    ctlq: 'https://ctlq.example.com',
+    prod: 'https://example.com',
+  };
+
+  return defaults[targetEnv] || defaults.local;
+}
+
+export function getCurrentEnv(): string {
+  return process.env.ARTK_ENV || 'local';
+}
+`;
+}
+function getEsmNavStub(context) {
+  return `/**
+ * ESM Navigation Module
+ * Generated for: ${context.projectName}
+ * Generated at: ${context.generatedAt}
+ */
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+import type { Page } from '@playwright/test';
+import { getBaseURL } from '../config/env';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Navigate to a route
+ */
+export async function navigateTo(page: Page, route: string): Promise<void> {
+  const baseURL = getBaseURL();
+  const fullURL = route.startsWith('/') ? \`\${baseURL}\${route}\` : \`\${baseURL}/\${route}\`;
+  await page.goto(fullURL);
+}
+
+/**
+ * Get current route
+ */
+export function getCurrentRoute(page: Page): string {
+  const url = new URL(page.url());
+  return url.pathname;
+}
+
+/**
+ * Wait for route change
+ */
+export async function waitForRoute(page: Page, route: string): Promise<void> {
+  await page.waitForURL(\`**\${route}\`);
+}
+`;
+}
+function getCjsNavStub(context) {
+  return `/**
+ * CommonJS Navigation Module
+ * Generated for: ${context.projectName}
+ * Generated at: ${context.generatedAt}
+ */
+import * as path from 'path';
+import type { Page } from '@playwright/test';
+import { getBaseURL } from '../config/env';
+
+/**
+ * Navigate to a route
+ */
+export async function navigateTo(page: Page, route: string): Promise<void> {
+  const baseURL = getBaseURL();
+  const fullURL = route.startsWith('/') ? \`\${baseURL}\${route}\` : \`\${baseURL}/\${route}\`;
+  await page.goto(fullURL);
+}
+
+/**
+ * Get current route
+ */
+export function getCurrentRoute(page: Page): string {
+  const url = new URL(page.url());
+  return url.pathname;
+}
+
+/**
+ * Wait for route change
+ */
+export async function waitForRoute(page: Page, route: string): Promise<void> {
+  await page.waitForURL(\`**\${route}\`);
+}
+`;
+}
+var environmentSchema = z.object({
+  baseUrl: z.string().url().or(z.string().regex(/^\$\{[^}]+\}$/))
+  // Allow env var placeholders
+}).passthrough();
+var authSchema = z.object({
+  provider: z.enum(["oidc", "saml", "basic", "custom", "none"]).default("oidc"),
+  storageStateDir: z.string().default("./.auth-states"),
+  roles: z.record(z.object({
+    username: z.string().optional(),
+    password: z.string().optional()
+  })).optional()
+}).passthrough();
+var browserSchema = z.object({
+  enabled: z.array(z.enum(["chromium", "firefox", "webkit"])).default(["chromium"]),
+  channel: z.enum(["bundled", "msedge", "chrome", "chrome-beta", "chrome-dev"]).default("bundled"),
+  strategy: z.enum(["auto", "bundled-only", "system-only", "prefer-system", "prefer-bundled"]).default("auto"),
+  viewport: z.object({
+    width: z.number().min(320).max(3840).default(1280),
+    height: z.number().min(240).max(2160).default(720)
+  }).optional(),
+  headless: z.boolean().default(true)
+}).passthrough();
+var settingsSchema = z.object({
+  parallel: z.boolean().default(true),
+  retries: z.number().min(0).max(10).default(2),
+  timeout: z.number().min(1e3).max(3e5).default(3e4),
+  traceOnFailure: z.boolean().default(true)
+}).passthrough();
+var artkConfigSchema = z.object({
+  version: z.string().default("1.0"),
+  app: z.object({
+    name: z.string(),
+    type: z.enum(["web", "mobile", "api"]).default("web"),
+    description: z.string().optional()
+  }),
+  environments: z.record(environmentSchema),
+  auth: authSchema.optional(),
+  settings: settingsSchema.optional(),
+  browsers: browserSchema.optional()
+}).passthrough();
+function validateArtkConfig(configPath, logger2) {
+  const log = logger2 || new Logger();
+  const result = {
+    valid: true,
+    errors: [],
+    warnings: []
+  };
+  if (!fs2.existsSync(configPath)) {
+    result.valid = false;
+    result.errors.push(`Config file not found: ${configPath}`);
+    return result;
+  }
+  try {
+    const content = fs2.readFileSync(configPath, "utf8");
+    const rawConfig = yaml.parse(content);
+    if (!rawConfig || typeof rawConfig !== "object") {
+      result.valid = false;
+      result.errors.push("Config file is empty or invalid YAML");
+      return result;
+    }
+    const parseResult = artkConfigSchema.safeParse(rawConfig);
+    if (!parseResult.success) {
+      result.valid = false;
+      for (const error of parseResult.error.errors) {
+        const path6 = error.path.join(".");
+        result.errors.push(`${path6}: ${error.message}`);
+      }
+      return result;
+    }
+    result.config = parseResult.data;
+    const additionalWarnings = checkAdditionalValidation(parseResult.data);
+    result.warnings.push(...additionalWarnings);
+    log.debug(`Config validation passed for ${configPath}`);
+    return result;
+  } catch (error) {
+    result.valid = false;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Failed to parse config: ${errorMessage}`);
+    return result;
+  }
+}
+function checkAdditionalValidation(config) {
+  const warnings = [];
+  if (Object.keys(config.environments).length === 0) {
+    warnings.push("No environments defined - at least one is recommended");
+  }
+  const commonEnvs = ["local", "dev", "intg", "staging", "prod"];
+  const hasCommonEnv = commonEnvs.some((env) => env in config.environments);
+  if (!hasCommonEnv) {
+    warnings.push(`Consider using standard environment names: ${commonEnvs.join(", ")}`);
+  }
+  if (config.browsers?.strategy === "system-only") {
+    warnings.push("system-only browser strategy may fail in CI environments");
+  }
+  if (config.auth?.provider === "none" && config.auth?.roles) {
+    warnings.push('Auth roles defined but provider is "none"');
+  }
+  if (config.settings?.timeout && config.settings.timeout < 5e3) {
+    warnings.push("Very short timeout (< 5s) may cause flaky tests");
+  }
+  return warnings;
+}
+function isInteractive() {
+  return process.stdin.isTTY === true && process.stdout.isTTY === true;
+}
+async function promptSelect(question, options, defaultIndex = 0) {
+  if (!isInteractive()) {
+    return options[defaultIndex].value;
+  }
+  console.log(`
+${question}
+`);
+  options.forEach((opt, index) => {
+    const marker = index === defaultIndex ? "*" : " ";
+    console.log(`  ${marker} ${index + 1}. ${opt.label}`);
+  });
+  console.log();
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  return new Promise((resolve3) => {
+    rl.question(`Enter choice [${defaultIndex + 1}]: `, (answer) => {
+      rl.close();
+      const trimmed = answer.trim();
+      if (trimmed === "") {
+        resolve3(options[defaultIndex].value);
+        return;
+      }
+      const choice = parseInt(trimmed, 10);
+      if (isNaN(choice) || choice < 1 || choice > options.length) {
+        console.log(`Invalid choice, using default: ${options[defaultIndex].label}`);
+        resolve3(options[defaultIndex].value);
+        return;
+      }
+      resolve3(options[choice - 1].value);
+    });
+  });
+}
+async function promptVariant() {
+  return promptSelect(
+    "Select module system variant:",
+    [
+      { value: "commonjs", label: "CommonJS - Traditional Node.js modules (require/module.exports)" },
+      { value: "esm", label: "ESM - Modern ES modules (import/export)" }
+    ],
+    0
+    // Default to CommonJS for maximum compatibility
+  );
+}
 
 // src/lib/bootstrap.ts
 var __filename$1 = fileURLToPath(import.meta.url);
-var __dirname$1 = path3.dirname(__filename$1);
+var __dirname$1 = path4.dirname(__filename$1);
 async function bootstrap(targetPath, options = {}) {
   const logger2 = new Logger({ verbose: options.verbose });
   const errors = [];
-  const resolvedPath = path3.resolve(targetPath);
-  const artkE2ePath = path3.join(resolvedPath, "artk-e2e");
-  const artkDir = path3.join(resolvedPath, ".artk");
-  const logsDir = path3.join(artkDir, "logs");
+  const resolvedPath = path4.resolve(targetPath);
+  const artkE2ePath = path4.join(resolvedPath, "artk-e2e");
+  const artkDir = path4.join(resolvedPath, ".artk");
+  const logsDir = path4.join(artkDir, "logs");
   logger2.header("ARTK Bootstrap Installation");
   logger2.table([
     { label: "Target", value: resolvedPath },
     { label: "ARTK E2E", value: artkE2ePath }
   ]);
-  if (!fs3.existsSync(resolvedPath)) {
+  if (!fs5.existsSync(resolvedPath)) {
     logger2.error(`Target directory does not exist: ${resolvedPath}`);
     return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ["Target directory does not exist"] };
   }
-  if (fs3.existsSync(artkE2ePath) && !options.force) {
+  if (fs5.existsSync(artkE2ePath) && !options.force) {
     logger2.error("ARTK is already installed in this project. Use --force to overwrite.");
     return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ["Already installed"] };
   }
@@ -764,27 +1287,38 @@ async function bootstrap(targetPath, options = {}) {
     contextPath: null,
     contextBackupPath: null
   };
-  await fs3.ensureDir(logsDir);
+  await fs5.ensureDir(logsDir);
   try {
     if (options.force) {
-      const configPath = path3.join(artkE2ePath, "artk.config.yml");
-      if (fs3.existsSync(configPath)) {
-        backup.configPath = configPath;
-        backup.configBackupPath = `${configPath}.bootstrap-backup`;
-        await fs3.copy(configPath, backup.configBackupPath);
+      const configPath2 = path4.join(artkE2ePath, "artk.config.yml");
+      if (fs5.existsSync(configPath2)) {
+        backup.configPath = configPath2;
+        backup.configBackupPath = `${configPath2}.bootstrap-backup`;
+        await fs5.copy(configPath2, backup.configBackupPath);
         logger2.debug("Backed up existing artk.config.yml");
       }
-      const contextPath = path3.join(artkDir, "context.json");
-      if (fs3.existsSync(contextPath)) {
+      const contextPath = path4.join(artkDir, "context.json");
+      if (fs5.existsSync(contextPath)) {
         backup.contextPath = contextPath;
         backup.contextBackupPath = `${contextPath}.bootstrap-backup`;
-        await fs3.copy(contextPath, backup.contextBackupPath);
+        await fs5.copy(contextPath, backup.contextBackupPath);
         logger2.debug("Backed up existing context.json");
       }
     }
     logger2.step(1, 7, "Detecting environment...");
     const environment = await detectEnvironment(resolvedPath);
-    const variant = options.variant === "auto" || !options.variant ? environment.moduleSystem === "unknown" ? "commonjs" : environment.moduleSystem : options.variant;
+    let variant;
+    if (options.variant && options.variant !== "auto") {
+      variant = options.variant;
+    } else if (environment.moduleSystem !== "unknown") {
+      variant = environment.moduleSystem;
+    } else if (isInteractive()) {
+      logger2.warning("Could not auto-detect module system");
+      variant = await promptVariant();
+    } else {
+      variant = "commonjs";
+      logger2.debug("Using CommonJS as default (non-interactive mode)");
+    }
     logger2.success(`Module system: ${variant}`);
     logger2.debug(`Node.js: ${environment.nodeVersion}`);
     logger2.debug(`Platform: ${environment.platform}/${environment.arch}`);
@@ -802,12 +1336,26 @@ async function bootstrap(targetPath, options = {}) {
       logger2.step(4, 7, "Skipping prompts installation (--no-prompts)");
     }
     logger2.step(5, 7, "Creating configuration files...");
-    const projectName = path3.basename(resolvedPath);
+    const projectName = path4.basename(resolvedPath);
     await createConfigurationFiles(artkE2ePath, artkDir, resolvedPath, {
       projectName,
       variant
-    });
+    }, logger2);
     logger2.success("Configuration files created");
+    const configPath = path4.join(artkE2ePath, "artk.config.yml");
+    const configValidation = validateArtkConfig(configPath, logger2);
+    if (!configValidation.valid) {
+      logger2.error("Generated configuration validation failed:");
+      for (const error of configValidation.errors) {
+        logger2.error(`  - ${error}`);
+      }
+      throw new Error("Configuration validation failed");
+    }
+    if (configValidation.warnings.length > 0) {
+      for (const warning of configValidation.warnings) {
+        logger2.warning(`Config: ${warning}`);
+      }
+    }
     if (!options.skipNpm) {
       logger2.step(6, 7, "Running npm install...");
       await runNpmInstall(artkE2ePath, logsDir, logger2);
@@ -819,8 +1367,8 @@ async function bootstrap(targetPath, options = {}) {
     if (!options.skipBrowsers && !options.skipNpm) {
       logger2.step(7, 7, "Configuring browsers...");
       browserInfo = await resolveBrowser(resolvedPath, logger2, { logsDir });
-      const configPath = path3.join(artkE2ePath, "artk.config.yml");
-      updateArtkConfigBrowser(configPath, browserInfo);
+      const configPath2 = path4.join(artkE2ePath, "artk.config.yml");
+      updateArtkConfigBrowser(configPath2, browserInfo);
       await updateContextJson(artkDir, { browser: browserInfo });
       logger2.success(`Browser configured: ${browserInfo.channel} (${browserInfo.strategy})`);
     } else {
@@ -852,17 +1400,17 @@ async function bootstrap(targetPath, options = {}) {
 async function rollbackOnFailure(backup, logger2) {
   logger2.warning("Attempting to roll back changes...");
   try {
-    if (backup.configBackupPath && fs3.existsSync(backup.configBackupPath)) {
+    if (backup.configBackupPath && fs5.existsSync(backup.configBackupPath)) {
       if (backup.configPath) {
-        await fs3.copy(backup.configBackupPath, backup.configPath);
-        await fs3.remove(backup.configBackupPath);
+        await fs5.copy(backup.configBackupPath, backup.configPath);
+        await fs5.remove(backup.configBackupPath);
         logger2.debug("Restored artk.config.yml from backup");
       }
     }
-    if (backup.contextBackupPath && fs3.existsSync(backup.contextBackupPath)) {
+    if (backup.contextBackupPath && fs5.existsSync(backup.contextBackupPath)) {
       if (backup.contextPath) {
-        await fs3.copy(backup.contextBackupPath, backup.contextPath);
-        await fs3.remove(backup.contextBackupPath);
+        await fs5.copy(backup.contextBackupPath, backup.contextPath);
+        await fs5.remove(backup.contextBackupPath);
         logger2.debug("Restored context.json from backup");
       }
     }
@@ -874,11 +1422,11 @@ async function rollbackOnFailure(backup, logger2) {
 }
 async function cleanupBackup(backup) {
   try {
-    if (backup.configBackupPath && fs3.existsSync(backup.configBackupPath)) {
-      await fs3.remove(backup.configBackupPath);
+    if (backup.configBackupPath && fs5.existsSync(backup.configBackupPath)) {
+      await fs5.remove(backup.configBackupPath);
     }
-    if (backup.contextBackupPath && fs3.existsSync(backup.contextBackupPath)) {
-      await fs3.remove(backup.contextBackupPath);
+    if (backup.contextBackupPath && fs5.existsSync(backup.contextBackupPath)) {
+      await fs5.remove(backup.contextBackupPath);
     }
   } catch {
   }
@@ -904,32 +1452,32 @@ async function createDirectoryStructure(artkE2ePath) {
     ".auth-states"
   ];
   for (const dir of directories) {
-    await fs3.ensureDir(path3.join(artkE2ePath, dir));
+    await fs5.ensureDir(path4.join(artkE2ePath, dir));
   }
 }
 async function installVendorPackages(artkE2ePath, logger2) {
   const assetsDir = getAssetsDir();
-  const coreSource = path3.join(assetsDir, "core");
-  const coreTarget = path3.join(artkE2ePath, "vendor", "artk-core");
-  if (fs3.existsSync(coreSource)) {
-    await fs3.copy(coreSource, coreTarget, { overwrite: true });
+  const coreSource = path4.join(assetsDir, "core");
+  const coreTarget = path4.join(artkE2ePath, "vendor", "artk-core");
+  if (fs5.existsSync(coreSource)) {
+    await fs5.copy(coreSource, coreTarget, { overwrite: true });
     logger2.debug(`Copied @artk/core from bundled assets`);
   } else {
     logger2.warning(`@artk/core assets not found at ${coreSource}`);
-    await fs3.writeJson(path3.join(coreTarget, "package.json"), {
+    await fs5.writeJson(path4.join(coreTarget, "package.json"), {
       name: "@artk/core",
       version: "1.0.0",
       main: "./dist/index.js"
     });
   }
-  const autogenSource = path3.join(assetsDir, "autogen");
-  const autogenTarget = path3.join(artkE2ePath, "vendor", "artk-core-autogen");
-  if (fs3.existsSync(autogenSource)) {
-    await fs3.copy(autogenSource, autogenTarget, { overwrite: true });
+  const autogenSource = path4.join(assetsDir, "autogen");
+  const autogenTarget = path4.join(artkE2ePath, "vendor", "artk-core-autogen");
+  if (fs5.existsSync(autogenSource)) {
+    await fs5.copy(autogenSource, autogenTarget, { overwrite: true });
     logger2.debug(`Copied @artk/core-autogen from bundled assets`);
   } else {
     logger2.warning(`@artk/core-autogen assets not found at ${autogenSource}`);
-    await fs3.writeJson(path3.join(autogenTarget, "package.json"), {
+    await fs5.writeJson(path4.join(autogenTarget, "package.json"), {
       name: "@artk/core-autogen",
       version: "0.1.0",
       main: "./dist/index.js"
@@ -938,18 +1486,18 @@ async function installVendorPackages(artkE2ePath, logger2) {
 }
 async function installPrompts(projectPath, logger2) {
   const assetsDir = getAssetsDir();
-  const promptsSource = path3.join(assetsDir, "prompts");
-  const promptsTarget = path3.join(projectPath, ".github", "prompts");
-  await fs3.ensureDir(promptsTarget);
-  if (fs3.existsSync(promptsSource)) {
-    const promptFiles = await fs3.readdir(promptsSource);
+  const promptsSource = path4.join(assetsDir, "prompts");
+  const promptsTarget = path4.join(projectPath, ".github", "prompts");
+  await fs5.ensureDir(promptsTarget);
+  if (fs5.existsSync(promptsSource)) {
+    const promptFiles = await fs5.readdir(promptsSource);
     let installed = 0;
     for (const file of promptFiles) {
       if (file.endsWith(".md") && file.startsWith("artk.")) {
-        const source = path3.join(promptsSource, file);
+        const source = path4.join(promptsSource, file);
         const targetName = file.replace(/\.md$/, ".prompt.md");
-        const target = path3.join(promptsTarget, targetName);
-        await fs3.copy(source, target, { overwrite: true });
+        const target = path4.join(promptsTarget, targetName);
+        await fs5.copy(source, target, { overwrite: true });
         installed++;
         logger2.debug(`Installed prompt: ${targetName}`);
       }
@@ -959,9 +1507,9 @@ async function installPrompts(projectPath, logger2) {
     logger2.warning(`Prompts assets not found at ${promptsSource}`);
   }
 }
-async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, options) {
-  await fs3.writeJson(
-    path3.join(artkE2ePath, "package.json"),
+async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, options, logger2) {
+  await fs5.writeJson(
+    path4.join(artkE2ePath, "package.json"),
     {
       name: "artk-e2e",
       version: "1.0.0",
@@ -989,12 +1537,12 @@ async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, optio
     },
     { spaces: 2 }
   );
-  await fs3.writeFile(
-    path3.join(artkE2ePath, "playwright.config.ts"),
+  await fs5.writeFile(
+    path4.join(artkE2ePath, "playwright.config.ts"),
     getPlaywrightConfigTemplate()
   );
-  await fs3.writeJson(
-    path3.join(artkE2ePath, "tsconfig.json"),
+  await fs5.writeJson(
+    path4.join(artkE2ePath, "tsconfig.json"),
     {
       compilerOptions: {
         target: "ES2022",
@@ -1021,12 +1569,12 @@ async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, optio
     },
     { spaces: 2 }
   );
-  await fs3.writeFile(
-    path3.join(artkE2ePath, "artk.config.yml"),
+  await fs5.writeFile(
+    path4.join(artkE2ePath, "artk.config.yml"),
     getArtkConfigTemplate(options.projectName)
   );
-  await fs3.writeFile(
-    path3.join(artkE2ePath, ".gitignore"),
+  await fs5.writeFile(
+    path4.join(artkE2ePath, ".gitignore"),
     `node_modules/
 dist/
 test-results/
@@ -1035,10 +1583,34 @@ playwright-report/
 *.local
 `
   );
-  await createFoundationStubs(artkE2ePath);
-  await fs3.ensureDir(artkDir);
-  await fs3.writeJson(
-    path3.join(artkDir, "context.json"),
+  const assetsDir = getAssetsDir();
+  const templateContext = {
+    projectName: options.projectName,
+    projectRoot: projectPath,
+    artkRoot: "artk-e2e",
+    artkCorePath: "@artk/core",
+    configPath: "config",
+    authStatePath: ".auth-states",
+    baseURL: "http://localhost:3000",
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    moduleSystem: options.variant
+  };
+  const foundationResult = await generateFoundationModules(
+    artkE2ePath,
+    assetsDir,
+    templateContext,
+    logger2
+  );
+  if (!foundationResult.success) {
+    logger2.warning("Some foundation modules failed to generate");
+    for (const error of foundationResult.errors) {
+      logger2.debug(`  ${error.file}: ${error.error}`);
+    }
+  }
+  await createAdditionalModuleStubs(artkE2ePath);
+  await fs5.ensureDir(artkDir);
+  await fs5.writeJson(
+    path4.join(artkDir, "context.json"),
     {
       version: "1.0",
       projectRoot: projectPath,
@@ -1049,8 +1621,8 @@ playwright-report/
     },
     { spaces: 2 }
   );
-  await fs3.writeFile(
-    path3.join(artkDir, ".gitignore"),
+  await fs5.writeFile(
+    path4.join(artkDir, ".gitignore"),
     `# ARTK temporary files
 browsers/
 heal-logs/
@@ -1060,43 +1632,73 @@ selector-catalog.local.json
 `
   );
 }
-async function createFoundationStubs(artkE2ePath) {
-  const foundationPath = path3.join(artkE2ePath, "src", "modules", "foundation");
-  await fs3.writeFile(
-    path3.join(foundationPath, "index.ts"),
+async function createAdditionalModuleStubs(artkE2ePath) {
+  const foundationPath = path4.join(artkE2ePath, "src", "modules", "foundation");
+  await fs5.ensureDir(path4.join(foundationPath, "selectors"));
+  await fs5.writeFile(
+    path4.join(foundationPath, "selectors", "index.ts"),
     `/**
- * Foundation Modules - Core testing infrastructure
- *
- * These modules are populated by /artk.discover-foundation and provide:
- * - Auth: Login flows and storage state management
- * - Navigation: Route helpers and URL builders
- * - Selectors: Locator utilities and data-testid helpers
- * - Data: Test data builders and cleanup
- */
-
-export * from './auth';
-export * from './navigation';
-export * from './selectors';
-export * from './data';
-`
-  );
-  const modules = ["auth", "navigation", "selectors", "data"];
-  for (const module of modules) {
-    await fs3.writeFile(
-      path3.join(foundationPath, module, "index.ts"),
-      `/**
- * Foundation Module: ${module}
+ * Selectors Module - Locator utilities
  *
  * This file will be populated by /artk.discover-foundation
+ * Provides data-testid helpers and selector utilities.
  */
 
-// Placeholder export to prevent import errors
-export {};
+import type { Page, Locator } from '@playwright/test';
+
+/**
+ * Get element by data-testid
+ */
+export function getByTestId(page: Page, testId: string): Locator {
+  return page.locator(\`[data-testid="\${testId}"]\`);
+}
+
+/**
+ * Get all elements by data-testid prefix
+ */
+export function getAllByTestIdPrefix(page: Page, prefix: string): Locator {
+  return page.locator(\`[data-testid^="\${prefix}"]\`);
+}
 `
-    );
+  );
+  await fs5.ensureDir(path4.join(foundationPath, "data"));
+  await fs5.writeFile(
+    path4.join(foundationPath, "data", "index.ts"),
+    `/**
+ * Data Module - Test data builders and cleanup
+ *
+ * This file will be populated by /artk.discover-foundation
+ * Provides test data factories and cleanup utilities.
+ */
+
+/**
+ * Generate unique test identifier
+ */
+export function generateTestId(prefix: string = 'test'): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  return \`\${prefix}_\${timestamp}_\${random}\`;
+}
+
+/**
+ * Cleanup registry for test data
+ */
+const cleanupRegistry: Array<() => Promise<void>> = [];
+
+export function registerCleanup(fn: () => Promise<void>): void {
+  cleanupRegistry.push(fn);
+}
+
+export async function runCleanup(): Promise<void> {
+  for (const cleanup of cleanupRegistry.reverse()) {
+    await cleanup();
   }
-  await fs3.writeFile(
-    path3.join(artkE2ePath, "src", "modules", "features", "index.ts"),
+  cleanupRegistry.length = 0;
+}
+`
+  );
+  await fs5.writeFile(
+    path4.join(artkE2ePath, "src", "modules", "features", "index.ts"),
     `/**
  * Feature Modules - Journey-specific page objects
  *
@@ -1107,51 +1709,9 @@ export {};
 export {};
 `
   );
-  await fs3.writeFile(
-    path3.join(artkE2ePath, "config", "env.ts"),
-    `/**
- * Environment Configuration Loader
- *
- * Loads environment-specific config from artk.config.yml
- */
-import * as fs from 'fs';
-import * as path from 'path';
-
-export interface EnvironmentConfig {
-  name: string;
-  baseUrl: string;
-}
-
-export function getBaseUrl(env?: string): string {
-  const targetEnv = env || process.env.ARTK_ENV || 'local';
-
-  // Try to load from artk.config.yml
-  const configPath = path.join(__dirname, '..', 'artk.config.yml');
-  if (fs.existsSync(configPath)) {
-    const yaml = require('yaml');
-    const config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
-    return config.environments?.[targetEnv]?.baseUrl || 'http://localhost:3000';
-  }
-
-  // Fallback defaults
-  const defaults: Record<string, string> = {
-    local: 'http://localhost:3000',
-    intg: 'https://intg.example.com',
-    ctlq: 'https://ctlq.example.com',
-    prod: 'https://example.com',
-  };
-
-  return defaults[targetEnv] || defaults.local;
-}
-
-export function getCurrentEnv(): string {
-  return process.env.ARTK_ENV || 'local';
-}
-`
-  );
 }
 async function runNpmInstall(artkE2ePath, logsDir, logger2) {
-  const logFile = path3.join(logsDir, "npm-install.log");
+  const logFile = path4.join(logsDir, "npm-install.log");
   return new Promise((resolve3, reject) => {
     logger2.startSpinner("Installing dependencies...");
     const logLines = [`npm install started - ${(/* @__PURE__ */ new Date()).toISOString()}`];
@@ -1180,7 +1740,7 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
       logLines.push("--- STDERR ---");
       logLines.push(stderr || "(empty)");
       try {
-        fs3.writeFileSync(logFile, logLines.join("\n"));
+        fs5.writeFileSync(logFile, logLines.join("\n"));
       } catch {
       }
       if (code === 0) {
@@ -1195,7 +1755,7 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
     child.on("error", (error) => {
       logLines.push(`Process error: ${error.message}`);
       try {
-        fs3.writeFileSync(logFile, logLines.join("\n"));
+        fs5.writeFileSync(logFile, logLines.join("\n"));
       } catch {
       }
       logger2.failSpinner("npm install failed");
@@ -1204,7 +1764,7 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
     setTimeout(() => {
       logLines.push("TIMEOUT: Installation took longer than 5 minutes");
       try {
-        fs3.writeFileSync(logFile, logLines.join("\n"));
+        fs5.writeFileSync(logFile, logLines.join("\n"));
       } catch {
       }
       child.kill();
@@ -1214,26 +1774,26 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
   });
 }
 async function updateContextJson(artkDir, updates) {
-  const contextPath = path3.join(artkDir, "context.json");
+  const contextPath = path4.join(artkDir, "context.json");
   let context = {};
-  if (fs3.existsSync(contextPath)) {
-    context = await fs3.readJson(contextPath);
+  if (fs5.existsSync(contextPath)) {
+    context = await fs5.readJson(contextPath);
   }
   Object.assign(context, updates);
-  await fs3.writeJson(contextPath, context, { spaces: 2 });
+  await fs5.writeJson(contextPath, context, { spaces: 2 });
 }
 function getAssetsDir() {
   const possiblePaths = [
-    path3.join(__dirname$1, "..", "..", "assets"),
-    path3.join(__dirname$1, "..", "assets"),
-    path3.join(__dirname$1, "assets")
+    path4.join(__dirname$1, "..", "..", "assets"),
+    path4.join(__dirname$1, "..", "assets"),
+    path4.join(__dirname$1, "assets")
   ];
   for (const p of possiblePaths) {
-    if (fs3.existsSync(p)) {
+    if (fs5.existsSync(p)) {
       return p;
     }
   }
-  return path3.join(__dirname$1, "..", "..", "assets");
+  return path4.join(__dirname$1, "..", "..", "assets");
 }
 function printSuccessSummary(logger2, projectPath, artkE2ePath, browserInfo) {
   logger2.blank();
@@ -1580,13 +2140,13 @@ function getPlaywrightBrowsersPath() {
   return null;
 }
 var __filename2 = fileURLToPath(import.meta.url);
-var __dirname2 = path3.dirname(__filename2);
+var __dirname2 = path4.dirname(__filename2);
 function getVersion() {
   try {
     const possiblePaths = [
-      path3.join(__dirname2, "..", "..", "package.json"),
-      path3.join(__dirname2, "..", "package.json"),
-      path3.join(__dirname2, "package.json")
+      path4.join(__dirname2, "..", "..", "package.json"),
+      path4.join(__dirname2, "..", "package.json"),
+      path4.join(__dirname2, "package.json")
     ];
     for (const pkgPath of possiblePaths) {
       if (fs2.existsSync(pkgPath)) {
