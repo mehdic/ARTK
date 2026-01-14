@@ -485,7 +485,118 @@ fi
 
 # Step 2: Create artk-e2e structure
 echo -e "${YELLOW}[2/7] Creating artk-e2e/ structure...${NC}"
-mkdir -p "$ARTK_E2E"/{vendor/artk-core,vendor/artk-core-autogen,tests,docs,journeys,.auth-states}
+mkdir -p "$ARTK_E2E"/{vendor/artk-core,vendor/artk-core-autogen,docs,journeys,.auth-states}
+
+# Create foundation module structure (discover-foundation expects this)
+mkdir -p "$ARTK_E2E"/src/modules/foundation/{auth,navigation,selectors,data}
+mkdir -p "$ARTK_E2E"/src/modules/features
+mkdir -p "$ARTK_E2E"/config
+mkdir -p "$ARTK_E2E"/tests/{setup,foundation,smoke,release,regression,journeys}
+
+# Create foundation index stub
+cat > "$ARTK_E2E/src/modules/foundation/index.ts" << 'FOUNDATIONINDEX'
+/**
+ * Foundation Modules - Core testing infrastructure
+ *
+ * These modules are populated by /artk.discover-foundation and provide:
+ * - Auth: Login flows and storage state management
+ * - Navigation: Route helpers and URL builders
+ * - Selectors: Locator utilities and data-testid helpers
+ * - Data: Test data builders and cleanup
+ */
+
+// Exports will be populated by /artk.discover-foundation
+export * from './auth';
+export * from './navigation';
+export * from './selectors';
+export * from './data';
+FOUNDATIONINDEX
+
+# Create module stubs to prevent import errors
+for module in auth navigation selectors data; do
+    cat > "$ARTK_E2E/src/modules/foundation/$module/index.ts" << MODULESTUB
+/**
+ * Foundation Module: $module
+ *
+ * This file will be populated by /artk.discover-foundation
+ */
+
+// Placeholder export to prevent import errors
+export {};
+MODULESTUB
+done
+
+# Create features index stub
+cat > "$ARTK_E2E/src/modules/features/index.ts" << 'FEATURESINDEX'
+/**
+ * Feature Modules - Journey-specific page objects
+ *
+ * These modules are created as Journeys are implemented and provide
+ * page objects and flows for specific feature areas.
+ */
+
+// Exports will be added as features are implemented
+export {};
+FEATURESINDEX
+
+# Create config env stub
+cat > "$ARTK_E2E/config/env.ts" << 'CONFIGENV'
+/**
+ * Environment Configuration Loader
+ *
+ * Loads environment-specific config from artk.config.yml
+ * This stub is replaced by /artk.discover-foundation with project-specific config.
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface EnvironmentConfig {
+  name: string;
+  baseUrl: string;
+}
+
+/**
+ * Get base URL for the specified environment
+ */
+export function getBaseUrl(env?: string): string {
+  const targetEnv = env || process.env.ARTK_ENV || 'local';
+
+  // Try to load from artk.config.yml
+  const configPath = path.join(__dirname, '..', 'artk.config.yml');
+  if (fs.existsSync(configPath)) {
+    const yaml = require('yaml');
+    const config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
+    return config.environments?.[targetEnv]?.baseUrl || 'http://localhost:3000';
+  }
+
+  // Fallback defaults
+  const defaults: Record<string, string> = {
+    local: 'http://localhost:3000',
+    intg: 'https://intg.example.com',
+    ctlq: 'https://ctlq.example.com',
+    prod: 'https://example.com',
+  };
+
+  return defaults[targetEnv] || defaults.local;
+}
+
+/**
+ * Get the current environment name
+ */
+export function getCurrentEnv(): string {
+  return process.env.ARTK_ENV || 'local';
+}
+CONFIGENV
+
+# Create test tier stubs
+for tier in smoke release regression; do
+    cat > "$ARTK_E2E/tests/$tier/.gitkeep" << TIERSTUB
+# $tier tier tests
+# Tests in this directory should be tagged with @$tier
+TIERSTUB
+done
+
+echo -e "${CYAN}  ✓ Created foundation module structure${NC}"
 
 # Step 3: Copy @artk/core to vendor
 echo -e "${YELLOW}[3/7] Installing @artk/core to vendor/...${NC}"
@@ -599,49 +710,123 @@ cat > "$ARTK_E2E/package.json" << 'PKGJSON'
     "test": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
     "test:release": "playwright test --grep @release",
+    "test:regression": "playwright test --grep @regression",
+    "test:validation": "playwright test --project=validation",
     "test:ui": "playwright test --ui",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4"
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
-        "@artk/core-autogen": "file:./vendor/artk-core-autogen",
+    "@artk/core-autogen": "file:./vendor/artk-core-autogen",
     "@playwright/test": "^1.57.0",
+    "@types/node": "^20.10.0",
     "typescript": "^5.3.0"
   }
 }
 PKGJSON
 
-# playwright.config.ts
+# playwright.config.ts - Uses inline config for reliability with vendored packages
 cat > "$ARTK_E2E/playwright.config.ts" << 'PWCONFIG'
-import { loadConfig } from '@artk/core/config';
-import { createPlaywrightConfig } from '@artk/core/harness';
+/**
+ * Playwright Configuration for ARTK E2E Tests
+ *
+ * Note: Uses inline config loading to avoid ESM/CommonJS resolution issues
+ * with vendored @artk/core packages.
+ */
+import { defineConfig, devices } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const { config, activeEnvironment } = loadConfig();
+// Load ARTK config from artk.config.yml
+function loadArtkConfig(): Record<string, any> {
+  const configPath = path.join(__dirname, 'artk.config.yml');
+  if (!fs.existsSync(configPath)) {
+    console.warn(`ARTK config not found: ${configPath}, using defaults`);
+    return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
+  }
 
-export default createPlaywrightConfig({
-  config,
-  activeEnvironment,
-  tier: process.env.ARTK_TIER || 'regression',
+  // Use dynamic require for yaml to avoid ESM issues
+  const yaml = require('yaml');
+  return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+}
+
+const artkConfig = loadArtkConfig();
+const env = process.env.ARTK_ENV || 'local';
+const baseURL = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const browserChannel = artkConfig.browsers?.channel;
+
+// Build browser use config
+const browserUse: Record<string, any> = { ...devices['Desktop Chrome'] };
+if (browserChannel && browserChannel !== 'bundled') {
+  browserUse.channel = browserChannel;
+}
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: [['html', { open: 'never' }]],
+  timeout: artkConfig.settings?.timeout || 30000,
+
+  use: {
+    baseURL,
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    // Auth setup project - runs first to create storage states
+    {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+    // Main browser project with auth dependency
+    {
+      name: 'chromium',
+      use: browserUse,
+      dependencies: ['setup'],
+    },
+    // Validation project - no auth needed
+    {
+      name: 'validation',
+      testMatch: /foundation\.validation\.spec\.ts/,
+      use: browserUse,
+    },
+  ],
 });
 PWCONFIG
 
-# tsconfig.json
+# tsconfig.json - Use CommonJS for Playwright compatibility
 cat > "$ARTK_E2E/tsconfig.json" << 'TSCONFIG'
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": ".",
     "declaration": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@artk/core": ["./vendor/artk-core/dist"],
+      "@artk/core/*": ["./vendor/artk-core/dist/*"]
+    }
   },
-  "include": ["tests/**/*", "src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["tests/**/*", "src/**/*", "config/**/*", "*.ts"],
+  "exclude": ["node_modules", "dist", "vendor"]
 }
 TSCONFIG
 

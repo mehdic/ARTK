@@ -209,6 +209,8 @@ proposed → defined → clarified → implemented
 
 - `docs/ARTK_Master_Launch_Document_v0.7.md` - Full specification
 - `docs/ARTK_Journey_Lifecycle_v0.1.md` - Journey status lifecycle
+- `docs/ARTK_Module_Architecture.md` - ESM/CommonJS support and module system decisions
+- `docs/ARTK_Core_v1_Specification.md` - @artk/core library specification
 
 ## Repository Structure
 

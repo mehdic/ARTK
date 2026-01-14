@@ -544,7 +544,18 @@ Write-Host "[2/7] Creating artk-e2e/ structure..." -ForegroundColor Yellow
 @(
     "vendor\artk-core",
     "vendor\artk-core-autogen",
-    "tests",
+    "src\modules\foundation\auth",
+    "src\modules\foundation\navigation",
+    "src\modules\foundation\selectors",
+    "src\modules\foundation\data",
+    "src\modules\features",
+    "config",
+    "tests\setup",
+    "tests\foundation",
+    "tests\smoke",
+    "tests\release",
+    "tests\regression",
+    "tests\journeys",
     "docs",
     "journeys",
     ".auth-states"
@@ -615,49 +626,152 @@ $PackageJson = @"
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
-        "@artk/core-autogen": "file:./vendor/artk-core-autogen",
+    "@artk/core-autogen": "file:./vendor/artk-core-autogen",
     "@playwright/test": "^1.57.0",
     "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "yaml": "^2.3.0"
   }
 }
 "@
 Set-Content -Path (Join-Path $ArtkE2e "package.json") -Value $PackageJson
 
-# playwright.config.ts
+# playwright.config.ts - Uses inline config loading to avoid @artk/core subpath import issues
 $PlaywrightConfig = @"
-import { loadConfig } from '@artk/core/config';
-import { createPlaywrightConfig } from '@artk/core/harness';
+/**
+ * Playwright Configuration for ARTK E2E Tests
+ *
+ * Note: Uses inline config loading for reliability with vendored @artk/core.
+ * The file: dependency resolution doesn't always honor package.json exports.
+ */
+import { defineConfig, devices } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const { config, activeEnvironment } = loadConfig();
+// Load ARTK config inline (avoids @artk/core subpath import issues with file: deps)
+function loadArtkConfig(): Record<string, any> {
+  const configPath = path.join(__dirname, 'artk.config.yml');
+  if (!fs.existsSync(configPath)) {
+    console.warn(`ARTK config not found: `+"`"+`configPath`+"`"+`, using defaults`);
+    return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
+  }
+  const yaml = require('yaml');
+  return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+}
 
-export default createPlaywrightConfig({
-  config,
-  activeEnvironment,
-  tier: process.env.ARTK_TIER || 'regression',
+const artkConfig = loadArtkConfig();
+const env = process.env.ARTK_ENV || 'local';
+const envConfig = artkConfig.environments?.[env] || artkConfig.environments?.local || {};
+const baseURL = envConfig.baseUrl || 'http://localhost:3000';
+const browserChannel = artkConfig.browsers?.channel || undefined;
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+
+  use: {
+    baseURL,
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    ...(browserChannel && browserChannel !== 'bundled' ? { channel: browserChannel } : {}),
+  },
+
+  projects: [
+    {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'validation',
+      testMatch: /foundation\.validation\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
 });
 "@
 Set-Content -Path (Join-Path $ArtkE2e "playwright.config.ts") -Value $PlaywrightConfig
 
-# tsconfig.json
+# tsconfig.json - Use CommonJS for Playwright compatibility
+# Note: Playwright's test runner transforms TypeScript internally and works best with CommonJS.
+# The artk-e2e package is isolated from the client project's module system.
 $TsConfig = @"
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": ".",
     "declaration": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@artk/core": ["./vendor/artk-core/dist"],
+      "@artk/core/*": ["./vendor/artk-core/dist/*"]
+    }
   },
-  "include": ["tests/**/*", "src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["tests/**/*", "src/**/*", "config/**/*"],
+  "exclude": ["node_modules", "dist", "vendor"]
 }
 "@
 Set-Content -Path (Join-Path $ArtkE2e "tsconfig.json") -Value $TsConfig
+
+# Foundation module index stub
+$FoundationIndex = @"
+/**
+ * Foundation Modules - Core testing infrastructure
+ *
+ * These modules are created by /artk.discover-foundation and provide:
+ * - Auth: Login flows and storage state management
+ * - Navigation: Route helpers and URL builders
+ * - Selectors: Locator utilities and data-testid helpers
+ * - Data: Test data builders and cleanup
+ */
+
+// Export will be populated by /artk.discover-foundation
+export {};
+"@
+Set-Content -Path (Join-Path $ArtkE2e "src\modules\foundation\index.ts") -Value $FoundationIndex
+
+# Config env stub
+$ConfigEnv = @"
+/**
+ * Environment Configuration Loader
+ *
+ * Loads environment-specific config from artk.config.yml
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+
+export function getBaseUrl(env?: string): string {
+  const targetEnv = env || process.env.ARTK_ENV || 'local';
+
+  // Will be configured by /artk.discover-foundation
+  const defaults: Record<string, string> = {
+    local: 'http://localhost:3000',
+    intg: 'https://intg.example.com',
+  };
+
+  return defaults[targetEnv] || defaults.local;
+}
+"@
+Set-Content -Path (Join-Path $ArtkE2e "config\env.ts") -Value $ConfigEnv
 
 # artk.config.yml
 $configGenerated = $false
