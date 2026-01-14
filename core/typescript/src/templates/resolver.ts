@@ -4,7 +4,12 @@
  */
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 import type { TemplateVariant, TemplateResolutionResult } from '../types/environment-context';
+
+// ESM-compatible __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Resolve template path with fallback hierarchy

@@ -6,6 +6,8 @@
  * Usage:
  *   node generate-foundation.ts --projectRoot=/path/to/project --variant=esm
  */
+import * as path from 'path';
+import * as fs from 'fs';
 import { generateFoundationModules, createTemplateContext } from '../src/templates';
 import { detectEnvironment } from '../detection/env';
 import type { TemplateVariant } from '../src/templates/types';
@@ -100,19 +102,33 @@ async function main() {
         console.log('Detecting environment...');
       }
 
-      const envContext = detectEnvironment(options.projectRoot);
-      variant = envContext.detection.moduleSystem === 'esm' ? 'esm' : 'commonjs';
+      const envResult = detectEnvironment({ projectRoot: options.projectRoot });
+      variant = envResult.context.moduleSystem === 'esm' ? 'esm' : 'commonjs';
 
       if (options.verbose) {
-        console.log(`Detected: ${variant} (confidence: ${envContext.detection.confidence})`);
+        console.log(`Detected: ${variant} (confidence: ${envResult.context.confidence})`);
         console.log('');
+      }
+    }
+
+    // Read project name from package.json if available
+    let projectName = path.basename(options.projectRoot);
+    const packageJsonPath = path.join(options.projectRoot, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (packageJson.name) {
+          projectName = packageJson.name;
+        }
+      } catch (error) {
+        // Fall back to directory name if package.json is invalid
       }
     }
 
     // Create template context
     const context = createTemplateContext({
       projectRoot: options.projectRoot,
-      projectName: require('path').basename(options.projectRoot),
+      projectName,
       artkRoot: 'artk-e2e',
       moduleSystem: variant === 'esm' ? 'esm' : 'commonjs',
       templateVariant: variant,
@@ -173,8 +189,11 @@ async function main() {
   }
 }
 
-// Run if executed directly
-if (require.main === module) {
+// Run if executed directly (ESM-compatible)
+const isMainModule = import.meta.url === `file://${process.argv[1]}` ||
+                     import.meta.url.endsWith(process.argv[1]);
+
+if (isMainModule) {
   main().catch((error) => {
     console.error('Fatal error:', error);
     process.exit(1);

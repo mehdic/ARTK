@@ -330,8 +330,9 @@ export async function generateFoundationModules(
 
     try {
       // Use the ValidationRunner for comprehensive validation
+      // Output to project root, not artk-e2e subdirectory
       const runner = new ValidationRunner({
-        outputDir: targetDir,
+        outputDir: context.projectRoot,
         timeout: 10000
       });
 
