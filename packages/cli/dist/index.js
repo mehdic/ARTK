@@ -1,0 +1,1252 @@
+#!/usr/bin/env node
+import { createRequire } from 'module';
+import { spawn, execSync } from 'child_process';
+import fs3 from 'fs-extra';
+import * as path3 from 'path';
+import { fileURLToPath } from 'url';
+import chalk from 'chalk';
+import ora from 'ora';
+import * as fs from 'fs';
+import * as semver from 'semver';
+
+createRequire(import.meta.url);
+var Logger = class {
+  spinner = null;
+  verbose;
+  constructor(options = {}) {
+    this.verbose = options.verbose ?? false;
+  }
+  header(text) {
+    console.log("");
+    console.log(chalk.green("\u2554" + "\u2550".repeat(text.length + 6) + "\u2557"));
+    console.log(chalk.green("\u2551   ") + chalk.bold.green(text) + chalk.green("   \u2551"));
+    console.log(chalk.green("\u255A" + "\u2550".repeat(text.length + 6) + "\u255D"));
+    console.log("");
+  }
+  step(current, total, message) {
+    this.stopSpinner();
+    console.log(chalk.yellow(`[${current}/${total}]`) + " " + message);
+  }
+  startSpinner(message) {
+    this.stopSpinner();
+    this.spinner = ora(message).start();
+  }
+  updateSpinner(message) {
+    if (this.spinner) {
+      this.spinner.text = message;
+    }
+  }
+  succeedSpinner(message) {
+    if (this.spinner) {
+      this.spinner.succeed(message);
+      this.spinner = null;
+    }
+  }
+  failSpinner(message) {
+    if (this.spinner) {
+      this.spinner.fail(message);
+      this.spinner = null;
+    }
+  }
+  stopSpinner() {
+    if (this.spinner) {
+      this.spinner.stop();
+      this.spinner = null;
+    }
+  }
+  info(message) {
+    console.log(chalk.cyan("\u2139") + " " + message);
+  }
+  success(message) {
+    console.log(chalk.green("\u2713") + " " + message);
+  }
+  warning(message) {
+    console.log(chalk.yellow("\u26A0") + " " + chalk.yellow(message));
+  }
+  error(message) {
+    console.log(chalk.red("\u2717") + " " + chalk.red(message));
+  }
+  debug(message) {
+    if (this.verbose) {
+      console.log(chalk.gray("  " + message));
+    }
+  }
+  list(items, indent = 2) {
+    const prefix = " ".repeat(indent);
+    for (const item of items) {
+      console.log(prefix + chalk.dim("\u2022") + " " + item);
+    }
+  }
+  table(rows) {
+    const maxLabelLength = Math.max(...rows.map((r) => r.label.length));
+    for (const row of rows) {
+      const paddedLabel = row.label.padEnd(maxLabelLength);
+      console.log("  " + chalk.dim(paddedLabel) + "  " + row.value);
+    }
+  }
+  nextSteps(steps) {
+    console.log("");
+    console.log(chalk.cyan("Next steps:"));
+    steps.forEach((step, i) => {
+      console.log(chalk.dim(`  ${i + 1}.`) + " " + step);
+    });
+    console.log("");
+  }
+  blank() {
+    console.log("");
+  }
+  divider() {
+    console.log(chalk.dim("\u2500".repeat(50)));
+  }
+};
+new Logger();
+async function detectEnvironment(projectPath) {
+  const resolvedPath = path3.resolve(projectPath);
+  return {
+    moduleSystem: detectModuleSystem(resolvedPath),
+    nodeVersion: process.version,
+    npmVersion: await detectNpmVersion(),
+    hasGit: await detectGit(resolvedPath),
+    hasPlaywright: detectPlaywright(resolvedPath),
+    hasArtkCore: detectArtkCore(resolvedPath),
+    platform: process.platform,
+    arch: process.arch,
+    isCI: detectCI()
+  };
+}
+function detectModuleSystem(projectPath) {
+  const packageJsonPath = path3.join(projectPath, "package.json");
+  if (fs.existsSync(packageJsonPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+      if (pkg.type === "module") {
+        return "esm";
+      }
+      if (pkg.type === "commonjs" || !pkg.type) {
+        const hasEsmConfig = fs.existsSync(path3.join(projectPath, "tsconfig.json"));
+        if (hasEsmConfig) {
+          try {
+            const tsconfig = JSON.parse(fs.readFileSync(path3.join(projectPath, "tsconfig.json"), "utf8"));
+            const module = tsconfig.compilerOptions?.module?.toLowerCase();
+            if (module && (module.includes("esnext") || module.includes("es20") || module === "nodenext")) {
+              return "esm";
+            }
+          } catch {
+          }
+        }
+        return "commonjs";
+      }
+    } catch {
+    }
+  }
+  const srcDir = path3.join(projectPath, "src");
+  if (fs.existsSync(srcDir)) {
+    try {
+      const files = fs.readdirSync(srcDir, { recursive: true });
+      const hasMjs = files.some((f) => f.endsWith(".mjs"));
+      const hasCjs = files.some((f) => f.endsWith(".cjs"));
+      if (hasMjs && !hasCjs) return "esm";
+      if (hasCjs && !hasMjs) return "commonjs";
+    } catch {
+    }
+  }
+  return "unknown";
+}
+async function detectNpmVersion() {
+  try {
+    const { execSync: execSync4 } = await import('child_process');
+    const version = execSync4("npm --version", { encoding: "utf8" }).trim();
+    return version;
+  } catch {
+    return null;
+  }
+}
+async function detectGit(projectPath) {
+  if (fs.existsSync(path3.join(projectPath, ".git"))) {
+    return true;
+  }
+  try {
+    const { execSync: execSync4 } = await import('child_process');
+    execSync4("git rev-parse --git-dir", { cwd: projectPath, encoding: "utf8", stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function detectPlaywright(projectPath) {
+  const playwrightPath = path3.join(projectPath, "node_modules", "@playwright", "test");
+  return fs.existsSync(playwrightPath);
+}
+function detectArtkCore(projectPath) {
+  const vendorPath = path3.join(projectPath, "artk-e2e", "vendor", "artk-core");
+  if (fs.existsSync(vendorPath)) return true;
+  const nodeModulesPath = path3.join(projectPath, "node_modules", "@artk", "core");
+  return fs.existsSync(nodeModulesPath);
+}
+function detectCI() {
+  return !!(process.env.CI || process.env.GITHUB_ACTIONS || process.env.GITLAB_CI || process.env.JENKINS_HOME || process.env.CIRCLECI || process.env.TRAVIS || process.env.TF_BUILD);
+}
+function getOsArch() {
+  let os;
+  switch (process.platform) {
+    case "darwin":
+      os = "macos";
+      break;
+    case "win32":
+      os = "windows";
+      break;
+    case "linux":
+      os = "linux";
+      break;
+    default:
+      os = "unknown";
+  }
+  let arch;
+  switch (process.arch) {
+    case "x64":
+      arch = "x64";
+      break;
+    case "arm64":
+      arch = "arm64";
+      break;
+    case "ia32":
+      arch = "x86";
+      break;
+    default:
+      arch = "unknown";
+  }
+  return { os, arch };
+}
+async function resolveBrowser(targetPath, logger2) {
+  const log = logger2 || new Logger();
+  const artkE2ePath = path3.join(targetPath, "artk-e2e");
+  const browsersCachePath = path3.join(targetPath, ".artk", "browsers");
+  fs.mkdirSync(browsersCachePath, { recursive: true });
+  process.env.PLAYWRIGHT_BROWSERS_PATH = browsersCachePath;
+  log.debug("Attempting to download pre-built browsers from release cache...");
+  const releaseCacheResult = await tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, log);
+  if (releaseCacheResult) {
+    return releaseCacheResult;
+  }
+  log.debug("Attempting bundled Playwright browser install...");
+  const bundledResult = await tryBundledInstall(artkE2ePath, browsersCachePath, log);
+  if (bundledResult) {
+    return bundledResult;
+  }
+  log.debug("Detecting system browsers...");
+  const systemResult = await detectSystemBrowser(log);
+  if (systemResult.channel !== "bundled") {
+    return systemResult;
+  }
+  log.warning("No browsers available. Tests may not run until browsers are installed.");
+  return {
+    channel: "bundled",
+    version: null,
+    path: null,
+    strategy: "auto"
+  };
+}
+async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logger2) {
+  const browsersJsonPath = path3.join(artkE2ePath, "node_modules", "playwright-core", "browsers.json");
+  if (!fs.existsSync(browsersJsonPath)) {
+    logger2.debug("browsers.json not found, skipping release cache");
+    return null;
+  }
+  try {
+    const browsersJson = JSON.parse(fs.readFileSync(browsersJsonPath, "utf8"));
+    const chromium = browsersJson.browsers?.find((b) => b.name === "chromium");
+    if (!chromium?.revision) {
+      logger2.debug("Chromium revision not found in browsers.json");
+      return null;
+    }
+    const { os, arch } = getOsArch();
+    if (os === "unknown" || arch === "unknown") {
+      logger2.debug(`Unsupported OS/arch: ${os}/${arch}`);
+      return null;
+    }
+    const cachedPath = path3.join(browsersCachePath, `chromium-${chromium.revision}`);
+    if (fs.existsSync(cachedPath)) {
+      logger2.debug(`Browsers already cached: ${cachedPath}`);
+      return {
+        channel: "bundled",
+        version: chromium.revision,
+        path: cachedPath,
+        strategy: "release-cache"
+      };
+    }
+    const playwrightPkgPath = path3.join(artkE2ePath, "node_modules", "@playwright", "test", "package.json");
+    let playwrightVersion = "1.57.0";
+    if (fs.existsSync(playwrightPkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(playwrightPkgPath, "utf8"));
+      playwrightVersion = pkg.version;
+    }
+    const repo = process.env.ARTK_PLAYWRIGHT_BROWSERS_REPO;
+    if (!repo) {
+      logger2.debug("ARTK_PLAYWRIGHT_BROWSERS_REPO not set, skipping release cache");
+      return null;
+    }
+    const tag = process.env.ARTK_PLAYWRIGHT_BROWSERS_TAG || `playwright-browsers-${playwrightVersion}`;
+    const asset = `chromium-${chromium.revision}-${os}-${arch}.zip`;
+    const url = `https://github.com/${repo}/releases/download/${tag}/${asset}`;
+    logger2.debug(`Downloading from: ${url}`);
+    return null;
+  } catch (error) {
+    logger2.debug(`Release cache check failed: ${error}`);
+    return null;
+  }
+}
+async function tryBundledInstall(artkE2ePath, browsersCachePath, logger2) {
+  return new Promise((resolve3) => {
+    logger2.startSpinner("Installing Playwright browsers...");
+    const child = spawn("npx", ["playwright", "install", "chromium"], {
+      cwd: artkE2ePath,
+      env: {
+        ...process.env,
+        PLAYWRIGHT_BROWSERS_PATH: browsersCachePath
+      },
+      shell: true,
+      stdio: "pipe"
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
+    child.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        logger2.succeedSpinner("Playwright browsers installed");
+        resolve3({
+          channel: "bundled",
+          version: null,
+          path: browsersCachePath,
+          strategy: "bundled-install"
+        });
+      } else {
+        logger2.failSpinner("Failed to install Playwright browsers");
+        logger2.debug(`Exit code: ${code}`);
+        logger2.debug(`stderr: ${stderr}`);
+        resolve3(null);
+      }
+    });
+    child.on("error", (error) => {
+      logger2.failSpinner("Failed to install Playwright browsers");
+      logger2.debug(`Error: ${error.message}`);
+      resolve3(null);
+    });
+    setTimeout(() => {
+      child.kill();
+      logger2.failSpinner("Browser installation timed out");
+      resolve3(null);
+    }, 3e5);
+  });
+}
+async function detectSystemBrowser(logger2) {
+  const edgeInfo = await tryDetectBrowser("msedge");
+  if (edgeInfo) {
+    logger2.success(`Detected Microsoft Edge: ${edgeInfo.version || "unknown version"}`);
+    return edgeInfo;
+  }
+  const chromeInfo = await tryDetectBrowser("chrome");
+  if (chromeInfo) {
+    logger2.success(`Detected Google Chrome: ${chromeInfo.version || "unknown version"}`);
+    return chromeInfo;
+  }
+  return {
+    channel: "bundled",
+    version: null,
+    path: null,
+    strategy: "auto"
+  };
+}
+async function tryDetectBrowser(browser, logger2) {
+  const paths = getBrowserPaths(browser);
+  for (const browserPath of paths) {
+    if (fs.existsSync(browserPath)) {
+      const version = await getBrowserVersion(browserPath);
+      return {
+        channel: browser,
+        version,
+        path: browserPath,
+        strategy: "system"
+      };
+    }
+  }
+  const commands = browser === "msedge" ? ["microsoft-edge", "microsoft-edge-stable"] : ["google-chrome", "google-chrome-stable"];
+  for (const cmd of commands) {
+    try {
+      const output = execSync(`${cmd} --version`, { encoding: "utf8", stdio: "pipe", timeout: 5e3 });
+      const versionMatch = output.match(/(\d+\.\d+\.\d+\.\d+)/);
+      return {
+        channel: browser,
+        version: versionMatch ? versionMatch[1] : null,
+        path: cmd,
+        strategy: "system"
+      };
+    } catch {
+    }
+  }
+  return null;
+}
+async function getBrowserVersion(browserPath) {
+  try {
+    const output = execSync(`"${browserPath}" --version`, { encoding: "utf8", stdio: "pipe", timeout: 5e3 });
+    const versionMatch = output.match(/(\d+\.\d+\.\d+\.\d+)/);
+    return versionMatch ? versionMatch[1] : null;
+  } catch {
+    return null;
+  }
+}
+function getBrowserPaths(browser) {
+  const paths = [];
+  if (process.platform === "win32") {
+    const programFiles = process.env["ProgramFiles"] || "C:\\Program Files";
+    const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+    const localAppData = process.env["LOCALAPPDATA"] || "";
+    if (browser === "msedge") {
+      paths.push(
+        `${programFilesX86}\\Microsoft\\Edge\\Application\\msedge.exe`,
+        `${programFiles}\\Microsoft\\Edge\\Application\\msedge.exe`,
+        `${localAppData}\\Microsoft\\Edge\\Application\\msedge.exe`
+      );
+    } else {
+      paths.push(
+        `${programFiles}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${programFilesX86}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${localAppData}\\Google\\Chrome\\Application\\chrome.exe`
+      );
+    }
+  } else if (process.platform === "darwin") {
+    if (browser === "msedge") {
+      paths.push("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge");
+    } else {
+      paths.push("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+    }
+  } else {
+    if (browser === "msedge") {
+      paths.push("/usr/bin/microsoft-edge", "/usr/bin/microsoft-edge-stable", "/snap/bin/microsoft-edge");
+    } else {
+      paths.push(
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/snap/bin/chromium",
+        "/usr/bin/chromium-browser"
+      );
+    }
+  }
+  return paths;
+}
+function updateArtkConfigBrowser(configPath, browserInfo) {
+  if (!fs.existsSync(configPath)) {
+    return;
+  }
+  let content = fs.readFileSync(configPath, "utf8");
+  if (!/^\s*browsers\s*:/m.test(content)) {
+    content += `
+browsers:
+  enabled:
+    - chromium
+  channel: ${browserInfo.channel}
+  strategy: ${browserInfo.strategy}
+  viewport:
+    width: 1280
+    height: 720
+  headless: true
+`;
+  } else {
+    content = content.replace(
+      /^(\s*channel\s*:\s*).*$/m,
+      `$1${browserInfo.channel}`
+    );
+    content = content.replace(
+      /^(\s*strategy\s*:\s*).*$/m,
+      `$1${browserInfo.strategy}`
+    );
+  }
+  fs.writeFileSync(configPath, content);
+}
+
+// src/lib/bootstrap.ts
+var __filename$1 = fileURLToPath(import.meta.url);
+var __dirname$1 = path3.dirname(__filename$1);
+async function bootstrap(targetPath, options = {}) {
+  const logger2 = new Logger({ verbose: options.verbose });
+  const errors = [];
+  const resolvedPath = path3.resolve(targetPath);
+  const artkE2ePath = path3.join(resolvedPath, "artk-e2e");
+  const artkDir = path3.join(resolvedPath, ".artk");
+  logger2.header("ARTK Bootstrap Installation");
+  logger2.table([
+    { label: "Target", value: resolvedPath },
+    { label: "ARTK E2E", value: artkE2ePath }
+  ]);
+  if (!fs3.existsSync(resolvedPath)) {
+    logger2.error(`Target directory does not exist: ${resolvedPath}`);
+    return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ["Target directory does not exist"] };
+  }
+  if (fs3.existsSync(artkE2ePath) && !options.force) {
+    logger2.error("ARTK is already installed in this project. Use --force to overwrite.");
+    return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ["Already installed"] };
+  }
+  try {
+    logger2.step(1, 7, "Detecting environment...");
+    const environment = await detectEnvironment(resolvedPath);
+    const variant = options.variant === "auto" || !options.variant ? environment.moduleSystem === "unknown" ? "commonjs" : environment.moduleSystem : options.variant;
+    logger2.success(`Module system: ${variant}`);
+    logger2.debug(`Node.js: ${environment.nodeVersion}`);
+    logger2.debug(`Platform: ${environment.platform}/${environment.arch}`);
+    logger2.step(2, 7, "Creating artk-e2e/ structure...");
+    await createDirectoryStructure(artkE2ePath);
+    logger2.success("Directory structure created");
+    logger2.step(3, 7, "Installing @artk/core to vendor/...");
+    await installVendorPackages(artkE2ePath, logger2);
+    logger2.success("@artk/core installed to vendor/");
+    if (options.prompts !== false) {
+      logger2.step(4, 7, "Installing prompts to .github/prompts/...");
+      await installPrompts(resolvedPath, logger2);
+      logger2.success("Prompts installed");
+    } else {
+      logger2.step(4, 7, "Skipping prompts installation (--no-prompts)");
+    }
+    logger2.step(5, 7, "Creating configuration files...");
+    const projectName = path3.basename(resolvedPath);
+    await createConfigurationFiles(artkE2ePath, artkDir, resolvedPath, {
+      projectName,
+      variant
+    });
+    logger2.success("Configuration files created");
+    if (!options.skipNpm) {
+      logger2.step(6, 7, "Running npm install...");
+      await runNpmInstall(artkE2ePath, logger2);
+      logger2.success("npm install completed");
+    } else {
+      logger2.step(6, 7, "Skipping npm install (--skip-npm)");
+    }
+    let browserInfo;
+    if (!options.skipBrowsers && !options.skipNpm) {
+      logger2.step(7, 7, "Configuring browsers...");
+      browserInfo = await resolveBrowser(resolvedPath, logger2);
+      const configPath = path3.join(artkE2ePath, "artk.config.yml");
+      updateArtkConfigBrowser(configPath, browserInfo);
+      await updateContextJson(artkDir, { browser: browserInfo });
+      logger2.success(`Browser configured: ${browserInfo.channel} (${browserInfo.strategy})`);
+    } else {
+      logger2.step(7, 7, "Skipping browser configuration");
+    }
+    printSuccessSummary(logger2, resolvedPath, artkE2ePath, browserInfo);
+    return {
+      success: true,
+      projectPath: resolvedPath,
+      artkE2ePath,
+      browserInfo,
+      environment,
+      errors: []
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger2.error(`Bootstrap failed: ${errorMessage}`);
+    errors.push(errorMessage);
+    return {
+      success: false,
+      projectPath: resolvedPath,
+      artkE2ePath,
+      errors
+    };
+  }
+}
+async function createDirectoryStructure(artkE2ePath) {
+  const directories = [
+    "vendor/artk-core",
+    "vendor/artk-core-autogen",
+    "src/modules/foundation/auth",
+    "src/modules/foundation/navigation",
+    "src/modules/foundation/selectors",
+    "src/modules/foundation/data",
+    "src/modules/features",
+    "config",
+    "tests/setup",
+    "tests/foundation",
+    "tests/smoke",
+    "tests/release",
+    "tests/regression",
+    "tests/journeys",
+    "docs",
+    "journeys",
+    ".auth-states"
+  ];
+  for (const dir of directories) {
+    await fs3.ensureDir(path3.join(artkE2ePath, dir));
+  }
+}
+async function installVendorPackages(artkE2ePath, logger2) {
+  const assetsDir = getAssetsDir();
+  const coreSource = path3.join(assetsDir, "core");
+  const coreTarget = path3.join(artkE2ePath, "vendor", "artk-core");
+  if (fs3.existsSync(coreSource)) {
+    await fs3.copy(coreSource, coreTarget, { overwrite: true });
+    logger2.debug(`Copied @artk/core from bundled assets`);
+  } else {
+    logger2.warning(`@artk/core assets not found at ${coreSource}`);
+    await fs3.writeJson(path3.join(coreTarget, "package.json"), {
+      name: "@artk/core",
+      version: "1.0.0",
+      main: "./dist/index.js"
+    });
+  }
+  const autogenSource = path3.join(assetsDir, "autogen");
+  const autogenTarget = path3.join(artkE2ePath, "vendor", "artk-core-autogen");
+  if (fs3.existsSync(autogenSource)) {
+    await fs3.copy(autogenSource, autogenTarget, { overwrite: true });
+    logger2.debug(`Copied @artk/core-autogen from bundled assets`);
+  } else {
+    logger2.warning(`@artk/core-autogen assets not found at ${autogenSource}`);
+    await fs3.writeJson(path3.join(autogenTarget, "package.json"), {
+      name: "@artk/core-autogen",
+      version: "0.1.0",
+      main: "./dist/index.js"
+    });
+  }
+}
+async function installPrompts(projectPath, logger2) {
+  const assetsDir = getAssetsDir();
+  const promptsSource = path3.join(assetsDir, "prompts");
+  const promptsTarget = path3.join(projectPath, ".github", "prompts");
+  await fs3.ensureDir(promptsTarget);
+  if (fs3.existsSync(promptsSource)) {
+    const promptFiles = await fs3.readdir(promptsSource);
+    let installed = 0;
+    for (const file of promptFiles) {
+      if (file.endsWith(".md") && file.startsWith("artk.")) {
+        const source = path3.join(promptsSource, file);
+        const targetName = file.replace(/\.md$/, ".prompt.md");
+        const target = path3.join(promptsTarget, targetName);
+        await fs3.copy(source, target, { overwrite: true });
+        installed++;
+        logger2.debug(`Installed prompt: ${targetName}`);
+      }
+    }
+    logger2.debug(`Installed ${installed} prompt files`);
+  } else {
+    logger2.warning(`Prompts assets not found at ${promptsSource}`);
+  }
+}
+async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, options) {
+  await fs3.writeJson(
+    path3.join(artkE2ePath, "package.json"),
+    {
+      name: "artk-e2e",
+      version: "1.0.0",
+      private: true,
+      scripts: {
+        test: "playwright test",
+        "test:smoke": "playwright test --grep @smoke",
+        "test:release": "playwright test --grep @release",
+        "test:regression": "playwright test --grep @regression",
+        "test:validation": "playwright test --project=validation",
+        "test:ui": "playwright test --ui",
+        report: "playwright show-report",
+        typecheck: "tsc --noEmit"
+      },
+      dependencies: {
+        yaml: "^2.3.4"
+      },
+      devDependencies: {
+        "@artk/core": "file:./vendor/artk-core",
+        "@artk/core-autogen": "file:./vendor/artk-core-autogen",
+        "@playwright/test": "^1.57.0",
+        "@types/node": "^20.10.0",
+        typescript: "^5.3.0"
+      }
+    },
+    { spaces: 2 }
+  );
+  await fs3.writeFile(
+    path3.join(artkE2ePath, "playwright.config.ts"),
+    getPlaywrightConfigTemplate()
+  );
+  await fs3.writeJson(
+    path3.join(artkE2ePath, "tsconfig.json"),
+    {
+      compilerOptions: {
+        target: "ES2022",
+        module: "CommonJS",
+        moduleResolution: "Node",
+        lib: ["ES2022", "DOM"],
+        strict: true,
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+        skipLibCheck: true,
+        forceConsistentCasingInFileNames: true,
+        outDir: "./dist",
+        rootDir: ".",
+        declaration: true,
+        resolveJsonModule: true,
+        baseUrl: ".",
+        paths: {
+          "@artk/core": ["./vendor/artk-core/dist"],
+          "@artk/core/*": ["./vendor/artk-core/dist/*"]
+        }
+      },
+      include: ["tests/**/*", "src/**/*", "config/**/*", "*.ts"],
+      exclude: ["node_modules", "dist", "vendor"]
+    },
+    { spaces: 2 }
+  );
+  await fs3.writeFile(
+    path3.join(artkE2ePath, "artk.config.yml"),
+    getArtkConfigTemplate(options.projectName)
+  );
+  await fs3.writeFile(
+    path3.join(artkE2ePath, ".gitignore"),
+    `node_modules/
+dist/
+test-results/
+playwright-report/
+.auth-states/
+*.local
+`
+  );
+  await createFoundationStubs(artkE2ePath);
+  await fs3.ensureDir(artkDir);
+  await fs3.writeJson(
+    path3.join(artkDir, "context.json"),
+    {
+      version: "1.0",
+      projectRoot: projectPath,
+      artkRoot: artkE2ePath,
+      initialized_at: (/* @__PURE__ */ new Date()).toISOString(),
+      templateVariant: options.variant,
+      next_suggested: "/artk.init-playbook"
+    },
+    { spaces: 2 }
+  );
+  await fs3.writeFile(
+    path3.join(artkDir, ".gitignore"),
+    `# ARTK temporary files
+browsers/
+heal-logs/
+logs/
+*.heal.json
+selector-catalog.local.json
+`
+  );
+}
+async function createFoundationStubs(artkE2ePath) {
+  const foundationPath = path3.join(artkE2ePath, "src", "modules", "foundation");
+  await fs3.writeFile(
+    path3.join(foundationPath, "index.ts"),
+    `/**
+ * Foundation Modules - Core testing infrastructure
+ *
+ * These modules are populated by /artk.discover-foundation and provide:
+ * - Auth: Login flows and storage state management
+ * - Navigation: Route helpers and URL builders
+ * - Selectors: Locator utilities and data-testid helpers
+ * - Data: Test data builders and cleanup
+ */
+
+export * from './auth';
+export * from './navigation';
+export * from './selectors';
+export * from './data';
+`
+  );
+  const modules = ["auth", "navigation", "selectors", "data"];
+  for (const module of modules) {
+    await fs3.writeFile(
+      path3.join(foundationPath, module, "index.ts"),
+      `/**
+ * Foundation Module: ${module}
+ *
+ * This file will be populated by /artk.discover-foundation
+ */
+
+// Placeholder export to prevent import errors
+export {};
+`
+    );
+  }
+  await fs3.writeFile(
+    path3.join(artkE2ePath, "src", "modules", "features", "index.ts"),
+    `/**
+ * Feature Modules - Journey-specific page objects
+ *
+ * These modules are created as Journeys are implemented and provide
+ * page objects and flows for specific feature areas.
+ */
+
+export {};
+`
+  );
+  await fs3.writeFile(
+    path3.join(artkE2ePath, "config", "env.ts"),
+    `/**
+ * Environment Configuration Loader
+ *
+ * Loads environment-specific config from artk.config.yml
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface EnvironmentConfig {
+  name: string;
+  baseUrl: string;
+}
+
+export function getBaseUrl(env?: string): string {
+  const targetEnv = env || process.env.ARTK_ENV || 'local';
+
+  // Try to load from artk.config.yml
+  const configPath = path.join(__dirname, '..', 'artk.config.yml');
+  if (fs.existsSync(configPath)) {
+    const yaml = require('yaml');
+    const config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
+    return config.environments?.[targetEnv]?.baseUrl || 'http://localhost:3000';
+  }
+
+  // Fallback defaults
+  const defaults: Record<string, string> = {
+    local: 'http://localhost:3000',
+    intg: 'https://intg.example.com',
+    ctlq: 'https://ctlq.example.com',
+    prod: 'https://example.com',
+  };
+
+  return defaults[targetEnv] || defaults.local;
+}
+
+export function getCurrentEnv(): string {
+  return process.env.ARTK_ENV || 'local';
+}
+`
+  );
+}
+async function runNpmInstall(artkE2ePath, logger2) {
+  return new Promise((resolve3, reject) => {
+    logger2.startSpinner("Installing dependencies...");
+    const child = spawn("npm", ["install", "--legacy-peer-deps"], {
+      cwd: artkE2ePath,
+      env: {
+        ...process.env,
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      },
+      shell: true,
+      stdio: "pipe"
+    });
+    let stderr = "";
+    child.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        logger2.succeedSpinner("Dependencies installed");
+        resolve3();
+      } else {
+        logger2.failSpinner("npm install failed");
+        logger2.debug(`stderr: ${stderr}`);
+        reject(new Error(`npm install failed with code ${code}`));
+      }
+    });
+    child.on("error", (error) => {
+      logger2.failSpinner("npm install failed");
+      reject(error);
+    });
+    setTimeout(() => {
+      child.kill();
+      logger2.failSpinner("npm install timed out");
+      reject(new Error("npm install timed out"));
+    }, 3e5);
+  });
+}
+async function updateContextJson(artkDir, updates) {
+  const contextPath = path3.join(artkDir, "context.json");
+  let context = {};
+  if (fs3.existsSync(contextPath)) {
+    context = await fs3.readJson(contextPath);
+  }
+  Object.assign(context, updates);
+  await fs3.writeJson(contextPath, context, { spaces: 2 });
+}
+function getAssetsDir() {
+  const possiblePaths = [
+    path3.join(__dirname$1, "..", "..", "assets"),
+    path3.join(__dirname$1, "..", "assets"),
+    path3.join(__dirname$1, "assets")
+  ];
+  for (const p of possiblePaths) {
+    if (fs3.existsSync(p)) {
+      return p;
+    }
+  }
+  return path3.join(__dirname$1, "..", "..", "assets");
+}
+function printSuccessSummary(logger2, projectPath, artkE2ePath, browserInfo) {
+  logger2.blank();
+  logger2.header("ARTK Installation Complete!");
+  logger2.blank();
+  logger2.info("Installed:");
+  logger2.list([
+    "artk-e2e/                             - E2E test workspace",
+    "artk-e2e/vendor/artk-core/            - @artk/core (vendored)",
+    "artk-e2e/vendor/artk-core-autogen/    - @artk/core-autogen (vendored)",
+    "artk-e2e/package.json                 - Test workspace dependencies",
+    "artk-e2e/playwright.config.ts         - Playwright configuration",
+    "artk-e2e/tsconfig.json                - TypeScript configuration",
+    "artk-e2e/artk.config.yml              - ARTK configuration",
+    ".github/prompts/                      - Copilot prompts",
+    ".artk/context.json                    - ARTK context",
+    ".artk/browsers/                       - Playwright browsers cache"
+  ]);
+  if (browserInfo) {
+    logger2.blank();
+    logger2.info("Browser configuration:");
+    logger2.table([
+      { label: "channel", value: browserInfo.channel },
+      { label: "strategy", value: browserInfo.strategy },
+      ...browserInfo.path ? [{ label: "path", value: browserInfo.path }] : []
+    ]);
+  }
+  logger2.nextSteps([
+    "cd artk-e2e",
+    "Open VS Code and use /artk.init-playbook in Copilot Chat"
+  ]);
+  logger2.info("Run tests:");
+  logger2.list(["cd artk-e2e && npm test"]);
+}
+function getPlaywrightConfigTemplate() {
+  return `/**
+ * Playwright Configuration for ARTK E2E Tests
+ *
+ * Note: Uses inline config loading to avoid ESM/CommonJS resolution issues
+ * with vendored @artk/core packages.
+ */
+import { defineConfig, devices } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Load ARTK config from artk.config.yml
+function loadArtkConfig(): Record<string, any> {
+  const configPath = path.join(__dirname, 'artk.config.yml');
+  if (!fs.existsSync(configPath)) {
+    console.warn(\`ARTK config not found: \${configPath}, using defaults\`);
+    return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
+  }
+
+  const yaml = require('yaml');
+  return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+}
+
+const artkConfig = loadArtkConfig();
+const env = process.env.ARTK_ENV || 'local';
+const baseURL = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const browserChannel = artkConfig.browsers?.channel;
+
+// Build browser use config
+const browserUse: Record<string, any> = { ...devices['Desktop Chrome'] };
+if (browserChannel && browserChannel !== 'bundled') {
+  browserUse.channel = browserChannel;
+}
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: [['html', { open: 'never' }]],
+  timeout: artkConfig.settings?.timeout || 30000,
+
+  use: {
+    baseURL,
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    // Auth setup project - runs first to create storage states
+    {
+      name: 'setup',
+      testMatch: /.*\\.setup\\.ts/,
+    },
+    // Main browser project with auth dependency
+    {
+      name: 'chromium',
+      use: browserUse,
+      dependencies: ['setup'],
+    },
+    // Validation project - no auth needed
+    {
+      name: 'validation',
+      testMatch: /foundation\\.validation\\.spec\\.ts/,
+      use: browserUse,
+    },
+  ],
+});
+`;
+}
+function getArtkConfigTemplate(projectName) {
+  return `# ARTK Configuration
+# Generated by @artk/cli on ${(/* @__PURE__ */ new Date()).toISOString()}
+
+version: "1.0"
+
+app:
+  name: "${projectName}"
+  type: web
+  description: "E2E tests for ${projectName}"
+
+environments:
+  local:
+    baseUrl: \${ARTK_BASE_URL:-http://localhost:3000}
+  intg:
+    baseUrl: \${ARTK_INTG_URL:-https://intg.example.com}
+  ctlq:
+    baseUrl: \${ARTK_CTLQ_URL:-https://ctlq.example.com}
+  prod:
+    baseUrl: \${ARTK_PROD_URL:-https://example.com}
+
+auth:
+  provider: oidc
+  storageStateDir: ./.auth-states
+  # roles:
+  #   admin:
+  #     username: \${ADMIN_USER}
+  #     password: \${ADMIN_PASS}
+
+settings:
+  parallel: true
+  retries: 2
+  timeout: 30000
+  traceOnFailure: true
+
+browsers:
+  enabled:
+    - chromium
+  channel: bundled
+  strategy: auto
+  viewport:
+    width: 1280
+    height: 720
+  headless: true
+`;
+}
+var MIN_NODE_VERSION = "18.0.0";
+var MIN_NPM_VERSION = "8.0.0";
+async function checkPrerequisites() {
+  const results = [];
+  results.push(checkNodeVersion());
+  results.push(checkNpmVersion());
+  results.push(checkGit());
+  results.push(await checkBrowsers());
+  const passed = results.every((r) => r.status !== "fail");
+  return { passed, results };
+}
+function checkNodeVersion() {
+  const version = process.version.replace(/^v/, "");
+  if (semver.gte(version, MIN_NODE_VERSION)) {
+    return {
+      name: "Node.js",
+      status: "pass",
+      version,
+      required: `>= ${MIN_NODE_VERSION}`,
+      message: `Node.js ${version} is installed`
+    };
+  }
+  return {
+    name: "Node.js",
+    status: "fail",
+    version,
+    required: `>= ${MIN_NODE_VERSION}`,
+    message: `Node.js ${version} is too old`,
+    fix: `Upgrade to Node.js ${MIN_NODE_VERSION} or later: https://nodejs.org`
+  };
+}
+function checkNpmVersion() {
+  try {
+    const version = execSync("npm --version", { encoding: "utf8" }).trim();
+    if (semver.gte(version, MIN_NPM_VERSION)) {
+      return {
+        name: "npm",
+        status: "pass",
+        version,
+        required: `>= ${MIN_NPM_VERSION}`,
+        message: `npm ${version} is installed`
+      };
+    }
+    return {
+      name: "npm",
+      status: "fail",
+      version,
+      required: `>= ${MIN_NPM_VERSION}`,
+      message: `npm ${version} is too old`,
+      fix: `Upgrade npm: npm install -g npm@latest`
+    };
+  } catch {
+    return {
+      name: "npm",
+      status: "fail",
+      message: "npm is not installed or not in PATH",
+      fix: "Install Node.js which includes npm: https://nodejs.org"
+    };
+  }
+}
+function checkGit() {
+  try {
+    const version = execSync("git --version", { encoding: "utf8" }).trim();
+    const match = version.match(/(\d+\.\d+\.\d+)/);
+    const versionNum = match ? match[1] : "unknown";
+    return {
+      name: "Git",
+      status: "pass",
+      version: versionNum,
+      message: `Git ${versionNum} is installed`
+    };
+  } catch {
+    return {
+      name: "Git",
+      status: "warn",
+      message: "Git is not installed or not in PATH",
+      fix: "Install Git: https://git-scm.com"
+    };
+  }
+}
+async function checkBrowsers() {
+  const browsers = [];
+  if (await checkSystemBrowser("msedge")) {
+    browsers.push("Microsoft Edge");
+  }
+  if (await checkSystemBrowser("chrome")) {
+    browsers.push("Google Chrome");
+  }
+  const playwrightBrowsersPath = getPlaywrightBrowsersPath();
+  if (playwrightBrowsersPath && fs.existsSync(playwrightBrowsersPath)) {
+    const entries = fs.readdirSync(playwrightBrowsersPath);
+    if (entries.some((e) => e.startsWith("chromium-"))) {
+      browsers.push("Playwright Chromium");
+    }
+  }
+  if (browsers.length > 0) {
+    return {
+      name: "Browsers",
+      status: "pass",
+      message: `Available: ${browsers.join(", ")}`
+    };
+  }
+  return {
+    name: "Browsers",
+    status: "warn",
+    message: "No browsers detected (will be installed during init)",
+    fix: "Run: npx playwright install chromium"
+  };
+}
+async function checkSystemBrowser(browser) {
+  const paths = getBrowserPaths2(browser);
+  for (const browserPath of paths) {
+    if (fs.existsSync(browserPath)) {
+      return true;
+    }
+  }
+  try {
+    const commands = browser === "msedge" ? ["microsoft-edge", "microsoft-edge-stable", "msedge"] : ["google-chrome", "google-chrome-stable", "chrome"];
+    for (const cmd of commands) {
+      try {
+        execSync(`${cmd} --version`, { encoding: "utf8", stdio: "pipe" });
+        return true;
+      } catch {
+      }
+    }
+  } catch {
+  }
+  return false;
+}
+function getBrowserPaths2(browser) {
+  const paths = [];
+  if (process.platform === "win32") {
+    const programFiles = process.env["ProgramFiles"] || "C:\\Program Files";
+    const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+    const localAppData = process.env["LOCALAPPDATA"] || "";
+    if (browser === "msedge") {
+      paths.push(
+        `${programFilesX86}\\Microsoft\\Edge\\Application\\msedge.exe`,
+        `${programFiles}\\Microsoft\\Edge\\Application\\msedge.exe`,
+        `${localAppData}\\Microsoft\\Edge\\Application\\msedge.exe`
+      );
+    } else {
+      paths.push(
+        `${programFiles}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${programFilesX86}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${localAppData}\\Google\\Chrome\\Application\\chrome.exe`
+      );
+    }
+  } else if (process.platform === "darwin") {
+    if (browser === "msedge") {
+      paths.push("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge");
+    } else {
+      paths.push("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+    }
+  } else {
+    if (browser === "msedge") {
+      paths.push(
+        "/usr/bin/microsoft-edge",
+        "/usr/bin/microsoft-edge-stable",
+        "/snap/bin/microsoft-edge"
+      );
+    } else {
+      paths.push(
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/snap/bin/chromium",
+        "/usr/bin/chromium-browser"
+      );
+    }
+  }
+  return paths;
+}
+function getPlaywrightBrowsersPath() {
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+    return process.env.PLAYWRIGHT_BROWSERS_PATH;
+  }
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA;
+    if (localAppData) {
+      return `${localAppData}\\ms-playwright`;
+    }
+  } else if (process.platform === "darwin") {
+    const home = process.env.HOME;
+    if (home) {
+      return `${home}/Library/Caches/ms-playwright`;
+    }
+  } else {
+    const home = process.env.HOME;
+    if (home) {
+      return `${home}/.cache/ms-playwright`;
+    }
+  }
+  return null;
+}
+var __filename2 = fileURLToPath(import.meta.url);
+var __dirname2 = path3.dirname(__filename2);
+function getVersion() {
+  try {
+    const possiblePaths = [
+      path3.join(__dirname2, "..", "..", "package.json"),
+      path3.join(__dirname2, "..", "package.json"),
+      path3.join(__dirname2, "package.json")
+    ];
+    for (const pkgPath of possiblePaths) {
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        return pkg.version || "0.0.0";
+      }
+    }
+    return "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+export { bootstrap, checkPrerequisites, detectEnvironment, getVersion, resolveBrowser };
+//# sourceMappingURL=index.js.map
+//# sourceMappingURL=index.js.map
