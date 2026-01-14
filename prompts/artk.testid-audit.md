@@ -215,6 +215,10 @@ For dynamic lists:
 In chat, present:
 - a short summary
 - the top 10 P0/P1 items
+- a **Must / Could / Avoid** recommendation block:
+  - **Must do (recommended now)**: low-risk, additive changes with clear value
+  - **Could do (optional)**: medium-risk items that may require review
+  - **Avoid for now (high risk)**: items that could break behavior or are unclear
 - and ask the user to choose one:
 
 **A)** Apply only LOW-risk items (recommended)
@@ -236,6 +240,7 @@ Do NOT suggest `/artk.journey-generate`, `/artk.smoke-test`, or internal repo te
   - add `data-testid="..."` or `data-cy="..."`
   - optionally add `aria-label="..."` if that is the preferred fix
 - Never change component behavior, event handlers, or layouts.
+- **Default guardrail**: only modify native DOM nodes. Do NOT add or change component props (no prop-forwarding edits). If a custom component is required, mark as **manual** unless the user explicitly approves a broader change scope.
 
 ### How to apply across stacks (adaptive)
 Choose the correct strategy based on detected stack:
