@@ -86,3 +86,69 @@ For each new file:
 ```
 
 **Only proceed to compilation after ALL checks pass.**
+
+---
+
+## Output File Standards
+
+**All prompts MUST follow these standards when creating output files.**
+
+### Folder Structure
+
+| Folder | Purpose | Gitignored |
+|--------|---------|------------|
+| `docs/` | Human-readable documentation (PLAYBOOK, DISCOVERY, etc.) | No |
+| `reports/` | Generated reports (human + machine readable) | Partial |
+| `reports/discovery/` | Discovery phase JSON outputs | No |
+| `reports/testid/` | TestID audit reports and fix plans | No |
+| `reports/validation/` | Journey validation results | No |
+| `reports/verification/` | Test run reports and traces | Yes |
+| `journeys/` | Journey markdown files + generated index | No |
+| `.artk/` | Internal state and metadata | Partial |
+
+### File Naming Conventions
+
+| Type | Location | Format | Example |
+|------|----------|--------|---------|
+| **Documentation** | `docs/` | `SCREAMING_CASE.md` | `DISCOVERY.md`, `PLAYBOOK.md` |
+| **Human reports** | `reports/<category>/` | `kebab-case.md` | `reports/testid/audit-report.md` |
+| **Machine reports** | `reports/<category>/` | `kebab-case.json` | `reports/testid/fix-plan.json` |
+| **Per-entity reports** | `reports/<category>/` | `<entity-id>.md/.json` | `reports/validation/JRN-0001.md` |
+| **Journey files** | `journeys/` | `JRN-####-slug.md` | `JRN-0001-user-login.md` |
+| **Test files** | `tests/<tier>/` | `JRN-####__slug.spec.ts` | `JRN-0001__user-login.spec.ts` |
+| **Module files** | `src/modules/` | `kebab-case.ts` | `auth/login.ts` |
+| **Config files** | Root or `config/` | `kebab-case.ext` | `artk.config.yml` |
+
+### Report Categories
+
+When creating reports, use the correct category folder:
+
+```
+reports/
+├── discovery/          # Routes, features, APIs, risk (JSON)
+│   ├── routes.json
+│   ├── features.json
+│   ├── apis.json
+│   ├── risk.json
+│   └── summary.json
+├── testid/             # TestID audit outputs
+│   ├── audit-report.md     # Human-readable
+│   └── fix-plan.json       # Machine-readable
+├── validation/         # Journey validation results
+│   ├── JRN-0001.md
+│   └── JRN-0001.json
+└── verification/       # Test execution outputs (gitignored)
+    └── latest/
+```
+
+### Managed Content Markers
+
+For updatable sections, use consistent markers:
+
+```markdown
+<!-- ARTK:BEGIN <section-name> -->
+...managed content (regenerated on each run)...
+<!-- ARTK:END <section-name> -->
+```
+
+**Standard section names:** `environment-matrix`, `route-inventory`, `risk-assessment`, `clarification`, `deterministic-steps`, `acceptance-criteria`, `implementation`, `verification`, `testid-audit`

@@ -558,7 +558,11 @@ Write-Host "[2/7] Creating artk-e2e/ structure..." -ForegroundColor Yellow
     "tests\journeys",
     "docs",
     "journeys",
-    ".auth-states"
+    ".auth-states",
+    "reports\discovery",
+    "reports\testid",
+    "reports\validation",
+    "reports\verification"
 ) | ForEach-Object {
     $dir = Join-Path $ArtkE2e $_
     New-Item -ItemType Directory -Force -Path $dir | Out-Null

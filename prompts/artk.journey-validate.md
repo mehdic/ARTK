@@ -1,7 +1,7 @@
 ---
 name: journey-validate
 description: "Phase 8.4: Validate Journey implementation quality (static gates). Checks traceability, schema, tags, module registry, and Playwright best-practice violations (ESLint plugin when available, fallback greps otherwise). Produces a validation report."
-argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|docs/JOURNEY_VALIDATION_<id>.md dryRun=true|false"
+argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|reports/validation/<id>.md dryRun=true|false"
 agent: agent
 handoffs:
   - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
@@ -108,10 +108,15 @@ Ensures the test structure respects the Journey contract:
 ---
 
 ## Outputs (must produce)
-- A validation report markdown file (default):
-  - `docs/JOURNEY_VALIDATION_<JRN-ID>.md`
-- Optional Journey update:
-  - managed validation block including last validation time and result
+
+**Follow Output File Standards from `.github/prompts/common/GENERAL_RULES.md`.**
+
+Create `reports/validation/` directory and generate:
+- `reports/validation/<JRN-ID>.md` — Human-readable validation report
+- `reports/validation/<JRN-ID>.json` — Machine-readable results (optional)
+
+Optional Journey update:
+- managed validation block including last validation time and result
 
 ## Edit safety
 If `autofix=true|auto` or `updateJourney=true`, MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before making any edits.
@@ -378,7 +383,7 @@ If Journey lacks AC IDs:
 - Do not fail; recommend adding IDs via `/journey-clarify`.
 
 ## Step 6 — Emit report and optionally update Journey
-Write `docs/JOURNEY_VALIDATION_<id>.md` including:
+Write `reports/validation/<JRN-ID>.md` including:
 - summary table of gates (pass/fail/warn)
 - list of issues with file/line pointers (best effort)
 - recommended remediation steps

@@ -100,23 +100,26 @@ Parse `key=value` arguments:
 
 ## Discovery Outputs
 
-Write outputs under `<ARTK_ROOT>/docs/`:
+**Follow Output File Standards from `.github/prompts/common/GENERAL_RULES.md`.**
 
+### Human-readable documentation (`docs/`):
 1) `docs/DISCOVERY.md` - Route inventory, feature areas, auth entry points
 2) `docs/TESTABILITY.md` - Locator readiness, data feasibility, async risks
-3) `docs/DISCOVERY.md` must include an **Environment Matrix** section (see Step D0), managed by:
+
+`docs/DISCOVERY.md` must include an **Environment Matrix** section (see Step D0), managed by:
 ```
 <!-- ARTK:BEGIN environment-matrix -->
 ...managed content...
 <!-- ARTK:END environment-matrix -->
 ```
 
-Optional machine outputs under `docs/discovery/`:
-- `docs/discovery/routes.json`
-- `docs/discovery/features.json`
-- `docs/discovery/apis.json`
-- `docs/discovery/risk.json`
-- `docs/discovery/summary.json`
+### Machine-readable reports (`reports/discovery/`):
+Create `reports/discovery/` directory and generate:
+- `reports/discovery/routes.json`
+- `reports/discovery/features.json`
+- `reports/discovery/apis.json`
+- `reports/discovery/risk.json`
+- `reports/discovery/summary.json`
 
 All generated sections MUST include:
 ```

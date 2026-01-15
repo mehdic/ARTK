@@ -486,6 +486,7 @@ fi
 # Step 2: Create artk-e2e structure
 echo -e "${YELLOW}[2/7] Creating artk-e2e/ structure...${NC}"
 mkdir -p "$ARTK_E2E"/{vendor/artk-core,vendor/artk-core-autogen,docs,journeys,.auth-states}
+mkdir -p "$ARTK_E2E"/reports/{discovery,testid,validation,verification}
 
 # Create foundation module structure (discover-foundation expects this)
 mkdir -p "$ARTK_E2E"/src/modules/foundation/{auth,navigation,selectors,data}

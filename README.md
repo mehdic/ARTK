@@ -211,6 +211,7 @@ proposed → defined → clarified → implemented
 - `docs/ARTK_Journey_Lifecycle_v0.1.md` - Journey status lifecycle
 - `docs/ARTK_Module_Architecture.md` - ESM/CommonJS support and module system decisions
 - `docs/ARTK_Core_v1_Specification.md` - @artk/core library specification
+- `docs/TESTID_AUDIT_DISCOVERY_GUIDANCE.md` - When to re-run discovery after testid audits
 
 ## Repository Structure
 

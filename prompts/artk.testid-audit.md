@@ -161,10 +161,12 @@ Prefer accessibility fixes when they also improve the user experience.
 
 ## Phase 3 - Generate the Fix Report (no changes)
 
-Create these artifacts:
+Create these artifacts (per Output File Standards in GENERAL_RULES.md):
 
-1) `docs/TESTID_FIX_REPORT.md`
-2) `artk/reports/testid-fix-plan.json`
+1) `reports/testid/audit-report.md` — Human-readable report
+2) `reports/testid/fix-plan.json` — Machine-readable plan
+
+**Note:** Create `reports/testid/` directory if it doesn't exist.
 
 ### Report content
 Include:
@@ -280,7 +282,7 @@ After changes:
    - IDs match naming policy
    - duplicates are not introduced
 2) Update:
-   - `docs/TESTID_FIX_REPORT.md` (mark applied rows as done)
+   - `reports/testid/audit-report.md` (mark applied rows as done)
    - `docs/TESTABILITY.md` (remove selector debt items if resolved, or add remaining debt)
 3) Run local validation (compiler/lint) and capture any errors immediately after edits.
 4) Trigger a frontend build and ensure it completes without errors.
@@ -309,8 +311,8 @@ BUT ARTK's approach must remain: **explicit, reviewed, deterministic, and safe**
 ## Output checklist
 
 You must produce:
-- [ ] `docs/TESTID_FIX_REPORT.md`
-- [ ] `artk/reports/testid-fix-plan.json`
+- [ ] `reports/testid/audit-report.md`
+- [ ] `reports/testid/fix-plan.json`
 - [ ] (apply mode) code changes only after approval
 - [ ] updated report reflecting what was applied
 - [ ] clear next steps for remaining medium/high risk items
