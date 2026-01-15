@@ -5,6 +5,7 @@
 import { parseArgs } from 'node:util';
 import fg from 'fast-glob';
 import { verifyJourneys, type VerifyJourneyResult } from '../index.js';
+import { parseIntSafe } from '../utils/parsing.js';
 
 const USAGE = `
 Usage: artk-autogen verify [options] <journey-files...>
@@ -79,11 +80,11 @@ export async function runVerify(args: string[]): Promise<void> {
   const results = await verifyJourneys(journeyFiles, {
     outputDir: values.output,
     heal: values.heal,
-    maxHealAttempts: parseInt(values['max-heal'], 10),
+    maxHealAttempts: parseIntSafe(values['max-heal'], 'max-heal', 3),
     checkStability: values.stability,
-    stabilityRuns: parseInt(values['stability-runs'], 10),
+    stabilityRuns: parseIntSafe(values['stability-runs'], 'stability-runs', 3),
     reporter: values.reporter,
-    timeout: values.timeout ? parseInt(values.timeout, 10) : undefined,
+    timeout: values.timeout ? parseIntSafe(values.timeout, 'timeout', 30000) : undefined,
   });
 
   // Format output

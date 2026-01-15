@@ -11,9 +11,9 @@ import type {
   TemplateContext,
   GenerationResult,
   BatchGenerationResult,
-  TemplateProcessingOptions,
-  TemplateVariant
+  TemplateProcessingOptions
 } from './types';
+import type { TemplateVariant } from '../../templates/shared/types/index.js';
 import type { ValidationResult } from '../../types/validation-result';
 
 /**
@@ -242,13 +242,12 @@ export async function generateBatch(
             fs.unlinkSync(filePath);
 
             // Restore backup if it exists
-            const backupPattern = `${filePath}.backup.`;
             const dir = path.dirname(filePath);
             const backups = fs.readdirSync(dir).filter(f => f.startsWith(path.basename(filePath) + '.backup.'));
 
             if (backups.length > 0) {
               // Use most recent backup
-              const latestBackup = backups.sort().reverse()[0];
+              const latestBackup = backups.sort().reverse()[0]!;
               const backupPath = path.join(dir, latestBackup);
               fs.copyFileSync(backupPath, filePath);
               fs.unlinkSync(backupPath);

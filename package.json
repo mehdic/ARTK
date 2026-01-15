@@ -1,8 +1,16 @@
 {
   "scripts": {
-    "test:all": "npm --prefix core/typescript run test:unit && npm --prefix core/typescript/autogen test"
+    "test:all": "npm --prefix core/typescript run test:unit && npm --prefix core/typescript/autogen test",
+    "lint": "npm --prefix core/typescript run lint && npm --prefix core/typescript/autogen run lint",
+    "typecheck": "npm --prefix core/typescript run typecheck && npm --prefix core/typescript/autogen run typecheck",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "core/typescript/**/*.ts": "node scripts/lint-staged-eslint.js"
   }
 }

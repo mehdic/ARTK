@@ -7,12 +7,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Page } from '@playwright/test';
+// @ts-expect-error - Template placeholder resolved at generation time
 import type { AuthConfig } from '{{artkCorePath}}/types/auth';
 
 /**
  * Get the directory path (CommonJS-compatible)
+ * @internal Reserved for future use
  */
-function getDirname(): string {
+// @ts-ignore - Reserved for future use in generated code
+function _getDirname(): string {
   return __dirname;
 }
 

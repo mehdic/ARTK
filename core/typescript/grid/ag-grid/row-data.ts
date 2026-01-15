@@ -7,16 +7,16 @@
  */
 
 import type { Locator } from '@playwright/test';
-import type { AgGridRowData, NormalizedAgGridConfig, RowMatcher, ClosestMatchResult } from '../types.js';
+import type { AgGridRowData, ClosestMatchResult, NormalizedAgGridConfig, RowMatcher } from '../types.js';
 import {
   AG_GRID_SELECTORS,
+  buildRowSelectorFromMatcher,
   getAriaRowIndex,
-  getRowIndex,
   getRowId,
+  getRowIndex,
+  isDirectMatcher,
   isGroupRow,
   isRowExpanded,
-  buildRowSelectorFromMatcher,
-  isDirectMatcher,
 } from './selectors.js';
 import { getAllCellValues } from './cell-renderers.js';
 
@@ -120,6 +120,8 @@ export async function findRowByMatcher(
 
     for (let i = 0; i < allRows.length; i++) {
       const rowData = allRows[i];
+      if (!rowData) {continue;}
+
       const matches = matcher.cellValues
         ? matchesCellValues(rowData, matcher.cellValues)
         : matcher.predicate?.(rowData);

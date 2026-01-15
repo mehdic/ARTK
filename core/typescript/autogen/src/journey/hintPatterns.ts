@@ -145,7 +145,7 @@ export function extractHintValue(match: RegExpMatchArray): string | null {
   // Try quoted values first, then unquoted
   for (let i = 1; i < match.length; i++) {
     if (match[i] !== undefined) {
-      return match[i];
+      return match[i] ?? null;
     }
   }
   return null;

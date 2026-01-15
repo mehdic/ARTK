@@ -25,6 +25,18 @@ export interface ManagedBlock {
 }
 
 /**
+ * Information about a malformed block
+ */
+export interface BlockWarning {
+  /** Type of warning */
+  type: 'nested' | 'unclosed';
+  /** Line number where the issue occurred */
+  line: number;
+  /** Human-readable message */
+  message: string;
+}
+
+/**
  * Result of extracting managed blocks from code
  */
 export interface BlockExtractionResult {
@@ -34,6 +46,8 @@ export interface BlockExtractionResult {
   preservedCode: string[];
   /** Whether any blocks were found */
   hasBlocks: boolean;
+  /** Warnings about malformed blocks */
+  warnings: BlockWarning[];
 }
 
 /**
@@ -74,19 +88,32 @@ export function extractManagedBlocks(code: string): BlockExtractionResult {
   const lines = code.split('\n');
   const blocks: ManagedBlock[] = [];
   const preservedCode: string[] = [];
+  const warnings: BlockWarning[] = [];
 
   let inBlock = false;
   let currentBlock: Partial<ManagedBlock> | null = null;
   let blockContent: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i]!;
 
     // Check for block start
     if (line.includes(BLOCK_START)) {
       if (inBlock) {
-        // Nested block detected - treat as malformed
-        console.warn(`Nested managed block detected at line ${i + 1}`);
+        // Nested block detected - close the previous block and record warning
+        warnings.push({
+          type: 'nested',
+          line: i + 1,
+          message: `Nested managed block detected at line ${i + 1}. Previous block starting at line ${(currentBlock?.startLine ?? 0) + 1} will be closed.`,
+        });
+        // Save the incomplete previous block
+        if (currentBlock) {
+          blocks.push({
+            ...currentBlock,
+            endLine: i - 1,
+            content: blockContent.join('\n'),
+          } as ManagedBlock);
+        }
       }
       inBlock = true;
       const match = line.match(BLOCK_ID_PATTERN);
@@ -123,13 +150,18 @@ export function extractManagedBlocks(code: string): BlockExtractionResult {
 
   // Handle unclosed block
   if (inBlock && currentBlock) {
-    console.warn('Unclosed managed block detected - block will be ignored');
+    warnings.push({
+      type: 'unclosed',
+      line: (currentBlock.startLine ?? 0) + 1,
+      message: `Unclosed managed block starting at line ${(currentBlock.startLine ?? 0) + 1} - block will be ignored`,
+    });
   }
 
   return {
     blocks,
     preservedCode,
     hasBlocks: blocks.length > 0,
+    warnings,
   };
 }
 
@@ -149,7 +181,7 @@ export function extractManagedBlocks(code: string): BlockExtractionResult {
  * // // ARTK:END GENERATED
  * ```
  */
-function wrapInBlock(content: string, id?: string): string {
+export function wrapInBlock(content: string, id?: string): string {
   const startMarker = id
     ? `${BLOCK_START} id=${id}`
     : BLOCK_START;
@@ -211,6 +243,10 @@ export function injectManagedBlocks(options: InjectBlocksOptions): string {
   // Replace existing blocks by ID, preserve structure
   const result: string[] = [];
   const processedIds = new Set<string>();
+  // Track id-less blocks separately by position to avoid ambiguous matching
+  let idLessBlockIndex = 0;
+  const idLessNewBlocks = newBlocks.filter(b => !b.id);
+  const processedIdLessIndices = new Set<number>();
 
   // Re-scan to maintain structure
   const lines = existingCode.split('\n');
@@ -219,7 +255,7 @@ export function injectManagedBlocks(options: InjectBlocksOptions): string {
   let skipUntilEnd = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i]!;
 
     if (line.includes(BLOCK_START)) {
       inBlock = true;
@@ -227,10 +263,24 @@ export function injectManagedBlocks(options: InjectBlocksOptions): string {
       currentBlockId = match?.[1];
 
       // Find replacement block
-      const replacement = newBlocks.find(b => b.id === currentBlockId);
+      let replacement;
+      if (currentBlockId) {
+        // Match by ID for blocks with IDs
+        replacement = newBlocks.find(b => b.id === currentBlockId);
+        if (replacement) {
+          processedIds.add(currentBlockId);
+        }
+      } else {
+        // Match id-less blocks by position
+        if (idLessBlockIndex < idLessNewBlocks.length) {
+          replacement = idLessNewBlocks[idLessBlockIndex];
+          processedIdLessIndices.add(idLessBlockIndex);
+        }
+        idLessBlockIndex++;
+      }
+
       if (replacement) {
         result.push(wrapInBlock(replacement.content, replacement.id));
-        processedIds.add(currentBlockId || '');
         skipUntilEnd = true;
       } else {
         // Keep original block
@@ -259,10 +309,21 @@ export function injectManagedBlocks(options: InjectBlocksOptions): string {
   }
 
   // Append new blocks that weren't replacements
-  for (const block of newBlocks) {
-    if (!processedIds.has(block.id || '')) {
-      result.push('');
-      result.push(wrapInBlock(block.content, block.id));
+  for (let i = 0; i < newBlocks.length; i++) {
+    const block = newBlocks[i]!;
+    if (block.id) {
+      // Check if this ID was processed
+      if (!processedIds.has(block.id)) {
+        result.push('');
+        result.push(wrapInBlock(block.content, block.id));
+      }
+    } else {
+      // Check if this id-less block was processed (by its index in idLessNewBlocks)
+      const idLessIndex = idLessNewBlocks.indexOf(block);
+      if (!processedIdLessIndices.has(idLessIndex)) {
+        result.push('');
+        result.push(wrapInBlock(block.content, block.id));
+      }
     }
   }
 

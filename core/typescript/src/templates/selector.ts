@@ -5,7 +5,8 @@
  */
 import * as path from 'path';
 import * as fs from 'fs';
-import type { EnvironmentContext, TemplateVariant } from '../types/environment-context';
+import type { EnvironmentContext } from '../../types/environment-context.js';
+import type { TemplateVariant } from '../../templates/shared/types/index.js';
 
 /**
  * Select appropriate template variant based on environment context
@@ -29,7 +30,7 @@ export function selectTemplateVariant(
   }
 
   // 2. Auto-select based on detected module system
-  const { moduleSystem } = context.detection;
+  const { moduleSystem } = context;
 
   if (moduleSystem === 'esm') {
     return 'esm';
@@ -56,10 +57,10 @@ function validateVariantMatch(
   context: EnvironmentContext,
   selectedVariant: TemplateVariant
 ): void {
-  const { moduleSystem, confidence } = context.detection;
+  const { moduleSystem, detectionConfidence } = context;
 
   // Only warn if we have high confidence in detection
-  if (confidence !== 'high') {
+  if (detectionConfidence !== 'high') {
     return;
   }
 
@@ -67,14 +68,14 @@ function validateVariantMatch(
   if (moduleSystem === 'esm' && selectedVariant === 'commonjs') {
     console.warn(
       `⚠️  Template variant mismatch detected:\n` +
-      `   Detected module system: ESM (confidence: ${confidence})\n` +
+      `   Detected module system: ESM (confidence: ${detectionConfidence})\n` +
       `   Selected template variant: CommonJS\n` +
       `   This may cause runtime errors. Consider using 'esm' template variant.`
     );
   } else if (moduleSystem === 'commonjs' && selectedVariant === 'esm') {
     console.warn(
       `⚠️  Template variant mismatch detected:\n` +
-      `   Detected module system: CommonJS (confidence: ${confidence})\n` +
+      `   Detected module system: CommonJS (confidence: ${detectionConfidence})\n` +
       `   Selected template variant: ESM\n` +
       `   This may cause runtime errors. Consider using 'commonjs' template variant.`
     );
@@ -93,18 +94,18 @@ export function getRecommendedVariant(context: EnvironmentContext): {
   confidence: 'high' | 'medium' | 'low';
   reason: string;
 } {
-  const { moduleSystem, confidence } = context.detection;
+  const { moduleSystem, detectionConfidence } = context;
 
   if (moduleSystem === 'esm') {
     return {
       variant: 'esm',
-      confidence,
+      confidence: detectionConfidence,
       reason: `Detected ESM module system (type: "module" in package.json or .mjs extension)`
     };
   } else if (moduleSystem === 'commonjs') {
     return {
       variant: 'commonjs',
-      confidence,
+      confidence: detectionConfidence,
       reason: `Detected CommonJS module system (type: "commonjs" in package.json or .cjs extension)`
     };
   } else {

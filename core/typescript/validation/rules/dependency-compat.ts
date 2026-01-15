@@ -84,19 +84,19 @@ function versionSatisfiesRange(version: string, range: string): boolean {
 
   // For >= range (most common case)
   if (range.startsWith('>=')) {
-    if (vMajor > rMajor) return true;
-    if (vMajor < rMajor) return false;
-    if (vMinor > rMinor) return true;
-    if (vMinor < rMinor) return false;
-    return vPatch >= rPatch;
+    if (vMajor! > rMajor!) return true;
+    if (vMajor! < rMajor!) return false;
+    if (vMinor! > rMinor!) return true;
+    if (vMinor! < rMinor!) return false;
+    return vPatch! >= rPatch!;
   }
 
   // For ^ range (semver compatible)
   if (version.startsWith('^')) {
-    return vMajor >= rMajor;
+    return vMajor! >= rMajor!;
   }
 
-  return vMajor >= rMajor;
+  return vMajor! >= rMajor!;
 }
 
 /**

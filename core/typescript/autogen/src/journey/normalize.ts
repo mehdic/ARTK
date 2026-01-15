@@ -352,7 +352,7 @@ function parseLocatorFromSelector(selector: string): LocatorSpec {
   if (selector.includes('data-testid')) {
     const match = selector.match(/\[data-testid=['"]([^'"]+)['"]\]/);
     if (match) {
-      return { strategy: 'testid', value: match[1] };
+      return { strategy: 'testid', value: match[1]! };
     }
   }
 

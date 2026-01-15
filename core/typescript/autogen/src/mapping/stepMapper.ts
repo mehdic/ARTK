@@ -206,7 +206,7 @@ function createPrimitiveFromHints(text: string, hints: ExtractedHints): IRPrimit
     return {
       type: 'fill',
       locator,
-      value: { type: 'literal', value: valueMatch ? valueMatch[1] : '' },
+      value: { type: 'literal', value: valueMatch ? valueMatch[1]! : '' },
     };
   }
 

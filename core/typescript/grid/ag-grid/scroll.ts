@@ -6,8 +6,10 @@
  * @module grid/ag-grid/scroll
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- Playwright evaluate callbacks run in browser context */
+
 import type { Locator } from '@playwright/test';
-import type { NormalizedAgGridConfig, RowMatcher } from '../types.js';
+import type { RowMatcher } from '../types.js';
 import { AG_GRID_SELECTORS, getAriaRowIndex } from './selectors.js';
 import { getBodyViewport, type GridLocatorContext } from './locators.js';
 
@@ -112,8 +114,14 @@ async function scrollToAriaRowIndex(
       throw new Error('No rows visible in the grid');
     }
 
-    const firstVisibleIndex = await getAriaRowIndex(visibleRows[0]);
-    const lastVisibleIndex = await getAriaRowIndex(visibleRows[visibleRows.length - 1]);
+    const firstRow = visibleRows[0];
+    const lastRow = visibleRows[visibleRows.length - 1];
+    if (!firstRow || !lastRow) {
+      throw new Error('No rows visible in the grid');
+    }
+
+    const firstVisibleIndex = await getAriaRowIndex(firstRow);
+    const lastVisibleIndex = await getAriaRowIndex(lastRow);
 
     // Determine scroll direction
     if (targetAriaIndex < firstVisibleIndex) {
@@ -140,6 +148,12 @@ async function scrollToAriaRowIndex(
   );
 }
 
+/** Scroll viewport ratio for incremental scrolling */
+const SCROLL_VIEWPORT_RATIO = 0.8;
+
+/** Horizontal scroll ratio for column scrolling */
+const HORIZONTAL_SCROLL_RATIO = 0.5;
+
 /**
  * Scroll the viewport in a specific direction
  *
@@ -151,11 +165,12 @@ async function scrollViewport(
   direction: 'up' | 'down'
 ): Promise<void> {
   await viewport.evaluate((el, dir) => {
-    const scrollAmount = el.clientHeight * 0.8; // Scroll by 80% of viewport height
+    const element = el as unknown as { clientHeight: number; scrollTop: number };
+    const scrollAmount = element.clientHeight * SCROLL_VIEWPORT_RATIO;
     if (dir === 'up') {
-      el.scrollTop -= scrollAmount;
+      element.scrollTop -= scrollAmount;
     } else {
-      el.scrollTop += scrollAmount;
+      element.scrollTop += scrollAmount;
     }
   }, direction);
 }
@@ -197,7 +212,8 @@ export async function scrollToColumn(
 
     // Scroll right
     await viewport.evaluate((el) => {
-      el.scrollLeft += el.clientWidth * 0.5;
+      const element = el as unknown as { scrollLeft: number; clientWidth: number };
+      element.scrollLeft += element.clientWidth * HORIZONTAL_SCROLL_RATIO;
     });
 
     await gridLocator.page().waitForTimeout(scrollInterval);
@@ -216,7 +232,7 @@ export async function scrollToColumn(
 export async function scrollToTop(ctx: GridLocatorContext): Promise<void> {
   const viewport = getBodyViewport(ctx);
   await viewport.evaluate((el) => {
-    el.scrollTop = 0;
+    (el as unknown as { scrollTop: number }).scrollTop = 0;
   });
   await ctx.page.waitForTimeout(ctx.config.timeouts.scroll);
 }
@@ -229,7 +245,8 @@ export async function scrollToTop(ctx: GridLocatorContext): Promise<void> {
 export async function scrollToBottom(ctx: GridLocatorContext): Promise<void> {
   const viewport = getBodyViewport(ctx);
   await viewport.evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
+    const element = el as unknown as { scrollTop: number; scrollHeight: number };
+    element.scrollTop = element.scrollHeight;
   });
   await ctx.page.waitForTimeout(ctx.config.timeouts.scroll);
 }
@@ -244,10 +261,13 @@ export async function getScrollPosition(
   ctx: GridLocatorContext
 ): Promise<{ scrollTop: number; scrollLeft: number }> {
   const viewport = getBodyViewport(ctx);
-  return viewport.evaluate((el) => ({
-    scrollTop: el.scrollTop,
-    scrollLeft: el.scrollLeft,
-  }));
+  return viewport.evaluate((el) => {
+    const element = el as unknown as { scrollTop: number; scrollLeft: number };
+    return {
+      scrollTop: element.scrollTop,
+      scrollLeft: element.scrollLeft,
+    };
+  });
 }
 
 /**
@@ -265,8 +285,9 @@ export async function setScrollPosition(
   const viewport = getBodyViewport(ctx);
   await viewport.evaluate(
     (el, pos) => {
-      el.scrollTop = pos.scrollTop;
-      el.scrollLeft = pos.scrollLeft;
+      const element = el as unknown as { scrollTop: number; scrollLeft: number };
+      element.scrollTop = pos.scrollTop;
+      element.scrollLeft = pos.scrollLeft;
     },
     { scrollTop, scrollLeft }
   );

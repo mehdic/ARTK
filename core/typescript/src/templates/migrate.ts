@@ -4,7 +4,7 @@
  */
 import * as path from 'path';
 import * as fs from 'fs';
-import type { TemplateVariant } from '../types/environment-context';
+import type { TemplateVariant } from '../../templates/shared/types/index.js';
 
 export interface MigrationResult {
   needsMigration: boolean;
@@ -20,7 +20,6 @@ export interface MigrationResult {
  * @returns Migration analysis result
  */
 export function analyzeMigration(projectRoot: string): MigrationResult {
-  const e2eDir = path.join(projectRoot, 'artk-e2e');
   const oldTemplatesFound: string[] = [];
 
   // Check for old template locations (before dual-template system)

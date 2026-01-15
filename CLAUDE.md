@@ -4,19 +4,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Reference: Install ARTK to a Client Project
 
-**Full bootstrap command (copy-paste ready):**
+### Using CLI (Recommended)
+
+```bash
+# One-time usage (no global install needed)
+npx @artk/cli init /path/to/your-project
+
+# Or install globally for frequent use
+npm install -g @artk/cli
+artk init /path/to/your-project
+```
+
+**Options:**
+- `--skip-npm`: Skip npm install
+- `--skip-browsers`: Skip browser installation
+- `--force`: Overwrite existing installation
+- `--variant <type>`: Module system (commonjs, esm, auto)
+- `--no-prompts`: Skip AI prompt installation
+
+**Other CLI commands:**
+```bash
+artk check              # Verify prerequisites
+artk upgrade [path]     # Upgrade @artk/core
+artk doctor [path]      # Diagnose and fix issues
+artk uninstall <path>   # Remove ARTK
+```
+
+### Using Bootstrap Script (Legacy)
+
+**PowerShell:**
 ```powershell
 C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 -TargetPath C:\path\to\your-project
 ```
 
-**Example:**
-```powershell
-C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 -TargetPath C:\projects\my-app
+**Bash:**
+```bash
+/path/to/ARTK/scripts/bootstrap.sh /path/to/your-project
 ```
-
-**Options:**
-- `-TargetPath` (required): Path to target project
-- `-SkipNpm` (optional): Skip `npm install`
 
 ---
 

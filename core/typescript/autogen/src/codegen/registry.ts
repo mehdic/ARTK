@@ -125,7 +125,7 @@ export function parseIndexFile(content: string, _indexPath?: string): RegistryEn
     for (const match of starExports) {
       const pathMatch = match.match(/['"]([^'"]+)['"]/);
       if (pathMatch) {
-        const modulePath = pathMatch[1];
+        const modulePath = pathMatch[1]!;
         entries.push({
           moduleName: extractModuleName(modulePath),
           className: '*',
@@ -203,7 +203,7 @@ export function generateIndexContent(
     const fileEntries = byFile.get(filePath)!;
 
     // Check if it's a star export
-    if (fileEntries.length === 1 && fileEntries[0].className === '*') {
+    if (fileEntries.length === 1 && fileEntries[0]!.className === '*') {
       lines.push(`export * from '${filePath}';`);
     } else {
       // Named exports

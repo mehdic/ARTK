@@ -38,6 +38,9 @@ export * from './codegen/registry.js';
 export * from './codegen/blocks.js';
 // Utilities
 export * from './utils/escaping.js';
+export * from './utils/version.js';
+export * from './utils/parsing.js';
+export * from './utils/result.js';
 // Validation
 export * from './validate/index.js';
 // Verification

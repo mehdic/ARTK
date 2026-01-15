@@ -74,8 +74,8 @@ export function findTestSteps(code: string): Array<{ id: string; description: st
 
   while ((match = stepRegex.exec(code)) !== null) {
     steps.push({
-      id: match[1].trim(),
-      description: match[2].trim(),
+      id: match[1]!.trim(),
+      description: match[2]!.trim(),
     });
   }
 
@@ -153,7 +153,7 @@ export function validateIRCoverage(
         field: step.id,
         suggestion: 'Clarify the AC steps or add supported patterns',
       });
-    } else if (coverage.coveragePercent < (opts.minCoverage || 80)) {
+    } else if (coverage.coveragePercent < (opts.minCoverage! || 80)) {
       if (opts.warnPartialCoverage) {
         issues.push({
           code: 'AC_PARTIAL_COVERAGE',
@@ -166,7 +166,7 @@ export function validateIRCoverage(
     }
 
     // Check blocked step count
-    if (opts.maxBlockedSteps && coverage.blockedSteps > opts.maxBlockedSteps) {
+    if (opts.maxBlockedSteps! && coverage.blockedSteps > opts.maxBlockedSteps!) {
       issues.push({
         code: 'AC_TOO_MANY_BLOCKED',
         message: `${step.id} has ${coverage.blockedSteps} blocked steps (max: ${opts.maxBlockedSteps})`,

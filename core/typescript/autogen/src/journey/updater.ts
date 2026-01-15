@@ -68,8 +68,8 @@ function splitJourneyContent(content: string): {
   }
 
   return {
-    frontmatter: match[1],
-    body: match[2],
+    frontmatter: match[1]!,
+    body: match[2]!,
   };
 }
 
@@ -144,7 +144,7 @@ export function updateJourneyFrontmatter(
 
   // Update or add test entry
   if (existingIndex >= 0) {
-    (parsed.tests as JourneyTestEntry[])[existingIndex] = testEntry;
+    (parsed.tests as JourneyTestEntry[])[existingIndex]! = testEntry;
   } else {
     (parsed.tests as JourneyTestEntry[]).push(testEntry);
   }
@@ -175,15 +175,15 @@ export function updateJourneyFrontmatter(
 
   // Add foundation modules (deduplicate)
   if (modules.foundation) {
-    const existingFoundation = new Set(parsedModules.foundation);
+    const existingFoundation = new Set(parsedModules.foundation!);
     for (const mod of modules.foundation) {
       if (!existingFoundation.has(mod)) {
         modulesAdded.foundation.push(mod);
-        parsedModules.foundation.push(mod);
+        parsedModules.foundation!.push(mod);
       }
     }
     // Sort for consistency
-    parsedModules.foundation.sort();
+    parsedModules.foundation!.sort();
   }
 
   // Add feature modules (deduplicate)

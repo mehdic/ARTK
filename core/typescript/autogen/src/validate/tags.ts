@@ -74,7 +74,7 @@ export function parseTagsFromCode(code: string): string[] {
   }
 
   // Extract individual tags
-  const tagArrayContent = tagArrayMatch[1];
+  const tagArrayContent = tagArrayMatch[1]!;
   const tagMatches = tagArrayContent.match(/'[^']+'/g) || [];
 
   return tagMatches.map((t) => t.replace(/'/g, ''));

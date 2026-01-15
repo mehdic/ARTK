@@ -48,7 +48,7 @@ export function loadCatalog(path?: string): SelectorCatalog {
     catalogCache = result.catalog!;
     catalogPath = resolvedPath;
     return catalogCache;
-  } catch (err) {
+  } catch (_err) {
     console.warn(`Failed to load selector catalog from ${resolvedPath}`);
     return createEmptyCatalog();
   }
@@ -291,5 +291,5 @@ export function suggestSelector(description: string): SelectorEntry | null {
 
     // Then by strategy priority
     return (strategyPriority[a.strategy] ?? 99) - (strategyPriority[b.strategy] ?? 99);
-  })[0];
+  })[0] ?? null;
 }

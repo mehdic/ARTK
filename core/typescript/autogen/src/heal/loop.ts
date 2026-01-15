@@ -124,13 +124,13 @@ function extractLineNumber(summary: VerifySummary): number {
     // "Error: ... at line 42"
     const lineMatch = firstTest.match(/:(\d+)(?::\d+)?(?:\)|$)/);
     if (lineMatch) {
-      return parseInt(lineMatch[1], 10);
+      return parseInt(lineMatch[1]!, 10);
     }
 
     // Try "at line N" pattern
     const atLineMatch = firstTest.match(/at line (\d+)/i);
     if (atLineMatch) {
-      return parseInt(atLineMatch[1], 10);
+      return parseInt(atLineMatch[1]!, 10);
     }
   }
 
@@ -140,7 +140,7 @@ function extractLineNumber(summary: VerifySummary): number {
       const explanation = (classification as { explanation: string }).explanation;
       const lineMatch = explanation.match(/:(\d+)(?::\d+)?/);
       if (lineMatch) {
-        return parseInt(lineMatch[1], 10);
+        return parseInt(lineMatch[1]!, 10);
       }
     }
   }

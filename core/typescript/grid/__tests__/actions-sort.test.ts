@@ -119,10 +119,16 @@ describe('AG Grid Sorting Actions', () => {
       // Note: Most AG Grid configurations use single-column sort by default
       // This test verifies that we can read sort state from multiple columns
       const headers = await page.locator('.ag-header-cell[aria-sort]').all();
-      const sortedColumns = headers.filter(async (h) => {
-        const sort = await h.getAttribute('aria-sort');
-        return sort && sort !== 'none';
-      });
+
+      // Use Promise.all to properly await all async operations
+      const sortStates = await Promise.all(
+        headers.map(async (h) => {
+          const sort = await h.getAttribute('aria-sort');
+          return { header: h, sort };
+        })
+      );
+
+      const sortedColumns = sortStates.filter(({ sort }) => sort && sort !== 'none');
 
       // After initial load, no columns should be sorted
       expect(sortedColumns.length).toBeGreaterThanOrEqual(0);

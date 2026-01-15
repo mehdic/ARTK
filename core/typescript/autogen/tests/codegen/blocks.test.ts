@@ -103,11 +103,12 @@ test('broken', () => {});
 // Missing END marker
 `;
 
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      extractManagedBlocks(code);
+      const result = extractManagedBlocks(code);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Unclosed'));
-      consoleSpy.mockRestore();
+      // Warnings are returned in the result, not logged to console
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]!.type).toBe('unclosed');
+      expect(result.warnings[0]!.message).toContain('Unclosed');
     });
 
     it('should handle nested blocks as malformed', () => {
@@ -121,11 +122,12 @@ test('outer', () => {
 // ARTK:END GENERATED
 `;
 
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      extractManagedBlocks(code);
+      const result = extractManagedBlocks(code);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Nested'));
-      consoleSpy.mockRestore();
+      // Warnings are returned in the result, not logged to console
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]!.type).toBe('nested');
+      expect(result.warnings[0]!.message).toContain('Nested');
     });
 
     it('should return empty result for code without blocks', () => {

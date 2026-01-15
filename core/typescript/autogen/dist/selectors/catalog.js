@@ -37,7 +37,7 @@ export function loadCatalog(path) {
         catalogPath = resolvedPath;
         return catalogCache;
     }
-    catch (err) {
+    catch (_err) {
         console.warn(`Failed to load selector catalog from ${resolvedPath}`);
         return createEmptyCatalog();
     }
@@ -248,6 +248,6 @@ export function suggestSelector(description) {
             return 1;
         // Then by strategy priority
         return (strategyPriority[a.strategy] ?? 99) - (strategyPriority[b.strategy] ?? 99);
-    })[0];
+    })[0] ?? null;
 }
 //# sourceMappingURL=catalog.js.map

@@ -50,7 +50,7 @@ const MISSING_AWAIT_PATTERNS = [
  */
 export function extractTimeoutFromError(errorMessage: string): number | null {
   const match = errorMessage.match(/timeout\s+(\d+)ms/i);
-  return match ? parseInt(match[1], 10) : null;
+  return match ? parseInt(match[1]!, 10) : null;
 }
 
 /**
@@ -160,7 +160,7 @@ export function addTimeout(
     };
   }
 
-  const line = lines[lineNumber - 1];
+  const line = lines[lineNumber - 1]!;
 
   // Check if line already has timeout
   if (/\btimeout\s*:/i.test(line)) {
@@ -262,7 +262,7 @@ export function wrapWithExpectToPass(
 
   // Extract the code block to wrap
   const blockLines = lines.slice(lineStart - 1, lineEnd);
-  const indentation = blockLines[0].match(/^(\s*)/)?.[1] || '';
+  const indentation = blockLines[0]!.match(/^(\s*)/)?.[1] || '';
 
   // Build options string
   const optParts: string[] = [];

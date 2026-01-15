@@ -140,13 +140,13 @@ export function selectBestLocator(
 
   if (allowed.length === 0) {
     // All forbidden, return first original
-    return alternatives[0];
+    return alternatives[0] ?? null;
   }
 
   // Sort by priority
   allowed.sort((a, b) => scoreLocator(a, priority) - scoreLocator(b, priority));
 
-  return allowed[0];
+  return allowed[0] ?? null;
 }
 
 /**
@@ -181,7 +181,7 @@ export function isCssLocator(locator: LocatorSpec): boolean {
  * Get recommended strategies for an element type
  */
 export function getRecommendedStrategies(elementType: string): LocatorStrategy[] {
-  return ELEMENT_TYPE_STRATEGIES[elementType] ?? ELEMENT_TYPE_STRATEGIES.generic;
+  return ELEMENT_TYPE_STRATEGIES[elementType] ?? ELEMENT_TYPE_STRATEGIES.generic!;
 }
 
 /**

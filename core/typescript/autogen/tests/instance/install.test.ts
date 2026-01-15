@@ -248,9 +248,10 @@ describe('installAutogenInstance', () => {
   });
 
   it('should handle errors gracefully', async () => {
-    // Try to install in an invalid directory
+    // Try to install under /dev/null (a file, not a directory)
+    // This will fail even for root users since you cannot create subdirectories under a file
     const result = await installAutogenInstance({
-      rootDir: '/invalid/path/that/does/not/exist/and/cannot/be/created',
+      rootDir: '/dev/null/test/cannot/create',
     });
 
     expect(result.success).toBe(false);

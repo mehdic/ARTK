@@ -13,6 +13,7 @@ import {
   validateForAutoGen,
 } from './schema.js';
 import { matchPattern } from '../mapping/patterns.js';
+import { type Result, ok, err, CodedError } from '../utils/result.js';
 
 // Re-export for convenience
 export { JourneyFrontmatterSchema, JourneyStatusSchema };
@@ -22,13 +23,18 @@ export type { JourneyFrontmatter, JourneyStatus };
  * Error thrown when journey parsing fails
  */
 export class JourneyParseError extends Error {
+  public readonly filePath: string;
+  public readonly cause?: unknown;
+
   constructor(
     message: string,
-    public readonly filePath: string,
-    public readonly cause?: unknown
+    filePath: string,
+    cause?: unknown
   ) {
     super(message);
     this.name = 'JourneyParseError';
+    this.filePath = filePath;
+    this.cause = cause;
   }
 }
 
@@ -120,8 +126,8 @@ function extractFrontmatter(content: string): {
   }
 
   return {
-    frontmatter: match[1],
-    body: content.slice(match[0].length).trim(),
+    frontmatter: match[1]!,
+    body: content.slice(match[0]!.length).trim(),
   };
 }
 
@@ -137,7 +143,7 @@ function parseAcceptanceCriteria(body: string): AcceptanceCriterion[] {
     return criteria;
   }
 
-  const acSection = acSectionMatch[1];
+  const acSection = acSectionMatch[1]!;
 
   // Split by AC headers (### AC-N or ## AC-N)
   const acPattern = /^###?\s*(AC-\d+)[:\s]*(.*?)$/gim;
@@ -146,20 +152,20 @@ function parseAcceptanceCriteria(body: string): AcceptanceCriterion[] {
   let match;
   while ((match = acPattern.exec(acSection)) !== null) {
     parts.push({
-      id: match[1].toUpperCase(),
-      title: match[2].trim(),
-      startIndex: match.index + match[0].length,
+      id: match[1]!.toUpperCase(),
+      title: match[2]!.trim(),
+      startIndex: match.index + match[0]!.length,
     });
   }
 
   // Extract content for each AC
   for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
+    const part = parts[i]!;
 
     // Get content between this AC header and the next
     const contentStart = part.startIndex;
     const contentEnd = i + 1 < parts.length
-      ? acSection.lastIndexOf('###', parts[i + 1].startIndex)
+      ? acSection.lastIndexOf('###', parts[i + 1]!.startIndex)
       : acSection.length;
 
     const content = acSection.slice(contentStart, contentEnd > contentStart ? contentEnd : acSection.length);
@@ -169,13 +175,13 @@ function parseAcceptanceCriteria(body: string): AcceptanceCriterion[] {
     const bulletPattern = /^[-*]\s+(.+)$/gm;
     let bulletMatch;
     while ((bulletMatch = bulletPattern.exec(content)) !== null) {
-      steps.push(bulletMatch[1].trim());
+      steps.push(bulletMatch[1]!.trim());
     }
 
     // Build raw content
     const headerMatch = acSection.match(new RegExp(`###?\\s*${part.id}[:\\s]*${part.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i'));
     const rawContent = headerMatch
-      ? headerMatch[0] + content.slice(0, content.indexOf('\n###') > 0 ? content.indexOf('\n###') : content.length)
+      ? headerMatch[0]! + content.slice(0, content.indexOf('\n###') > 0 ? content.indexOf('\n###') : content.length)
       : content;
 
     criteria.push({
@@ -203,7 +209,7 @@ function parseProceduralSteps(body: string): ProceduralStep[] {
     return steps;
   }
 
-  const psSection = psMatch[1];
+  const psSection = psMatch[1]!;
 
   // Parse numbered steps
   const numberedPattern = /^\d+\.\s+(.+)$/gm;
@@ -211,7 +217,7 @@ function parseProceduralSteps(body: string): ProceduralStep[] {
   let stepNumber = 1;
 
   while ((match = numberedPattern.exec(psSection)) !== null) {
-    const text = match[1].trim();
+    const text = match[1]!.trim();
 
     // Check for AC reference in text (e.g., "(AC-1)")
     const acRef = text.match(/\(AC-(\d+)\)/i);
@@ -219,7 +225,7 @@ function parseProceduralSteps(body: string): ProceduralStep[] {
     steps.push({
       number: stepNumber++,
       text: text.replace(/\s*\(AC-\d+\)\s*/gi, '').trim(),
-      linkedAC: acRef ? `AC-${acRef[1]}` : undefined,
+      linkedAC: acRef ? `AC-${acRef[1]!}` : undefined,
     });
   }
 
@@ -227,13 +233,13 @@ function parseProceduralSteps(body: string): ProceduralStep[] {
   if (steps.length === 0) {
     const bulletPattern = /^[-*]\s+(.+)$/gm;
     while ((match = bulletPattern.exec(psSection)) !== null) {
-      const text = match[1].trim();
+      const text = match[1]!.trim();
       const acRef = text.match(/\(AC-(\d+)\)/i);
 
       steps.push({
         number: stepNumber++,
         text: text.replace(/\s*\(AC-\d+\)\s*/gi, '').trim(),
-        linkedAC: acRef ? `AC-${acRef[1]}` : undefined,
+        linkedAC: acRef ? `AC-${acRef[1]!}` : undefined,
       });
     }
   }
@@ -255,13 +261,13 @@ function parseDataNotes(body: string): string[] {
     return notes;
   }
 
-  const dataSection = dataMatch[3];
+  const dataSection = dataMatch[3]!;
 
   // Extract bullet points
   const bulletPattern = /^[-*]\s+(.+)$/gm;
   let match;
   while ((match = bulletPattern.exec(dataSection)) !== null) {
-    notes.push(match[1].trim());
+    notes.push(match[1]!.trim());
   }
 
   return notes;
@@ -285,8 +291,8 @@ export function parseStructuredSteps(content: string): StructuredStep[] {
     if (!headerMatch) continue;
 
     const step: StructuredStep = {
-      stepNumber: parseInt(headerMatch[1], 10),
-      stepName: headerMatch[2].trim(),
+      stepNumber: parseInt(headerMatch[1]!, 10),
+      stepName: headerMatch[2]!.trim(),
       actions: [],
     };
 
@@ -299,12 +305,12 @@ export function parseStructuredSteps(content: string): StructuredStep[] {
       const [, type, text] = bulletMatch;
 
       // Determine action type
-      const actionType = type.toLowerCase() === 'action' ? 'action'
-        : type.toLowerCase() === 'wait for' ? 'wait'
+      const actionType = type!.toLowerCase() === 'action' ? 'action'
+        : type!.toLowerCase() === 'wait for' ? 'wait'
         : 'assert';
 
       // Try to parse the text using pattern matching
-      const primitive = matchPattern(text.trim());
+      const primitive = matchPattern(text!.trim());
 
       if (primitive) {
         // Extract meaningful info from the primitive
@@ -366,7 +372,7 @@ export function parseStructuredSteps(content: string): StructuredStep[] {
             break;
           default:
             // Fallback for unknown primitive types
-            action = text.trim();
+            action = text!.trim();
             target = '';
         }
 
@@ -380,7 +386,7 @@ export function parseStructuredSteps(content: string): StructuredStep[] {
         // If pattern matching fails, store the raw text
         step.actions.push({
           type: actionType,
-          action: text.trim(),
+          action: text!.trim(),
           target: '',
           value: undefined,
         });
@@ -534,4 +540,91 @@ export function parseJourneyContent(
     dataNotes,
     sourcePath: virtualPath,
   };
+}
+
+/**
+ * Parse journey from string content with Result type (no exceptions)
+ *
+ * This is the recommended way to parse journey content as it returns
+ * structured errors via Result type instead of throwing exceptions.
+ *
+ * @param content - Raw markdown content to parse
+ * @param virtualPath - Virtual path for error reporting (default: 'virtual.journey.md')
+ * @returns Result with ParsedJourney on success or CodedError on failure
+ *
+ * @example
+ * ```typescript
+ * const result = tryParseJourneyContent(markdownContent);
+ * if (result.success) {
+ *   console.log('Parsed:', result.value.frontmatter.id);
+ * } else {
+ *   console.error(`[${result.error.code}] ${result.error.message}`);
+ * }
+ * ```
+ */
+export function tryParseJourneyContent(
+  content: string,
+  virtualPath = 'virtual.journey.md'
+): Result<ParsedJourney, CodedError> {
+  // Extract frontmatter and body
+  const frontmatterMatch = FRONTMATTER_REGEX.exec(content);
+  if (!frontmatterMatch) {
+    return err(new CodedError(
+      'FRONTMATTER_NOT_FOUND',
+      'No YAML frontmatter found (content should start with ---)',
+      { path: virtualPath }
+    ));
+  }
+
+  const frontmatterStr = frontmatterMatch[1]!;
+  const body = content.slice(frontmatterMatch[0]!.length).trim();
+
+  // Parse YAML frontmatter
+  let rawFrontmatter: unknown;
+  try {
+    rawFrontmatter = parseYaml(frontmatterStr);
+  } catch (yamlError) {
+    return err(new CodedError(
+      'YAML_PARSE_ERROR',
+      'Invalid YAML in journey frontmatter',
+      {
+        path: virtualPath,
+        cause: yamlError instanceof Error ? yamlError.message : String(yamlError)
+      }
+    ));
+  }
+
+  // Validate frontmatter with Zod
+  const zodResult = JourneyFrontmatterSchema.safeParse(rawFrontmatter);
+  if (!zodResult.success) {
+    const issues = zodResult.error.issues
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join('; ');
+    return err(new CodedError(
+      'FRONTMATTER_VALIDATION_ERROR',
+      `Invalid journey frontmatter: ${issues}`,
+      {
+        path: virtualPath,
+        issues: zodResult.error.issues.map((i) => ({
+          path: i.path.join('.'),
+          message: i.message,
+          code: i.code,
+        }))
+      }
+    ));
+  }
+
+  // Parse body sections
+  const acceptanceCriteria = parseAcceptanceCriteria(body);
+  const proceduralSteps = parseProceduralSteps(body);
+  const dataNotes = parseDataNotes(body);
+
+  return ok({
+    frontmatter: zodResult.data,
+    body,
+    acceptanceCriteria,
+    proceduralSteps,
+    dataNotes,
+    sourcePath: virtualPath,
+  });
 }

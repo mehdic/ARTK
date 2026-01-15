@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import type { IRJourney, IRPrimitive, LocatorSpec } from '../ir/types.js';
 import { toPlaywrightLocator } from '../selectors/priority.js';
+import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
 
 // Get current directory for template path
 const __filename = fileURLToPath(import.meta.url);
@@ -139,7 +140,7 @@ function generateLocatorName(spec: LocatorSpec, existingNames: Set<string>): str
     case 'css':
       // Extract meaningful name from CSS selector
       const match = spec.value.match(/[#.]?([a-zA-Z][a-zA-Z0-9_-]*)/);
-      baseName = match ? toCamelCase(match[1]) : 'element';
+      baseName = match ? toCamelCase(match[1]!) : 'element';
       break;
     default:
       baseName = 'element';
@@ -276,7 +277,7 @@ function generateMethods(journey: IRJourney, locators: ModuleLocator[]): ModuleM
  */
 function primitiveToMethodLine(
   primitive: IRPrimitive,
-  getLocatorRef: (spec: LocatorSpec) => string
+  getLocatorRef: (_spec: LocatorSpec) => string
 ): string | null {
   switch (primitive.type) {
     // Navigation
@@ -408,9 +409,11 @@ export function generateModule(
     methods,
   };
 
-  // Render template
+  // Render template with version branding
   const code = ejs.render(template, {
     ...moduleDef,
+    version: getPackageVersion(),
+    timestamp: getGeneratedTimestamp(),
   });
 
   // Generate filename

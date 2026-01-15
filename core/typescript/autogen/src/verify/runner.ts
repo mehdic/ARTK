@@ -385,7 +385,7 @@ export function getTestCount(testFile: string, cwd?: string): number {
 
     // Parse "Listing X tests" output
     const match = result.match(/Listing (\d+) tests?/);
-    return match ? parseInt(match[1], 10) : 0;
+    return match ? parseInt(match[1]!, 10) : 0;
   } catch {
     return 0;
   }

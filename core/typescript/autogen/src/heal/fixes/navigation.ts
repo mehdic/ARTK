@@ -57,19 +57,19 @@ export function extractUrlFromError(errorMessage: string): string | null {
   // Pattern: Expected URL to match '/pattern/'
   const matchPattern = errorMessage.match(/Expected\s+URL\s+to\s+match\s+['"]([^'"]+)['"]/i);
   if (matchPattern) {
-    return matchPattern[1];
+    return matchPattern[1] ?? null;
   }
 
   // Pattern: expected "url" to match
   const matchUrl = errorMessage.match(/expected\s+['"]([^'"]+)['"]\s+to\s+match/i);
   if (matchUrl) {
-    return matchUrl[1];
+    return matchUrl[1] ?? null;
   }
 
   // Pattern: waiting for URL pattern
   const waitingPattern = errorMessage.match(/waiting\s+for\s+URL\s+['"]([^'"]+)['"]/i);
   if (waitingPattern) {
-    return waitingPattern[1];
+    return waitingPattern[1] ?? null;
   }
 
   return null;
@@ -80,7 +80,7 @@ export function extractUrlFromError(errorMessage: string): string | null {
  */
 export function extractUrlFromGoto(code: string): string | null {
   const match = code.match(/page\.goto\s*\(\s*['"`]([^'"`]+)['"`]/);
-  return match ? match[1] : null;
+  return match ? (match[1] ?? null) : null;
 }
 
 /**
@@ -162,7 +162,7 @@ export function insertNavigationWait(
   }
 
   // Get the line where action occurs
-  const actionLine = lines[lineNumber - 1];
+  const actionLine = lines[lineNumber - 1]!;
   const indentation = actionLine.match(/^(\s*)/)?.[1] || '';
 
   // Insert toHaveURL assertion after the action
@@ -220,7 +220,7 @@ function applyLoadStateWait(code: string, lineNumber: number): NavigationFixResu
   }
 
   // Get the line where action occurs
-  const actionLine = lines[lineNumber - 1];
+  const actionLine = lines[lineNumber - 1]!;
   const indentation = actionLine.match(/^(\s*)/)?.[1] || '';
 
   // Insert waitForLoadState after the action
