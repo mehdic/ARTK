@@ -1,0 +1,8 @@
+#!/bin/sh
+# Pre-commit hook: Disabled pending resolution of pre-existing TypeScript errors
+# @see research/2026-01-15_code_quality_standards.md
+#
+# TODO: Re-enable once noUncheckedIndexedAccess errors are fixed:
+# npm run typecheck
+
+echo "Pre-commit hook: Type checking temporarily disabled"

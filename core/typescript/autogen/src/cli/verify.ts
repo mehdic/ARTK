@@ -5,29 +5,7 @@
 import { parseArgs } from 'node:util';
 import fg from 'fast-glob';
 import { verifyJourneys, type VerifyJourneyResult } from '../index.js';
-
-/**
- * Parse integer with validation
- * @param value - String value to parse
- * @param name - Option name for error messages
- * @param defaultValue - Default value if parsing fails
- * @returns Parsed integer
- */
-function parseIntSafe(value: string | undefined, name: string, defaultValue: number): number {
-  if (value === undefined) {
-    return defaultValue;
-  }
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed)) {
-    console.warn(`Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`);
-    return defaultValue;
-  }
-  if (parsed < 0) {
-    console.warn(`Warning: Negative value '${value}' for --${name}, using default: ${defaultValue}`);
-    return defaultValue;
-  }
-  return parsed;
-}
+import { parseIntSafe } from '../utils/parsing.js';
 
 const USAGE = `
 Usage: artk-autogen verify [options] <journey-files...>

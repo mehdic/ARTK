@@ -185,7 +185,7 @@ export function extractManagedBlocks(code: string): BlockExtractionResult {
  * // // ARTK:END GENERATED
  * ```
  */
-function wrapInBlock(content: string, id?: string): string {
+export function wrapInBlock(content: string, id?: string): string {
   const startMarker = id
     ? `${BLOCK_START} id=${id}`
     : BLOCK_START;
