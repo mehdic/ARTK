@@ -30,6 +30,7 @@ export * from './codegen/astEdit.js';
 export * from './codegen/registry.js';
 export * from './codegen/blocks.js';
 export * from './utils/escaping.js';
+export * from './utils/version.js';
 export * from './validate/index.js';
 export * from './verify/index.js';
 export * from './heal/index.js';

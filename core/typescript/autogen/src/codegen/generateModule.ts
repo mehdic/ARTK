@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import type { IRJourney, IRPrimitive, LocatorSpec } from '../ir/types.js';
 import { toPlaywrightLocator } from '../selectors/priority.js';
+import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
 
 // Get current directory for template path
 const __filename = fileURLToPath(import.meta.url);
@@ -408,9 +409,11 @@ export function generateModule(
     methods,
   };
 
-  // Render template
+  // Render template with version branding
   const code = ejs.render(template, {
     ...moduleDef,
+    version: getPackageVersion(),
+    timestamp: getGeneratedTimestamp(),
   });
 
   // Generate filename

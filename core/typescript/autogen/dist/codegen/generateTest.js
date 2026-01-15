@@ -10,6 +10,7 @@ import { toPlaywrightLocator } from '../selectors/priority.js';
 import { injectManagedBlocks } from './blocks.js';
 import { updateJourneyFrontmatter } from '../journey/updater.js';
 import { escapeRegex } from '../utils/escaping.js';
+import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
 // Get current directory for template path
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -193,13 +194,15 @@ export function generateTest(journey, options = {}) {
         : loadDefaultTemplate();
     // Collect imports
     const imports = [...collectImports(journey), ...additionalImports];
-    // Render template
+    // Render template with version branding
     let code = ejs.render(template, {
         journey,
         imports,
         renderPrimitive,
         escapeString,
         escapeRegex,
+        version: getPackageVersion(),
+        timestamp: getGeneratedTimestamp(),
     });
     // Apply strategy-specific processing
     if (strategy === 'blocks' && existingCode) {
