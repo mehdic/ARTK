@@ -9,7 +9,7 @@ ARTK Core v1 is a vendorable Playwright infrastructure library that provides con
 
 ## Architecture
 
-This library is organized into 8 core modules:
+This library is organized into 9 core modules:
 
 - **config/** - Config System (YAML loading, validation, environment variable resolution)
 - **auth/** - Auth System (OIDC providers, storage state management, MFA support)
@@ -19,6 +19,7 @@ This library is organized into 8 core modules:
 - **data/** - Data Harness (namespacing, cleanup, test isolation)
 - **reporters/** - Reporters (journey mapping, PII masking, ARTK-specific formats)
 - **harness/** - Playwright Harness (config factory, project setup)
+- **grid/** - AG Grid Helpers (virtualization, enterprise features, custom cell renderers)
 
 ## Requirements
 
@@ -117,6 +118,7 @@ core/typescript/
 ├── assertions/          # Assertions module
 ├── data/                # Data Harness module
 ├── reporters/           # Reporters module
+├── grid/                # AG Grid Helpers module
 ├── types/               # Shared types
 ├── errors/              # Error classes
 ├── utils/               # Utilities
@@ -333,6 +335,9 @@ import { ARTKConfigError, ARTKAuthError } from '@artk/core/errors';
 
 // Utilities
 import { createLogger, withRetry } from '@artk/core/utils';
+
+// AG Grid Helpers
+import { agGrid } from '@artk/core/grid';
 ```
 
 ## Available Fixtures
@@ -399,3 +404,36 @@ For complete documentation, see:
 
 ### Guides
 - [Custom Authentication Providers](docs/custom-auth-providers.md) - Implement custom auth flows (SAML, proprietary systems, etc.)
+- [AG Grid Testing](grid/README.md) - Testing AG Grid components with virtualization, enterprise features, and custom cell renderers
+
+## AG Grid Helper
+
+ARTK Core includes a comprehensive AG Grid testing helper. Use it when your application uses AG Grid for data-heavy tables:
+
+```typescript
+import { agGrid } from '@artk/core/grid';
+
+test('verify order grid', async ({ page }) => {
+  const grid = agGrid(page, 'orders-grid');
+  await grid.waitForReady();
+  await grid.waitForDataLoaded();
+
+  // Assertions
+  await grid.expectRowCount(10);
+  await grid.expectRowContains({ orderId: '12345', status: 'Active' });
+
+  // Actions
+  await grid.sortByColumn('orderDate', 'desc');
+  await grid.filterColumn('status', 'Active');
+
+  // Enterprise features
+  await grid.expandGroup({ ariaRowIndex: 1 });
+  await grid.expandMasterRow({ ariaRowIndex: 1 });
+
+  // Virtualization
+  await grid.scrollToRow({ ariaRowIndex: 500 });
+  const rowData = await grid.getRowData({ ariaRowIndex: 500 });
+});
+```
+
+See [grid/README.md](grid/README.md) for full API documentation.

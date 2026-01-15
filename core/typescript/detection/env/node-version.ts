@@ -86,13 +86,17 @@ export function parseNodeVersion(version: string): ParsedNodeVersion {
     throw new Error(`Invalid Node.js version format: "${version}". Expected semver format (e.g., "18.12.1")`);
   }
 
-  const [, majorStr, minorStr, patchStr] = match;
+  // Match groups are guaranteed to exist if the regex matched
+  const majorStr = match[1] as string;
+  const minorStr = match[2] as string;
+  const patchStr = match[3] as string;
+  const rawVersion = cleanVersion.split('-')[0] as string;
 
   return {
-    major: parseInt(majorStr!, 10),
-    minor: parseInt(minorStr!, 10),
-    patch: parseInt(patchStr!, 10),
-    raw: cleanVersion.split('-')[0]!, // Remove pre-release suffix for raw
+    major: parseInt(majorStr, 10),
+    minor: parseInt(minorStr, 10),
+    patch: parseInt(patchStr, 10),
+    raw: rawVersion, // Remove pre-release suffix for raw
   };
 }
 

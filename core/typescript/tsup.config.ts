@@ -19,7 +19,8 @@ export default defineConfig({
     'install/index.ts',
     'schemas/index.ts',
     'compat/index.ts',
-    'validation/index.ts'
+    'validation/index.ts',
+    'grid/index.ts'
   ],
   format: ['esm'],
   dts: true,

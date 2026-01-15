@@ -308,6 +308,9 @@ done
 # Prompt files
 shopt -s nullglob
 PROMPT_FILES=("$REPO_ROOT/.github/prompts/artk."*.prompt.md)
+COMMON_PROMPT_FILES=(
+  "$REPO_ROOT/.github/prompts/common/EDIT_SAFETY.md"
+)
 INSTRUCTION_FILES=(
   "$REPO_ROOT/.github/instructions/artk.instructions.md"
   "$REPO_ROOT/.github/instructions/artk.instructions.md.backup"
@@ -317,6 +320,10 @@ INSTRUCTION_FILES=(
 shopt -u nullglob
 
 for prompt_file in "${PROMPT_FILES[@]}"; do
+  REMOVE_FILES+=("$prompt_file")
+done
+
+for prompt_file in "${COMMON_PROMPT_FILES[@]}"; do
   REMOVE_FILES+=("$prompt_file")
 done
 

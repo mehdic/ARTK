@@ -111,7 +111,7 @@ function isGlobalReference(
   // Valid identifier chars
   const identifierChar = /[a-zA-Z0-9_$]/;
 
-  if (identifierChar.test(beforeChar) || identifierChar.test(afterChar)) {
+  if (identifierChar.test(beforeChar as string) || identifierChar.test(afterChar as string)) {
     return false;
   }
 

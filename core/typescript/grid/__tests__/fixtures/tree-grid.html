@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AG Grid - Tree Data Grid Test Fixture</title>
+  <style>
+    /* AG Grid styling simulation */
+    .ag-root-wrapper {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      border: 1px solid #babfc7;
+      width: 100%;
+      height: 500px;
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-header {
+      background: #f8f8f8;
+      border-bottom: 1px solid #babfc7;
+      display: flex;
+      min-height: 48px;
+    }
+    .ag-header-row {
+      display: flex;
+      width: 100%;
+    }
+    .ag-header-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #babfc7;
+      font-weight: 600;
+      min-width: 150px;
+    }
+    .ag-header-cell:first-child {
+      min-width: 250px;
+    }
+    .ag-body-viewport {
+      flex: 1;
+      overflow: auto;
+    }
+    .ag-row {
+      display: flex;
+      border-bottom: 1px solid #dde2eb;
+      min-height: 42px;
+    }
+    .ag-row:hover {
+      background: #f5f7f7;
+    }
+    .ag-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #dde2eb;
+      min-width: 150px;
+    }
+    .ag-cell:first-child {
+      min-width: 250px;
+    }
+    /* Tree indentation */
+    .ag-row[tree-level="0"] .ag-cell:first-child { padding-left: 12px; }
+    .ag-row[tree-level="1"] .ag-cell:first-child { padding-left: 36px; }
+    .ag-row[tree-level="2"] .ag-cell:first-child { padding-left: 60px; }
+    .ag-row[tree-level="3"] .ag-cell:first-child { padding-left: 84px; }
+
+    /* Tree expand/collapse icons */
+    .ag-group-contracted,
+    .ag-group-expanded {
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 8px;
+      border: 1px solid #babfc7;
+      border-radius: 2px;
+      background: white;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .ag-group-contracted:hover,
+    .ag-group-expanded:hover {
+      background: #e8f4f8;
+    }
+    .ag-group-contracted::before {
+      content: '▶';
+      font-size: 8px;
+    }
+    .ag-group-expanded::before {
+      content: '▼';
+      font-size: 8px;
+    }
+    /* Folder and file icons */
+    .tree-icon {
+      margin-right: 6px;
+      font-size: 16px;
+    }
+    .tree-icon.folder::before {
+      content: '📁';
+    }
+    .tree-icon.file::before {
+      content: '📄';
+    }
+    /* Hidden rows (collapsed) */
+    .ag-row.ag-hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tree Data Grid Test Fixture</h1>
+
+  <div id="tree-grid" class="ag-root-wrapper" data-testid="tree-grid">
+    <div class="ag-header">
+      <div class="ag-header-row" role="row">
+        <div class="ag-header-cell" col-id="name" role="columnheader">
+          <span>Name</span>
+        </div>
+        <div class="ag-header-cell" col-id="type" role="columnheader">
+          <span>Type</span>
+        </div>
+        <div class="ag-header-cell" col-id="size" role="columnheader">
+          <span>Size</span>
+        </div>
+        <div class="ag-header-cell" col-id="modified" role="columnheader">
+          <span>Modified</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ag-body-viewport">
+      <div class="ag-center-cols-container">
+        <!-- Root: src folder -->
+        <div class="ag-row" role="row" row-index="0" aria-rowindex="1" aria-expanded="true" tree-level="0" data-node-id="src">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="ag-group-expanded" data-node="src"></span>
+            <span class="tree-icon folder"></span>
+            src
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">Folder</div>
+          <div class="ag-cell" col-id="size" role="gridcell">--</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-15</div>
+        </div>
+
+        <!-- src/components folder -->
+        <div class="ag-row" role="row" row-index="1" aria-rowindex="2" aria-expanded="true" tree-level="1" data-node-id="components" data-parent="src">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="ag-group-expanded" data-node="components"></span>
+            <span class="tree-icon folder"></span>
+            components
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">Folder</div>
+          <div class="ag-cell" col-id="size" role="gridcell">--</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-15</div>
+        </div>
+
+        <!-- src/components/Button.tsx -->
+        <div class="ag-row" role="row" row-index="2" aria-rowindex="3" tree-level="2" data-parent="components">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            Button.tsx
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">2.4 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-14</div>
+        </div>
+
+        <!-- src/components/Input.tsx -->
+        <div class="ag-row" role="row" row-index="3" aria-rowindex="4" tree-level="2" data-parent="components">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            Input.tsx
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">1.8 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-13</div>
+        </div>
+
+        <!-- src/components/Modal.tsx -->
+        <div class="ag-row" role="row" row-index="4" aria-rowindex="5" tree-level="2" data-parent="components">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            Modal.tsx
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">3.2 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-12</div>
+        </div>
+
+        <!-- src/utils folder -->
+        <div class="ag-row" role="row" row-index="5" aria-rowindex="6" aria-expanded="false" tree-level="1" data-node-id="utils" data-parent="src">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="ag-group-contracted" data-node="utils"></span>
+            <span class="tree-icon folder"></span>
+            utils
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">Folder</div>
+          <div class="ag-cell" col-id="size" role="gridcell">--</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-10</div>
+        </div>
+
+        <!-- src/utils/helpers.ts (hidden - collapsed) -->
+        <div class="ag-row ag-hidden" role="row" row-index="6" aria-rowindex="7" tree-level="2" data-parent="utils">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            helpers.ts
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">1.2 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-08</div>
+        </div>
+
+        <!-- src/utils/validators.ts (hidden - collapsed) -->
+        <div class="ag-row ag-hidden" role="row" row-index="7" aria-rowindex="8" tree-level="2" data-parent="utils">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            validators.ts
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">0.8 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-05</div>
+        </div>
+
+        <!-- src/index.ts -->
+        <div class="ag-row" role="row" row-index="8" aria-rowindex="9" tree-level="1" data-parent="src">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            index.ts
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">0.5 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-15</div>
+        </div>
+
+        <!-- Root: tests folder -->
+        <div class="ag-row" role="row" row-index="9" aria-rowindex="10" aria-expanded="false" tree-level="0" data-node-id="tests">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="ag-group-contracted" data-node="tests"></span>
+            <span class="tree-icon folder"></span>
+            tests
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">Folder</div>
+          <div class="ag-cell" col-id="size" role="gridcell">--</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-14</div>
+        </div>
+
+        <!-- tests/Button.test.ts (hidden - collapsed) -->
+        <div class="ag-row ag-hidden" role="row" row-index="10" aria-rowindex="11" tree-level="1" data-parent="tests">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            Button.test.ts
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">1.5 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-14</div>
+        </div>
+
+        <!-- tests/Input.test.ts (hidden - collapsed) -->
+        <div class="ag-row ag-hidden" role="row" row-index="11" aria-rowindex="12" tree-level="1" data-parent="tests">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            Input.test.ts
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">TypeScript</div>
+          <div class="ag-cell" col-id="size" role="gridcell">1.1 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-13</div>
+        </div>
+
+        <!-- Root: package.json -->
+        <div class="ag-row" role="row" row-index="12" aria-rowindex="13" tree-level="0">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            package.json
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">JSON</div>
+          <div class="ag-cell" col-id="size" role="gridcell">1.2 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-15</div>
+        </div>
+
+        <!-- Root: tsconfig.json -->
+        <div class="ag-row" role="row" row-index="13" aria-rowindex="14" tree-level="0">
+          <div class="ag-cell" col-id="name" role="gridcell">
+            <span class="tree-icon file"></span>
+            tsconfig.json
+          </div>
+          <div class="ag-cell" col-id="type" role="gridcell">JSON</div>
+          <div class="ag-cell" col-id="size" role="gridcell">0.6 KB</div>
+          <div class="ag-cell" col-id="modified" role="gridcell">2024-01-10</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Handle tree expand/collapse
+    document.querySelectorAll('.ag-group-contracted, .ag-group-expanded').forEach(icon => {
+      icon.addEventListener('click', function() {
+        const nodeId = this.dataset.node;
+        const row = this.closest('.ag-row');
+        const isExpanded = row.getAttribute('aria-expanded') === 'true';
+
+        // Toggle expand state
+        row.setAttribute('aria-expanded', (!isExpanded).toString());
+
+        // Toggle icon class
+        if (isExpanded) {
+          this.classList.remove('ag-group-expanded');
+          this.classList.add('ag-group-contracted');
+        } else {
+          this.classList.remove('ag-group-contracted');
+          this.classList.add('ag-group-expanded');
+        }
+
+        // Show/hide child rows
+        const childRows = document.querySelectorAll(`[data-parent="${nodeId}"]`);
+        childRows.forEach(childRow => {
+          if (isExpanded) {
+            childRow.classList.add('ag-hidden');
+            // Also hide grandchildren
+            const childNodeId = childRow.dataset.nodeId;
+            if (childNodeId) {
+              document.querySelectorAll(`[data-parent="${childNodeId}"]`).forEach(grandchildRow => {
+                grandchildRow.classList.add('ag-hidden');
+              });
+            }
+          } else {
+            childRow.classList.remove('ag-hidden');
+            // If child is expanded, show its children too
+            const childNodeId = childRow.dataset.nodeId;
+            if (childNodeId && childRow.getAttribute('aria-expanded') === 'true') {
+              document.querySelectorAll(`[data-parent="${childNodeId}"]`).forEach(grandchildRow => {
+                grandchildRow.classList.remove('ag-hidden');
+              });
+            }
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

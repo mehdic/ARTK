@@ -55,6 +55,7 @@ By combining these, discovery findings directly inform foundation build decision
 6. **Do not break existing test tooling.** If Playwright already exists, integrate carefully.
 7. **No hardcoded URLs.** Base URL and env must come from the config loader.
 8. **Local-first defaults.** Retries should be low locally; CI can raise them later.
+9. **Edit safety.** MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
 
 ---
 
@@ -137,6 +138,11 @@ Load context from `.artk/context.json`:
 - `targets[]` - detected frontend targets from /init-playbook
 - `detectedTargets[]` - targets with confidence scores
 - `project.name` - project identifier
+- `uiLibraries[]` - detected UI component libraries (AG Grid, etc.)
+- `uiLibraries[].name` - library name (e.g., "ag-grid")
+- `uiLibraries[].packages` - detected package names
+- `uiLibraries[].hasEnterprise` - whether enterprise features are available
+- `uiLibraries[].artkModule` - recommended ARTK module (e.g., "@artk/core/grid")
 
 If context has `interactive_fallback_needed: true`:
 - Prompt user to confirm/correct detected targets before proceeding
@@ -186,6 +192,23 @@ Also detect API patterns:
 - OpenAPI/Swagger files (`openapi.*`, `swagger.*`)
 - GraphQL schemas (`schema.graphql`, `.gql`)
 - REST clients (`axios`, `fetch`, `ky`, `graphql-request`)
+
+## Step D2.5 — Detect UI component libraries
+
+Detect UI component libraries that require specialized testing helpers:
+
+**AG Grid** (data grid):
+- Dependencies: `ag-grid-community`, `ag-grid-enterprise`, `ag-grid-react`, `ag-grid-vue`, `ag-grid-vue3`, `ag-grid-angular`, `@ag-grid-community/core`, `@ag-grid-enterprise/core`
+- If detected: Flag for `@artk/core/grid` usage in test implementation
+- Enterprise features: If `ag-grid-enterprise` or `@ag-grid-enterprise/core` detected, note that grouping/tree/master-detail helpers are available
+
+**Other data grids** (future):
+- DevExtreme, Handsontable, TanStack Table, etc.
+
+Output:
+- List of detected UI libraries with versions
+- Recommended ARTK modules for testing
+- Special testing considerations (virtualization, enterprise features)
 
 ## Step D3 — Build route/page inventory (static scan)
 
@@ -246,6 +269,7 @@ Do NOT request credentials.
 - accessible roles/names (labels, headings, button names)
 - presence and consistency of `data-testid` / `data-test` / `data-qa` attributes
 - patterns that will be brittle (CSS class selectors, deep DOM)
+- **AG Grid/Data grids**: Note virtualization (only visible rows in DOM), recommend `@artk/core/grid` for ARIA-based targeting (`aria-rowindex`, `col-id`)
 
 ### B) Data feasibility
 - seeded data scripts
@@ -966,3 +990,4 @@ Next steps:
 ### Next Commands
 - `/artk.testid-audit` (strongly recommended before generating tests)
 - `/journey-propose` (auto-identify high-signal Journeys)
+- `/journey-define` (optional, create a specific Journey file)

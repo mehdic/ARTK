@@ -42,6 +42,7 @@ This command must:
 2) Produce a **human-readable Fix Report** (table) + a **machine plan** (JSON/YAML).
 3) Make **no code changes** unless the user explicitly approves.
 4) If approved, apply **only safe, additive changes** (add attributes / forward props), then regenerate the report.
+5) Recommend only **agent-executable** next steps (no external team plans).
 
 ---
 
@@ -214,6 +215,10 @@ For dynamic lists:
 In chat, present:
 - a short summary
 - the top 10 P0/P1 items
+- a **Must / Could / Avoid** recommendation block:
+  - **Must do (recommended now)**: low-risk, additive changes with clear value
+  - **Could do (optional)**: medium-risk items that may require review
+  - **Avoid for now (high risk)**: items that could break behavior or are unclear
 - and ask the user to choose one:
 
 **A)** Apply only LOW-risk items (recommended)
@@ -221,6 +226,10 @@ In chat, present:
 **C)** Apply nothing (report only)
 
 Do not proceed without an explicit answer.
+
+After presenting choices, also ask:
+**"Do you want me to apply the plan now, or skip implementation and move to the next ARTK prompt (`/journey-propose` or `/journey-define`)?"**
+Do NOT suggest `/artk.journey-generate`, `/artk.smoke-test`, or internal repo test commands.
 
 ---
 
@@ -231,6 +240,8 @@ Do not proceed without an explicit answer.
   - add `data-testid="..."` or `data-cy="..."`
   - optionally add `aria-label="..."` if that is the preferred fix
 - Never change component behavior, event handlers, or layouts.
+- **Default guardrail**: only modify native DOM nodes. Do NOT add or change component props (no prop-forwarding edits). If a custom component is required, mark as **manual** unless the user explicitly approves a broader change scope.
+- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before making any file edits.
 
 ### How to apply across stacks (adaptive)
 Choose the correct strategy based on detected stack:
@@ -271,9 +282,12 @@ After changes:
 2) Update:
    - `docs/TESTID_FIX_REPORT.md` (mark applied rows as done)
    - `docs/TESTABILITY.md` (remove selector debt items if resolved, or add remaining debt)
-3) Provide a recommended local verification command list (do not assume package manager):
+3) Run local validation (compiler/lint) and capture any errors immediately after edits.
+4) Trigger a frontend build and ensure it completes without errors.
+5) Provide a recommended local verification command list (do not assume package manager):
    - `npm|pnpm|yarn lint`
    - `npm|pnpm|yarn test`
+   - `npm|pnpm|yarn build`
    - `npx playwright test --grep @JRN-####` (if journey scope)
    - `npx playwright test --list` (sanity)
 

@@ -629,6 +629,13 @@ for file in "$ARTK_PROMPTS"/artk.*.md; do
     fi
 done
 
+COMMON_PROMPTS_SOURCE="$ARTK_PROMPTS/common"
+COMMON_PROMPTS_TARGET="$PROMPTS_TARGET/common"
+if [ -d "$COMMON_PROMPTS_SOURCE" ]; then
+    mkdir -p "$COMMON_PROMPTS_TARGET"
+    cp "$COMMON_PROMPTS_SOURCE"/EDIT_SAFETY.md "$COMMON_PROMPTS_TARGET/" 2>/dev/null || true
+fi
+
 write_artk_config() {
     local project_name="$1"
     local channel="${2:-bundled}"
