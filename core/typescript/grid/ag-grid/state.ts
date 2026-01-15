@@ -7,9 +7,9 @@
  */
 
 import type { Locator } from '@playwright/test';
-import type { AgGridState, SortModel, NormalizedAgGridConfig } from '../types.js';
+import type { AgGridState, NormalizedAgGridConfig, SortModel } from '../types.js';
 import { AG_GRID_SELECTORS, getSortDirection } from './selectors.js';
-import { countVisibleRows, countSelectedRows } from './row-data.js';
+import { countSelectedRows, countVisibleRows } from './row-data.js';
 
 /**
  * Extract the current state of the grid
@@ -20,7 +20,7 @@ import { countVisibleRows, countSelectedRows } from './row-data.js';
  */
 export async function getGridState(
   gridLocator: Locator,
-  config: NormalizedAgGridConfig
+  _config: NormalizedAgGridConfig
 ): Promise<AgGridState> {
   const [visibleRows, selectedRows, sortedBy, isLoading, totalRows] = await Promise.all([
     countVisibleRows(gridLocator),
@@ -134,8 +134,9 @@ export async function getTotalRowCount(gridLocator: Locator): Promise<number> {
     if (paginationText) {
       // Try to extract "of X" pattern
       const match = paginationText.match(/of\s*(\d+)/i);
-      if (match) {
-        return parseInt(match[1], 10);
+      const matchedValue = match?.[1];
+      if (matchedValue) {
+        return parseInt(matchedValue, 10);
       }
     }
   }
@@ -148,8 +149,9 @@ export async function getTotalRowCount(gridLocator: Locator): Promise<number> {
     const statusText = await statusBar.textContent();
     if (statusText) {
       const match = statusText.match(/(\d+)\s*(rows?|records?|items?)/i);
-      if (match) {
-        return parseInt(match[1], 10);
+      const matchedValue = match?.[1];
+      if (matchedValue) {
+        return parseInt(matchedValue, 10);
       }
     }
   }

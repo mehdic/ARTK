@@ -6,14 +6,13 @@
  * @module grid/ag-grid/actions
  */
 
-import type { Locator } from '@playwright/test';
-import type { NormalizedAgGridConfig, RowMatcher } from '../types.js';
+import type { RowMatcher } from '../types.js';
 import { AG_GRID_SELECTORS, getSortDirection } from './selectors.js';
 import {
-  getRow,
   getCell,
-  getHeaderCell,
   getFilterInput,
+  getHeaderCell,
+  getRow,
   type GridLocatorContext,
 } from './locators.js';
 import { waitForCellEditing } from './wait.js';

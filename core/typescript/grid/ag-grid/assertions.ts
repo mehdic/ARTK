@@ -6,25 +6,23 @@
  * @module grid/ag-grid/assertions
  */
 
-import { expect } from '@playwright/test';
-import type { Locator } from '@playwright/test';
+import { expect, type Locator } from '@playwright/test';
 import type {
-  NormalizedAgGridConfig,
-  RowMatcher,
   AssertionOptions,
+  NormalizedAgGridConfig,
   RowCountOptions,
+  RowMatcher,
 } from '../types.js';
-import { AG_GRID_SELECTORS } from './selectors.js';
+import { AG_GRID_SELECTORS, isRowSelected } from './selectors.js';
 import { getColumnDisplayName } from './config.js';
 import {
-  findRowByMatcher,
-  findClosestMatch,
-  matchesCellValues,
-  getAllVisibleRowData,
   countVisibleRows,
+  findClosestMatch,
+  findRowByMatcher,
+  getAllVisibleRowData,
+  matchesCellValues,
 } from './row-data.js';
 import { getSortState, isNoRowsOverlayVisible } from './state.js';
-import { isRowSelected } from './selectors.js';
 
 /**
  * Assert that the grid has the expected row count
@@ -108,7 +106,7 @@ export async function expectRowContains(
     errorMessage += `   Mismatched fields:\n`;
     for (const mismatch of closestMatch.mismatches) {
       const displayName = getColumnDisplayName(config, mismatch.field);
-      errorMessage += `     - ${displayName}: expected "${mismatch.expected}", got "${mismatch.actual}"\n`;
+      errorMessage += `     - ${displayName}: expected "${String(mismatch.expected)}", got "${String(mismatch.actual)}"\n`;
     }
   } else {
     errorMessage += `   No similar rows found\n`;
@@ -185,7 +183,8 @@ export async function expectCellValue(
   config: NormalizedAgGridConfig,
   options?: AssertionOptions
 ): Promise<void> {
-  const timeout = options?.timeout ?? 5000;
+  const _timeout = options?.timeout ?? 5000;
+  void _timeout; // Reserved for future retry logic
   const exact = options?.exact ?? false;
 
   const match = await findRowByMatcher(gridLocator, rowMatcher, config);
@@ -203,7 +202,7 @@ export async function expectCellValue(
     // Exact match
     if (actualValue !== expectedValue) {
       throw new Error(
-        `Grid "${config.selector}": Cell "${displayName}" has value "${actualValue}", expected exactly "${expectedValue}"`
+        `Grid "${config.selector}": Cell "${displayName}" has value "${String(actualValue)}", expected exactly "${String(expectedValue)}"`
       );
     }
   } else {
@@ -213,7 +212,7 @@ export async function expectCellValue(
 
     if (normalizedExpected !== normalizedActual) {
       throw new Error(
-        `Grid "${config.selector}": Cell "${displayName}" has value "${actualValue}", expected "${expectedValue}"`
+        `Grid "${config.selector}": Cell "${displayName}" has value "${String(actualValue)}", expected "${String(expectedValue)}"`
       );
     }
   }
@@ -233,7 +232,7 @@ export async function expectSortedBy(
   colId: string,
   direction: 'asc' | 'desc',
   config: NormalizedAgGridConfig,
-  options?: AssertionOptions
+  _options?: AssertionOptions
 ): Promise<void> {
   const sortState = await getSortState(gridLocator);
   const columnSort = sortState.find((s) => s.colId === colId);
@@ -262,7 +261,7 @@ export async function expectSortedBy(
  */
 export async function expectEmpty(
   gridLocator: Locator,
-  config: NormalizedAgGridConfig,
+  _config: NormalizedAgGridConfig,
   options?: AssertionOptions
 ): Promise<void> {
   const timeout = options?.timeout ?? 5000;
@@ -281,7 +280,7 @@ export async function expectEmpty(
 export async function expectNoRowsOverlay(
   gridLocator: Locator,
   config: NormalizedAgGridConfig,
-  options?: AssertionOptions
+  _options?: AssertionOptions
 ): Promise<void> {
   const isVisible = await isNoRowsOverlayVisible(gridLocator);
 
@@ -305,7 +304,7 @@ export async function expectRowSelected(
   gridLocator: Locator,
   matcher: RowMatcher,
   config: NormalizedAgGridConfig,
-  options?: AssertionOptions
+  _options?: AssertionOptions
 ): Promise<void> {
   const match = await findRowByMatcher(gridLocator, matcher, config);
 
@@ -338,7 +337,7 @@ function formatCellValues(
   const parts: string[] = [];
   for (const [colId, value] of Object.entries(values)) {
     const displayName = getColumnDisplayName(config, colId);
-    parts.push(`${displayName}: "${value}"`);
+    parts.push(`${displayName}: "${String(value)}"`);
   }
   return `{ ${parts.join(', ')} }`;
 }

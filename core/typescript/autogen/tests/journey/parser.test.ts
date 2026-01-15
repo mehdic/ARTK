@@ -8,8 +8,10 @@ import {
   parseJourney,
   parseJourneyContent,
   parseJourneyForAutoGen,
+  tryParseJourneyContent,
   JourneyParseError,
 } from '../../src/journey/parseJourney.js';
+import { CodedError } from '../../src/utils/result.js';
 
 describe('Journey Parser', () => {
   const testDir = join(process.cwd(), 'test-fixtures', 'journey-test');
@@ -566,6 +568,135 @@ ${section}
 
         const result = parseJourneyContent(content);
         expect(result.dataNotes.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  describe('tryParseJourneyContent (Result type)', () => {
+    const validContent = `---
+id: JRN-0001
+title: User Login Journey
+status: clarified
+tier: smoke
+scope: auth
+actor: standard-user
+completion:
+  - type: url
+    value: /dashboard
+---
+
+# User Login Journey
+
+## Acceptance Criteria
+
+### AC-1: Navigate to Login
+- User opens the application
+`;
+
+    it('returns success Result for valid journey content', () => {
+      const result = tryParseJourneyContent(validContent);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.frontmatter.id).toBe('JRN-0001');
+        expect(result.value.frontmatter.title).toBe('User Login Journey');
+        expect(result.value.frontmatter.status).toBe('clarified');
+        expect(result.value.sourcePath).toBe('virtual.journey.md');
+      }
+    });
+
+    it('returns success with custom virtual path', () => {
+      const result = tryParseJourneyContent(validContent, 'custom/path.md');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.sourcePath).toBe('custom/path.md');
+      }
+    });
+
+    it('returns error Result for missing frontmatter', () => {
+      const content = '# Just a heading\n\nNo frontmatter here.';
+
+      const result = tryParseJourneyContent(content);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(CodedError);
+        expect(result.error.code).toBe('FRONTMATTER_NOT_FOUND');
+        expect(result.error.message).toContain('No YAML frontmatter found');
+      }
+    });
+
+    it('returns error Result for invalid YAML', () => {
+      const content = '---\nid: JRN-0001\n  bad: indent\n---\n';
+
+      const result = tryParseJourneyContent(content);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(CodedError);
+        expect(result.error.code).toBe('YAML_PARSE_ERROR');
+        expect(result.error.message).toContain('Invalid YAML');
+      }
+    });
+
+    it('returns error Result for invalid frontmatter schema', () => {
+      const content = `---
+id: INVALID-ID
+title: Test
+status: clarified
+tier: smoke
+scope: test
+actor: user
+---
+`;
+
+      const result = tryParseJourneyContent(content);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(CodedError);
+        expect(result.error.code).toBe('FRONTMATTER_VALIDATION_ERROR');
+        expect(result.error.message).toContain('Invalid journey frontmatter');
+        expect(result.error.details).toHaveProperty('issues');
+      }
+    });
+
+    it('includes path in error details', () => {
+      const content = '# No frontmatter';
+
+      const result = tryParseJourneyContent(content, 'test/journey.md');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.details).toHaveProperty('path', 'test/journey.md');
+      }
+    });
+
+    it('parses acceptance criteria on success', () => {
+      const result = tryParseJourneyContent(validContent);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.acceptanceCriteria).toHaveLength(1);
+        expect(result.value.acceptanceCriteria[0].id).toBe('AC-1');
+        expect(result.value.acceptanceCriteria[0].title).toBe('Navigate to Login');
+      }
+    });
+
+    it('returns equivalent data to parseJourneyContent for valid input', () => {
+      // Both functions should return the same data structure for valid input
+      const tryResult = tryParseJourneyContent(validContent);
+      const throwResult = parseJourneyContent(validContent);
+
+      expect(tryResult.success).toBe(true);
+      if (tryResult.success) {
+        expect(tryResult.value.frontmatter).toEqual(throwResult.frontmatter);
+        expect(tryResult.value.body).toEqual(throwResult.body);
+        expect(tryResult.value.acceptanceCriteria).toEqual(throwResult.acceptanceCriteria);
+        expect(tryResult.value.proceduralSteps).toEqual(throwResult.proceduralSteps);
+        expect(tryResult.value.dataNotes).toEqual(throwResult.dataNotes);
+        expect(tryResult.value.sourcePath).toEqual(throwResult.sourcePath);
       }
     });
   });
