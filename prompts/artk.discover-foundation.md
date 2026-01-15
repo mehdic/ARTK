@@ -127,7 +127,33 @@ All generated sections MUST include:
 
 ---
 
-## Step D0 — Locate ARTK_ROOT and Load Context
+## Step D0 — Check Application Running Status
+
+**Before proceeding with auth detection, check if the application is running.**
+
+Ask the user:
+```
+Is your application currently running locally?
+(Required for auth flow detection; can be skipped for static-only discovery)
+
+1. Yes - app is running at [baseUrl from config or ask user]
+2. No - skip auth detection (I'll run it later)
+3. Skip auth detection entirely
+```
+
+**If user selects "No" or "Skip":**
+- Set `skipAuthDetection=true` internally
+- Proceed with static discovery only
+- Auth setup tests will be created but marked with TODO for credentials
+- Document in output: "Auth detection skipped - run with app running for full detection"
+
+**If user selects "Yes":**
+- Proceed with full discovery including runtime auth detection
+- Validate baseUrl is accessible before starting
+
+---
+
+## Step D1 — Locate ARTK_ROOT and Load Context
 
 Determine `ARTK_ROOT` in this order:
 1) `artkRoot=` argument
@@ -165,7 +191,7 @@ Classification rules (be conservative):
 - `bypassed-mock-identity`: a user identity is injected locally and RBAC still enforced; roles are switchable via toggle/flag.
 - `unknown`: conflicting or insufficient signals.
 
-## Step D1 — Identify app candidates (monorepo-aware)
+## Step D2 — Identify app candidates (monorepo-aware)
 
 Detect app roots using common patterns:
 - `apps/*`, `packages/*`, `services/*`, `src/*`
@@ -178,7 +204,7 @@ Choose scope:
 - `appScope=<name>`: focus on that app
 - `auto`: if exactly 1 frontend exists, use it; otherwise ask
 
-## Step D2 — Detect framework(s) and routing style
+## Step D3 — Detect framework(s) and routing style
 
 Use file and dependency heuristics:
 - **Next.js**: `next.config.*`, `pages/`, `app/` directories
@@ -193,7 +219,7 @@ Also detect API patterns:
 - GraphQL schemas (`schema.graphql`, `.gql`)
 - REST clients (`axios`, `fetch`, `ky`, `graphql-request`)
 
-## Step D2.5 — Detect UI component libraries
+## Step D3.5 — Detect UI component libraries
 
 Detect UI component libraries that require specialized testing helpers:
 
@@ -210,7 +236,7 @@ Output:
 - Recommended ARTK modules for testing
 - Special testing considerations (virtualization, enterprise features)
 
-## Step D3 — Build route/page inventory (static scan)
+## Step D4 — Build route/page inventory (static scan)
 
 Output should include:
 - route path pattern
@@ -232,7 +258,7 @@ If exact extraction is hard, fall back to:
 - `Link`/`routerLink` usage
 - sitemap-like lists if they exist
 
-## Step D4 — Group routes into feature areas
+## Step D5 — Group routes into feature areas
 
 Group using heuristic layers:
 1) explicit feature/module folders (`src/features/*`, `modules/*`, `domain/*`)
@@ -247,7 +273,7 @@ Produce a feature map:
 - Primary APIs used
 - Auth/role hints
 
-## Step D5 — Identify auth entry points + role/permission hints
+## Step D6 — Identify auth entry points + role/permission hints
 
 Collect:
 - login/logout URLs or components
@@ -263,7 +289,7 @@ Output:
 
 Do NOT request credentials.
 
-## Step D6 — Testability assessment
+## Step D7 — Testability assessment
 
 ### A) Locator readiness
 - accessible roles/names (labels, headings, button names)
@@ -297,7 +323,7 @@ Each finding must include:
 - where it was observed (file path / module)
 - recommended remediation
 
-## Step D7 — Risk ranking model + scoring
+## Step D8 — Risk ranking model + scoring
 
 Create a risk model:
 - Risk = **impact** × **likelihood**
@@ -312,7 +338,7 @@ Produce:
 - Risk rationale for each
 - Suggested test tier: `smoke` vs `release` vs `regression`
 
-## Step D8 — Recommend initial Journeys (shortlist)
+## Step D9 — Recommend initial Journeys (shortlist)
 
 If `generateJourneyShortlist=true`:
 - Propose 5–10 **Smoke Journeys** (auth + global nav + one critical flow)
@@ -332,7 +358,7 @@ If `generateJourneyStubs=true` and Journey system is installed:
 - Create `journeys/` markdown files with `status: proposed`
 - Update backlog/index
 
-## Step D9 — Optional runtime scan
+## Step D10 — Optional runtime scan
 
 If `runtimeScan=true`:
 - Require `baseUrl=`
@@ -348,6 +374,39 @@ If `runtimeScan=true`:
 # ═══════════════════════════════════════════════════════════════════
 # PART 2: FOUNDATION BUILD
 # ═══════════════════════════════════════════════════════════════════
+
+## Code Quality Rules (MANDATORY)
+
+**Follow these rules when generating code to avoid common errors:**
+
+### 1. No Duplicate Functions
+- Each function MUST have exactly ONE definition across all files
+- If a function is needed in multiple files, define it in ONE file and import from there
+- Example: `getStorageStatePath` should be in `storage-state.ts` ONLY, imported by `login.ts`
+
+### 2. ESM Import Paths
+- When using dynamic imports for directories, ALWAYS include `/index`
+- ✅ `await import('../../src/modules/foundation/navigation/index')`
+- ❌ `await import('../../src/modules/foundation/navigation')`
+- This prevents "ERR_MODULE_NOT_FOUND" errors in ESM context
+
+### 3. Template Literal Syntax
+- Use proper backticks for template literals, not string interpolation in regular strings
+- ✅ `` `Hello ${name}` ``
+- ❌ `'Hello ' + name` (acceptable but prefer template literals)
+- ❌ Missing backticks causing syntax errors
+
+### 4. Import Path Consistency
+- Use consistent import patterns throughout all generated files
+- Either use path aliases (`@config/*`) OR relative paths, not mixed
+- If using path aliases, ensure `tsconfig.json` has the alias configured FIRST
+
+### 5. TypeScript Strictness
+- Assume `noUnusedLocals` and `noUnusedParameters` are enabled
+- Import only what you use; never speculatively import
+- Prefix unused parameters with `_` (e.g., `_page`)
+
+---
 
 ## Foundation Outputs
 
@@ -987,7 +1046,46 @@ Next steps:
 - [ ] @artk/core integration verified
 - [ ] Validation summary output
 
+---
+
+## MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+### Data-Testid Warning (if applicable)
+
+**If NO `data-testid` or `data-test` attributes were detected during discovery, display this warning:**
+
+```
+⚠️  WARNING: No data-testid attributes detected in the codebase!
+    This will make tests brittle and hard to maintain.
+
+    STRONGLY RECOMMENDED: Run the testid audit before implementing journeys:
+
+    /artk.testid-audit mode=report
+
+    This will identify critical elements that need test hooks.
+```
+
 ### Next Commands
-- `/artk.testid-audit` (strongly recommended before generating tests)
-- `/journey-propose` (auto-identify high-signal Journeys)
-- `/journey-define` (optional, create a specific Journey file)
+
+**Display the following commands VERBATIM (do not summarize or paraphrase):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Audit testid coverage:                            ║
+║     /artk.testid-audit mode=report                                 ║
+║                                                                     ║
+║  2. (OPTIONAL) Propose journeys from discovery:                     ║
+║     /artk.journey-propose                                          ║
+║                                                                     ║
+║  3. (OPTIONAL) Create a specific journey manually:                  ║
+║     /artk.journey-define id=JRN-0001 title="<your title>"          ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:** Copy the commands box exactly. Do not abbreviate or summarize.

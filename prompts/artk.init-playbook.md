@@ -1416,9 +1416,33 @@ npm install --legacy-peer-deps
 4. **Key guardrails** (locator policy, flake policy, ownership)
 5. **Journey System status** (installed/upgraded/validated)
 6. **Next commands:**
-   - `/artk.discover-foundation` (if not run yet)
-   - `/artk.journey-propose` (if discovery done)
-   - `/artk.journey-define` (to create new journeys)
+
+**Display this VERBATIM in the final output:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT STEPS                                                         ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. START YOUR APPLICATION                                          ║
+║     Before running discovery, start your app locally.               ║
+║     This enables auth flow detection and runtime scanning.          ║
+║                                                                     ║
+║     Example: npm run dev, npm start, etc.                           ║
+║                                                                     ║
+║  2. RUN DISCOVERY + FOUNDATION BUILD                                ║
+║     /artk.discover-foundation                                       ║
+║                                                                     ║
+║  3. (After discovery) PROPOSE JOURNEYS                              ║
+║     /artk.journey-propose                                           ║
+║                                                                     ║
+║  4. (Optional) CREATE JOURNEY MANUALLY                              ║
+║     /artk.journey-define id=JRN-0001 title="<title>"               ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:** Copy this box exactly. Do not summarize.
 
 **END OF WORKFLOW. Do not wait for user input.**
 
