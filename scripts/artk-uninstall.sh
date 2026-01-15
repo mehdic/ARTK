@@ -309,7 +309,7 @@ done
 shopt -s nullglob
 PROMPT_FILES=("$REPO_ROOT/.github/prompts/artk."*.prompt.md)
 COMMON_PROMPT_FILES=(
-  "$REPO_ROOT/.github/prompts/common/EDIT_SAFETY.md"
+  "$REPO_ROOT/.github/prompts/common/GENERAL_RULES.md"
 )
 INSTRUCTION_FILES=(
   "$REPO_ROOT/.github/instructions/artk.instructions.md"

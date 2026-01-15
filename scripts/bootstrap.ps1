@@ -609,9 +609,9 @@ $CommonPromptsSource = Join-Path $ArtkPrompts "common"
 $CommonPromptsTarget = Join-Path $PromptsTarget "common"
 if (Test-Path $CommonPromptsSource) {
     New-Item -ItemType Directory -Force -Path $CommonPromptsTarget | Out-Null
-    $EditSafetyPath = Join-Path $CommonPromptsSource "EDIT_SAFETY.md"
-    if (Test-Path $EditSafetyPath) {
-        Copy-Item $EditSafetyPath -Destination (Join-Path $CommonPromptsTarget "EDIT_SAFETY.md") -Force
+    $GeneralRulesPath = Join-Path $CommonPromptsSource "GENERAL_RULES.md"
+    if (Test-Path $GeneralRulesPath) {
+        Copy-Item $GeneralRulesPath -Destination (Join-Path $CommonPromptsTarget "GENERAL_RULES.md") -Force
     }
 }
 

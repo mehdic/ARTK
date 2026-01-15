@@ -259,7 +259,7 @@ foreach ($file in $promptFiles) {
 }
 
 $commonPromptFiles = @(
-    (Join-Path $RepoRoot ".github\prompts\common\EDIT_SAFETY.md")
+    (Join-Path $RepoRoot ".github\prompts\common\GENERAL_RULES.md")
 )
 foreach ($file in $commonPromptFiles) {
     $RemoveFiles += $file
