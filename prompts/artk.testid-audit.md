@@ -241,6 +241,7 @@ Do NOT suggest `/artk.journey-generate`, `/artk.smoke-test`, or internal repo te
   - optionally add `aria-label="..."` if that is the preferred fix
 - Never change component behavior, event handlers, or layouts.
 - **Default guardrail**: only modify native DOM nodes. Do NOT add or change component props (no prop-forwarding edits). If a custom component is required, mark as **manual** unless the user explicitly approves a broader change scope.
+- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before making any file edits.
 
 ### How to apply across stacks (adaptive)
 Choose the correct strategy based on detected stack:
@@ -281,9 +282,12 @@ After changes:
 2) Update:
    - `docs/TESTID_FIX_REPORT.md` (mark applied rows as done)
    - `docs/TESTABILITY.md` (remove selector debt items if resolved, or add remaining debt)
-3) Provide a recommended local verification command list (do not assume package manager):
+3) Run local validation (compiler/lint) and capture any errors immediately after edits.
+4) Trigger a frontend build and ensure it completes without errors.
+5) Provide a recommended local verification command list (do not assume package manager):
    - `npm|pnpm|yarn lint`
    - `npm|pnpm|yarn test`
+   - `npm|pnpm|yarn build`
    - `npx playwright test --grep @JRN-####` (if journey scope)
    - `npx playwright test --list` (sanity)
 

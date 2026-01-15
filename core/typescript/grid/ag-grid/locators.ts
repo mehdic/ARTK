@@ -11,11 +11,12 @@ import type { NormalizedAgGridConfig, RowMatcher } from '../types.js';
 import {
   AG_GRID_SELECTORS,
   buildCellSelector,
-  buildRowSelector,
   buildHeaderCellSelector,
   buildFilterInputSelector,
+  buildRowSelectorFromMatcher,
   getGridRoot,
 } from './selectors.js';
+import { getColumnPinnedPosition } from './config.js';
 
 /**
  * Locator context for a grid instance
@@ -64,21 +65,14 @@ export function getGrid(ctx: GridLocatorContext): Locator {
 export function getRow(ctx: GridLocatorContext, matcher: RowMatcher): Locator {
   const { gridLocator } = ctx;
 
-  // Priority order: ariaRowIndex > rowId > rowIndex > cellValues
-  if (matcher.ariaRowIndex !== undefined) {
-    return gridLocator.locator(buildRowSelector({ ariaRowIndex: matcher.ariaRowIndex }));
+  // Use shared row matcher logic with consistent priority order
+  const selector = buildRowSelectorFromMatcher(matcher);
+
+  if (selector) {
+    return gridLocator.locator(selector);
   }
 
-  if (matcher.rowId !== undefined) {
-    return gridLocator.locator(buildRowSelector({ rowId: matcher.rowId }));
-  }
-
-  if (matcher.rowIndex !== undefined) {
-    return gridLocator.locator(buildRowSelector({ rowIndex: matcher.rowIndex }));
-  }
-
-  // For cellValues, return all rows (filtering will be done in assertions)
-  // The actual filtering requires async evaluation
+  // For cellValues/predicate, return all rows (filtering will be done async)
   return gridLocator.locator(AG_GRID_SELECTORS.ROW);
 }
 
@@ -105,6 +99,25 @@ export function getCell(
   rowMatcher: RowMatcher,
   colId: string
 ): Locator {
+  const { gridLocator, config } = ctx;
+
+  // Check if column is pinned (if column config is provided)
+  const pinnedPosition = getColumnPinnedPosition(config, colId);
+
+  if (pinnedPosition) {
+    // For pinned columns, search in the appropriate container
+    const containerSelector = pinnedPosition === 'left'
+      ? AG_GRID_SELECTORS.PINNED_LEFT_CONTAINER
+      : AG_GRID_SELECTORS.PINNED_RIGHT_CONTAINER;
+
+    const rowSelector = buildRowSelectorFromMatcher(rowMatcher) ?? AG_GRID_SELECTORS.ROW;
+    return gridLocator
+      .locator(containerSelector)
+      .locator(rowSelector)
+      .locator(buildCellSelector(colId));
+  }
+
+  // Standard path: use row locator then find cell
   const rowLocator = getRow(ctx, rowMatcher);
   return rowLocator.locator(buildCellSelector(colId));
 }

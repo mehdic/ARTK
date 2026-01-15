@@ -8,7 +8,16 @@
 
 import type { Locator } from '@playwright/test';
 import type { AgGridRowData, NormalizedAgGridConfig, RowMatcher, ClosestMatchResult } from '../types.js';
-import { AG_GRID_SELECTORS, getAriaRowIndex, getRowIndex, getRowId, isGroupRow, isRowExpanded } from './selectors.js';
+import {
+  AG_GRID_SELECTORS,
+  getAriaRowIndex,
+  getRowIndex,
+  getRowId,
+  isGroupRow,
+  isRowExpanded,
+  buildRowSelectorFromMatcher,
+  isDirectMatcher,
+} from './selectors.js';
 import { getAllCellValues } from './cell-renderers.js';
 
 /**
@@ -92,61 +101,30 @@ export async function findRowByMatcher(
   matcher: RowMatcher,
   config: NormalizedAgGridConfig
 ): Promise<{ row: Locator; data: AgGridRowData } | null> {
-  // Direct matchers (fast path)
-  if (matcher.ariaRowIndex !== undefined) {
-    const row = gridLocator.locator(
-      `${AG_GRID_SELECTORS.ROW}[${AG_GRID_SELECTORS.ATTR_ARIA_ROW_INDEX}="${matcher.ariaRowIndex}"]`
-    );
-    const count = await row.count();
-    if (count > 0) {
-      return { row: row.first(), data: await getRowData(row.first(), config) };
-    }
-    return null;
-  }
-
-  if (matcher.rowId !== undefined) {
-    const row = gridLocator.locator(
-      `${AG_GRID_SELECTORS.ROW}[${AG_GRID_SELECTORS.ATTR_ROW_ID}="${matcher.rowId}"]`
-    );
-    const count = await row.count();
-    if (count > 0) {
-      return { row: row.first(), data: await getRowData(row.first(), config) };
-    }
-    return null;
-  }
-
-  if (matcher.rowIndex !== undefined) {
-    const row = gridLocator.locator(
-      `${AG_GRID_SELECTORS.ROW}[${AG_GRID_SELECTORS.ATTR_ROW_INDEX}="${matcher.rowIndex}"]`
-    );
-    const count = await row.count();
-    if (count > 0) {
-      return { row: row.first(), data: await getRowData(row.first(), config) };
-    }
-    return null;
-  }
-
-  // Cell values matcher (requires iterating through rows)
-  if (matcher.cellValues) {
-    const allRows = await getAllVisibleRowData(gridLocator, config);
-
-    for (let i = 0; i < allRows.length; i++) {
-      const rowData = allRows[i];
-      if (matchesCellValues(rowData, matcher.cellValues)) {
-        const row = gridLocator.locator(AG_GRID_SELECTORS.ROW).nth(i);
-        return { row, data: rowData };
+  // Fast path: Direct CSS selector matchers (ariaRowIndex, rowId, rowIndex)
+  if (isDirectMatcher(matcher)) {
+    const selector = buildRowSelectorFromMatcher(matcher);
+    if (selector) {
+      const row = gridLocator.locator(selector);
+      const count = await row.count();
+      if (count > 0) {
+        return { row: row.first(), data: await getRowData(row.first(), config) };
       }
     }
     return null;
   }
 
-  // Predicate matcher
-  if (matcher.predicate) {
+  // Slow path: Cell values or predicate matching (requires iterating)
+  if (matcher.cellValues || matcher.predicate) {
     const allRows = await getAllVisibleRowData(gridLocator, config);
 
     for (let i = 0; i < allRows.length; i++) {
       const rowData = allRows[i];
-      if (matcher.predicate(rowData)) {
+      const matches = matcher.cellValues
+        ? matchesCellValues(rowData, matcher.cellValues)
+        : matcher.predicate?.(rowData);
+
+      if (matches) {
         const row = gridLocator.locator(AG_GRID_SELECTORS.ROW).nth(i);
         return { row, data: rowData };
       }

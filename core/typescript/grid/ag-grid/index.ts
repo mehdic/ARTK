@@ -14,8 +14,14 @@ export {
   buildRowSelector,
   buildHeaderCellSelector,
   buildFilterInputSelector,
+  buildRowSelectorFromMatcher,
+  isDirectMatcher,
+  formatRowMatcher,
   AG_GRID_SELECTORS,
 } from './selectors.js';
+
+// Re-export locator context type for advanced usage
+export type { GridLocatorContext } from './locators.js';
 
 // Re-export helper class for extension
 export { AgGridHelperImpl } from './helper.js';

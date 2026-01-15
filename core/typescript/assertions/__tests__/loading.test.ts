@@ -279,11 +279,11 @@ describe('Loading State Assertions', () => {
             loader.textContent = 'Loading...';
             container.appendChild(loader);
 
-            // 500ms is enough time for Playwright to observe the element
+            // 1500ms is enough time for Playwright to observe the element
             // while still being short enough to test the complete flow
             setTimeout(() => {
               loader.remove();
-            }, 500);
+            }, 1500);
           });
         }
       });

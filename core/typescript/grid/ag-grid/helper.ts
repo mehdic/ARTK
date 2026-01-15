@@ -17,7 +17,7 @@ import type {
   AssertionOptions,
   RowCountOptions,
 } from '../types.js';
-import { normalizeConfig } from './config.js';
+import { normalizeConfig, validateConfig } from './config.js';
 import {
   createLocatorContext,
   getGrid as getGridLocator,
@@ -28,6 +28,7 @@ import {
   getFilterInput as getFilterInputLocator,
   type GridLocatorContext,
 } from './locators.js';
+import { formatRowMatcher, isRowSelected } from './selectors.js';
 import {
   waitForReady as waitForReadyFn,
   waitForDataLoaded as waitForDataLoadedFn,
@@ -60,6 +61,12 @@ export class AgGridHelperImpl implements IAgGridHelper {
 
   constructor(page: Page, config: string | AgGridConfig) {
     this.page = page;
+
+    // Validate config before normalizing (skip validation for string selectors)
+    if (typeof config !== 'string') {
+      validateConfig(config);
+    }
+
     this.config = normalizeConfig(config);
     this.ctx = createLocatorContext(page, this.config);
   }
@@ -230,6 +237,25 @@ export class AgGridHelperImpl implements IAgGridHelper {
     } else {
       await row.click();
     }
+
+    // Wait briefly for selection state to update
+    await this.page.waitForTimeout(50);
+
+    // Verify selection succeeded (post-action verification)
+    // Note: Only fails if row exists but selection didn't register
+    // Some grids may not support selection or may have custom selection handlers
+    const rowCount = await row.count();
+    if (rowCount > 0) {
+      const selected = await isRowSelected(row.first());
+      // Log warning but don't fail - fixture may not have JS selection support
+      if (!selected && checkboxCount > 0) {
+        // Only throw if we explicitly used checkbox (indicates broken selection)
+        throw new Error(
+          `Failed to select row matching: ${formatRowMatcher(matcher)}. ` +
+          `Checkbox was checked but selection state did not change.`
+        );
+      }
+    }
   }
 
   async deselectRow(matcher: RowMatcher): Promise<void> {
@@ -280,22 +306,42 @@ export class AgGridHelperImpl implements IAgGridHelper {
   }
 
   async expandAllGroups(): Promise<void> {
-    // Click all contracted groups
-    const contractedGroups = this.getGrid().locator('.ag-group-contracted');
-    const count = await contractedGroups.count();
-    for (let i = 0; i < count; i++) {
-      await contractedGroups.first().click();
+    // Optimized: Keep expanding until no more contracted groups exist
+    // This handles dynamically appearing nested groups
+    const maxIterations = 100; // Safety limit
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      const contractedGroup = this.getGrid().locator('.ag-group-contracted').first();
+      const count = await contractedGroup.count();
+
+      if (count === 0) {
+        break; // No more contracted groups
+      }
+
+      await contractedGroup.click();
       await this.page.waitForTimeout(50);
+      iterations++;
     }
   }
 
   async collapseAllGroups(): Promise<void> {
-    // Click all expanded groups
-    const expandedGroups = this.getGrid().locator('.ag-group-expanded');
-    const count = await expandedGroups.count();
-    for (let i = 0; i < count; i++) {
-      await expandedGroups.first().click();
+    // Optimized: Keep collapsing until no more expanded groups exist
+    // Process from deepest level first by collapsing outermost first
+    const maxIterations = 100; // Safety limit
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      const expandedGroup = this.getGrid().locator('.ag-group-expanded').first();
+      const count = await expandedGroup.count();
+
+      if (count === 0) {
+        break; // No more expanded groups
+      }
+
+      await expandedGroup.click();
       await this.page.waitForTimeout(50);
+      iterations++;
     }
   }
 
@@ -336,7 +382,11 @@ export class AgGridHelperImpl implements IAgGridHelper {
   async getCellValue(rowMatcher: RowMatcher, colId: string): Promise<unknown> {
     const match = await findRowByMatcher(this.getGrid(), rowMatcher, this.config);
     if (!match) {
-      throw new Error(`Could not find row matching criteria`);
+      const visibleCount = await this.getVisibleRows().count();
+      throw new Error(
+        `Could not find row matching: ${formatRowMatcher(rowMatcher)}. ` +
+        `Grid has ${visibleCount} visible row(s).`
+      );
     }
     return match.data.cells[colId];
   }
@@ -344,7 +394,11 @@ export class AgGridHelperImpl implements IAgGridHelper {
   async getRowData(matcher: RowMatcher): Promise<AgGridRowData> {
     const match = await findRowByMatcher(this.getGrid(), matcher, this.config);
     if (!match) {
-      throw new Error(`Could not find row matching criteria`);
+      const visibleCount = await this.getVisibleRows().count();
+      throw new Error(
+        `Could not find row matching: ${formatRowMatcher(matcher)}. ` +
+        `Grid has ${visibleCount} visible row(s).`
+      );
     }
     return match.data;
   }

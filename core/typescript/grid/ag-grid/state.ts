@@ -72,21 +72,21 @@ export async function getSortState(gridLocator: Locator): Promise<SortModel[]> {
 }
 
 /**
- * Check if the grid is in a loading state
+ * Check if an overlay element is visible
+ * Handles AG Grid's overlay visibility patterns (CSS class and display)
  *
- * @param gridLocator - The grid root locator
- * @returns True if loading overlay is visible
+ * @param overlayLocator - Locator for the overlay element
+ * @returns True if overlay is visible
  */
-export async function checkIsLoading(gridLocator: Locator): Promise<boolean> {
-  const loadingOverlay = gridLocator.locator(AG_GRID_SELECTORS.LOADING_OVERLAY);
-  const count = await loadingOverlay.count();
+async function isOverlayVisible(overlayLocator: Locator): Promise<boolean> {
+  const count = await overlayLocator.count();
 
   if (count === 0) {
     return false;
   }
 
-  // Check if the overlay has the .visible class
-  const visibleOverlay = loadingOverlay.locator('.visible');
+  // Check if the overlay has the .visible class (AG Grid pattern)
+  const visibleOverlay = overlayLocator.locator('.visible');
   const visibleCount = await visibleOverlay.count();
 
   if (visibleCount > 0) {
@@ -95,11 +95,22 @@ export async function checkIsLoading(gridLocator: Locator): Promise<boolean> {
 
   // Check if it's actually visible (not display: none)
   try {
-    const isVisible = await loadingOverlay.first().isVisible({ timeout: 100 });
+    const isVisible = await overlayLocator.first().isVisible({ timeout: 100 });
     return isVisible;
   } catch {
     return false;
   }
+}
+
+/**
+ * Check if the grid is in a loading state
+ *
+ * @param gridLocator - The grid root locator
+ * @returns True if loading overlay is visible
+ */
+export async function checkIsLoading(gridLocator: Locator): Promise<boolean> {
+  const loadingOverlay = gridLocator.locator(AG_GRID_SELECTORS.LOADING_OVERLAY);
+  return isOverlayVisible(loadingOverlay);
 }
 
 /**
@@ -155,27 +166,7 @@ export async function getTotalRowCount(gridLocator: Locator): Promise<number> {
  */
 export async function isNoRowsOverlayVisible(gridLocator: Locator): Promise<boolean> {
   const noRowsOverlay = gridLocator.locator(AG_GRID_SELECTORS.NO_ROWS_OVERLAY);
-  const count = await noRowsOverlay.count();
-
-  if (count === 0) {
-    return false;
-  }
-
-  // Check if the overlay has the .visible class
-  const visibleOverlay = noRowsOverlay.locator('.visible');
-  const visibleCount = await visibleOverlay.count();
-
-  if (visibleCount > 0) {
-    return true;
-  }
-
-  // Check if it's actually visible
-  try {
-    const isVisible = await noRowsOverlay.first().isVisible({ timeout: 100 });
-    return isVisible;
-  } catch {
-    return false;
-  }
+  return isOverlayVisible(noRowsOverlay);
 }
 
 /**

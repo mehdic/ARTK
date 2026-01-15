@@ -8,6 +8,7 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
+import type { RowMatcher } from '../types.js';
 
 /**
  * AG Grid CSS class and attribute selectors
@@ -270,4 +271,82 @@ export async function getSortDirection(
   if (ariaSort === 'ascending') return 'asc';
   if (ariaSort === 'descending') return 'desc';
   return undefined;
+}
+
+/**
+ * Build a row selector from a RowMatcher using priority order.
+ * Priority: ariaRowIndex > rowId > rowIndex > (fallback to all rows)
+ *
+ * @param matcher - Row matching criteria
+ * @returns CSS selector string or null if only predicate/cellValues matching
+ */
+export function buildRowSelectorFromMatcher(matcher: RowMatcher): string | null {
+  if (matcher.ariaRowIndex !== undefined) {
+    return `${AG_GRID_SELECTORS.ROW}[${AG_GRID_SELECTORS.ATTR_ARIA_ROW_INDEX}="${matcher.ariaRowIndex}"]`;
+  }
+
+  if (matcher.rowId !== undefined) {
+    return `${AG_GRID_SELECTORS.ROW}[${AG_GRID_SELECTORS.ATTR_ROW_ID}="${matcher.rowId}"]`;
+  }
+
+  if (matcher.rowIndex !== undefined) {
+    return `${AG_GRID_SELECTORS.ROW}[${AG_GRID_SELECTORS.ATTR_ROW_INDEX}="${matcher.rowIndex}"]`;
+  }
+
+  // For cellValues or predicate, we need to iterate - return null
+  if (matcher.cellValues || matcher.predicate) {
+    return null;
+  }
+
+  // No criteria specified - fallback to all rows
+  return AG_GRID_SELECTORS.ROW;
+}
+
+/**
+ * Check if a matcher can be resolved directly via CSS selector (fast path)
+ *
+ * @param matcher - Row matching criteria
+ * @returns True if matcher can be resolved with CSS selector
+ */
+export function isDirectMatcher(matcher: RowMatcher): boolean {
+  return (
+    matcher.ariaRowIndex !== undefined ||
+    matcher.rowId !== undefined ||
+    matcher.rowIndex !== undefined
+  );
+}
+
+/**
+ * Format a RowMatcher for error messages with meaningful context
+ *
+ * @param matcher - Row matching criteria
+ * @returns Human-readable string describing the matcher
+ */
+export function formatRowMatcher(matcher: RowMatcher): string {
+  const parts: string[] = [];
+
+  if (matcher.ariaRowIndex !== undefined) {
+    parts.push(`ariaRowIndex=${matcher.ariaRowIndex}`);
+  }
+  if (matcher.rowId !== undefined) {
+    parts.push(`rowId="${matcher.rowId}"`);
+  }
+  if (matcher.rowIndex !== undefined) {
+    parts.push(`rowIndex=${matcher.rowIndex}`);
+  }
+  if (matcher.cellValues) {
+    const cellParts = Object.entries(matcher.cellValues)
+      .map(([key, val]) => `${key}="${val}"`)
+      .join(', ');
+    parts.push(`cellValues={${cellParts}}`);
+  }
+  if (matcher.predicate) {
+    parts.push('predicate=[function]');
+  }
+
+  if (parts.length === 0) {
+    return '(empty matcher)';
+  }
+
+  return parts.join(', ');
 }

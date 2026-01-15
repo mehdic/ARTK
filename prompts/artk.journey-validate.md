@@ -113,6 +113,9 @@ Ensures the test structure respects the Journey contract:
 - Optional Journey update:
   - managed validation block including last validation time and result
 
+## Edit safety
+If `autofix=true|auto` or `updateJourney=true`, MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before making any edits.
+
 ---
 
 # Required assistant output structure
@@ -408,4 +411,3 @@ Do NOT “fix” timing/logic automatically here. That belongs in `/journey-veri
 - [ ] Lint gates pass (ESLint if available, else grep)
 - [ ] Contract mapping checks pass or are explicitly deferred
 - [ ] Validation report written
-

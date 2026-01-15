@@ -50,12 +50,25 @@ describe('AG Grid Virtualization Integration', () => {
         if (idx) initialIndices.push(parseInt(idx, 10));
       }
 
-      // Scroll down
-      const viewport = page.locator('.ag-body-viewport');
-      await viewport.evaluate((el) => {
-        el.scrollTop = 2000;
+      // Scroll down and wait for the fixture to update visible rows
+      // Use page.evaluate to scroll and manually trigger the update
+      await page.evaluate(() => {
+        const vp = document.getElementById('viewport');
+        if (vp) {
+          vp.scrollTop = 2000;
+          // Dispatch scroll event to trigger the update handler
+          vp.dispatchEvent(new Event('scroll'));
+        }
       });
-      await page.waitForTimeout(200);
+
+      // Wait for DOM to update with new rows at the scrolled position
+      await page.waitForFunction(() => {
+        const rows = document.querySelectorAll('.ag-row');
+        if (rows.length === 0) return false;
+        const indices = Array.from(rows).map(r => parseInt(r.getAttribute('aria-rowindex') || '0', 10));
+        const minIndex = Math.min(...indices);
+        return minIndex > 10; // After scrolling 2000px, should be past row 10
+      }, { timeout: 5000 });
 
       // Get rows after scroll
       const scrolledRows = await page.locator('.ag-row').all();
@@ -74,17 +87,34 @@ describe('AG Grid Virtualization Integration', () => {
     });
 
     it('should update visible row range on scroll', async () => {
-      const viewport = page.locator('.ag-body-viewport');
-
       // Get first visible row at top
       let firstRow = page.locator('.ag-row').first();
       const firstIndexTop = await firstRow.getAttribute('aria-rowindex');
 
-      // Scroll to middle
-      await viewport.evaluate((el) => {
-        el.scrollTop = el.scrollHeight / 2;
+      // Scroll to middle and trigger scroll event
+      await page.evaluate(() => {
+        const vp = document.getElementById('viewport');
+        const container = document.getElementById('rows-container');
+        if (vp && container) {
+          // Get the total height and scroll to middle
+          const totalHeight = parseInt(container.style.height, 10) || 42000;
+          vp.scrollTop = totalHeight / 2;
+          vp.dispatchEvent(new Event('scroll'));
+        }
       });
-      await page.waitForTimeout(200);
+
+      // Wait for DOM to update - first row index should change significantly
+      await page.waitForFunction(
+        (originalIndex) => {
+          const rows = document.querySelectorAll('.ag-row');
+          if (rows.length === 0) return false;
+          const indices = Array.from(rows).map(r => parseInt(r.getAttribute('aria-rowindex') || '0', 10));
+          const minIndex = Math.min(...indices);
+          return minIndex > parseInt(originalIndex || '1', 10) + 100; // Should be at least 100 rows past original
+        },
+        firstIndexTop,
+        { timeout: 5000 }
+      );
 
       // Get first visible row at middle
       firstRow = page.locator('.ag-row').first();
@@ -223,13 +253,26 @@ describe('AG Grid Virtualization Integration', () => {
     });
 
     it('should scroll to end', async () => {
-      const viewport = page.locator('.ag-body-viewport');
-
-      // Scroll to bottom
-      await viewport.evaluate((el) => {
-        el.scrollTop = el.scrollHeight;
+      // Scroll to bottom and trigger scroll event
+      await page.evaluate(() => {
+        const vp = document.getElementById('viewport');
+        const container = document.getElementById('rows-container');
+        if (vp && container) {
+          // Get the total height and scroll to end
+          const totalHeight = parseInt(container.style.height, 10) || 42000;
+          vp.scrollTop = totalHeight;
+          vp.dispatchEvent(new Event('scroll'));
+        }
       });
-      await page.waitForTimeout(200);
+
+      // Wait for DOM to update - should have rows near the end (1000 total)
+      await page.waitForFunction(() => {
+        const rows = document.querySelectorAll('.ag-row');
+        if (rows.length === 0) return false;
+        const indices = Array.from(rows).map(r => parseInt(r.getAttribute('aria-rowindex') || '0', 10));
+        const maxIndex = Math.max(...indices);
+        return maxIndex > 950;
+      }, { timeout: 5000 });
 
       // Get highest visible row index
       const rows = await page.locator('.ag-row[aria-rowindex]').all();

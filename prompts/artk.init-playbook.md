@@ -80,6 +80,7 @@ This command does THREE things in one (ALL MANDATORY):
 4. **Complete the workflow.** Execute all steps (1-18) in sequence. Only the final Step 18 ends with a completion report.
 5. **No CI/CD yet.** Do not add/modify pipelines. Only scaffold code/docs/config.
 6. **No secrets.** Never request or write credentials. Capture only *where* secrets live and *how* auth works.
+7. **Edit safety.** MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
 
 ## Inputs (parse from arguments if provided)
 

@@ -63,6 +63,9 @@ If the tests fail, you will attempt to **fix test code (not product code)** in a
 
 ---
 
+## Edit safety
+If `updateJourney=true`, MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before making any edits.
+
 ## Research-backed capabilities we rely on (don’t fight them)
 - **Targeted runs**: `--grep`, `--workers`, `--max-failures`, `--repeat-each`, `--last-failed`.  
 - **Flake detection**: `--fail-on-flaky-tests` + retries, plus optional repeat runs.  
