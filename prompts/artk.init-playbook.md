@@ -901,29 +901,36 @@ Create `<ARTK_ROOT>/docs/PLAYBOOK.md` with these sections:
    - Meaningful assertions validating business outcomes
    - Avoid "element exists == success"
 
-7) **Test Data Policy**
+7) **Import Hygiene (TypeScript strictness)**
+   - Import only what is used; never speculatively import helpers
+   - Add imports incrementally as you actually use them
+   - After adding imports, confirm every symbol is referenced in the file
+   - Assume `noUnusedLocals`/`noUnusedParameters` can fail builds
+
+8) **Test Data Policy**
    - Chosen strategy from questionnaire
    - Run-id namespacing convention
    - Cleanup expectations
 
-8) **Flake Policy**
+9) **Flake Policy**
    - No fixed sleeps by default
    - Retries posture from questionnaire
    - Quarantine rule (tag/skip only with documented issue + owner)
 
-9) **Artifacts + Privacy**
+10) **Artifacts + Privacy**
    - Capture policy based on questionnaire answer
    - PII masking rules if applicable
 
-10) **Contribution Workflow**
+11) **Contribution Workflow**
     - How to add/update journeys
     - Definition of Done for "implemented journey"
 
-11) **Anti-patterns**
+12) **Anti-patterns**
     - Coupled tests, shared state
     - Testing third-party uptime
     - Massive do-everything journeys
     - Selectors tied to CSS classes
+    - Speculative imports or unused symbols
 
 ## Step 7 — Generate Copilot instructions
 

@@ -49,9 +49,10 @@ describe('AG Grid Sorting Actions', () => {
       await headerCell.click();
       expect(await headerCell.getAttribute('aria-sort')).toBe('descending');
 
-      // Third click: none (unsorted)
+      // Third click: none (unsorted) - AG Grid may use 'none' or remove the attribute (null)
       await headerCell.click();
-      expect(await headerCell.getAttribute('aria-sort')).toBe('none');
+      const ariaSortAfterThirdClick = await headerCell.getAttribute('aria-sort');
+      expect(ariaSortAfterThirdClick === 'none' || ariaSortAfterThirdClick === null).toBe(true);
     });
 
     it('should show sort indicator icon', async () => {

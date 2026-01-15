@@ -216,10 +216,18 @@ describe('AG Grid Row Grouping', () => {
       const initialCount = await expandedIcons.count();
 
       if (initialCount > 0) {
-        // Get the parent row of the first expanded icon
+        // Get the parent row of the first expanded icon using evaluate instead of XPath
         const firstIcon = expandedIcons.first();
-        const parentRow = firstIcon.locator('xpath=ancestor::div[contains(@class, "ag-row")]');
-        const rowIndex = await parentRow.getAttribute('aria-rowindex');
+        const rowIndex = await firstIcon.evaluate((el) => {
+          let current = el.parentElement;
+          while (current) {
+            if (current.classList.contains('ag-row')) {
+              return current.getAttribute('aria-rowindex');
+            }
+            current = current.parentElement;
+          }
+          return null;
+        });
 
         // Click the icon
         await firstIcon.click();

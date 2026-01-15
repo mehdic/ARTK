@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { chromium, Browser, Page } from '@playwright/test';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { agGrid } from '../ag-grid/factory.js';
+import { agGrid } from '../ag-grid/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
