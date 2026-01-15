@@ -132,18 +132,32 @@ export function addNamedImport(
 }
 
 /**
+ * Result of adding a locator property
+ */
+export interface AddLocatorResult {
+  /** Whether the property was added */
+  added: boolean;
+  /** Whether initialization was complete */
+  initialized: boolean;
+  /** Warning message if initialization was incomplete */
+  warning?: string;
+}
+
+/**
  * Add a locator property to a class
+ *
+ * @returns Result object with added/initialized status and optional warning
  */
 export function addLocatorProperty(
   classDecl: ClassDeclaration,
   locator: ModuleLocator,
   options: AstEditOptions = {}
-): boolean {
+): AddLocatorResult {
   const existing = findProperty(classDecl, locator.name);
 
   if (existing) {
     if (options.preserveExisting) {
-      return false;
+      return { added: false, initialized: false };
     }
     existing.remove();
   }
@@ -156,27 +170,53 @@ export function addLocatorProperty(
     docs: locator.description ? [{ description: locator.description }] : undefined,
   });
 
-  // Find constructor and add initialization
-  const constructor = classDecl.getConstructors()[0];
-  if (!constructor) {
-    console.warn(`Cannot add locator initialization for '${locator.name}': class '${classDecl.getName()}' has no constructor`);
-    return true; // Property was added, but initialization was not possible
-  }
-
   const initStatement = `this.${locator.name} = page.${locator.playwright};`;
 
-  // Check if initialization already exists
-  const body = constructor.getBody();
-  if (body) {
-    const existingInit = body.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
-      .find(stmt => stmt.getText().includes(`this.${locator.name}`));
+  // Find or create constructor
+  let constructor = classDecl.getConstructors()[0];
+  if (!constructor) {
+    // Create constructor with page parameter
+    constructor = classDecl.addConstructor({
+      parameters: [{ name: 'page', type: 'Page' }],
+      statements: [`this.page = page;`, initStatement],
+    });
 
-    if (!existingInit) {
-      constructor.addStatements(initStatement);
+    // Add page property if it doesn't exist
+    if (!findProperty(classDecl, 'page')) {
+      classDecl.insertProperty(0, {
+        name: 'page',
+        isReadonly: true,
+        type: 'Page',
+      });
+    }
+
+    return { added: true, initialized: true };
+  }
+
+  // Ensure constructor has a body
+  let body = constructor.getBody();
+  if (!body) {
+    // Add empty body to constructor
+    constructor.setBodyText('');
+    body = constructor.getBody();
+    if (!body) {
+      return {
+        added: true,
+        initialized: false,
+        warning: `Cannot add body to constructor for '${locator.name}' initialization`,
+      };
     }
   }
 
-  return true;
+  // Check if initialization already exists
+  const existingInit = body.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
+    .find(stmt => stmt.getText().includes(`this.${locator.name}`));
+
+  if (!existingInit) {
+    constructor.addStatements(initStatement);
+  }
+
+  return { added: true, initialized: true };
 }
 
 /**
@@ -252,9 +292,12 @@ export function updateModuleFile(
 
   // Add locators
   for (const locator of locators) {
-    const added = addLocatorProperty(classDecl, locator, options);
-    if (added) {
+    const result = addLocatorProperty(classDecl, locator, options);
+    if (result.added) {
       changes.push(`Added locator: ${locator.name}`);
+      if (result.warning) {
+        warnings.push(result.warning);
+      }
     } else if (options.preserveExisting) {
       warnings.push(`Skipped existing locator: ${locator.name}`);
     }

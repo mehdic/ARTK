@@ -100,13 +100,11 @@ export function extractManagedBlocks(code: string): BlockExtractionResult {
     // Check for block start
     if (line.includes(BLOCK_START)) {
       if (inBlock) {
-        // Nested block detected - close the previous block and warn
-        const message = `Nested managed block detected at line ${i + 1}. Previous block starting at line ${(currentBlock?.startLine ?? 0) + 1} will be closed.`;
-        console.warn(message);
+        // Nested block detected - close the previous block and record warning
         warnings.push({
           type: 'nested',
           line: i + 1,
-          message,
+          message: `Nested managed block detected at line ${i + 1}. Previous block starting at line ${(currentBlock?.startLine ?? 0) + 1} will be closed.`,
         });
         // Save the incomplete previous block
         if (currentBlock) {
@@ -152,12 +150,10 @@ export function extractManagedBlocks(code: string): BlockExtractionResult {
 
   // Handle unclosed block
   if (inBlock && currentBlock) {
-    const message = `Unclosed managed block starting at line ${(currentBlock.startLine ?? 0) + 1} - block will be ignored`;
-    console.warn(message);
     warnings.push({
       type: 'unclosed',
       line: (currentBlock.startLine ?? 0) + 1,
-      message,
+      message: `Unclosed managed block starting at line ${(currentBlock.startLine ?? 0) + 1} - block will be ignored`,
     });
   }
 
