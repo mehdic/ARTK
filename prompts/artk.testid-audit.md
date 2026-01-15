@@ -288,38 +288,41 @@ Re-run your scans to ensure:
 - `reports/testid/audit-report.md` (mark applied rows as APPLIED)
 - `docs/TESTABILITY.md` (remove selector debt items if resolved)
 
-### Step 6.3: Run validation commands (MUST EXECUTE)
+### Step 6.3: Run validation commands (EXECUTE NOW)
 
-**Execute these commands and fix any errors:**
+**YOU MUST ACTUALLY RUN THESE COMMANDS using the Bash tool. Do not just list them.**
 
+**Action: Execute this command NOW:**
 ```bash
-# 1. TypeScript compilation check
 cd <ARTK_ROOT> && npx tsc --noEmit
-
-# 2. If ARTK validation tests exist, run them
-npx playwright test --project=validation --reporter=list
-
-# 3. Verify Playwright can find the new testids
-npx playwright test --list
 ```
 
-### Step 6.4: Fix any errors found
+**Capture the output. If it fails, go to Step 6.4. If it passes, continue.**
 
-**If validation fails:**
-1. Identify the error (syntax, import, selector not found, etc.)
-2. Fix the issue in the source file
-3. Re-run validation
-4. Repeat until ALL validation passes
+**Action: Execute this command NOW:**
+```bash
+cd <ARTK_ROOT> && npx playwright test --project=validation --reporter=list 2>&1 || echo "Validation project not found - skipping"
+```
+
+**Capture the output. If tests fail, go to Step 6.4. If they pass or project doesn't exist, continue.**
+
+### Step 6.4: Fix any errors found (LOOP UNTIL PASS)
+
+**If ANY validation command failed:**
+1. Read the error message
+2. Identify the file and line number
+3. Fix the issue (syntax, duplicate testid, etc.)
+4. **GO BACK TO Step 6.3 and re-run the failed command**
+5. Repeat until ALL commands pass
 
 **Common errors and fixes:**
 | Error | Fix |
 |-------|-----|
 | Syntax error in JSX | Check attribute placement, quotes, braces |
-| Duplicate testid | Rename one of the duplicates with more specific name |
-| Test can't find element | Verify testid is on correct element, check for typos |
-| TypeScript error | Check import statements, prop types |
+| Duplicate testid | Rename one with more specific name |
+| TypeScript error | Check prop types, missing imports |
 
-**Do NOT proceed to final output until validation passes.**
+**CRITICAL: You CANNOT proceed to final output until validation passes. Loop back to Step 6.3 as many times as needed.**
 
 ### Step 6.5: Optional - Run frontend build
 If the project has a build command, run it:
