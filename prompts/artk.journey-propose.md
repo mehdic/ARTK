@@ -124,10 +124,10 @@ All generated sections MUST include managed markers:
 Parse `key=value` args after `/journey-propose`:
 
 ## General
-- `mode`: `quick | standard | max` (default: `standard`)
+- `mode`: `quick | standard | max` (default: `standard`) — controls **question depth** (how much to ask)
 - `artkRoot`: ARTK root folder path (default: infer from `artk.config.yml`)
 - `appScope`: `auto | all | <appName>` (default: `auto`)
-- `coverage`: `small | large` (default: `large`) — controls proposal scope:
+- `coverage`: `small | large` (default: `large`) — controls **proposal quantity** (how many journeys)
   - `small`: 20 journeys (5 smoke, 10 release, 5 regression) — quick start
   - `large`: 50 journeys (10 smoke, 20 release, 20 regression) — comprehensive
 - `maxJourneys`: default depends on `coverage` (20 for small, 50 for large)
@@ -149,7 +149,43 @@ Parse `key=value` args after `/journey-propose`:
 | `small`  | 5     | 10      | 5          | 20    |
 | `large`  | 10    | 20      | 20         | 50    |
 
-**Note:** If there isn't enough data to fill the requested counts, propose as many as the data supports. Never pad with low-quality proposals just to hit a number.
+### Parameter Priority Rules (explicit overrides implicit)
+
+When parameters conflict, apply this priority order:
+
+1. **Explicit tier counts override coverage presets:**
+   - `smokeCount=15` overrides the preset value from `coverage`
+   - Same for `releaseCount` and `regressionCount`
+
+2. **`includeRegression=false` disables regression regardless of coverage:**
+   - `coverage=large includeRegression=false` → smoke + release only, no regression
+   - The `regressionCount` is ignored when `includeRegression=false`
+
+3. **`maxJourneys` caps total (priority-based filling):**
+   - Fill smoke tier first (up to `smokeCount`)
+   - Fill release tier next (up to `releaseCount`)
+   - Fill regression tier last (up to `regressionCount`)
+   - Stop when total reaches `maxJourneys`
+   - Example: `smokeCount=10, releaseCount=20, regressionCount=20, maxJourneys=30`
+     → Smoke: 10, Release: 20, Regression: 0 (maxJourneys hit)
+
+### Backward Compatibility Note
+
+**Breaking change (v2.0):** `includeRegression` now defaults to `true` (was `false`).
+To restore old behavior, use `includeRegression=false`.
+
+### Insufficient Data Handling
+
+If there aren't enough quality candidates to fill the requested counts:
+1. Apply tier criteria to all candidates first (see Step 9.4)
+2. Assign each candidate to the appropriate tier based on criteria, not counts
+3. Report actual counts vs requested counts in the output
+4. Do NOT spread candidates thin just to fill tiers
+5. Do NOT pad with low-quality proposals
+
+Example: 5 candidates found, all meet smoke criteria
+→ Smoke: 5, Release: 0, Regression: 0
+→ Output explains: "Only 5 smoke-quality candidates found"
 
 ## Change/incident signal controls
 - `changeSignals`: `auto | on | off` (default: `auto`)
@@ -432,38 +468,106 @@ Boost candidates that demand reusable foundation modules shared across many prop
 
 **First, determine counts based on `coverage` parameter:**
 
-| Coverage | Smoke | Release | Regression | Max Total |
-|----------|-------|---------|------------|-----------|
-| `small`  | 5     | 10      | 5          | 20        |
-| `large`  | 10    | 20      | 20         | 50        |
+| Coverage | Smoke | Release | Regression | Total |
+|----------|-------|---------|------------|-------|
+| `small`  | 5     | 10      | 5          | 20    |
+| `large`  | 10    | 20      | 20         | 50    |
 
-User-provided `smokeCount`, `releaseCount`, `regressionCount`, or `maxJourneys` override the preset values.
+User-provided `smokeCount`, `releaseCount`, `regressionCount`, or `maxJourneys` override the preset values (see Parameter Priority Rules above).
 
-**Then select journeys by tier (ranked by augmentedRisk score):**
+**Tier Assignment Criteria (NOT just sequential by risk score):**
 
-1. Select up to `smokeCount` candidates for **smoke tier**:
-   - Highest-risk, highest-feasibility candidates
-   - Prioritize: auth, core workflow, health check, critical path
+Before filling tiers, evaluate each candidate against tier criteria:
 
-2. Select up to `releaseCount` candidates for **release tier**:
-   - Next highest-risk candidates not already selected for smoke
-   - Prioritize: happy-path user journeys, cross-cutting flows
+**Smoke tier candidates MUST:**
+- Be happy-path only (no negative/edge cases)
+- Have HIGH feasibility (no blockers, stable selectors)
+- Cover critical business functionality (auth, core workflow, health check)
+- Be expected to complete quickly (< 2 minutes)
+- Have low flakiness risk (no complex async, no timing-sensitive operations)
 
-3. Select up to `regressionCount` candidates for **regression tier** (if `includeRegression=true`, which is now the default):
-   - Remaining high-risk candidates
-   - Include: edge cases, negative paths, feature variants, incident-related flows
+**Release tier candidates SHOULD:**
+- Be happy-path or common alternative paths
+- Have MEDIUM or HIGH feasibility
+- Cover breadth of features (not depth of one feature)
+- Be representative of typical user journeys
 
-**Important:** If there aren't enough quality candidates to fill a tier, propose only what the data supports. Never pad with low-quality proposals just to hit a number. The actual counts may be less than the maximums.
+**Regression tier candidates MAY:**
+- Include edge cases, negative paths, error handling
+- Include complex multi-step workflows
+- Include lower-feasibility candidates (with remediation noted)
+- Include incident-driven coverage (flows that caused past bugs)
+- Include feature variants (different user types, data states)
+
+**Demotion rule:** If a high-risk candidate doesn't meet smoke criteria, demote to release. If it doesn't meet release criteria, demote to regression. Never promote a candidate to a higher tier just to fill counts.
+
+**Then select journeys (criteria-first, then risk-ranked within tier):**
+
+1. **Smoke tier:** From candidates meeting smoke criteria, select top `smokeCount` by augmentedRisk score
+2. **Release tier:** From candidates meeting release criteria (excluding already-selected), select top `releaseCount` by augmentedRisk score
+3. **Regression tier:** From remaining candidates meeting regression criteria, select top `regressionCount` by augmentedRisk score (if `includeRegression=true`)
+
+**Empty tier handling:**
+- Empty tiers are allowed (e.g., 10 smoke, 0 release, 5 regression is valid)
+- Do NOT promote lower-tier candidates to fill empty higher tiers
+- Note in output: "Release tier: 0 (no candidates met release criteria)"
+
+**maxJourneys enforcement (priority-based):**
+- Fill smoke first, then release, then regression
+- Stop when total reaches `maxJourneys`
+- Example: `maxJourneys=30` with 10/20/20 counts → Smoke: 10, Release: 20, Regression: 0
 
 Never exceed `maxJourneys` total across all tiers.
 
-Write scoring evidence:
-- `docs/journey-proposals/evidence.scoring.json`
+Write scoring evidence to `docs/journey-proposals/evidence.scoring.json`:
+```json
+{
+  "generatedAt": "<ISO date>",
+  "coverage": "small|large",
+  "requestedCounts": { "smoke": 10, "release": 20, "regression": 20, "total": 50 },
+  "actualCounts": { "smoke": 8, "release": 15, "regression": 12, "total": 35 },
+  "parametersUsed": {
+    "includeRegression": true,
+    "maxJourneys": 50,
+    "minFeasibility": "medium"
+  },
+  "candidates": [
+    {
+      "id": "JRN-0001",
+      "title": "...",
+      "tier": "smoke",
+      "augmentedRisk": 42.5,
+      "meetsSmokeCriteria": true,
+      "meetsReleaseCriteria": true,
+      "feasibility": "high"
+    }
+  ]
+}
+```
 
 ## Step 10 — Allocate IDs deterministically
-- Determine next available ID from existing index (max suffix).
-- Never reuse IDs.
-- On rerun: if an equivalent proposal exists (fingerprint match), reuse that file/ID.
+
+**ID allocation rules:**
+- Determine next available ID from existing index (max suffix)
+- Never reuse IDs
+- On rerun: if an equivalent proposal exists (fingerprint match), reuse that file/ID
+
+**Rerun behavior with existing proposals:**
+
+When rerunning `/journey-propose` on a repo with existing proposals:
+
+1. **Existing proposals with fingerprint match:** Keep as-is, do not re-tier or re-score
+2. **New candidates not in existing proposals:** Assign tier based on criteria and propose
+3. **Tier changes between runs:**
+   - If `includeRegression` was `false` before and is now `true`:
+     - Existing smoke/release proposals: unchanged
+     - New regression proposals: added for candidates not already proposed
+   - Never demote an existing proposal to a lower tier
+   - Never promote an existing proposal to a higher tier (user can do this manually)
+4. **Count toward limits:** Existing proposals count toward tier limits
+   - Example: 5 existing smoke proposals + `smokeCount=10` → only 5 new smoke proposals possible
+
+**To start fresh:** Delete all files in `journeys/proposed/` before running.
 
 ## Step 11 — Generate proposed Journey files
 For each selected Journey:
@@ -509,19 +613,55 @@ If you cannot execute scripts:
 - emulate Core generator exactly (parse frontmatter, validate constraints, sort by ID, generate backlog and index).
 
 ## Step 13 — Write `docs/JOURNEY_PROPOSALS.md`
+
 Create/update a readable report with:
-- executive summary
-- inputs used (discovery + change + incident windows)
-- proposed Journeys table (ranked):
-  - ID, title, tier, scope, actor
-  - baseRisk, changeScore, incidentScore, feasibility, complexity
-  - modules
-  - blocked? and remediation
-- “Top hotspots” section (top 10 paths) with churn metrics
-- “Top incident clusters” section (top 10) with ticket counts
-- recommended foundation modules to build early
-- demanded feature modules
-- deferred candidates (optional) + reasons
+
+### Required sections:
+
+1. **Executive summary** including:
+   - Coverage used (small/large)
+   - Counts: requested vs actual per tier
+   - Key findings (top risk areas, blockers)
+
+2. **Inputs used:**
+   - Discovery sources
+   - Change window (days/commits)
+   - Incident sources found
+
+3. **Proposed Journeys table (ranked by tier, then risk):**
+
+```markdown
+| # | ID | Title | Tier | Scope | Actor | Risk | Feasibility | Blocked? |
+|---|-----|-------|------|-------|-------|------|-------------|----------|
+| 1 | JRN-0001 | User Login | smoke | auth | user | 42.5 | high | - |
+| 2 | JRN-0002 | Dashboard Load | smoke | home | user | 38.2 | high | - |
+| 3 | JRN-0003 | Submit Order | release | checkout | user | 35.1 | medium | - |
+```
+
+4. **Tier summary:**
+   - Smoke: X of Y (list key journeys)
+   - Release: X of Y (list key journeys)
+   - Regression: X of Y (list key journeys)
+   - If any tier is empty or under-filled, explain why
+
+5. **Top hotspots** (top 10 paths with churn metrics)
+
+6. **Top incident clusters** (top 10 with ticket counts)
+
+7. **Module recommendations:**
+   - Foundation modules to build early
+   - Feature modules demanded by proposals
+
+8. **Deferred candidates** (optional) with reasons
+
+### Tier balance guidance:
+
+A well-balanced proposal set should approximate:
+- Smoke: 15-25% of total (critical paths only)
+- Release: 40-50% of total (happy paths, breadth)
+- Regression: 30-40% of total (edge cases, depth)
+
+The `large` preset (10/20/20 = 20%/40%/40%) follows this guidance.
 
 Keep output deterministic.
 
@@ -564,30 +704,53 @@ Provide one reply template.
 ---
 
 # Edge cases you MUST handle
+
 - **No UI**: do not fabricate UI Journeys. Produce a short explanation + suggest API-focused journeys or skip.
 - **Monorepo**: separate proposals per app or ask user to pick appScope.
 - **Overlap with existing journeys**: dedupe; only propose new.
 - **No git history accessible**: proceed with discovery-only and label change signals as unavailable.
 - **Huge repo**: cap window; prefer folder-level mapping; avoid O(N files) expensive work.
 - **Incident sources absent**: use commit-message tickets as proxy; label uncertainty.
+- **Insufficient candidates**: propose only what data supports; explain gaps in output (see Insufficient Data Handling above).
+- **Parameter conflicts**: apply Parameter Priority Rules (explicit overrides implicit).
+- **Rerun with existing proposals**: follow Rerun Behavior rules (don't re-tier existing).
 
 ---
 
 # Completion checklist (print at end)
+
+**Artifacts created:**
 - [ ] Proposed Journey files created under `journeys/proposed/`
-- [ ] Proposals include all three tiers: smoke, release, AND regression
+- [ ] Proposals evaluated against tier criteria (not just sequential fill)
 - [ ] Each proposed Journey has goal, steps, tentative assertions, dependencies
 - [ ] Backlog/index regenerated
 - [ ] `docs/JOURNEY_PROPOSALS.md` created/updated with tier breakdown
-- [ ] Evidence JSONs written (recommended)
+- [ ] `docs/journey-proposals/evidence.scoring.json` written
+
+**Tier coverage:**
+- [ ] Smoke tier: candidates evaluated against smoke criteria
+- [ ] Release tier: candidates evaluated against release criteria
+- [ ] Regression tier: candidates evaluated (if `includeRegression=true`)
 
 **Print tier summary:**
 ```
-Proposed Journeys:
-  • Smoke:      X of Y maximum
-  • Release:    X of Y maximum
-  • Regression: X of Y maximum
-  • Total:      X of Y maximum
+╔════════════════════════════════════════════════════════════════════╗
+║  PROPOSAL SUMMARY                                                   ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Coverage: large                                                    ║
+║                                                                     ║
+║  Tier         Proposed    Maximum    Status                        ║
+║  ──────────   ─────────   ───────    ──────────────────────────    ║
+║  Smoke        8           10         ✓ (2 candidates demoted)      ║
+║  Release      15          20         ✓ (5 below max - limited data)║
+║  Regression   12          20         ✓ (8 below max - low risk)    ║
+║  ──────────   ─────────   ───────                                  ║
+║  Total        35          50                                        ║
+╚════════════════════════════════════════════════════════════════════╝
 ```
 
-If any tier has fewer proposals than the maximum, explain why (e.g., "not enough high-risk candidates for regression tier").
+**If any tier has fewer proposals than maximum, explain why:**
+- "Not enough candidates met smoke criteria (demoted to release)"
+- "Limited high-risk candidates for release tier"
+- "Remaining candidates had low feasibility (excluded)"
+- "maxJourneys cap reached before filling regression tier"
