@@ -316,3 +316,40 @@ You must produce:
 - [ ] (apply mode) code changes only after approval
 - [ ] updated report reflecting what was applied
 - [ ] clear next steps for remaining medium/high risk items
+
+---
+
+## MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+### Next Commands
+
+**Display the following commands VERBATIM (do not summarize or paraphrase):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Validate tests still pass after changes:          ║
+║     cd <ARTK_ROOT> && npx playwright test --project=validation     ║
+║                                                                     ║
+║  2. (OPTIONAL) Propose journeys using stable selectors:             ║
+║     /artk.journey-propose                                          ║
+║                                                                     ║
+║  3. (OPTIONAL) Implement a journey with data-testid selectors:      ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  4. (IF ITEMS REMAIN) Re-run audit for remaining items:             ║
+║     /artk.testid-audit mode=report scope=<component>               ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Usage tips:**
+- Use `getByTestId('...')` in page objects for maximum test stability
+- Prefer `data-testid` over CSS selectors for critical user flows
+- Run `/artk.testid-audit mode=report` periodically to track selector debt
+
+**IMPORTANT:** Copy the commands box exactly. Do not abbreviate or summarize.
