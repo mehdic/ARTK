@@ -127,16 +127,29 @@ Parse `key=value` args after `/journey-propose`:
 - `mode`: `quick | standard | max` (default: `standard`)
 - `artkRoot`: ARTK root folder path (default: infer from `artk.config.yml`)
 - `appScope`: `auto | all | <appName>` (default: `auto`)
-- `maxJourneys`: default `20`
-- `smokeCount`: default `6`
-- `releaseCount`: default `14`
-- `includeRegression`: default `false`
+- `coverage`: `small | large` (default: `large`) — controls proposal scope:
+  - `small`: 20 journeys (5 smoke, 10 release, 5 regression) — quick start
+  - `large`: 50 journeys (10 smoke, 20 release, 20 regression) — comprehensive
+- `maxJourneys`: default depends on `coverage` (20 for small, 50 for large)
+- `smokeCount`: default depends on `coverage` (5 for small, 10 for large)
+- `releaseCount`: default depends on `coverage` (10 for small, 20 for large)
+- `regressionCount`: default depends on `coverage` (5 for small, 20 for large)
+- `includeRegression`: default `true` — regression tier is now included by default
 - `includeBlocked`: default `true`
 - `minFeasibility`: `high | medium` (default: `medium`)
 - `allowDuplicates`: default `false`
 - `outProposedDir`: default `journeys/proposed`
 - `outDocsDir`: default `docs`
 - `dryRun`: default `false`
+
+**Coverage presets (user can override individual counts):**
+
+| Coverage | Smoke | Release | Regression | Total |
+|----------|-------|---------|------------|-------|
+| `small`  | 5     | 10      | 5          | 20    |
+| `large`  | 10    | 20      | 20         | 50    |
+
+**Note:** If there isn't enough data to fill the requested counts, propose as many as the data supports. Never pad with low-quality proposals just to hit a number.
 
 ## Change/incident signal controls
 - `changeSignals`: `auto | on | off` (default: `auto`)
@@ -169,7 +182,8 @@ Parse `key=value` args after `/journey-propose`:
 
 ## 2) Proposal plan (short)
 - Inputs used (discovery + change + incident)
-- Proposed counts by tier
+- Coverage scope (`small` or `large`)
+- Proposed counts by tier (smoke / release / regression)
 - Dedup strategy
 - How IDs will be allocated
 - Scoring weights used
@@ -415,11 +429,33 @@ Then apply:
 Boost candidates that demand reusable foundation modules shared across many proposals.
 
 ### 9.4 Select top Journeys
-Select:
-- up to `smokeCount` smoke Journeys
-- up to `releaseCount` release Journeys
-- optionally regression if `includeRegression=true`
-Never exceed `maxJourneys` total.
+
+**First, determine counts based on `coverage` parameter:**
+
+| Coverage | Smoke | Release | Regression | Max Total |
+|----------|-------|---------|------------|-----------|
+| `small`  | 5     | 10      | 5          | 20        |
+| `large`  | 10    | 20      | 20         | 50        |
+
+User-provided `smokeCount`, `releaseCount`, `regressionCount`, or `maxJourneys` override the preset values.
+
+**Then select journeys by tier (ranked by augmentedRisk score):**
+
+1. Select up to `smokeCount` candidates for **smoke tier**:
+   - Highest-risk, highest-feasibility candidates
+   - Prioritize: auth, core workflow, health check, critical path
+
+2. Select up to `releaseCount` candidates for **release tier**:
+   - Next highest-risk candidates not already selected for smoke
+   - Prioritize: happy-path user journeys, cross-cutting flows
+
+3. Select up to `regressionCount` candidates for **regression tier** (if `includeRegression=true`, which is now the default):
+   - Remaining high-risk candidates
+   - Include: edge cases, negative paths, feature variants, incident-related flows
+
+**Important:** If there aren't enough quality candidates to fill a tier, propose only what the data supports. Never pad with low-quality proposals just to hit a number. The actual counts may be less than the maximums.
+
+Never exceed `maxJourneys` total across all tiers.
 
 Write scoring evidence:
 - `docs/journey-proposals/evidence.scoring.json`
@@ -509,7 +545,9 @@ Keep output deterministic.
 Quick +:
 4) Confirm auth style (SSO redirect vs login form vs both).
 5) Confirm test data approach (seeded env vs API setup vs manual).
-6) Confirm target smoke size and release size (defaults ok).
+6) Confirm coverage scope:
+   - `large` (recommended): 50 journeys (10 smoke, 20 release, 20 regression)
+   - `small`: 20 journeys (5 smoke, 10 release, 5 regression)
 7) Confirm whether blocked journeys should be included (default true).
 
 ## MAX (add up to 8)
@@ -537,7 +575,19 @@ Provide one reply template.
 
 # Completion checklist (print at end)
 - [ ] Proposed Journey files created under `journeys/proposed/`
+- [ ] Proposals include all three tiers: smoke, release, AND regression
 - [ ] Each proposed Journey has goal, steps, tentative assertions, dependencies
 - [ ] Backlog/index regenerated
-- [ ] `docs/JOURNEY_PROPOSALS.md` created/updated
+- [ ] `docs/JOURNEY_PROPOSALS.md` created/updated with tier breakdown
 - [ ] Evidence JSONs written (recommended)
+
+**Print tier summary:**
+```
+Proposed Journeys:
+  • Smoke:      X of Y maximum
+  • Release:    X of Y maximum
+  • Regression: X of Y maximum
+  • Total:      X of Y maximum
+```
+
+If any tier has fewer proposals than the maximum, explain why (e.g., "not enough high-risk candidates for regression tier").
