@@ -55,7 +55,7 @@ This command creates (or upgrades) a Journey into a canonical, structured, “de
 - **Deterministic outputs**: stable IDs, stable ordering, stable file naming.
 - **No secrets**: do not ask for passwords/tokens. If login is involved, ask for *test account provisioning process* only.
 - **Medium friction**: minimize questions; default to reasonable placeholders and mark unknowns.
-- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
+- **Edit safety**: MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 

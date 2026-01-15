@@ -114,7 +114,7 @@ Ensures the test structure respects the Journey contract:
   - managed validation block including last validation time and result
 
 ## Edit safety
-If `autofix=true|auto` or `updateJourney=true`, MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before making any edits.
+If `autofix=true|auto` or `updateJourney=true`, MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before making any edits.
 
 ---
 

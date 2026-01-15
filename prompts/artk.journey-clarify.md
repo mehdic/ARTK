@@ -55,7 +55,7 @@ Unless the user sets `mode=minimal` or `mode=max`, use `mode=medium`.
 - **Deterministic**: produce stable outputs.
 - **Compliance-aware**: call out risk of sensitive data in test artifacts and request policy constraints.
 - **Discovery-aware**: if discovery/testability exists, use it to reduce questions and to flag blockers early.
-- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
+- **Edit safety**: MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 

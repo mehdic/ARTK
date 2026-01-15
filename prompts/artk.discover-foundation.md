@@ -55,7 +55,7 @@ By combining these, discovery findings directly inform foundation build decision
 6. **Do not break existing test tooling.** If Playwright already exists, integrate carefully.
 7. **No hardcoded URLs.** Base URL and env must come from the config loader.
 8. **Local-first defaults.** Retries should be low locally; CI can raise them later.
-9. **Edit safety.** MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
+9. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 
@@ -377,7 +377,7 @@ If `runtimeScan=true`:
 
 ## Foundation Outputs
 
-**IMPORTANT:** Before generating any code, review the Code Quality Rules in `.github/prompts/common/EDIT_SAFETY.md`.
+**IMPORTANT:** Before generating any code, review the Code Quality Rules in `.github/prompts/common/GENERAL_RULES.md`.
 
 Create under `<ARTK_ROOT>`:
 

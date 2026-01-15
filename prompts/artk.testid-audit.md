@@ -241,7 +241,7 @@ Do NOT suggest `/artk.journey-generate`, `/artk.smoke-test`, or internal repo te
   - optionally add `aria-label="..."` if that is the preferred fix
 - Never change component behavior, event handlers, or layouts.
 - **Default guardrail**: only modify native DOM nodes. Do NOT add or change component props (no prop-forwarding edits). If a custom component is required, mark as **manual** unless the user explicitly approves a broader change scope.
-- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before making any file edits.
+- **Edit safety**: MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before making any file edits.
 
 ### How to apply across stacks (adaptive)
 Choose the correct strategy based on detected stack:

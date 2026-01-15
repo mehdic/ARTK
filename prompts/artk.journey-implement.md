@@ -128,7 +128,7 @@ If any prerequisite is missing, print the exact command to run next and stop.
 ## A) Test implementation
 - Create/modify test file(s) under:
   - `<harnessRoot>/tests/<tier>/`
-- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before making any file edits.
+- **Edit safety**: MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before making any file edits.
 
 Default naming:
 - per-journey: `<harnessRoot>/tests/<tier>/<JRN-ID>__<slug>.spec.(ts|js)`

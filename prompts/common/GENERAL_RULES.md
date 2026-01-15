@@ -1,6 +1,6 @@
-# Edit Safety Rules (Shared)
+# General Rules (Shared)
 
-Use these rules for any prompt that edits files:
+**MUST read and follow these rules before any file edits or code generation.**
 
 ## General Edit Rules
 - Make small, targeted edits; avoid large multi-line replacements.

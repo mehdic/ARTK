@@ -52,7 +52,7 @@ The objective is simple: propose the Journeys most likely to catch regressions *
 - **Deterministic.** Same inputs ⇒ same proposal ordering and file names.
 - **No secrets.** Never ask for credentials. If auth is needed, request a test account *process*, not secrets.
 - **Graceful degradation.** If git history or incident sources are unavailable, proceed with discovery-only signals and label uncertainty.
-- **Edit safety.** MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
+- **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 
