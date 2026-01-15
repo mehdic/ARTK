@@ -22,8 +22,8 @@ export interface StepPattern {
   regex: RegExp;
   /** IR primitive type this pattern produces */
   primitiveType: IRPrimitive['type'];
-  /** Extract IR primitive from match */
-  extract: (match: RegExpMatchArray) => IRPrimitive | null;
+  /** Extract IR primitive from match (prefix with _ if unused) */
+  extract: (_match: RegExpMatchArray) => IRPrimitive | null;
 }
 
 /**
@@ -75,7 +75,7 @@ export const navigationPatterns: StepPattern[] = [
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
-      url: match[1],
+      url: match[1]!,
       waitForLoad: true,
     }),
   },
@@ -85,7 +85,7 @@ export const navigationPatterns: StepPattern[] = [
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
-      url: `/${match[1].toLowerCase().replace(/\s+/g, '-')}`,
+      url: `/${match[1]!.toLowerCase().replace(/\s+/g, '-')}`,
       waitForLoad: true,
     }),
   },
@@ -101,7 +101,7 @@ export const clickPatterns: StepPattern[] = [
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
-      locator: createLocatorFromMatch('role', 'button', match[1]),
+      locator: createLocatorFromMatch('role', 'button', match[1]!),
     }),
   },
   {
@@ -110,7 +110,7 @@ export const clickPatterns: StepPattern[] = [
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
-      locator: createLocatorFromMatch('role', 'link', match[1]),
+      locator: createLocatorFromMatch('role', 'link', match[1]!),
     }),
   },
   {
@@ -119,7 +119,7 @@ export const clickPatterns: StepPattern[] = [
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
-      locator: createLocatorFromMatch('text', match[1]),
+      locator: createLocatorFromMatch('text', match[1]!),
     }),
   },
   {
@@ -128,7 +128,7 @@ export const clickPatterns: StepPattern[] = [
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
-      locator: createLocatorFromMatch('text', match[1]),
+      locator: createLocatorFromMatch('text', match[1]!),
     }),
   },
 ];
@@ -143,8 +143,8 @@ export const fillPatterns: StepPattern[] = [
     primitiveType: 'fill',
     extract: (match) => ({
       type: 'fill',
-      locator: createLocatorFromMatch('label', match[2]),
-      value: createValueFromText(match[1]),
+      locator: createLocatorFromMatch('label', match[2]!),
+      value: createValueFromText(match[1]!),
     }),
   },
   {
@@ -153,8 +153,8 @@ export const fillPatterns: StepPattern[] = [
     primitiveType: 'fill',
     extract: (match) => ({
       type: 'fill',
-      locator: createLocatorFromMatch('label', match[2]),
-      value: createValueFromText(match[1]),
+      locator: createLocatorFromMatch('label', match[2]!),
+      value: createValueFromText(match[1]!),
     }),
   },
   {
@@ -163,8 +163,8 @@ export const fillPatterns: StepPattern[] = [
     primitiveType: 'fill',
     extract: (match) => ({
       type: 'fill',
-      locator: createLocatorFromMatch('label', match[2].replace(/["']/g, '')),
-      value: createValueFromText(match[1].replace(/["']/g, '')),
+      locator: createLocatorFromMatch('label', match[2]!.replace(/["']/g, '')),
+      value: createValueFromText(match[1]!.replace(/["']/g, '')),
     }),
   },
 ];
@@ -179,8 +179,8 @@ export const selectPatterns: StepPattern[] = [
     primitiveType: 'select',
     extract: (match) => ({
       type: 'select',
-      locator: createLocatorFromMatch('label', match[2]),
-      option: match[1],
+      locator: createLocatorFromMatch('label', match[2]!),
+      option: match[1]!,
     }),
   },
 ];
@@ -195,7 +195,7 @@ export const checkPatterns: StepPattern[] = [
     primitiveType: 'check',
     extract: (match) => ({
       type: 'check',
-      locator: createLocatorFromMatch('label', match[1]),
+      locator: createLocatorFromMatch('label', match[1]!),
     }),
   },
   {
@@ -204,7 +204,7 @@ export const checkPatterns: StepPattern[] = [
     primitiveType: 'uncheck',
     extract: (match) => ({
       type: 'uncheck',
-      locator: createLocatorFromMatch('label', match[1]),
+      locator: createLocatorFromMatch('label', match[1]!),
     }),
   },
 ];
@@ -219,7 +219,7 @@ export const visibilityPatterns: StepPattern[] = [
     primitiveType: 'expectVisible',
     extract: (match) => ({
       type: 'expectVisible',
-      locator: createLocatorFromMatch('text', match[1]),
+      locator: createLocatorFromMatch('text', match[1]!),
     }),
   },
   {
@@ -228,7 +228,7 @@ export const visibilityPatterns: StepPattern[] = [
     primitiveType: 'expectVisible',
     extract: (match) => ({
       type: 'expectVisible',
-      locator: createLocatorFromMatch('text', match[1]),
+      locator: createLocatorFromMatch('text', match[1]!),
     }),
   },
   {
@@ -237,7 +237,7 @@ export const visibilityPatterns: StepPattern[] = [
     primitiveType: 'expectVisible',
     extract: (match) => ({
       type: 'expectVisible',
-      locator: createLocatorFromMatch('text', match[1]),
+      locator: createLocatorFromMatch('text', match[1]!),
     }),
   },
   {
@@ -246,7 +246,7 @@ export const visibilityPatterns: StepPattern[] = [
     primitiveType: 'expectVisible',
     extract: (match) => ({
       type: 'expectVisible',
-      locator: createLocatorFromMatch('text', match[1]),
+      locator: createLocatorFromMatch('text', match[1]!),
     }),
   },
 ];
@@ -262,7 +262,7 @@ export const toastPatterns: StepPattern[] = [
     extract: (match) => ({
       type: 'expectToast',
       toastType: 'success',
-      message: match[1],
+      message: match[1]!,
     }),
   },
   {
@@ -272,7 +272,7 @@ export const toastPatterns: StepPattern[] = [
     extract: (match) => ({
       type: 'expectToast',
       toastType: 'error',
-      message: match[1],
+      message: match[1]!,
     }),
   },
   {
@@ -281,7 +281,7 @@ export const toastPatterns: StepPattern[] = [
     primitiveType: 'expectToast',
     extract: (match) => ({
       type: 'expectToast',
-      toastType: match[1].toLowerCase() as 'success' | 'error' | 'info' | 'warning',
+      toastType: match[1]!.toLowerCase() as 'success' | 'error' | 'info' | 'warning',
     }),
   },
   {
@@ -291,7 +291,7 @@ export const toastPatterns: StepPattern[] = [
     extract: (match) => ({
       type: 'expectToast',
       toastType: 'info',
-      message: match[1],
+      message: match[1]!,
     }),
   },
 ];
@@ -306,7 +306,7 @@ export const urlPatterns: StepPattern[] = [
     primitiveType: 'expectURL',
     extract: (match) => ({
       type: 'expectURL',
-      pattern: match[1],
+      pattern: match[1]!,
     }),
   },
   {
@@ -315,7 +315,7 @@ export const urlPatterns: StepPattern[] = [
     primitiveType: 'expectURL',
     extract: (match) => ({
       type: 'expectURL',
-      pattern: match[1],
+      pattern: match[1]!,
     }),
   },
   {
@@ -324,7 +324,7 @@ export const urlPatterns: StepPattern[] = [
     primitiveType: 'expectURL',
     extract: (match) => ({
       type: 'expectURL',
-      pattern: match[1],
+      pattern: match[1]!,
     }),
   },
 ];
@@ -337,7 +337,7 @@ export const authPatterns: StepPattern[] = [
     name: 'user-login',
     regex: /^(?:user\s+)?(?:logs?\s*in|login\s+is\s+performed|authenticates?)$/i,
     primitiveType: 'callModule',
-    extract: () => ({
+    extract: (_match) => ({
       type: 'callModule',
       module: 'auth',
       method: 'login',
@@ -347,7 +347,7 @@ export const authPatterns: StepPattern[] = [
     name: 'user-logout',
     regex: /^(?:user\s+)?(?:logs?\s*out|logout\s+is\s+performed|signs?\s*out)$/i,
     primitiveType: 'callModule',
-    extract: () => ({
+    extract: (_match) => ({
       type: 'callModule',
       module: 'auth',
       method: 'logout',
@@ -361,7 +361,7 @@ export const authPatterns: StepPattern[] = [
       type: 'callModule',
       module: 'auth',
       method: 'loginAs',
-      args: [match[1].toLowerCase()],
+      args: [match[1]!.toLowerCase()],
     }),
   },
 ];
@@ -376,14 +376,14 @@ export const waitPatterns: StepPattern[] = [
     primitiveType: 'waitForURL',
     extract: (match) => ({
       type: 'waitForURL',
-      pattern: match[1],
+      pattern: match[1]!,
     }),
   },
   {
     name: 'wait-for-page',
     regex: /^(?:user\s+)?(?:waits?\s+)?(?:for\s+)?(?:the\s+)?(.+?)\s+(?:page|screen)\s+to\s+load$/i,
     primitiveType: 'waitForLoadingComplete',
-    extract: () => ({
+    extract: (_match) => ({
       type: 'waitForLoadingComplete',
     }),
   },
@@ -432,7 +432,7 @@ export const structuredPatterns: StepPattern[] = [
     regex: /^\*\*Action\*\*:\s*[Cc]lick\s+(?:the\s+)?['"]?(.+?)['"]?\s*(?:button|link)?$/i,
     primitiveType: 'click',
     extract: (match) => {
-      const target = match[1];
+      const target = match[1]!;
       const locatorInfo = parseSelectorToLocator(target + ' button');
       return {
         type: 'click',
@@ -447,8 +447,8 @@ export const structuredPatterns: StepPattern[] = [
     regex: /^\*\*Action\*\*:\s*[Ff]ill\s+(?:in\s+)?['"]?(.+?)['"]?\s+with\s+['"]?(.+?)['"]?$/i,
     primitiveType: 'fill',
     extract: (match) => {
-      const target = match[1];
-      const value = match[2];
+      const target = match[1]!;
+      const value = match[2]!;
       const locatorInfo = parseSelectorToLocator(target);
       return {
         type: 'fill',
@@ -465,7 +465,7 @@ export const structuredPatterns: StepPattern[] = [
     primitiveType: 'goto',
     extract: (match) => ({
       type: 'goto',
-      url: match[1],
+      url: match[1]!,
       waitForLoad: true,
     }),
   },
@@ -476,7 +476,7 @@ export const structuredPatterns: StepPattern[] = [
     regex: /^\*\*Wait for\*\*:\s*(.+?)\s+(?:to\s+)?(?:be\s+)?(?:visible|appear|load)/i,
     primitiveType: 'expectVisible',
     extract: (match) => {
-      const target = match[1];
+      const target = match[1]!;
       const locatorInfo = parseSelectorToLocator(target);
       return {
         type: 'expectVisible',
@@ -493,7 +493,7 @@ export const structuredPatterns: StepPattern[] = [
     regex: /^\*\*Assert\*\*:\s*(.+?)\s+(?:is\s+)?visible$/i,
     primitiveType: 'expectVisible',
     extract: (match) => {
-      const target = match[1];
+      const target = match[1]!;
       const locatorInfo = parseSelectorToLocator(target);
       return {
         type: 'expectVisible',
@@ -508,8 +508,8 @@ export const structuredPatterns: StepPattern[] = [
     regex: /^\*\*Assert\*\*:\s*(.+?)\s+(?:contains|has text)\s+['"]?(.+?)['"]?$/i,
     primitiveType: 'expectText',
     extract: (match) => {
-      const target = match[1];
-      const text = match[2];
+      const target = match[1]!;
+      const text = match[2]!;
       const locatorInfo = parseSelectorToLocator(target);
       return {
         type: 'expectText',

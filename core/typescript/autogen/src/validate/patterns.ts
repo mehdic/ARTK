@@ -205,7 +205,7 @@ export function scanForbiddenPatterns(
     pattern.regex.lastIndex = 0;
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const line = lines[lineIndex];
+      const line = lines[lineIndex]!;
       let match: RegExpExecArray | null;
 
       // Clone regex to avoid state issues with global flag
@@ -215,8 +215,8 @@ export function scanForbiddenPatterns(
         results.push({
           line: lineIndex + 1,
           column: match.index + 1,
-          match: match[0],
-          lineContent: line.trim(),
+          match: match[0]!,
+          lineContent: line!.trim(),
           pattern,
         });
 

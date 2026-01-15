@@ -250,7 +250,7 @@ export function compareARIASnapshots(
 
     const minLen = Math.min(expChildren.length, actChildren.length);
     for (let i = 0; i < minLen; i++) {
-      compare(`${path}/${expChildren[i].role}[${i}]`, expChildren[i], actChildren[i]);
+      compare(`${path}/${expChildren[i]!.role}[${i}]`, expChildren[i]!, actChildren[i]!);
     }
   }
 

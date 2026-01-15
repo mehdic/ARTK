@@ -37,7 +37,7 @@ function isRelativeImport(importPath: string): boolean {
  */
 function hasExtension(importPath: string): boolean {
   const parts = importPath.split('/');
-  const lastPart = parts[parts.length - 1];
+  const lastPart = parts[parts.length - 1]!;
   return lastPart.includes('.');
 }
 
@@ -153,7 +153,7 @@ function extractImportPaths(
       const isTypeOnly = match[0].includes('import type');
 
       imports.push({
-        path: match[1],
+        path: match[1]!,
         position,
         isTypeOnly,
       });

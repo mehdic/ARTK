@@ -95,13 +95,13 @@ export function extractName(text: string): string | null {
   // Look for quoted strings
   const quotedMatch = text.match(/['"]([^'"]+)['"]/);
   if (quotedMatch) {
-    return quotedMatch[1];
+    return quotedMatch[1] ?? null;
   }
 
   // Look for "the X button" pattern
   const theMatch = text.match(/(?:the\s+)?['"]?([^'"]+?)['"]?\s+(?:button|link|field|input|checkbox|dropdown)/i);
   if (theMatch) {
-    return theMatch[1].trim();
+    return theMatch[1]!.trim();
   }
 
   return null;

@@ -54,4 +54,4 @@ export type {
 export type {
   TemplateVariant,
   TemplateResolutionResult
-} from '../types/environment-context';
+} from '../../templates/shared/types/index.js';

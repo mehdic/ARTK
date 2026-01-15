@@ -80,19 +80,19 @@ function versionSatisfiesRange(version: string, range: string): boolean {
 
   // For >= range (most common case)
   if (range.startsWith('>=')) {
-    if (vMajor > rMajor) return true;
-    if (vMajor < rMajor) return false;
-    if (vMinor > rMinor) return true;
-    if (vMinor < rMinor) return false;
-    return vPatch >= rPatch;
+    if (vMajor! > rMajor!) return true;
+    if (vMajor! < rMajor!) return false;
+    if (vMinor! > rMinor!) return true;
+    if (vMinor! < rMinor!) return false;
+    return vPatch! >= rPatch!;
   }
 
   // For ^ range (semver compatible)
   if (version.startsWith('^')) {
-    return vMajor >= rMajor;
+    return vMajor! >= rMajor!;
   }
 
-  return vMajor >= rMajor;
+  return vMajor! >= rMajor!;
 }
 
 /**
@@ -119,7 +119,7 @@ function extractPackageName(importPath: string): string | null {
 
   // Regular packages
   const parts = importPath.split('/');
-  return parts[0];
+  return parts[0] ?? null;
 }
 
 /**
@@ -172,7 +172,7 @@ export class DependencyCompatRule implements ValidationRule {
       let match;
 
       while ((match = pattern.exec(content)) !== null) {
-        const importPath = match[1];
+        const importPath = match[1]!;
         const packageName = extractPackageName(importPath);
 
         if (packageName && ESM_ONLY_PACKAGES[packageName]) {

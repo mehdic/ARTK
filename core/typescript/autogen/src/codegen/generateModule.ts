@@ -140,7 +140,7 @@ function generateLocatorName(spec: LocatorSpec, existingNames: Set<string>): str
     case 'css':
       // Extract meaningful name from CSS selector
       const match = spec.value.match(/[#.]?([a-zA-Z][a-zA-Z0-9_-]*)/);
-      baseName = match ? toCamelCase(match[1]) : 'element';
+      baseName = match ? toCamelCase(match[1]!) : 'element';
       break;
     default:
       baseName = 'element';
@@ -277,7 +277,7 @@ function generateMethods(journey: IRJourney, locators: ModuleLocator[]): ModuleM
  */
 function primitiveToMethodLine(
   primitive: IRPrimitive,
-  getLocatorRef: (spec: LocatorSpec) => string
+  getLocatorRef: (_spec: LocatorSpec) => string
 ): string | null {
   switch (primitive.type) {
     // Navigation

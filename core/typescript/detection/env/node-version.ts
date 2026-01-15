@@ -89,10 +89,10 @@ export function parseNodeVersion(version: string): ParsedNodeVersion {
   const [, majorStr, minorStr, patchStr] = match;
 
   return {
-    major: parseInt(majorStr, 10),
-    minor: parseInt(minorStr, 10),
-    patch: parseInt(patchStr, 10),
-    raw: cleanVersion.split('-')[0], // Remove pre-release suffix for raw
+    major: parseInt(majorStr!, 10),
+    minor: parseInt(minorStr!, 10),
+    patch: parseInt(patchStr!, 10),
+    raw: cleanVersion.split('-')[0]!, // Remove pre-release suffix for raw
   };
 }
 

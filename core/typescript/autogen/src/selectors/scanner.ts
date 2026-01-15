@@ -162,7 +162,7 @@ function scanFile(
   primaryPattern.lastIndex = 0;
   let match;
   while ((match = primaryPattern.exec(content)) !== null) {
-    const testId = match[1];
+    const testId = match[1]!; // Capture group guaranteed by pattern
     if (!seenTestIds.has(testId)) {
       seenTestIds.add(testId);
       testIds.push(testId);
@@ -186,7 +186,7 @@ function scanFile(
   // Also scan for getByTestId in test files
   TESTID_PATTERNS.getByTestId.lastIndex = 0;
   while ((match = TESTID_PATTERNS.getByTestId.exec(content)) !== null) {
-    const testId = match[1];
+    const testId = match[1]!; // Capture group guaranteed by pattern
     if (!seenTestIds.has(testId)) {
       seenTestIds.add(testId);
       testIds.push(testId);
@@ -198,7 +198,7 @@ function scanFile(
     for (const [patternName, pattern] of Object.entries(CSS_DEBT_PATTERNS)) {
       pattern.lastIndex = 0;
       while ((match = pattern.exec(content)) !== null) {
-        const selector = match[1];
+        const selector = match[1]!; // Capture group guaranteed by pattern
         const lineNumber = content.substring(0, match.index).split('\n').length;
 
         // Check if we already have this debt entry

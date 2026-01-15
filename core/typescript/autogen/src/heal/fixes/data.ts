@@ -281,13 +281,13 @@ export function extractTestDataPatterns(code: string): string[] {
   // Find fill operations
   const fillMatches = code.matchAll(/\.fill\s*\([^,]+,\s*['"`]([^'"`]+)['"`]\s*\)/g);
   for (const match of fillMatches) {
-    patterns.push(match[1]);
+    patterns.push(match[1]!);
   }
 
   // Find email patterns
   const emailMatches = code.matchAll(/['"`]([\w.+-]+@[\w.-]+\.[\w]{2,})['"`]/g);
   for (const match of emailMatches) {
-    patterns.push(match[1]);
+    patterns.push(match[1]!);
   }
 
   return patterns;

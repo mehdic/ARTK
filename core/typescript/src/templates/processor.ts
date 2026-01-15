@@ -46,7 +46,7 @@ function processConditionals(content: string, context: TemplateContext): string 
   // Match {{#if VARIABLE}}...{{/if}} blocks
   const conditionalRegex = /\{\{#if\s+(\w+)\}\}(.*?)\{\{\/if\}\}/gs;
 
-  return content.replace(conditionalRegex, (match, variable, blockContent) => {
+  return content.replace(conditionalRegex, (_match, variable, blockContent) => {
     const value = context[variable];
 
     // Include block if variable is truthy
@@ -65,7 +65,7 @@ function substituteVariables(content: string, context: TemplateContext): string 
   // Match {{VARIABLE_NAME}}
   const variableRegex = /\{\{(\w+)\}\}/g;
 
-  return content.replace(variableRegex, (match, variableName) => {
+  return content.replace(variableRegex, (_match, variableName) => {
     const value = context[variableName];
 
     if (value === undefined) {
@@ -149,13 +149,13 @@ export function extractVariables(templateContent: string): string[] {
   const variableRegex = /\{\{(\w+)\}\}/g;
   let match;
   while ((match = variableRegex.exec(templateContent)) !== null) {
-    variables.add(match[1]);
+    variables.add(match[1]!);
   }
 
   // Extract from {{#if VARIABLE}}
   const conditionalRegex = /\{\{#if\s+(\w+)\}\}/g;
   while ((match = conditionalRegex.exec(templateContent)) !== null) {
-    variables.add(match[1]);
+    variables.add(match[1]!);
   }
 
   return Array.from(variables);

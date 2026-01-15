@@ -108,7 +108,7 @@ export function extractCSSSelector(code: string): string | null {
     pattern.lastIndex = 0;
     const match = pattern.exec(code);
     if (match) {
-      return match[1];
+      return match[1] ?? null;
     }
   }
   return null;
@@ -146,17 +146,17 @@ export function extractNameFromSelector(selector: string): string | null {
   // Extract text between brackets for attribute selectors
   const attrMatch = selector.match(/\[(?:aria-label|title|alt|name)=['"]([^'"]+)['"]\]/);
   if (attrMatch) {
-    return attrMatch[1];
+    return attrMatch[1] ?? null;
   }
 
   // Extract class name parts that might be descriptive
   const classMatch = selector.match(/\.([a-zA-Z][-a-zA-Z0-9_]*)/);
   if (classMatch) {
     // Convert class name to readable format
-    const className = classMatch[1];
+    const className = classMatch[1]!;
     // Convert kebab-case or snake_case to words
     const words = className.split(/[-_]/).filter(Boolean);
-    if (words.length > 0 && words[0].length > 2) {
+    if (words.length > 0 && words[0]!.length > 2) {
       return words.join(' ');
     }
   }
@@ -185,7 +185,7 @@ export function generateRoleLocator(
   if (options?.level !== undefined && role === 'heading') {
     if (parts.length > 0) {
       // Merge with existing options
-      const existing = parts[0].slice(0, -2); // Remove ' }'
+      const existing = parts[0]!.slice(0, -2); // Remove ' }'
       parts[0] = `${existing}, level: ${options.level} }`;
     } else {
       parts.push(`{ level: ${options.level} }`);

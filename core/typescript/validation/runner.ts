@@ -10,13 +10,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  getAllRules,
-  ImportMetaUsageRule,
-  DirnameUsageRule,
-  ImportPathsRule,
-  DependencyCompatRule,
-} from './rules/index.js';
+import { getAllRules } from './rules/index.js';
 import {
   startTransaction,
   trackGeneratedFile as trackGenerated,

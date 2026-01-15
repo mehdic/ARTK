@@ -5,7 +5,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
-import type { TemplateVariant, TemplateResolutionResult } from '../types/environment-context';
+import type { TemplateVariant, TemplateResolutionResult } from '../../templates/shared/types/index.js';
 
 // ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url);

@@ -20,7 +20,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type {
   EnvironmentContext,
-  ModuleSystem,
   DetectionOptions as BaseDetectionOptions,
   DetectionResult,
 } from '../../types/environment-context.js';

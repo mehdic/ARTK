@@ -8,9 +8,8 @@
  */
 import * as path from 'path';
 import * as fs from 'fs';
-import { generateFoundationModules, createTemplateContext } from '../src/templates';
+import { generateFoundationModules, createTemplateContext, type TemplateVariant } from '../src/templates';
 import { detectEnvironment } from '../detection/env';
-import type { TemplateVariant } from '../src/templates/types';
 
 interface ScriptOptions {
   projectRoot: string;
@@ -106,7 +105,7 @@ async function main() {
       variant = envResult.context.moduleSystem === 'esm' ? 'esm' : 'commonjs';
 
       if (options.verbose) {
-        console.log(`Detected: ${variant} (confidence: ${envResult.context.confidence})`);
+        console.log(`Detected: ${variant} (confidence: ${envResult.context.detectionConfidence})`);
         console.log('');
       }
     }
@@ -190,8 +189,8 @@ async function main() {
 }
 
 // Run if executed directly (ESM-compatible)
-const isMainModule = import.meta.url === `file://${process.argv[1]}` ||
-                     import.meta.url.endsWith(process.argv[1]);
+const isMainModule = import.meta.url === `file://${process.argv[1]!}` ||
+                     import.meta.url.endsWith(process.argv[1]!);
 
 if (isMainModule) {
   main().catch((error) => {

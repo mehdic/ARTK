@@ -95,7 +95,7 @@ export function parseHints(text: string): ParsedHints {
   let match;
 
   while ((match = HINT_BLOCK_PATTERN.exec(text)) !== null) {
-    const key = match[1].toLowerCase() as HintType;
+    const key = match[1]!.toLowerCase() as HintType;
     const value = match[2] || match[3] || match[4];
 
     if (!value) {
@@ -251,8 +251,8 @@ export function parseModuleHint(moduleHint: string): { module: string; method: s
     return null;
   }
   return {
-    module: parts[0],
-    method: parts[1],
+    module: parts[0]!,
+    method: parts[1]!,
   };
 }
 

@@ -17,6 +17,7 @@ import {
   tryCatch,
   tryCatchAsync,
   codedError,
+  CodedError,
   type Result,
 } from '../../src/utils/result.js';
 
@@ -346,6 +347,65 @@ describe('Result type', () => {
       expect(error.code).toBe('VALIDATION');
       expect(error.message).toBe('Invalid input');
       expect(error.details).toEqual({ field: 'email' });
+    });
+  });
+
+  describe('CodedError class', () => {
+    it('should be an instance of Error', () => {
+      const error = new CodedError('TEST', 'Test error');
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toBeInstanceOf(CodedError);
+    });
+
+    it('should have a stack trace', () => {
+      const error = new CodedError('TEST', 'Test error');
+      expect(error.stack).toBeDefined();
+      expect(error.stack).toContain('CodedError');
+    });
+
+    it('should be throwable and catchable', () => {
+      expect(() => {
+        throw new CodedError('THROWN', 'This was thrown');
+      }).toThrow(CodedError);
+
+      try {
+        throw new CodedError('CATCH_TEST', 'Catch me');
+      } catch (e) {
+        expect(e).toBeInstanceOf(CodedError);
+        if (e instanceof CodedError) {
+          expect(e.code).toBe('CATCH_TEST');
+          expect(e.message).toBe('Catch me');
+        }
+      }
+    });
+
+    it('should serialize to JSON correctly', () => {
+      const error = new CodedError('JSON_TEST', 'JSON message', { extra: 'data' });
+      const json = error.toJSON();
+      expect(json.code).toBe('JSON_TEST');
+      expect(json.message).toBe('JSON message');
+      expect(json.details).toEqual({ extra: 'data' });
+      expect(json.stack).toBeDefined();
+    });
+
+    it('should format toString correctly', () => {
+      const simple = new CodedError('SIMPLE', 'Simple message');
+      expect(simple.toString()).toBe('[SIMPLE] Simple message');
+
+      const withDetails = new CodedError('DETAILED', 'Has details', { key: 'value' });
+      expect(withDetails.toString()).toContain('[DETAILED] Has details');
+      expect(withDetails.toString()).toContain('"key":"value"');
+    });
+
+    it('should work with static create method', () => {
+      const error = CodedError.create('STATIC', 'Created statically');
+      expect(error).toBeInstanceOf(CodedError);
+      expect(error.code).toBe('STATIC');
+    });
+
+    it('should have name set to CodedError', () => {
+      const error = new CodedError('NAME_TEST', 'Test');
+      expect(error.name).toBe('CodedError');
     });
   });
 });

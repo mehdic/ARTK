@@ -95,7 +95,7 @@ export function extractManagedBlocks(code: string): BlockExtractionResult {
   let blockContent: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i]!;
 
     // Check for block start
     if (line.includes(BLOCK_START)) {
@@ -259,7 +259,7 @@ export function injectManagedBlocks(options: InjectBlocksOptions): string {
   let skipUntilEnd = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i]!;
 
     if (line.includes(BLOCK_START)) {
       inBlock = true;
@@ -314,7 +314,7 @@ export function injectManagedBlocks(options: InjectBlocksOptions): string {
 
   // Append new blocks that weren't replacements
   for (let i = 0; i < newBlocks.length; i++) {
-    const block = newBlocks[i];
+    const block = newBlocks[i]!;
     if (block.id) {
       // Check if this ID was processed
       if (!processedIds.has(block.id)) {

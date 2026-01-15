@@ -230,31 +230,31 @@ export function getRecommendations(summary: VerifySummary): string[] {
     // Analyze failure categories
     const stats = summary.failures.stats;
 
-    if (stats.selector > 0) {
+    if (stats.selector! > 0) {
       recommendations.push(
         `${stats.selector} selector issue(s): Update locators to use stable selectors (role, label, testid)`
       );
     }
 
-    if (stats.timing > 0) {
+    if (stats.timing! > 0) {
       recommendations.push(
         `${stats.timing} timing issue(s): Add explicit waits or increase timeout`
       );
     }
 
-    if (stats.auth > 0) {
+    if (stats.auth! > 0) {
       recommendations.push(
         `${stats.auth} auth issue(s): Check authentication state and credentials`
       );
     }
 
-    if (stats.env > 0) {
+    if (stats.env! > 0) {
       recommendations.push(
         `${stats.env} environment issue(s): Verify application is running and accessible`
       );
     }
 
-    if (stats.data > 0) {
+    if (stats.data! > 0) {
       recommendations.push(
         `${stats.data} data issue(s): Review test data and expected values`
       );
