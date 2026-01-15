@@ -48,7 +48,7 @@ export function getModuleSystem(): ModuleSystemRuntime {
   // Check for ESM - import.meta is only available in ESM
   // We use a try-catch because just referencing import.meta in CommonJS throws
   try {
-    // @ts-expect-error - import.meta may not be available
+    // @ts-expect-error import.meta is only available in ESM context
     if (typeof import.meta !== 'undefined' && import.meta.url) {
       cachedModuleSystem = 'esm';
       return cachedModuleSystem;
@@ -61,7 +61,7 @@ export function getModuleSystem(): ModuleSystemRuntime {
   try {
     // In ESM, __dirname is not defined
     // In CommonJS, it's always a string
-    // @ts-expect-error - __dirname may not be available in ESM
+    // @ts-expect-error __dirname is only available in CommonJS context
     if (typeof __dirname !== 'undefined' && typeof __dirname === 'string') {
       cachedModuleSystem = 'commonjs';
       return cachedModuleSystem;

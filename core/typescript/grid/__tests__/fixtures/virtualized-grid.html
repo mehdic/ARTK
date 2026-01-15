@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AG Grid - Virtualized Grid Test Fixture</title>
+  <style>
+    /* AG Grid styling simulation */
+    .ag-root-wrapper {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      border: 1px solid #babfc7;
+      width: 100%;
+      height: 500px;
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-header {
+      background: #f8f8f8;
+      border-bottom: 1px solid #babfc7;
+      display: flex;
+      min-height: 48px;
+    }
+    .ag-header-row {
+      display: flex;
+      width: 100%;
+    }
+    .ag-header-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #babfc7;
+      min-width: 100px;
+      font-weight: 600;
+    }
+    .ag-body-viewport {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+    }
+    .ag-center-cols-container {
+      position: relative;
+    }
+    .ag-row {
+      display: flex;
+      border-bottom: 1px solid #dde2eb;
+      height: 42px;
+      position: absolute;
+      width: 100%;
+    }
+    .ag-row:hover {
+      background: #f5f7f7;
+    }
+    .ag-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #dde2eb;
+      min-width: 100px;
+    }
+    .ag-status-bar {
+      background: #f8f8f8;
+      border-top: 1px solid #babfc7;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #666;
+    }
+    /* Virtual scroll placeholder */
+    .ag-virtual-list-container {
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+  <h1>Virtualized Grid Test Fixture (1000 rows)</h1>
+
+  <div id="virtualized-grid" class="ag-root-wrapper" data-testid="virtualized-grid">
+    <div class="ag-header">
+      <div class="ag-header-row" role="row">
+        <div class="ag-header-cell" col-id="id" role="columnheader">
+          <span>ID</span>
+        </div>
+        <div class="ag-header-cell" col-id="name" role="columnheader">
+          <span>Name</span>
+        </div>
+        <div class="ag-header-cell" col-id="email" role="columnheader">
+          <span>Email</span>
+        </div>
+        <div class="ag-header-cell" col-id="department" role="columnheader">
+          <span>Department</span>
+        </div>
+        <div class="ag-header-cell" col-id="salary" role="columnheader">
+          <span>Salary</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ag-body-viewport" id="viewport">
+      <div class="ag-center-cols-container" id="rows-container">
+        <!-- Rows will be generated dynamically -->
+      </div>
+    </div>
+
+    <div class="ag-status-bar">
+      <span id="status-text">Showing rows 1-20 of 1000</span>
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    const TOTAL_ROWS = 1000;
+    const ROW_HEIGHT = 42;
+    const BUFFER_ROWS = 5;
+    const VISIBLE_ROWS = 12;
+
+    // Data generation
+    const departments = ['Engineering', 'Sales', 'Marketing', 'HR', 'Finance', 'Operations', 'Legal', 'Support'];
+    const firstNames = ['John', 'Jane', 'Bob', 'Alice', 'Charlie', 'Diana', 'Edward', 'Fiona', 'George', 'Helen'];
+    const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+
+    function generateRow(index) {
+      const id = index + 1;
+      const firstName = firstNames[index % firstNames.length];
+      const lastName = lastNames[Math.floor(index / firstNames.length) % lastNames.length];
+      const name = `${firstName} ${lastName}`;
+      const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${id}@example.com`;
+      const department = departments[index % departments.length];
+      const salary = 50000 + (index * 100) + Math.floor(Math.random() * 10000);
+
+      return { id, name, email, department, salary };
+    }
+
+    // Virtual scrolling implementation
+    const viewport = document.getElementById('viewport');
+    const container = document.getElementById('rows-container');
+    const statusText = document.getElementById('status-text');
+
+    // Set container height to accommodate all rows
+    container.style.height = `${TOTAL_ROWS * ROW_HEIGHT}px`;
+
+    let currentRenderedRows = new Map();
+
+    function createRowElement(index) {
+      const data = generateRow(index);
+      const row = document.createElement('div');
+      row.className = 'ag-row';
+      row.setAttribute('role', 'row');
+      row.setAttribute('row-index', index.toString());
+      row.setAttribute('aria-rowindex', (index + 1).toString());
+      row.setAttribute('row-id', `row-${data.id}`);
+      row.style.top = `${index * ROW_HEIGHT}px`;
+
+      row.innerHTML = `
+        <div class="ag-cell" col-id="id" role="gridcell">${data.id}</div>
+        <div class="ag-cell" col-id="name" role="gridcell">${data.name}</div>
+        <div class="ag-cell" col-id="email" role="gridcell">${data.email}</div>
+        <div class="ag-cell" col-id="department" role="gridcell">${data.department}</div>
+        <div class="ag-cell" col-id="salary" role="gridcell">$${data.salary.toLocaleString()}</div>
+      `;
+
+      return row;
+    }
+
+    function updateVisibleRows() {
+      const scrollTop = viewport.scrollTop;
+      const viewportHeight = viewport.clientHeight;
+
+      // Calculate which rows should be visible
+      const startRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS);
+      const endRow = Math.min(TOTAL_ROWS - 1, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + BUFFER_ROWS);
+
+      // Remove rows that are no longer visible
+      const rowsToRemove = [];
+      currentRenderedRows.forEach((element, index) => {
+        if (index < startRow || index > endRow) {
+          rowsToRemove.push(index);
+        }
+      });
+      rowsToRemove.forEach(index => {
+        const element = currentRenderedRows.get(index);
+        if (element && element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+        currentRenderedRows.delete(index);
+      });
+
+      // Add new visible rows
+      for (let i = startRow; i <= endRow; i++) {
+        if (!currentRenderedRows.has(i)) {
+          const row = createRowElement(i);
+          container.appendChild(row);
+          currentRenderedRows.set(i, row);
+        }
+      }
+
+      // Update status
+      const firstVisible = Math.floor(scrollTop / ROW_HEIGHT) + 1;
+      const lastVisible = Math.min(TOTAL_ROWS, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT));
+      statusText.textContent = `Showing rows ${firstVisible}-${lastVisible} of ${TOTAL_ROWS}`;
+    }
+
+    // Initial render
+    updateVisibleRows();
+
+    // Update on scroll
+    viewport.addEventListener('scroll', updateVisibleRows);
+
+    // Expose scroll helper for testing
+    window.scrollToAriaRowIndex = function(targetIndex) {
+      const scrollPosition = (targetIndex - 1) * ROW_HEIGHT;
+      viewport.scrollTop = Math.max(0, scrollPosition - (viewport.clientHeight / 2));
+      updateVisibleRows();
+      return new Promise(resolve => setTimeout(resolve, 100));
+    };
+
+    // Expose total row count for testing
+    window.getTotalRowCount = function() {
+      return TOTAL_ROWS;
+    };
+
+    // Expose visible row range for testing
+    window.getVisibleRowRange = function() {
+      const scrollTop = viewport.scrollTop;
+      const viewportHeight = viewport.clientHeight;
+      const firstVisible = Math.floor(scrollTop / ROW_HEIGHT) + 1;
+      const lastVisible = Math.min(TOTAL_ROWS, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT));
+      return { first: firstVisible, last: lastVisible };
+    };
+  </script>
+</body>
+</html>

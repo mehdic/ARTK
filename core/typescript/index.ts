@@ -118,6 +118,20 @@ export { ARTKReporter, extractJourneyId, mapTestToJourney } from './reporters/in
 export { createPlaywrightConfig, getTierSettings, getUseOptions } from './harness/index.js';
 
 /**
+ * Grid Module (AG Grid Testing)
+ * @see {@link grid/index.ts} for full API
+ */
+export {
+  agGrid,
+  DEFAULT_TIMEOUTS,
+  type AgGridConfig,
+  type AgGridHelper,
+  type RowMatcher,
+  type AgGridRowData,
+  type AgGridState,
+} from './grid/index.js';
+
+/**
  * Error Classes
  * @see {@link errors/index.ts} for full API
  */
@@ -148,6 +162,7 @@ export { createLogger, withRetry, type Logger } from './utils/index.js';
  * | **Data** | `@artk/core/data` | Test data and cleanup |
  * | **Reporters** | `@artk/core/reporters` | Custom reporters |
  * | **Harness** | `@artk/core/harness` | Playwright config generation |
+ * | **Grid** | `@artk/core/grid` | AG Grid testing helpers |
  * | **Errors** | `@artk/core/errors` | Error classes |
  * | **Utils** | `@artk/core/utils` | Utilities (logging, retry) |
  *

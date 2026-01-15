@@ -55,6 +55,7 @@ This command creates (or upgrades) a Journey into a canonical, structured, “de
 - **Deterministic outputs**: stable IDs, stable ordering, stable file naming.
 - **No secrets**: do not ask for passwords/tokens. If login is involved, ask for *test account provisioning process* only.
 - **Medium friction**: minimize questions; default to reasonable placeholders and mark unknowns.
+- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
 
 ---
 
@@ -121,7 +122,7 @@ Default: `standard`
    - nearest `artk.config.yml` up the tree
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/init-playbook` first.
 
 ## Step 1 — Determine whether this is “create” or “promote”
 If `source=` is provided:

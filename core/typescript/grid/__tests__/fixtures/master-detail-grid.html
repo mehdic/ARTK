@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AG Grid - Master/Detail Grid Test Fixture</title>
+  <style>
+    /* AG Grid styling simulation */
+    .ag-root-wrapper {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      border: 1px solid #babfc7;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-header {
+      background: #f8f8f8;
+      border-bottom: 1px solid #babfc7;
+      display: flex;
+      min-height: 48px;
+    }
+    .ag-header-row {
+      display: flex;
+      width: 100%;
+    }
+    .ag-header-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #babfc7;
+      font-weight: 600;
+      min-width: 120px;
+    }
+    .ag-header-cell:first-child {
+      min-width: 50px;
+      max-width: 50px;
+    }
+    .ag-body-viewport {
+      flex: 1;
+      overflow: auto;
+    }
+    .ag-row {
+      display: flex;
+      border-bottom: 1px solid #dde2eb;
+      min-height: 42px;
+    }
+    .ag-row:hover {
+      background: #f5f7f7;
+    }
+    .ag-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #dde2eb;
+      min-width: 120px;
+    }
+    .ag-cell:first-child {
+      min-width: 50px;
+      max-width: 50px;
+      justify-content: center;
+    }
+    /* Master row expand icon */
+    .ag-cell-expandable {
+      cursor: pointer;
+    }
+    .ag-group-contracted,
+    .ag-group-expanded {
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #babfc7;
+      border-radius: 2px;
+      background: white;
+      font-size: 12px;
+    }
+    .ag-group-contracted:hover,
+    .ag-group-expanded:hover {
+      background: #e8f4f8;
+    }
+    .ag-group-contracted::before {
+      content: '▶';
+      font-size: 8px;
+    }
+    .ag-group-expanded::before {
+      content: '▼';
+      font-size: 8px;
+    }
+    /* Detail row */
+    .ag-details-row {
+      background: #f9f9f9;
+      border-bottom: 2px solid #babfc7;
+      padding: 16px;
+    }
+    .ag-details-row.ag-hidden {
+      display: none;
+    }
+    /* Detail grid (nested) */
+    .ag-details-row .ag-root-wrapper {
+      height: auto;
+      max-height: 250px;
+    }
+    .detail-header {
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #333;
+    }
+    /* Status badges */
+    .status-badge {
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .status-completed {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .status-pending {
+      background: #fff3e0;
+      color: #ef6c00;
+    }
+    .status-cancelled {
+      background: #ffebee;
+      color: #c62828;
+    }
+  </style>
+</head>
+<body>
+  <h1>Master/Detail Grid Test Fixture</h1>
+
+  <div id="master-detail-grid" class="ag-root-wrapper" data-testid="master-detail-grid" style="height: 600px;">
+    <div class="ag-header">
+      <div class="ag-header-row" role="row">
+        <div class="ag-header-cell" col-id="expand" role="columnheader"></div>
+        <div class="ag-header-cell" col-id="orderId" role="columnheader">Order ID</div>
+        <div class="ag-header-cell" col-id="customer" role="columnheader">Customer</div>
+        <div class="ag-header-cell" col-id="date" role="columnheader">Date</div>
+        <div class="ag-header-cell" col-id="total" role="columnheader">Total</div>
+        <div class="ag-header-cell" col-id="status" role="columnheader">Status</div>
+      </div>
+    </div>
+
+    <div class="ag-body-viewport">
+      <div class="ag-center-cols-container">
+        <!-- Master Row 1 -->
+        <div class="ag-row" role="row" row-index="0" aria-rowindex="1" aria-expanded="true" row-id="order-1001">
+          <div class="ag-cell ag-cell-expandable" col-id="expand" role="gridcell">
+            <span class="ag-group-expanded" data-master="order-1001"></span>
+          </div>
+          <div class="ag-cell" col-id="orderId" role="gridcell">ORD-1001</div>
+          <div class="ag-cell" col-id="customer" role="gridcell">John Smith</div>
+          <div class="ag-cell" col-id="date" role="gridcell">2024-01-15</div>
+          <div class="ag-cell" col-id="total" role="gridcell">$1,250.00</div>
+          <div class="ag-cell" col-id="status" role="gridcell">
+            <span class="status-badge status-completed">Completed</span>
+          </div>
+        </div>
+
+        <!-- Detail Row 1 (visible) -->
+        <div class="ag-details-row ag-full-width-row" data-master-row="order-1001">
+          <div class="detail-header">Order Items</div>
+          <div class="ag-root-wrapper" data-testid="detail-grid-1001">
+            <div class="ag-header">
+              <div class="ag-header-row" role="row">
+                <div class="ag-header-cell" col-id="productId" role="columnheader">Product ID</div>
+                <div class="ag-header-cell" col-id="productName" role="columnheader">Product Name</div>
+                <div class="ag-header-cell" col-id="quantity" role="columnheader">Qty</div>
+                <div class="ag-header-cell" col-id="unitPrice" role="columnheader">Unit Price</div>
+                <div class="ag-header-cell" col-id="lineTotal" role="columnheader">Line Total</div>
+              </div>
+            </div>
+            <div class="ag-body-viewport">
+              <div class="ag-center-cols-container">
+                <div class="ag-row" role="row" row-index="0" aria-rowindex="1">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-001</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Laptop Pro 15"</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">1</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$999.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$999.00</div>
+                </div>
+                <div class="ag-row" role="row" row-index="1" aria-rowindex="2">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-015</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">USB-C Hub</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">2</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$49.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$98.00</div>
+                </div>
+                <div class="ag-row" role="row" row-index="2" aria-rowindex="3">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-022</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Laptop Sleeve</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">1</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$35.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$35.00</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Row 2 -->
+        <div class="ag-row" role="row" row-index="1" aria-rowindex="2" aria-expanded="false" row-id="order-1002">
+          <div class="ag-cell ag-cell-expandable" col-id="expand" role="gridcell">
+            <span class="ag-group-contracted" data-master="order-1002"></span>
+          </div>
+          <div class="ag-cell" col-id="orderId" role="gridcell">ORD-1002</div>
+          <div class="ag-cell" col-id="customer" role="gridcell">Jane Doe</div>
+          <div class="ag-cell" col-id="date" role="gridcell">2024-01-14</div>
+          <div class="ag-cell" col-id="total" role="gridcell">$450.00</div>
+          <div class="ag-cell" col-id="status" role="gridcell">
+            <span class="status-badge status-pending">Pending</span>
+          </div>
+        </div>
+
+        <!-- Detail Row 2 (hidden) -->
+        <div class="ag-details-row ag-full-width-row ag-hidden" data-master-row="order-1002">
+          <div class="detail-header">Order Items</div>
+          <div class="ag-root-wrapper" data-testid="detail-grid-1002">
+            <div class="ag-header">
+              <div class="ag-header-row" role="row">
+                <div class="ag-header-cell" col-id="productId" role="columnheader">Product ID</div>
+                <div class="ag-header-cell" col-id="productName" role="columnheader">Product Name</div>
+                <div class="ag-header-cell" col-id="quantity" role="columnheader">Qty</div>
+                <div class="ag-header-cell" col-id="unitPrice" role="columnheader">Unit Price</div>
+                <div class="ag-header-cell" col-id="lineTotal" role="columnheader">Line Total</div>
+              </div>
+            </div>
+            <div class="ag-body-viewport">
+              <div class="ag-center-cols-container">
+                <div class="ag-row" role="row" row-index="0" aria-rowindex="1">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-008</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Wireless Mouse</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">3</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$75.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$225.00</div>
+                </div>
+                <div class="ag-row" role="row" row-index="1" aria-rowindex="2">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-012</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Keyboard</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">3</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$75.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$225.00</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Row 3 -->
+        <div class="ag-row" role="row" row-index="2" aria-rowindex="3" aria-expanded="false" row-id="order-1003">
+          <div class="ag-cell ag-cell-expandable" col-id="expand" role="gridcell">
+            <span class="ag-group-contracted" data-master="order-1003"></span>
+          </div>
+          <div class="ag-cell" col-id="orderId" role="gridcell">ORD-1003</div>
+          <div class="ag-cell" col-id="customer" role="gridcell">Bob Wilson</div>
+          <div class="ag-cell" col-id="date" role="gridcell">2024-01-13</div>
+          <div class="ag-cell" col-id="total" role="gridcell">$89.00</div>
+          <div class="ag-cell" col-id="status" role="gridcell">
+            <span class="status-badge status-cancelled">Cancelled</span>
+          </div>
+        </div>
+
+        <!-- Detail Row 3 (hidden) -->
+        <div class="ag-details-row ag-full-width-row ag-hidden" data-master-row="order-1003">
+          <div class="detail-header">Order Items</div>
+          <div class="ag-root-wrapper" data-testid="detail-grid-1003">
+            <div class="ag-header">
+              <div class="ag-header-row" role="row">
+                <div class="ag-header-cell" col-id="productId" role="columnheader">Product ID</div>
+                <div class="ag-header-cell" col-id="productName" role="columnheader">Product Name</div>
+                <div class="ag-header-cell" col-id="quantity" role="columnheader">Qty</div>
+                <div class="ag-header-cell" col-id="unitPrice" role="columnheader">Unit Price</div>
+                <div class="ag-header-cell" col-id="lineTotal" role="columnheader">Line Total</div>
+              </div>
+            </div>
+            <div class="ag-body-viewport">
+              <div class="ag-center-cols-container">
+                <div class="ag-row" role="row" row-index="0" aria-rowindex="1">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-033</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Phone Case</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">1</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$29.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$29.00</div>
+                </div>
+                <div class="ag-row" role="row" row-index="1" aria-rowindex="2">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-041</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Screen Protector</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">2</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$15.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$30.00</div>
+                </div>
+                <div class="ag-row" role="row" row-index="2" aria-rowindex="3">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-055</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Charging Cable</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">2</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$15.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$30.00</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Row 4 -->
+        <div class="ag-row" role="row" row-index="3" aria-rowindex="4" aria-expanded="false" row-id="order-1004">
+          <div class="ag-cell ag-cell-expandable" col-id="expand" role="gridcell">
+            <span class="ag-group-contracted" data-master="order-1004"></span>
+          </div>
+          <div class="ag-cell" col-id="orderId" role="gridcell">ORD-1004</div>
+          <div class="ag-cell" col-id="customer" role="gridcell">Alice Brown</div>
+          <div class="ag-cell" col-id="date" role="gridcell">2024-01-12</div>
+          <div class="ag-cell" col-id="total" role="gridcell">$2,100.00</div>
+          <div class="ag-cell" col-id="status" role="gridcell">
+            <span class="status-badge status-completed">Completed</span>
+          </div>
+        </div>
+
+        <!-- Detail Row 4 (hidden) -->
+        <div class="ag-details-row ag-full-width-row ag-hidden" data-master-row="order-1004">
+          <div class="detail-header">Order Items</div>
+          <div class="ag-root-wrapper" data-testid="detail-grid-1004">
+            <div class="ag-header">
+              <div class="ag-header-row" role="row">
+                <div class="ag-header-cell" col-id="productId" role="columnheader">Product ID</div>
+                <div class="ag-header-cell" col-id="productName" role="columnheader">Product Name</div>
+                <div class="ag-header-cell" col-id="quantity" role="columnheader">Qty</div>
+                <div class="ag-header-cell" col-id="unitPrice" role="columnheader">Unit Price</div>
+                <div class="ag-header-cell" col-id="lineTotal" role="columnheader">Line Total</div>
+              </div>
+            </div>
+            <div class="ag-body-viewport">
+              <div class="ag-center-cols-container">
+                <div class="ag-row" role="row" row-index="0" aria-rowindex="1">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-002</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">Desktop Workstation</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">1</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$1,800.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$1,800.00</div>
+                </div>
+                <div class="ag-row" role="row" row-index="1" aria-rowindex="2">
+                  <div class="ag-cell" col-id="productId" role="gridcell">PROD-009</div>
+                  <div class="ag-cell" col-id="productName" role="gridcell">27" Monitor</div>
+                  <div class="ag-cell" col-id="quantity" role="gridcell">1</div>
+                  <div class="ag-cell" col-id="unitPrice" role="gridcell">$300.00</div>
+                  <div class="ag-cell" col-id="lineTotal" role="gridcell">$300.00</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Handle master row expand/collapse
+    document.querySelectorAll('.ag-group-contracted, .ag-group-expanded').forEach(icon => {
+      icon.addEventListener('click', function() {
+        const masterId = this.dataset.master;
+        const masterRow = this.closest('.ag-row');
+        const detailRow = document.querySelector(`[data-master-row="${masterId}"]`);
+        const isExpanded = masterRow.getAttribute('aria-expanded') === 'true';
+
+        // Toggle expand state
+        masterRow.setAttribute('aria-expanded', (!isExpanded).toString());
+
+        // Toggle icon class
+        if (isExpanded) {
+          this.classList.remove('ag-group-expanded');
+          this.classList.add('ag-group-contracted');
+          detailRow.classList.add('ag-hidden');
+        } else {
+          this.classList.remove('ag-group-contracted');
+          this.classList.add('ag-group-expanded');
+          detailRow.classList.remove('ag-hidden');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

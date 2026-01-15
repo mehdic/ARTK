@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AG Grid - Editable Grid Test Fixture</title>
+  <style>
+    /* AG Grid styling simulation */
+    .ag-root-wrapper {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      border: 1px solid #babfc7;
+      width: 100%;
+      height: 400px;
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-header {
+      background: #f8f8f8;
+      border-bottom: 1px solid #babfc7;
+      display: flex;
+      min-height: 48px;
+    }
+    .ag-header-row {
+      display: flex;
+      width: 100%;
+    }
+    .ag-header-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #babfc7;
+      min-width: 120px;
+      font-weight: 600;
+    }
+    .ag-body-viewport {
+      flex: 1;
+      overflow: auto;
+    }
+    .ag-row {
+      display: flex;
+      border-bottom: 1px solid #dde2eb;
+      min-height: 42px;
+    }
+    .ag-row:hover {
+      background: #f5f7f7;
+    }
+    .ag-row-editing {
+      background: #fff9e6;
+    }
+    .ag-cell {
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid #dde2eb;
+      min-width: 120px;
+      cursor: pointer;
+    }
+    .ag-cell-editable {
+      cursor: text;
+    }
+    .ag-cell-editable:hover {
+      background: #e8f4f8;
+    }
+    .ag-cell-inline-editing {
+      padding: 0;
+      background: #fff;
+      border: 2px solid #2196f3;
+    }
+    .ag-cell-inline-editing input {
+      width: 100%;
+      height: 100%;
+      padding: 0 12px;
+      border: none;
+      outline: none;
+      font-size: inherit;
+      font-family: inherit;
+    }
+    .ag-cell-focus {
+      outline: 1px solid #2196f3;
+      outline-offset: -1px;
+    }
+    /* Read-only cell */
+    .ag-cell-not-editable {
+      background: #f5f5f5;
+      color: #666;
+    }
+    /* Cell with validation error */
+    .ag-cell-data-changed {
+      background: #e8f5e9;
+    }
+    .ag-cell-invalid {
+      background: #ffebee;
+      border-color: #f44336;
+    }
+    /* Popup editor simulation */
+    .ag-popup-editor {
+      position: absolute;
+      background: white;
+      border: 1px solid #babfc7;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      padding: 8px;
+      z-index: 1000;
+    }
+    .ag-popup-editor textarea {
+      width: 200px;
+      height: 80px;
+      padding: 4px;
+      border: 1px solid #babfc7;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    /* Status indicator for edit mode */
+    [data-editing="true"]::after {
+      content: " (editing)";
+      font-size: 10px;
+      color: #2196f3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Editable Grid Test Fixture</h1>
+
+  <div id="editable-grid" class="ag-root-wrapper" data-testid="editable-grid">
+    <div class="ag-header">
+      <div class="ag-header-row" role="row">
+        <div class="ag-header-cell" col-id="id" role="columnheader">
+          <span>ID</span>
+        </div>
+        <div class="ag-header-cell" col-id="name" role="columnheader">
+          <span>Name</span>
+        </div>
+        <div class="ag-header-cell" col-id="email" role="columnheader">
+          <span>Email</span>
+        </div>
+        <div class="ag-header-cell" col-id="age" role="columnheader">
+          <span>Age</span>
+        </div>
+        <div class="ag-header-cell" col-id="notes" role="columnheader">
+          <span>Notes</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ag-body-viewport">
+      <div class="ag-center-cols-container">
+        <!-- Row 1 -->
+        <div class="ag-row" role="row" row-index="0" aria-rowindex="1" row-id="row-1">
+          <div class="ag-cell ag-cell-not-editable" col-id="id" role="gridcell">1</div>
+          <div class="ag-cell ag-cell-editable" col-id="name" role="gridcell" data-editable="true">John Doe</div>
+          <div class="ag-cell ag-cell-editable" col-id="email" role="gridcell" data-editable="true">john@example.com</div>
+          <div class="ag-cell ag-cell-editable" col-id="age" role="gridcell" data-editable="true" data-type="number">30</div>
+          <div class="ag-cell ag-cell-editable" col-id="notes" role="gridcell" data-editable="true" data-editor="popup">Customer since 2020</div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="ag-row" role="row" row-index="1" aria-rowindex="2" row-id="row-2">
+          <div class="ag-cell ag-cell-not-editable" col-id="id" role="gridcell">2</div>
+          <div class="ag-cell ag-cell-editable" col-id="name" role="gridcell" data-editable="true">Jane Smith</div>
+          <div class="ag-cell ag-cell-editable" col-id="email" role="gridcell" data-editable="true">jane@example.com</div>
+          <div class="ag-cell ag-cell-editable" col-id="age" role="gridcell" data-editable="true" data-type="number">25</div>
+          <div class="ag-cell ag-cell-editable" col-id="notes" role="gridcell" data-editable="true" data-editor="popup">VIP customer</div>
+        </div>
+
+        <!-- Row 3 -->
+        <div class="ag-row" role="row" row-index="2" aria-rowindex="3" row-id="row-3">
+          <div class="ag-cell ag-cell-not-editable" col-id="id" role="gridcell">3</div>
+          <div class="ag-cell ag-cell-editable" col-id="name" role="gridcell" data-editable="true">Bob Wilson</div>
+          <div class="ag-cell ag-cell-editable" col-id="email" role="gridcell" data-editable="true">bob@example.com</div>
+          <div class="ag-cell ag-cell-editable" col-id="age" role="gridcell" data-editable="true" data-type="number">45</div>
+          <div class="ag-cell ag-cell-editable" col-id="notes" role="gridcell" data-editable="true" data-editor="popup">Requires approval</div>
+        </div>
+
+        <!-- Row 4 -->
+        <div class="ag-row" role="row" row-index="3" aria-rowindex="4" row-id="row-4">
+          <div class="ag-cell ag-cell-not-editable" col-id="id" role="gridcell">4</div>
+          <div class="ag-cell ag-cell-editable" col-id="name" role="gridcell" data-editable="true">Alice Brown</div>
+          <div class="ag-cell ag-cell-editable" col-id="email" role="gridcell" data-editable="true">alice@example.com</div>
+          <div class="ag-cell ag-cell-editable" col-id="age" role="gridcell" data-editable="true" data-type="number">35</div>
+          <div class="ag-cell ag-cell-editable" col-id="notes" role="gridcell" data-editable="true" data-editor="popup">New customer</div>
+        </div>
+
+        <!-- Row 5 -->
+        <div class="ag-row" role="row" row-index="4" aria-rowindex="5" row-id="row-5">
+          <div class="ag-cell ag-cell-not-editable" col-id="id" role="gridcell">5</div>
+          <div class="ag-cell ag-cell-editable" col-id="name" role="gridcell" data-editable="true">Charlie Davis</div>
+          <div class="ag-cell ag-cell-editable" col-id="email" role="gridcell" data-editable="true">charlie@example.com</div>
+          <div class="ag-cell ag-cell-editable" col-id="age" role="gridcell" data-editable="true" data-type="number">28</div>
+          <div class="ag-cell ag-cell-editable" col-id="notes" role="gridcell" data-editable="true" data-editor="popup">Pending verification</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simulate AG Grid editing behavior
+    document.querySelectorAll('.ag-cell-editable').forEach(cell => {
+      let originalValue = cell.textContent;
+
+      // Double-click to edit
+      cell.addEventListener('dblclick', function() {
+        if (this.classList.contains('ag-cell-inline-editing')) return;
+
+        const row = this.closest('.ag-row');
+        row.classList.add('ag-row-editing');
+        this.classList.add('ag-cell-inline-editing');
+
+        const value = this.textContent;
+        const type = this.dataset.type || 'text';
+
+        if (this.dataset.editor === 'popup') {
+          // Popup editor for notes
+          const popup = document.createElement('div');
+          popup.className = 'ag-popup-editor';
+          popup.innerHTML = `<textarea>${value}</textarea>`;
+          popup.style.left = this.getBoundingClientRect().left + 'px';
+          popup.style.top = this.getBoundingClientRect().bottom + 'px';
+          document.body.appendChild(popup);
+
+          const textarea = popup.querySelector('textarea');
+          textarea.focus();
+          textarea.select();
+
+          const closePopup = (save) => {
+            if (save) {
+              this.textContent = textarea.value;
+              if (textarea.value !== originalValue) {
+                this.classList.add('ag-cell-data-changed');
+              }
+            }
+            popup.remove();
+            this.classList.remove('ag-cell-inline-editing');
+            row.classList.remove('ag-row-editing');
+          };
+
+          textarea.addEventListener('blur', () => closePopup(true));
+          textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closePopup(false);
+          });
+        } else {
+          // Inline editor
+          const input = document.createElement('input');
+          input.type = type === 'number' ? 'number' : 'text';
+          input.value = value;
+          this.textContent = '';
+          this.appendChild(input);
+          input.focus();
+          input.select();
+
+          const finishEdit = (save) => {
+            const newValue = input.value;
+            input.remove();
+            this.textContent = save ? newValue : originalValue;
+            this.classList.remove('ag-cell-inline-editing');
+            row.classList.remove('ag-row-editing');
+
+            if (save && newValue !== originalValue) {
+              this.classList.add('ag-cell-data-changed');
+              // Validate number fields
+              if (type === 'number' && isNaN(parseFloat(newValue))) {
+                this.classList.add('ag-cell-invalid');
+              } else {
+                this.classList.remove('ag-cell-invalid');
+              }
+              originalValue = newValue;
+            }
+          };
+
+          input.addEventListener('blur', () => finishEdit(true));
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              finishEdit(true);
+            } else if (e.key === 'Escape') {
+              finishEdit(false);
+            } else if (e.key === 'Tab') {
+              finishEdit(true);
+              // Move to next editable cell
+              const cells = Array.from(row.querySelectorAll('.ag-cell-editable'));
+              const currentIndex = cells.indexOf(this);
+              if (currentIndex < cells.length - 1) {
+                e.preventDefault();
+                cells[currentIndex + 1].dispatchEvent(new MouseEvent('dblclick'));
+              }
+            }
+          });
+        }
+      });
+
+      // Single click to focus
+      cell.addEventListener('click', function() {
+        document.querySelectorAll('.ag-cell-focus').forEach(c => c.classList.remove('ag-cell-focus'));
+        this.classList.add('ag-cell-focus');
+      });
+    });
+  </script>
+</body>
+</html>

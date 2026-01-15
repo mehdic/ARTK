@@ -605,6 +605,16 @@ Get-ChildItem -Path $ArtkPrompts -Filter "artk.*.md" | ForEach-Object {
     Copy-Item $_.FullName -Destination (Join-Path $PromptsTarget $newname) -Force
 }
 
+$CommonPromptsSource = Join-Path $ArtkPrompts "common"
+$CommonPromptsTarget = Join-Path $PromptsTarget "common"
+if (Test-Path $CommonPromptsSource) {
+    New-Item -ItemType Directory -Force -Path $CommonPromptsTarget | Out-Null
+    $EditSafetyPath = Join-Path $CommonPromptsSource "EDIT_SAFETY.md"
+    if (Test-Path $EditSafetyPath) {
+        Copy-Item $EditSafetyPath -Destination (Join-Path $CommonPromptsTarget "EDIT_SAFETY.md") -Force
+    }
+}
+
 # Step 5: Create configuration files
 Write-Host "[5/7] Creating configuration files..." -ForegroundColor Yellow
 

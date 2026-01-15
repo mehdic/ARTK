@@ -55,6 +55,7 @@ Unless the user sets `mode=minimal` or `mode=max`, use `mode=medium`.
 - **Deterministic**: produce stable outputs.
 - **Compliance-aware**: call out risk of sensitive data in test artifacts and request policy constraints.
 - **Discovery-aware**: if discovery/testability exists, use it to reduce questions and to flag blockers early.
+- **Edit safety**: MUST read and follow `.github/prompts/common/EDIT_SAFETY.md` before any file edits.
 
 ---
 
@@ -140,7 +141,7 @@ If any are unknown or blocked, keep status as `defined` (or `proposed`) and list
    - nearest `artk.config.yml`
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/init-playbook` first.
 
 ## Step 1 — Load Journey file
 - If `id=` provided, resolve using `<ARTK_ROOT>/journeys/index.json` if present.

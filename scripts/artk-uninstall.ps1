@@ -258,6 +258,13 @@ foreach ($file in $promptFiles) {
     $RemoveFiles += $file.FullName
 }
 
+$commonPromptFiles = @(
+    (Join-Path $RepoRoot ".github\prompts\common\EDIT_SAFETY.md")
+)
+foreach ($file in $commonPromptFiles) {
+    $RemoveFiles += $file
+}
+
 $instructionCandidates = @(
     (Join-Path $RepoRoot ".github\instructions\artk.instructions.md"),
     (Join-Path $RepoRoot ".github\instructions\artk.instructions.md.backup"),
