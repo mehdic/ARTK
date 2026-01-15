@@ -86,8 +86,8 @@ function renderPrimitive(primitive, indent = '') {
             return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.setInputFiles([${primitive.files.map(f => `'${escapeString(f)}'`).join(', ')}]);`;
         // Assertions
         case 'expectVisible':
-            const visibleTimeout = primitive.timeout ? `, { timeout: ${primitive.timeout} }` : '';
-            return `${indent}await expect(page.${toPlaywrightLocator(primitive.locator)}).toBeVisible(${visibleTimeout ? `{ timeout: ${primitive.timeout} }` : ''});`;
+            const visibleOptions = primitive.timeout ? `{ timeout: ${primitive.timeout} }` : '';
+            return `${indent}await expect(page.${toPlaywrightLocator(primitive.locator)}).toBeVisible(${visibleOptions});`;
         case 'expectNotVisible':
             return `${indent}await expect(page.${toPlaywrightLocator(primitive.locator)}).not.toBeVisible();`;
         case 'expectHidden':
@@ -173,9 +173,11 @@ function collectImports(journey) {
     }
     // Convert to import statements
     for (const [module, members] of moduleImports) {
+        // Use lowercase path convention (e.g., @modules/loginModule for LoginModule)
+        const modulePath = module.charAt(0).toLowerCase() + module.slice(1);
         imports.push({
             members: Array.from(members),
-            from: `@modules/${module}`,
+            from: `@modules/${modulePath}`,
         });
     }
     return imports;

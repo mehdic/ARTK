@@ -5,6 +5,28 @@
 import { parseArgs } from 'node:util';
 import fg from 'fast-glob';
 import { verifyJourneys } from '../index.js';
+/**
+ * Parse integer with validation
+ * @param value - String value to parse
+ * @param name - Option name for error messages
+ * @param defaultValue - Default value if parsing fails
+ * @returns Parsed integer
+ */
+function parseIntSafe(value, name, defaultValue) {
+    if (value === undefined) {
+        return defaultValue;
+    }
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed)) {
+        console.warn(`Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`);
+        return defaultValue;
+    }
+    if (parsed < 0) {
+        console.warn(`Warning: Negative value '${value}' for --${name}, using default: ${defaultValue}`);
+        return defaultValue;
+    }
+    return parsed;
+}
 const USAGE = `
 Usage: artk-autogen verify [options] <journey-files...>
 
@@ -71,11 +93,11 @@ export async function runVerify(args) {
     const results = await verifyJourneys(journeyFiles, {
         outputDir: values.output,
         heal: values.heal,
-        maxHealAttempts: parseInt(values['max-heal'], 10),
+        maxHealAttempts: parseIntSafe(values['max-heal'], 'max-heal', 3),
         checkStability: values.stability,
-        stabilityRuns: parseInt(values['stability-runs'], 10),
+        stabilityRuns: parseIntSafe(values['stability-runs'], 'stability-runs', 3),
         reporter: values.reporter,
-        timeout: values.timeout ? parseInt(values.timeout, 10) : undefined,
+        timeout: values.timeout ? parseIntSafe(values.timeout, 'timeout', 30000) : undefined,
     });
     // Format output
     if (values.format === 'json') {

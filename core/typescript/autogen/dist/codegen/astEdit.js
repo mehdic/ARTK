@@ -2,7 +2,7 @@
  * AST-based Code Editing - Safely modify existing TypeScript files
  * @see research/2026-01-02_autogen-refined-plan.md Section 12
  */
-import { Project, SyntaxKind, } from 'ts-morph';
+import { Project, SyntaxKind, ScriptTarget, ModuleKind, } from 'ts-morph';
 /**
  * Create a ts-morph project for editing
  */
@@ -10,8 +10,8 @@ export function createProject() {
     return new Project({
         useInMemoryFileSystem: true,
         compilerOptions: {
-            target: 99, // ESNext
-            module: 99, // ESNext
+            target: ScriptTarget.ESNext,
+            module: ModuleKind.ESNext,
             strict: true,
         },
     });
@@ -94,16 +94,18 @@ export function addLocatorProperty(classDecl, locator, options = {}) {
     });
     // Find constructor and add initialization
     const constructor = classDecl.getConstructors()[0];
-    if (constructor) {
-        const initStatement = `this.${locator.name} = page.${locator.playwright};`;
-        // Check if initialization already exists
-        const body = constructor.getBody();
-        if (body) {
-            const existingInit = body.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
-                .find(stmt => stmt.getText().includes(`this.${locator.name}`));
-            if (!existingInit) {
-                constructor.addStatements(initStatement);
-            }
+    if (!constructor) {
+        console.warn(`Cannot add locator initialization for '${locator.name}': class '${classDecl.getName()}' has no constructor`);
+        return true; // Property was added, but initialization was not possible
+    }
+    const initStatement = `this.${locator.name} = page.${locator.playwright};`;
+    // Check if initialization already exists
+    const body = constructor.getBody();
+    if (body) {
+        const existingInit = body.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
+            .find(stmt => stmt.getText().includes(`this.${locator.name}`));
+        if (!existingInit) {
+            constructor.addStatements(initStatement);
         }
     }
     return true;

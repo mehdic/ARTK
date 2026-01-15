@@ -10,6 +10,8 @@ import {
   PropertyDeclaration,
   ImportDeclaration,
   SyntaxKind,
+  ScriptTarget,
+  ModuleKind,
 } from 'ts-morph';
 import type { ModuleLocator, ModuleMethod } from './generateModule.js';
 
@@ -46,8 +48,8 @@ export function createProject(): Project {
   return new Project({
     useInMemoryFileSystem: true,
     compilerOptions: {
-      target: 99, // ESNext
-      module: 99, // ESNext
+      target: ScriptTarget.ESNext,
+      module: ModuleKind.ESNext,
       strict: true,
     },
   });
@@ -156,18 +158,21 @@ export function addLocatorProperty(
 
   // Find constructor and add initialization
   const constructor = classDecl.getConstructors()[0];
-  if (constructor) {
-    const initStatement = `this.${locator.name} = page.${locator.playwright};`;
+  if (!constructor) {
+    console.warn(`Cannot add locator initialization for '${locator.name}': class '${classDecl.getName()}' has no constructor`);
+    return true; // Property was added, but initialization was not possible
+  }
 
-    // Check if initialization already exists
-    const body = constructor.getBody();
-    if (body) {
-      const existingInit = body.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
-        .find(stmt => stmt.getText().includes(`this.${locator.name}`));
+  const initStatement = `this.${locator.name} = page.${locator.playwright};`;
 
-      if (!existingInit) {
-        constructor.addStatements(initStatement);
-      }
+  // Check if initialization already exists
+  const body = constructor.getBody();
+  if (body) {
+    const existingInit = body.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
+      .find(stmt => stmt.getText().includes(`this.${locator.name}`));
+
+    if (!existingInit) {
+      constructor.addStatements(initStatement);
     }
   }
 
