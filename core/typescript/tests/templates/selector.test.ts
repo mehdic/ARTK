@@ -11,7 +11,32 @@ import {
   readTemplateOverride,
   saveTemplateVariant
 } from '../../src/templates/selector';
-import type { EnvironmentContext } from '../../src/types/environment-context';
+import type { EnvironmentContext } from '../../types/environment-context';
+
+/**
+ * Helper to create a valid EnvironmentContext for testing
+ */
+function createTestContext(overrides: {
+  moduleSystem?: 'commonjs' | 'esm';
+  detectionConfidence?: 'high' | 'medium' | 'low';
+  nodeVersion?: string;
+}): EnvironmentContext {
+  const moduleSystem = overrides.moduleSystem ?? 'commonjs';
+  return {
+    moduleSystem,
+    nodeVersion: overrides.nodeVersion ?? '18.0.0',
+    nodeVersionParsed: { major: 18, minor: 0, patch: 0 },
+    tsModule: moduleSystem === 'esm' ? 'ESNext' : 'CommonJS',
+    supportsImportMeta: moduleSystem === 'esm',
+    supportsBuiltinDirname: false,
+    templateVariant: moduleSystem,
+    templateSource: 'bundled',
+    detectionTimestamp: new Date().toISOString(),
+    detectionConfidence: overrides.detectionConfidence ?? 'high',
+    detectionMethod: 'package.json',
+    warnings: []
+  };
+}
 
 describe('Template Selector', () => {
   const testRoot = path.join(__dirname, '../fixtures/selector-test');
@@ -36,42 +61,20 @@ describe('Template Selector', () => {
 
   describe('selectTemplateVariant', () => {
     it('should select ESM variant when module system is ESM', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'esm',
-          packageType: 'module',
-          tsConfigModule: 'ESNext',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'esm',
+        detectionConfidence: 'high'
+      });
 
       const result = selectTemplateVariant(context);
       expect(result).toBe('esm');
     });
 
     it('should select CommonJS variant when module system is CommonJS', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'commonjs',
-          packageType: 'commonjs',
-          tsConfigModule: 'CommonJS',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'commonjs',
+        detectionConfidence: 'high'
+      });
 
       const result = selectTemplateVariant(context);
       expect(result).toBe('commonjs');
@@ -80,20 +83,10 @@ describe('Template Selector', () => {
     it('should default to CommonJS when module system is unknown', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'unknown',
-          packageType: undefined,
-          tsConfigModule: undefined,
-          confidence: 'low'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
+      // Create a context with 'unknown' module system by casting
+      const context = {
+        ...createTestContext({ detectionConfidence: 'low' }),
+        moduleSystem: 'unknown' as 'commonjs' | 'esm'
       };
 
       const result = selectTemplateVariant(context);
@@ -104,21 +97,10 @@ describe('Template Selector', () => {
     });
 
     it('should use manual override when provided', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'commonjs',
-          packageType: 'commonjs',
-          tsConfigModule: 'CommonJS',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'commonjs',
+        detectionConfidence: 'high'
+      });
 
       const result = selectTemplateVariant(context, 'esm');
       expect(result).toBe('esm');
@@ -127,21 +109,10 @@ describe('Template Selector', () => {
     it('should warn when manual override conflicts with high-confidence detection', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'esm',
-          packageType: 'module',
-          tsConfigModule: 'ESNext',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'esm',
+        detectionConfidence: 'high'
+      });
 
       selectTemplateVariant(context, 'commonjs');
       expect(warnSpy).toHaveBeenCalledWith(
@@ -152,21 +123,10 @@ describe('Template Selector', () => {
     it('should not warn on mismatch when confidence is not high', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'esm',
-          packageType: 'module',
-          tsConfigModule: 'ESNext',
-          confidence: 'medium'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'esm',
+        detectionConfidence: 'medium'
+      });
 
       selectTemplateVariant(context, 'commonjs');
       expect(warnSpy).not.toHaveBeenCalledWith(
@@ -177,21 +137,10 @@ describe('Template Selector', () => {
 
   describe('getRecommendedVariant', () => {
     it('should recommend ESM for ESM projects', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'esm',
-          packageType: 'module',
-          tsConfigModule: 'ESNext',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'esm',
+        detectionConfidence: 'high'
+      });
 
       const result = getRecommendedVariant(context);
       expect(result.variant).toBe('esm');
@@ -200,21 +149,10 @@ describe('Template Selector', () => {
     });
 
     it('should recommend CommonJS for CommonJS projects', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'commonjs',
-          packageType: 'commonjs',
-          tsConfigModule: 'CommonJS',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'commonjs',
+        detectionConfidence: 'high'
+      });
 
       const result = getRecommendedVariant(context);
       expect(result.variant).toBe('commonjs');
@@ -223,20 +161,10 @@ describe('Template Selector', () => {
     });
 
     it('should recommend CommonJS with low confidence for unknown projects', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'unknown',
-          packageType: undefined,
-          tsConfigModule: undefined,
-          confidence: 'low'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
+      // Create a context with 'unknown' module system by casting
+      const context = {
+        ...createTestContext({ detectionConfidence: 'low' }),
+        moduleSystem: 'unknown' as 'commonjs' | 'esm'
       };
 
       const result = getRecommendedVariant(context);
@@ -350,42 +278,20 @@ describe('Template Selector', () => {
 
   describe('FR-036: Auto-select variant based on detected module system', () => {
     it('should auto-select ESM when package.json has type:module', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'esm',
-          packageType: 'module',
-          tsConfigModule: 'ESNext',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'esm',
+        detectionConfidence: 'high'
+      });
 
       const variant = selectTemplateVariant(context);
       expect(variant).toBe('esm');
     });
 
     it('should auto-select CommonJS when package.json has type:commonjs', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'commonjs',
-          packageType: 'commonjs',
-          tsConfigModule: 'CommonJS',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'commonjs',
+        detectionConfidence: 'high'
+      });
 
       const variant = selectTemplateVariant(context);
       expect(variant).toBe('commonjs');
@@ -394,21 +300,10 @@ describe('Template Selector', () => {
 
   describe('FR-037: Manual override support', () => {
     it('should allow manual override via function parameter', () => {
-      const context: EnvironmentContext = {
-        projectRoot: testRoot,
-        detection: {
-          nodeVersion: '18.0.0',
-          moduleSystem: 'commonjs',
-          packageType: 'commonjs',
-          tsConfigModule: 'CommonJS',
-          confidence: 'high'
-        },
-        validation: {
-          timestamp: new Date().toISOString(),
-          valid: true,
-          errors: []
-        }
-      };
+      const context = createTestContext({
+        moduleSystem: 'commonjs',
+        detectionConfidence: 'high'
+      });
 
       const variant = selectTemplateVariant(context, 'esm');
       expect(variant).toBe('esm');
