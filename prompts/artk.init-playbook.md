@@ -247,6 +247,13 @@ Output proposed configuration:
 
 **FORBIDDEN BEHAVIOR: Saying "Next I'll do X" and stopping. You must either ASK or DO.**
 
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
+
 ### First: Check execution mode from Step 1
 
 **Mode C (Re-run):** ARTK is already installed and current.
@@ -355,7 +362,10 @@ Before presenting the questionnaire, you MUST analyze the project to discover:
 
 Present the questionnaire in ONE grouped block. For Mode B, include the "keep previous" option showing current values.
 
-**Mode A Example (Fresh Install):**
+**Mode A Example (Fresh Install) — One Question at a Time:**
+
+After showing analysis results, ask questions ONE AT A TIME:
+
 ```
 📋 Configuration needed (Mode A: Fresh Install)
 
@@ -364,43 +374,90 @@ Present the questionnaire in ONE grouped block. For Mode B, include the "keep pr
   • Auth: OIDC detected (@azure/msal-browser)
   • Bypass: VITE_BYPASS_AUTH found in .env.development
 
-Questions (answer all, or press Enter to accept defaults):
-
-1) **Target app**: iss-frontend (detected)
-   → [Enter to accept, or specify different app]
-
-2) **Auth approach**:
-   - [x] SSO/OIDC (recommended - detected @azure/msal-browser)
-   - [ ] form-login (username/password form)
-   - [ ] token/API (bearer token, no UI login)
-   - [ ] none (no auth required)
-
-3) **Local auth bypass?**
-   - [ ] no (require full auth locally)
-   - [ ] identityless (skip auth, no role info)
-   - [x] mock-identity (recommended - found VITE_BYPASS_AUTH)
-   - Toggle: VITE_BYPASS_AUTH
-   - Environments: [local]
-
-4) **MFA/captcha in non-prod?**: unknown
-   - [ ] yes (will need workaround)
-   - [ ] no
-   - [x] unknown (will investigate later)
-
-5) **Test data strategy**:
-   - [x] create_api (recommended - create via API, cleanup after)
-   - [ ] seed (pre-seeded data)
-   - [ ] create_ui (create via UI)
-   - [ ] reuse_stable (use existing stable data)
-
-Reply format (or just press Enter for defaults):
-auth: oidc
-bypass: mock-identity, VITE_BYPASS_AUTH, [local]
-mfa: unknown
-data: create_api
+Starting configuration...
 ```
 
-**Mode B Example (Upgrade with "Keep Previous" option):**
+**Question 1 of 5: Target App**
+```
+Which app should ARTK target?
+
+1. iss-frontend (recommended - detected)
+2. Other (specify)
+
+Reply with a number, or press Enter for recommended:
+```
+
+*Wait for response, then:*
+
+**Question 2 of 5: Auth Approach**
+```
+How does the application handle authentication?
+
+1. SSO/OIDC (recommended - detected @azure/msal-browser)
+2. Form login (username/password)
+3. API token (bearer token, no UI login)
+4. None (no auth required)
+
+Reply with a number (1-4):
+```
+
+*Wait for response, then:*
+
+**Question 3 of 5: Local Auth Bypass**
+```
+Should tests bypass authentication locally?
+
+1. mock-identity (recommended - found VITE_BYPASS_AUTH)
+2. identityless (skip auth, no role info)
+3. no (require full auth locally)
+
+Reply with a number (1-3):
+```
+
+*Wait for response, then:*
+
+**Question 4 of 5: MFA/Captcha**
+```
+Does non-prod have MFA or captcha enabled?
+
+1. unknown (recommended - will investigate later)
+2. yes (will need workaround)
+3. no
+
+Reply with a number (1-3):
+```
+
+*Wait for response, then:*
+
+**Question 5 of 5: Test Data Strategy**
+```
+How should tests manage test data?
+
+1. create_api (recommended - create via API, cleanup after)
+2. seed (pre-seeded data)
+3. create_ui (create via UI)
+4. reuse_stable (use existing stable data)
+
+Reply with a number (1-4):
+```
+
+*After all questions answered, confirm:*
+
+```
+**Configuration Summary:**
+  • Target app: iss-frontend
+  • Auth: SSO/OIDC
+  • Bypass: mock-identity (VITE_BYPASS_AUTH)
+  • MFA: unknown
+  • Data: create_api
+
+Proceed with these settings? (Y/n)
+```
+
+**Mode B Example (Upgrade) — One Question at a Time:**
+
+After showing current settings and analysis, ask questions ONE AT A TIME:
+
 ```
 📋 Configuration review (Mode B: Upgrade from v0.9.0)
 
@@ -415,50 +472,56 @@ data: create_api
   • Auth bypass: Found VITE_BYPASS_AUTH in .env.development
   • Login page: src/pages/Login.tsx (OIDC flow)
 
-Questions (answer all, or choose "keep" to preserve current):
+Starting configuration review...
+```
 
-1) **Auth approach**:
-   - [x] keep previous: oidc
-   - [ ] SSO/OIDC
-   - [ ] form-login
-   - [ ] token/API
-   - [ ] none
+**Question 1 of 5: Auth Approach**
+```
+Current: oidc
 
-2) **Local auth bypass?** (currently: unknown ⚠️)
-   - [ ] keep previous: unknown ⚠️ (not recommended)
-   - [ ] no (require full auth locally)
-   - [ ] identityless (skip auth, no role info)
-   - [x] mock-identity (recommended - found VITE_BYPASS_AUTH)
-   - Toggle: VITE_BYPASS_AUTH
-   - Environments: [local]
+How does the application handle authentication?
 
-3) **MFA/captcha in non-prod?** (currently: unknown)
-   - [x] keep previous: unknown
-   - [ ] yes
-   - [ ] no
+1. Keep current: oidc (recommended)
+2. SSO/OIDC
+3. Form login
+4. API token
+5. None
 
-4) **Test data strategy** (currently: create_api)
-   - [x] keep previous: create_api
-   - [ ] seed
-   - [ ] create_ui
-   - [ ] reuse_stable
+Reply with a number, or press Enter for recommended:
+```
 
-5) **Flake posture** (currently: retries_ci_only)
-   - [x] keep previous: retries_ci_only
-   - [ ] no_retries
-   - [ ] retries_everywhere
+*Wait for response, then:*
 
-Reply format:
-auth: keep
-bypass: mock-identity, VITE_BYPASS_AUTH, [local]
-mfa: keep
-data: keep
-flake: keep
+**Question 2 of 5: Local Auth Bypass**
+```
+Current: unknown ⚠️ (incomplete - needs update)
+
+Should tests bypass authentication locally?
+
+1. mock-identity (recommended - found VITE_BYPASS_AUTH)
+2. identityless (skip auth, no role info)
+3. no (require full auth locally)
+4. Keep current: unknown (not recommended)
+
+Reply with a number (1-4):
+```
+
+*Wait for response, then continue with remaining questions...*
+
+**After all questions, confirm:**
+```
+**Configuration Summary:**
+  • Auth: oidc (kept)
+  • Bypass: mock-identity (CHANGED from unknown)
+  • MFA: unknown (kept)
+  • Data: create_api (kept)
+  • Flake: retries_ci_only (kept)
+
+Proceed with these settings? (Y/n)
 
 Shortcuts:
-  • Enter → Accept [x] recommendations (bypass WILL change to mock-identity)
   • "keep all" → Keep ALL current values (bypass stays unknown ⚠️)
-  • "defaults" → Use all safe defaults (ignore current and analysis)
+  • "defaults" → Use all safe defaults
 ```
 
 ---

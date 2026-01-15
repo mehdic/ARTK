@@ -184,6 +184,13 @@ LINKS:
 
 If anything required is missing, ask questions based on mode.
 
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
+
 ### Question policy (keep it short)
 Ask only what is necessary to create a defined Journey:
 - missing title: ask for a short title

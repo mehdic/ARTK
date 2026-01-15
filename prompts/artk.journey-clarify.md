@@ -198,8 +198,14 @@ If testability data exists for this scope/routes:
 If blockers exist and `strictGates=true`:
 - keep status NOT clarified and set `statusReason` to a short “blocked by …” summary.
 
-## Step 5 — Ask the smallest smart questionnaire (single message)
-Ask questions in one batch and provide a reply template.
+## Step 5 — Ask the smallest smart questionnaire
+
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
 
 ### Adaptive question set (do not be annoying)
 If discovery already provides an answer, ask for confirmation only if high impact.

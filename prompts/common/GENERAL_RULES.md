@@ -152,3 +152,103 @@ For updatable sections, use consistent markers:
 ```
 
 **Standard section names:** `environment-matrix`, `route-inventory`, `risk-assessment`, `clarification`, `deterministic-steps`, `acceptance-criteria`, `implementation`, `verification`, `testid-audit`
+
+---
+
+## User Question Standards (MANDATORY)
+
+**When asking users questions, follow these rules for better UX.**
+
+### Rule 1: ONE Question at a Time
+
+**NEVER present multiple questions in a single message.** Ask one question, wait for the response, then ask the next.
+
+❌ **BAD - Multiple questions at once:**
+```
+Please answer these questions:
+1) Auth type? [ ] SSO [ ] Form [ ] None
+2) Test data? [ ] Seed [ ] API [ ] UI
+3) Retries? [ ] Yes [ ] No
+```
+
+✅ **GOOD - One question at a time:**
+```
+**Question 1 of 3: Auth Type**
+
+How does the application handle authentication?
+
+1. SSO/OIDC (recommended - detected @azure/msal)
+2. Form login (username/password)
+3. API token (bearer token)
+4. None (no auth required)
+
+Reply with a number (1-4) or type your answer:
+```
+
+### Rule 2: Use Numbered Options (Not Checkboxes)
+
+**NEVER use `[ ]` checkbox syntax** - users cannot click them in chat.
+
+❌ **BAD:**
+```
+- [ ] Option A
+- [ ] Option B
+- [x] Option C (recommended)
+```
+
+✅ **GOOD:**
+```
+1. Option A
+2. Option B
+3. Option C (recommended)
+
+Reply with a number:
+```
+
+### Rule 3: Show Progress
+
+Tell users how many questions remain:
+
+```
+**Question 2 of 5: Test Data Strategy**
+```
+
+### Rule 4: Provide Defaults
+
+Always offer a default/recommended option users can accept by pressing Enter:
+
+```
+1. create_api (recommended)
+2. seed
+3. create_ui
+
+Reply with a number, or press Enter for recommended:
+```
+
+### Rule 5: Confirm Before Proceeding
+
+After all questions, summarize and confirm:
+
+```
+**Configuration Summary:**
+- Auth: SSO/OIDC
+- Test data: create_api
+- Retries: CI only
+
+Proceed with these settings? (Y/n)
+```
+
+### Example Conversational Flow
+
+```
+Assistant: **Question 1 of 3: Auth Type**
+
+How does your app handle authentication?
+
+1. SSO/OIDC (recommended - detected @azure/msal)
+2. Form login
+3. None
+
+Reply with 1, 2, or 3:
+
+User: 1

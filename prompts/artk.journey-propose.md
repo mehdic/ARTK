@@ -491,7 +491,14 @@ Keep output deterministic.
 
 ---
 
-# Mode-based questions (don’t exhaust the user)
+# Mode-based questions (don't exhaust the user)
+
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
 
 ## QUICK (≤ 3, only if missing)
 1) Confirm top 1–2 business-critical workflows (names only).
