@@ -442,6 +442,21 @@ Assertions mapping:
 - Prefer user-visible assertions.
 - No sleeps - use core assertions for async completion.
 
+## Step 10.5 — Pre-Compilation Validation (MANDATORY)
+
+**BEFORE proceeding to validation gates, you MUST complete the Pre-Compilation Validation Checklist from `.github/prompts/common/GENERAL_RULES.md`.**
+
+Run through each check on ALL generated test files and modules:
+1. **Duplicate Function Check** — No function defined in multiple files
+2. **ESM Import Path Check** — Directory imports include `/index`
+3. **Import Usage Check** — No unused imports, unused params prefixed with `_`
+4. **Path Alias Check** — Consistent import patterns
+5. **Syntax Quick Check** — Template literals use backticks, no unclosed brackets
+
+**Only proceed to Step 11 after ALL checks pass.**
+
+---
+
 ## Step 11 — Update Journey draft links (pre-gate)
 Before running gates, you may:
 - add the new test path(s) to Journey `tests[]` (so verify can find them)

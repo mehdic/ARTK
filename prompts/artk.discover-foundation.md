@@ -746,6 +746,21 @@ browsers: [chromium]
 
 **This step validates that all foundation modules compile and work correctly.**
 
+## Step V0 — Pre-Compilation Validation (MANDATORY)
+
+**BEFORE running TypeScript compilation, you MUST complete the Pre-Compilation Validation Checklist from `.github/prompts/common/GENERAL_RULES.md`.**
+
+Run through each check:
+1. **Duplicate Function Check** — No function defined in multiple files
+2. **ESM Import Path Check** — Directory imports include `/index`
+3. **Import Usage Check** — No unused imports, unused params prefixed with `_`
+4. **Path Alias Check** — Consistent import patterns, aliases defined in tsconfig
+5. **Syntax Quick Check** — Template literals use backticks, no unclosed brackets
+
+**Only proceed to Step V1 after ALL checks pass.**
+
+---
+
 ## Step V1 — TypeScript Compilation Check
 
 Run TypeScript compiler to catch type errors:
