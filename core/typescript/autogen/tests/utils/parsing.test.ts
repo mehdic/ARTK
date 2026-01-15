@@ -36,8 +36,26 @@ describe('parseIntSafe', () => {
     warnSpy.mockRestore();
   });
 
-  it('should handle float strings by truncating', () => {
-    expect(parseIntSafe('3.7', 'test', 0)).toBe(3);
+  it('should reject float strings (strict integer parsing)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Float strings are not valid integers - use parseFloatSafe for floats
+    expect(parseIntSafe('3.7', 'test', 0)).toBe(0);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid value'));
+    warnSpy.mockRestore();
+  });
+
+  it('should reject partial numeric strings', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // "42px" should NOT be parsed as 42 - it's invalid
+    expect(parseIntSafe('42px', 'width', 100)).toBe(100);
+    expect(parseIntSafe('3.14abc', 'test', 0)).toBe(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('should handle whitespace-padded valid integers', () => {
+    expect(parseIntSafe('  42  ', 'test', 0)).toBe(42);
+    expect(parseIntSafe(' 0 ', 'test', 99)).toBe(0);
   });
 });
 

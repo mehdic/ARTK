@@ -37,9 +37,11 @@ export function parseIntSafe(
     return defaultValue;
   }
 
-  const parsed = parseInt(value, 10);
+  // Use Number() instead of parseInt() to reject partial matches like "42px"
+  const trimmed = value.trim();
+  const parsed = Number(trimmed);
 
-  if (isNaN(parsed)) {
+  if (!Number.isInteger(parsed) || trimmed === '') {
     console.warn(
       `Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`
     );
@@ -73,9 +75,11 @@ export function parseIntSafeAllowNegative(
     return defaultValue;
   }
 
-  const parsed = parseInt(value, 10);
+  // Use Number() instead of parseInt() to reject partial matches like "42px"
+  const trimmed = value.trim();
+  const parsed = Number(trimmed);
 
-  if (isNaN(parsed)) {
+  if (!Number.isInteger(parsed) || trimmed === '') {
     console.warn(
       `Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`
     );
@@ -107,9 +111,11 @@ export function parseFloatSafe(
     return defaultValue;
   }
 
-  const parsed = parseFloat(value);
+  // Use Number() instead of parseFloat() to reject partial matches like "3.14abc"
+  const trimmed = value.trim();
+  const parsed = Number(trimmed);
 
-  if (isNaN(parsed)) {
+  if (isNaN(parsed) || trimmed === '') {
     console.warn(
       `Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`
     );
@@ -195,10 +201,15 @@ export function parseEnumSafe<T extends string>(
     return defaultValue;
   }
 
-  const normalized = value.toLowerCase().trim();
+  const trimmed = value.trim();
 
-  if (validValues.includes(normalized as T)) {
-    return normalized as T;
+  // Case-insensitive matching: find the valid value that matches
+  const match = validValues.find(
+    v => v.toLowerCase() === trimmed.toLowerCase()
+  );
+
+  if (match !== undefined) {
+    return match; // Return the actual valid value, not the input
   }
 
   console.warn(

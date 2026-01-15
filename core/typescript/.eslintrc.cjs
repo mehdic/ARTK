@@ -65,5 +65,14 @@ module.exports = {
     'node_modules',
     'dist',
     '*.js'
+  ],
+  overrides: [
+    {
+      // Disable no-magic-numbers in test files - tests often need specific values
+      files: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**/*.ts'],
+      rules: {
+        'no-magic-numbers': 'off'
+      }
+    }
   ]
 };

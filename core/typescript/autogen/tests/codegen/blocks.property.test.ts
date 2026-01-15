@@ -300,11 +300,10 @@ describe('Managed Blocks - Property-Based Tests', () => {
           blockIdArb,
           blockContentArb,
           blockContentArb,
-          blockContentArb,
-          (id, idContent, idLessContent1, _idLessContent2) => {
+          (id, idContent, idLessContent) => {
             // Create existing code with mixed blocks
             const existingCode = [
-              wrapInBlock(idLessContent1, undefined),
+              wrapInBlock(idLessContent, undefined),
               wrapInBlock(idContent, id),
             ].join('\n\n');
 
