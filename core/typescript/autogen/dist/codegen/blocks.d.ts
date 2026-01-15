@@ -80,6 +80,23 @@ export interface InjectBlocksOptions {
  */
 export declare function extractManagedBlocks(code: string): BlockExtractionResult;
 /**
+ * Wrap content in managed block markers
+ *
+ * @param content - Code to wrap
+ * @param id - Optional block identifier
+ * @returns Wrapped content with markers
+ *
+ * @example
+ * ```typescript
+ * const wrapped = wrapInBlock("test('foo', () => {});", 'test-foo');
+ * // Returns:
+ * // // ARTK:BEGIN GENERATED id=test-foo
+ * // test('foo', () => {});
+ * // // ARTK:END GENERATED
+ * ```
+ */
+export declare function wrapInBlock(content: string, id?: string): string;
+/**
  * Inject managed blocks into code, preserving user code outside blocks
  *
  * Behavior:
