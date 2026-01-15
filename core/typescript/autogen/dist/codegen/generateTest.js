@@ -135,10 +135,13 @@ function renderPrimitive(primitive, indent = '') {
             return `${indent}page.on('dialog', dialog => dialog.accept());`;
         case 'dismissAlert':
             return `${indent}page.on('dialog', dialog => dialog.dismiss());`;
-        // Module calls
+        // Module calls - use factory function to create instance
         case 'callModule':
+            // Generate factory function name from module name (e.g., LoginModule -> createLoginModule)
+            const factoryName = `create${primitive.module}`;
             const args = primitive.args ? primitive.args.map(a => JSON.stringify(a)).join(', ') : '';
-            return `${indent}await ${primitive.module}.${primitive.method}(${args ? `page, ${args}` : 'page'});`;
+            // Create instance via factory and call method
+            return `${indent}await ${factoryName}(page).${primitive.method}(${args});`;
         // Blocked - must throw to fail the test
         case 'blocked':
             return `${indent}// ARTK BLOCKED: ${primitive.reason}\n${indent}// Source: ${escapeString(primitive.sourceText)}\n${indent}throw new Error('ARTK BLOCKED: ${escapeString(primitive.reason)}');`;
@@ -155,29 +158,30 @@ function loadDefaultTemplate() {
 }
 /**
  * Collect module imports from journey
+ *
+ * Imports factory functions (e.g., createLoginModule) for module calls.
+ * The factory function naming follows the pattern: create{ModuleName}
  */
 function collectImports(journey) {
     const imports = [];
-    const moduleImports = new Map();
+    // Track unique module names to avoid duplicate imports
+    const usedModules = new Set();
     // Collect module calls from all steps
     for (const step of journey.steps) {
         for (const action of step.actions) {
             if (action.type === 'callModule') {
-                const module = action.module;
-                if (!moduleImports.has(module)) {
-                    moduleImports.set(module, new Set());
-                }
-                // Import the module itself
-                moduleImports.get(module).add(module);
+                usedModules.add(action.module);
             }
         }
     }
-    // Convert to import statements
-    for (const [module, members] of moduleImports) {
-        // Use lowercase path convention (e.g., @modules/loginModule for LoginModule)
+    // Convert to import statements - import factory functions
+    for (const module of usedModules) {
+        // Use lowercase-first path convention (e.g., @modules/loginModule for LoginModule)
         const modulePath = module.charAt(0).toLowerCase() + module.slice(1);
+        // Import the factory function (e.g., createLoginModule)
+        const factoryName = `create${module}`;
         imports.push({
-            members: Array.from(members),
+            members: [factoryName],
             from: `@modules/${modulePath}`,
         });
     }

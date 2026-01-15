@@ -4,6 +4,9 @@
 #
 # Phase 3: Full typecheck enabled (0 source file errors achieved)
 
+# Exit immediately if any command fails
+set -e
+
 echo "Running lint-staged..."
 npx lint-staged
 

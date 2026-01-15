@@ -196,12 +196,12 @@ describe('generateTest', () => {
   });
 
   describe('imports', () => {
-    it('should collect module imports', () => {
+    it('should collect module imports with factory functions', () => {
       const journey = createTestJourney({
         steps: [
           createTestStep({
             actions: [
-              { type: 'callModule', module: 'auth', method: 'login' },
+              { type: 'callModule', module: 'AuthModule', method: 'login' },
             ],
           }),
         ],
@@ -209,7 +209,49 @@ describe('generateTest', () => {
       const result = generateTest(journey);
 
       expect(result.imports).toHaveLength(1);
-      expect(result.imports[0].from).toBe('@modules/auth');
+      // Should import factory function (createAuthModule) not the class itself
+      expect(result.imports[0]!.members).toContain('createAuthModule');
+      // Path should use lowercase-first convention
+      expect(result.imports[0]!.from).toBe('@modules/authModule');
+    });
+
+    it('should generate callModule using factory pattern', () => {
+      const journey = createTestJourney({
+        steps: [
+          createTestStep({
+            actions: [
+              { type: 'callModule', module: 'LoginModule', method: 'performLogin', args: ['admin', 'pass123'] },
+            ],
+          }),
+        ],
+      });
+      const result = generateTest(journey);
+
+      // Should use factory function to create instance
+      expect(result.code).toContain('createLoginModule(page).performLogin(');
+      // Should pass args correctly
+      expect(result.code).toContain('"admin"');
+      expect(result.code).toContain('"pass123"');
+      // Import should be the factory function
+      expect(result.imports[0]!.members).toContain('createLoginModule');
+    });
+
+    it('should deduplicate module imports when same module called multiple times', () => {
+      const journey = createTestJourney({
+        steps: [
+          createTestStep({
+            actions: [
+              { type: 'callModule', module: 'AuthModule', method: 'login' },
+              { type: 'callModule', module: 'AuthModule', method: 'logout' },
+            ],
+          }),
+        ],
+      });
+      const result = generateTest(journey);
+
+      // Should only have one import for AuthModule
+      expect(result.imports).toHaveLength(1);
+      expect(result.imports[0]!.members).toContain('createAuthModule');
     });
 
     it('should add additional imports from options', () => {

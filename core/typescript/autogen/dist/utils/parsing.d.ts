@@ -111,5 +111,5 @@ export declare function parseEnumSafe<T extends string>(value: string | undefine
  * );
  * ```
  */
-export declare function parseWithValidator<T>(value: string | undefined, parser: (value: string) => T, validator: (parsed: T) => boolean, name: string, defaultValue: T): T;
+export declare function parseWithValidator<T>(value: string | undefined, parser: (_value: string) => T, validator: (_parsed: T) => boolean, name: string, defaultValue: T): T;
 //# sourceMappingURL=parsing.d.ts.map

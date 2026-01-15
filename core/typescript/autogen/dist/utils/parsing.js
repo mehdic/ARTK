@@ -31,8 +31,10 @@ export function parseIntSafe(value, name, defaultValue) {
     if (value === undefined) {
         return defaultValue;
     }
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed)) {
+    // Use Number() instead of parseInt() to reject partial matches like "42px"
+    const trimmed = value.trim();
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || trimmed === '') {
         console.warn(`Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`);
         return defaultValue;
     }
@@ -54,8 +56,10 @@ export function parseIntSafeAllowNegative(value, name, defaultValue) {
     if (value === undefined) {
         return defaultValue;
     }
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed)) {
+    // Use Number() instead of parseInt() to reject partial matches like "42px"
+    const trimmed = value.trim();
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || trimmed === '') {
         console.warn(`Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`);
         return defaultValue;
     }
@@ -78,8 +82,10 @@ export function parseFloatSafe(value, name, defaultValue) {
     if (value === undefined) {
         return defaultValue;
     }
-    const parsed = parseFloat(value);
-    if (isNaN(parsed)) {
+    // Use Number() instead of parseFloat() to reject partial matches like "3.14abc"
+    const trimmed = value.trim();
+    const parsed = Number(trimmed);
+    if (isNaN(parsed) || trimmed === '') {
         console.warn(`Warning: Invalid value '${value}' for --${name}, using default: ${defaultValue}`);
         return defaultValue;
     }
@@ -144,9 +150,11 @@ export function parseEnumSafe(value, validValues, name, defaultValue) {
     if (value === undefined) {
         return defaultValue;
     }
-    const normalized = value.toLowerCase().trim();
-    if (validValues.includes(normalized)) {
-        return normalized;
+    const trimmed = value.trim();
+    // Case-insensitive matching: find the valid value that matches
+    const match = validValues.find(v => v.toLowerCase() === trimmed.toLowerCase());
+    if (match !== undefined) {
+        return match; // Return the actual valid value, not the input
     }
     console.warn(`Warning: Invalid value '${value}' for --${name}, valid values are: ${validValues.join(', ')}. Using default: ${defaultValue}`);
     return defaultValue;

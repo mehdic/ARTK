@@ -126,7 +126,7 @@ export declare function unwrapOr<T, E>(result: Result<T, E>, defaultValue: T): T
  * const nameResult = map(parseConfig('config.json'), config => config.name);
  * ```
  */
-export declare function map<T, U, E>(result: Result<T, E>, fn: (value: T) => U): Result<U, E>;
+export declare function map<T, U, E>(result: Result<T, E>, fn: (_value: T) => U): Result<U, E>;
 /**
  * Map a failed result to a new error
  *
@@ -134,7 +134,7 @@ export declare function map<T, U, E>(result: Result<T, E>, fn: (value: T) => U):
  * @param fn - The error mapping function
  * @returns A new result with the mapped error
  */
-export declare function mapErr<T, E, F>(result: Result<T, E>, fn: (error: E) => F): Result<T, F>;
+export declare function mapErr<T, E, F>(result: Result<T, E>, fn: (_error: E) => F): Result<T, F>;
 /**
  * Chain result operations (flatMap)
  *
@@ -150,7 +150,7 @@ export declare function mapErr<T, E, F>(result: Result<T, E>, fn: (error: E) => 
  * );
  * ```
  */
-export declare function andThen<T, U, E>(result: Result<T, E>, fn: (value: T) => Result<U, E>): Result<U, E>;
+export declare function andThen<T, U, E>(result: Result<T, E>, fn: (_value: T) => Result<U, E>): Result<U, E>;
 /**
  * Collect an array of results into a result of an array
  *
@@ -219,20 +219,63 @@ export declare function tryCatch<T>(fn: () => T): Result<T, Error>;
  */
 export declare function tryCatchAsync<T>(fn: () => Promise<T>): Promise<Result<T, Error>>;
 /**
- * Standard error type with code and message
+ * Error class with code, message, and optional details.
+ *
+ * Can be used both with Result type and thrown directly.
+ * Extends Error to provide proper stack traces and instanceof checks.
+ *
+ * @example
+ * ```typescript
+ * // With Result type
+ * return err(new CodedError('NOT_FOUND', 'File not found', { path: '/missing.txt' }));
+ *
+ * // Thrown directly
+ * throw new CodedError('VALIDATION_ERROR', 'Invalid input');
+ *
+ * // Caught with instanceof
+ * try {
+ *   riskyOperation();
+ * } catch (error) {
+ *   if (error instanceof CodedError) {
+ *     console.error(`[${error.code}] ${error.message}`);
+ *   }
+ * }
+ * ```
  */
-export interface CodedError {
-    code: string;
-    message: string;
-    details?: Record<string, unknown>;
+export declare class CodedError extends Error {
+    readonly code: string;
+    readonly details?: Record<string, unknown>;
+    constructor(code: string, message: string, details?: Record<string, unknown>);
+    /**
+     * Create a CodedError (convenience factory, same as constructor)
+     */
+    static create(code: string, message: string, details?: Record<string, unknown>): CodedError;
+    /**
+     * Convert to plain object (for serialization/logging)
+     */
+    toJSON(): {
+        code: string;
+        message: string;
+        details?: Record<string, unknown>;
+        stack?: string;
+    };
+    /**
+     * Format error for display
+     */
+    toString(): string;
 }
 /**
- * Create a coded error
+ * Create a coded error (convenience factory function)
  *
  * @param code - Error code (e.g., 'NOT_FOUND', 'VALIDATION_ERROR')
  * @param message - Human-readable error message
  * @param details - Optional additional details
- * @returns A CodedError object
+ * @returns A CodedError instance
+ *
+ * @example
+ * ```typescript
+ * return err(codedError('PARSE_ERROR', 'Invalid JSON', { line: 42 }));
+ * ```
  */
 export declare function codedError(code: string, message: string, details?: Record<string, unknown>): CodedError;
 //# sourceMappingURL=result.d.ts.map

@@ -267,14 +267,84 @@ export async function tryCatchAsync(fn) {
     }
 }
 /**
- * Create a coded error
+ * Error class with code, message, and optional details.
+ *
+ * Can be used both with Result type and thrown directly.
+ * Extends Error to provide proper stack traces and instanceof checks.
+ *
+ * @example
+ * ```typescript
+ * // With Result type
+ * return err(new CodedError('NOT_FOUND', 'File not found', { path: '/missing.txt' }));
+ *
+ * // Thrown directly
+ * throw new CodedError('VALIDATION_ERROR', 'Invalid input');
+ *
+ * // Caught with instanceof
+ * try {
+ *   riskyOperation();
+ * } catch (error) {
+ *   if (error instanceof CodedError) {
+ *     console.error(`[${error.code}] ${error.message}`);
+ *   }
+ * }
+ * ```
+ */
+export class CodedError extends Error {
+    code;
+    details;
+    constructor(code, message, details) {
+        super(message);
+        this.name = 'CodedError';
+        this.code = code;
+        this.details = details;
+        // Maintains proper stack trace in V8 environments (Node.js, Chrome)
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, CodedError);
+        }
+    }
+    /**
+     * Create a CodedError (convenience factory, same as constructor)
+     */
+    static create(code, message, details) {
+        return new CodedError(code, message, details);
+    }
+    /**
+     * Convert to plain object (for serialization/logging)
+     */
+    toJSON() {
+        return {
+            code: this.code,
+            message: this.message,
+            ...(this.details && { details: this.details }),
+            ...(this.stack && { stack: this.stack }),
+        };
+    }
+    /**
+     * Format error for display
+     */
+    toString() {
+        const base = `[${this.code}] ${this.message}`;
+        if (this.details) {
+            return `${base} ${JSON.stringify(this.details)}`;
+        }
+        return base;
+    }
+}
+/**
+ * Create a coded error (convenience factory function)
  *
  * @param code - Error code (e.g., 'NOT_FOUND', 'VALIDATION_ERROR')
  * @param message - Human-readable error message
  * @param details - Optional additional details
- * @returns A CodedError object
+ * @returns A CodedError instance
+ *
+ * @example
+ * ```typescript
+ * return err(codedError('PARSE_ERROR', 'Invalid JSON', { line: 42 }));
+ * ```
  */
 export function codedError(code, message, details) {
-    return details ? { code, message, details } : { code, message };
+    return new CodedError(code, message, details);
 }
 //# sourceMappingURL=result.js.map

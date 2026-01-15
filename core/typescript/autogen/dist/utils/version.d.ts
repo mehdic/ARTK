@@ -1,5 +1,10 @@
 /**
- * Get the package version from package.json
+ * Get the package version
+ *
+ * Priority:
+ * 1. Build-time define (__ARTK_VERSION__)
+ * 2. Environment variable (ARTK_VERSION)
+ * 3. Runtime package.json reading (fallback)
  */
 export declare function getPackageVersion(): string;
 /**

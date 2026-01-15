@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { JourneyFrontmatterSchema, JourneyStatusSchema, validateForAutoGen, } from './schema.js';
 import { matchPattern } from '../mapping/patterns.js';
+import { ok, err, CodedError } from '../utils/result.js';
 // Re-export for convenience
 export { JourneyFrontmatterSchema, JourneyStatusSchema };
 /**
@@ -17,9 +18,9 @@ export class JourneyParseError extends Error {
     cause;
     constructor(message, filePath, cause) {
         super(message);
+        this.name = 'JourneyParseError';
         this.filePath = filePath;
         this.cause = cause;
-        this.name = 'JourneyParseError';
     }
 }
 /**
@@ -365,5 +366,72 @@ export function parseJourneyContent(content, virtualPath = 'virtual.journey.md')
         dataNotes,
         sourcePath: virtualPath,
     };
+}
+/**
+ * Parse journey from string content with Result type (no exceptions)
+ *
+ * This is the recommended way to parse journey content as it returns
+ * structured errors via Result type instead of throwing exceptions.
+ *
+ * @param content - Raw markdown content to parse
+ * @param virtualPath - Virtual path for error reporting (default: 'virtual.journey.md')
+ * @returns Result with ParsedJourney on success or CodedError on failure
+ *
+ * @example
+ * ```typescript
+ * const result = tryParseJourneyContent(markdownContent);
+ * if (result.success) {
+ *   console.log('Parsed:', result.value.frontmatter.id);
+ * } else {
+ *   console.error(`[${result.error.code}] ${result.error.message}`);
+ * }
+ * ```
+ */
+export function tryParseJourneyContent(content, virtualPath = 'virtual.journey.md') {
+    // Extract frontmatter and body
+    const frontmatterMatch = FRONTMATTER_REGEX.exec(content);
+    if (!frontmatterMatch) {
+        return err(new CodedError('FRONTMATTER_NOT_FOUND', 'No YAML frontmatter found (content should start with ---)', { path: virtualPath }));
+    }
+    const frontmatterStr = frontmatterMatch[1];
+    const body = content.slice(frontmatterMatch[0].length).trim();
+    // Parse YAML frontmatter
+    let rawFrontmatter;
+    try {
+        rawFrontmatter = parseYaml(frontmatterStr);
+    }
+    catch (yamlError) {
+        return err(new CodedError('YAML_PARSE_ERROR', 'Invalid YAML in journey frontmatter', {
+            path: virtualPath,
+            cause: yamlError instanceof Error ? yamlError.message : String(yamlError)
+        }));
+    }
+    // Validate frontmatter with Zod
+    const zodResult = JourneyFrontmatterSchema.safeParse(rawFrontmatter);
+    if (!zodResult.success) {
+        const issues = zodResult.error.issues
+            .map((i) => `${i.path.join('.')}: ${i.message}`)
+            .join('; ');
+        return err(new CodedError('FRONTMATTER_VALIDATION_ERROR', `Invalid journey frontmatter: ${issues}`, {
+            path: virtualPath,
+            issues: zodResult.error.issues.map((i) => ({
+                path: i.path.join('.'),
+                message: i.message,
+                code: i.code,
+            }))
+        }));
+    }
+    // Parse body sections
+    const acceptanceCriteria = parseAcceptanceCriteria(body);
+    const proceduralSteps = parseProceduralSteps(body);
+    const dataNotes = parseDataNotes(body);
+    return ok({
+        frontmatter: zodResult.data,
+        body,
+        acceptanceCriteria,
+        proceduralSteps,
+        dataNotes,
+        sourcePath: virtualPath,
+    });
 }
 //# sourceMappingURL=parseJourney.js.map
