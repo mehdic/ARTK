@@ -458,3 +458,411 @@ export interface ClosestMatchResult {
     actual: unknown;
   }>;
 }
+
+// ============================================================================
+// Server-Side Row Model Types
+// ============================================================================
+
+/**
+ * Server-side row model configuration
+ */
+export interface ServerSideConfig {
+  /** Block size for infinite scrolling. Default: 100 */
+  blockSize?: number;
+
+  /** Maximum blocks to keep in cache. Default: 10 */
+  maxBlocksInCache?: number;
+
+  /** Timeout for waiting for block to load (ms). Default: 30000 */
+  blockLoadTimeout?: number;
+}
+
+/**
+ * Server-side loading state
+ */
+export interface ServerSideState {
+  /** True if currently loading a block */
+  isLoading: boolean;
+
+  /** Range of loaded row indices */
+  loadedRange: { start: number; end: number } | null;
+
+  /** Total row count from server (-1 if unknown) */
+  totalServerRows: number;
+
+  /** Number of blocks currently cached */
+  cachedBlocks: number;
+}
+
+/**
+ * Options for server-side operations
+ */
+export interface ServerSideOptions {
+  /** Timeout for block load (ms) */
+  timeout?: number;
+
+  /** Whether to force refresh cached data */
+  forceRefresh?: boolean;
+
+  /** Block size for server-side loading (default: 100) */
+  blockSize?: number;
+
+  /** Maximum blocks to keep in cache (default: 10) */
+  maxBlocksInCache?: number;
+}
+
+// ============================================================================
+// Column Group Types
+// ============================================================================
+
+/**
+ * Column group definition
+ */
+export interface ColumnGroupDef {
+  /** Group ID */
+  groupId: string;
+
+  /** Human-readable group name */
+  displayName?: string;
+
+  /** Child column IDs in this group */
+  children: string[];
+
+  /** Whether group is initially expanded */
+  openByDefault?: boolean;
+}
+
+/**
+ * Column group state
+ */
+export interface ColumnGroupState {
+  /** Group ID */
+  groupId: string;
+
+  /** Whether the group is expanded */
+  isExpanded: boolean;
+
+  /** Visible child column IDs */
+  visibleChildren: string[];
+}
+
+// ============================================================================
+// Range Selection Types
+// ============================================================================
+
+/**
+ * Cell position in grid
+ */
+export interface CellPosition {
+  /** Row matcher to identify the row */
+  rowMatcher: RowMatcher;
+
+  /** Column ID */
+  colId: string;
+}
+
+/**
+ * Cell range for selection
+ */
+export interface CellRange {
+  /** Starting cell (top-left of range) */
+  start: CellPosition;
+
+  /** Ending cell (bottom-right of range) */
+  end: CellPosition;
+}
+
+/**
+ * Range selection state
+ */
+export interface RangeSelectionState {
+  /** Currently selected ranges */
+  ranges: CellRange[];
+
+  /** Number of cells selected */
+  cellCount: number;
+
+  /** Number of rows spanned */
+  rowCount: number;
+
+  /** Number of columns spanned */
+  columnCount: number;
+}
+
+/**
+ * Options for range selection
+ */
+export interface RangeSelectionOptions {
+  /** Whether to add to existing selection (Ctrl+click behavior) */
+  addToSelection?: boolean;
+
+  /** Whether to extend existing selection (Shift+click behavior) */
+  extendSelection?: boolean;
+}
+
+// ============================================================================
+// Keyboard Navigation Types
+// ============================================================================
+
+/**
+ * Navigation direction
+ */
+export type NavigationDirection = 'up' | 'down' | 'left' | 'right';
+
+/**
+ * Keyboard navigation options
+ */
+export interface KeyboardNavigationOptions {
+  /** Number of cells to move. Default: 1 */
+  count?: number;
+
+  /** Whether to hold Shift (for range selection) */
+  shiftKey?: boolean;
+
+  /** Whether to hold Ctrl/Cmd (for jump navigation) */
+  ctrlKey?: boolean;
+
+  /** Whether to hold Alt (for special navigation) */
+  altKey?: boolean;
+}
+
+/**
+ * Keyboard action type
+ */
+export type KeyboardAction =
+  | 'enter'        // Enter edit mode or confirm
+  | 'escape'       // Exit edit mode or cancel
+  | 'tab'          // Move to next cell
+  | 'shiftTab'     // Move to previous cell
+  | 'space'        // Toggle selection
+  | 'delete'       // Clear cell content
+  | 'copy'         // Copy selected cells
+  | 'paste'        // Paste clipboard content
+  | 'selectAll'    // Select all cells (Ctrl+A)
+  | 'home'         // Jump to first cell in row
+  | 'end'          // Jump to last cell in row
+  | 'ctrlHome'     // Jump to first cell in grid
+  | 'ctrlEnd'      // Jump to last cell in grid
+  | 'pageUp'       // Scroll up one page
+  | 'pageDown';    // Scroll down one page
+
+/**
+ * Keyboard navigation state
+ */
+export interface KeyboardNavigationState {
+  /** Currently focused cell position */
+  focusedCell: CellPosition | null;
+
+  /** Whether a cell is currently in edit mode */
+  isEditing: boolean;
+
+  /** Cell currently being edited (if any) */
+  editingCell: CellPosition | null;
+
+  /** Whether header row is focused */
+  isHeaderFocused: boolean;
+}
+
+// ============================================================================
+// Nested Detail Grid Types
+// ============================================================================
+
+/**
+ * Detail grid path for nested navigation
+ */
+export interface DetailGridPath {
+  /** Sequence of master row matchers from root to target */
+  path: RowMatcher[];
+}
+
+/**
+ * Nested detail grid state
+ */
+export interface NestedDetailState {
+  /** Depth level (0 = root grid, 1 = first detail, etc.) */
+  depth: number;
+
+  /** Path from root to this grid */
+  path: DetailGridPath;
+
+  /** Whether this detail grid has its own details */
+  hasNestedDetails: boolean;
+
+  /** Number of expanded detail rows in this grid */
+  expandedDetailCount: number;
+}
+
+/**
+ * Options for nested detail operations
+ */
+export interface NestedDetailOptions {
+  /** Maximum depth to traverse. Default: 5 */
+  maxDepth?: number;
+
+  /** Timeout for each level expansion (ms). Default: 5000 */
+  timeout?: number;
+
+  /** Whether to auto-expand intermediate levels */
+  autoExpand?: boolean;
+}
+
+// ============================================================================
+// Extended Helper Interface
+// ============================================================================
+
+/**
+ * Extended AG Grid helper with advanced features
+ */
+export interface AgGridHelperExtended extends AgGridHelper {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Server-Side Row Model
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Wait for server-side block to load */
+  waitForBlockLoad(rowIndex: number, options?: ServerSideOptions): Promise<void>;
+
+  /** Get server-side loading state */
+  getServerSideState(): Promise<ServerSideState>;
+
+  /** Refresh server-side data */
+  refreshServerSideData(options?: ServerSideOptions): Promise<void>;
+
+  /** Scroll to row with server-side loading */
+  scrollToServerSideRow(rowIndex: number, options?: ServerSideOptions): Promise<void>;
+
+  /** Check if row index is loaded */
+  isRowLoaded(rowIndex: number): Promise<boolean>;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Column Groups
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Get column group header locator */
+  getColumnGroupHeader(groupId: string): Locator;
+
+  /** Expand a column group */
+  expandColumnGroup(groupId: string): Promise<void>;
+
+  /** Collapse a column group */
+  collapseColumnGroup(groupId: string): Promise<void>;
+
+  /** Toggle column group expand/collapse */
+  toggleColumnGroup(groupId: string): Promise<void>;
+
+  /** Check if column group is expanded */
+  isColumnGroupExpanded(groupId: string): Promise<boolean>;
+
+  /** Get all column group states */
+  getColumnGroupStates(): Promise<ColumnGroupState[]>;
+
+  /** Get visible columns in a group */
+  getGroupVisibleColumns(groupId: string): Promise<string[]>;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Range Selection
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Select a range of cells */
+  selectCellRange(range: CellRange, options?: RangeSelectionOptions): Promise<void>;
+
+  /** Select cells by dragging */
+  selectCellsByDrag(start: CellPosition, end: CellPosition): Promise<void>;
+
+  /** Add cell to selection */
+  addCellToSelection(position: CellPosition): Promise<void>;
+
+  /** Clear all range selections */
+  clearRangeSelection(): Promise<void>;
+
+  /** Get current range selection state */
+  getRangeSelectionState(): Promise<RangeSelectionState>;
+
+  /** Get values from selected range */
+  getSelectedRangeValues(): Promise<unknown[][]>;
+
+  /** Assert cells in range are selected */
+  expectRangeSelected(range: CellRange): Promise<void>;
+
+  /** Copy selected cells to clipboard */
+  copySelectedCells(): Promise<void>;
+
+  /** Paste from clipboard to selected cells */
+  pasteToSelectedCells(): Promise<void>;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Keyboard Navigation
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Navigate using arrow keys */
+  navigateCell(direction: NavigationDirection, options?: KeyboardNavigationOptions): Promise<void>;
+
+  /** Perform keyboard action */
+  performKeyboardAction(action: KeyboardAction): Promise<void>;
+
+  /** Navigate to first cell in grid */
+  navigateToFirstCell(): Promise<void>;
+
+  /** Navigate to last cell in grid */
+  navigateToLastCell(): Promise<void>;
+
+  /** Navigate to first cell in current row */
+  navigateToRowStart(): Promise<void>;
+
+  /** Navigate to last cell in current row */
+  navigateToRowEnd(): Promise<void>;
+
+  /** Navigate to specific cell and focus it */
+  focusCell(position: CellPosition): Promise<void>;
+
+  /** Get currently focused cell position */
+  getFocusedCell(): Promise<CellPosition | null>;
+
+  /** Assert cell is focused */
+  expectCellFocused(position: CellPosition): Promise<void>;
+
+  /** Enter edit mode on focused cell */
+  enterEditMode(): Promise<void>;
+
+  /** Exit edit mode */
+  exitEditMode(confirm?: boolean): Promise<void>;
+
+  /** Tab to next editable cell */
+  tabToNextCell(): Promise<void>;
+
+  /** Tab to previous editable cell */
+  tabToPreviousCell(): Promise<void>;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Nested Detail Grids
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Get detail grid by path */
+  getDetailGridByPath(path: DetailGridPath): AgGridHelperExtended;
+
+  /** Get nested detail state */
+  getNestedDetailState(): Promise<NestedDetailState>;
+
+  /** Expand nested detail row at path */
+  expandNestedDetail(path: DetailGridPath, options?: NestedDetailOptions): Promise<void>;
+
+  /** Collapse nested detail row at path */
+  collapseNestedDetail(path: DetailGridPath): Promise<void>;
+
+  /** Get all expanded detail paths */
+  getExpandedDetailPaths(): Promise<DetailGridPath[]>;
+
+  /** Find detail grid containing specific data */
+  findDetailGridWithData(
+    cellValues: Record<string, unknown>,
+    options?: NestedDetailOptions
+  ): Promise<AgGridHelperExtended | null>;
+
+  /** Get depth of current grid (0 = root) */
+  getGridDepth(): number;
+
+  /** Get parent grid (null if root) */
+  getParentGrid(): AgGridHelperExtended | null;
+
+  /** Get root grid */
+  getRootGrid(): AgGridHelperExtended;
+}
