@@ -274,24 +274,60 @@ If chosen `attr` differs from `use.testIdAttribute`, apply the smallest possible
 
 ---
 
-## Phase 6 - Post-apply validation (must do)
+## Phase 6 - Post-apply validation (MANDATORY - must execute)
 
-After changes:
-1) Re-run your scans to ensure:
-   - attributes exist
-   - IDs match naming policy
-   - duplicates are not introduced
-2) Update:
-   - `reports/testid/audit-report.md` (mark applied rows as done)
-   - `docs/TESTABILITY.md` (remove selector debt items if resolved, or add remaining debt)
-3) Run local validation (compiler/lint) and capture any errors immediately after edits.
-4) Trigger a frontend build and ensure it completes without errors.
-5) Provide a recommended local verification command list (do not assume package manager):
-   - `npm|pnpm|yarn lint`
-   - `npm|pnpm|yarn test`
-   - `npm|pnpm|yarn build`
-   - `npx playwright test --grep @JRN-####` (if journey scope)
-   - `npx playwright test --list` (sanity)
+**After applying changes, you MUST run validation and fix any errors before completing.**
+
+### Step 6.1: Re-scan to verify changes
+Re-run your scans to ensure:
+- Attributes exist in the modified files
+- IDs match naming policy
+- No duplicates were introduced
+
+### Step 6.2: Update reports
+- `reports/testid/audit-report.md` (mark applied rows as APPLIED)
+- `docs/TESTABILITY.md` (remove selector debt items if resolved)
+
+### Step 6.3: Run validation commands (MUST EXECUTE)
+
+**Execute these commands and fix any errors:**
+
+```bash
+# 1. TypeScript compilation check
+cd <ARTK_ROOT> && npx tsc --noEmit
+
+# 2. If ARTK validation tests exist, run them
+npx playwright test --project=validation --reporter=list
+
+# 3. Verify Playwright can find the new testids
+npx playwright test --list
+```
+
+### Step 6.4: Fix any errors found
+
+**If validation fails:**
+1. Identify the error (syntax, import, selector not found, etc.)
+2. Fix the issue in the source file
+3. Re-run validation
+4. Repeat until ALL validation passes
+
+**Common errors and fixes:**
+| Error | Fix |
+|-------|-----|
+| Syntax error in JSX | Check attribute placement, quotes, braces |
+| Duplicate testid | Rename one of the duplicates with more specific name |
+| Test can't find element | Verify testid is on correct element, check for typos |
+| TypeScript error | Check import statements, prop types |
+
+**Do NOT proceed to final output until validation passes.**
+
+### Step 6.5: Optional - Run frontend build
+If the project has a build command, run it:
+```bash
+npm run build  # or pnpm/yarn
+```
+
+Fix any build errors before completing.
 
 ---
 
@@ -314,14 +350,29 @@ You must produce:
 - [ ] `reports/testid/audit-report.md`
 - [ ] `reports/testid/fix-plan.json`
 - [ ] (apply mode) code changes only after approval
+- [ ] (apply mode) validation executed and passing
 - [ ] updated report reflecting what was applied
-- [ ] clear next steps for remaining medium/high risk items
+- [ ] validation status summary
+- [ ] next commands for remaining work
 
 ---
 
 ## MANDATORY: Final Output Section
 
 **You MUST display this section at the end of your output, exactly as formatted.**
+
+### Validation Status
+
+**Display validation results:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  VALIDATION RESULTS                                                 ║
+╠════════════════════════════════════════════════════════════════════╣
+║  TypeScript Compilation:  ✓ PASS / ✗ FAIL                          ║
+║  Playwright Validation:   ✓ PASS / ✗ FAIL / ⏭ SKIPPED              ║
+║  Test List Check:         ✓ PASS / ✗ FAIL                          ║
+╚════════════════════════════════════════════════════════════════════╝
+```
 
 ### Next Commands
 
@@ -332,11 +383,11 @@ You must produce:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. (RECOMMENDED) Validate tests still pass after changes:          ║
-║     cd <ARTK_ROOT> && npx playwright test --project=validation     ║
-║                                                                     ║
-║  2. (OPTIONAL) Propose journeys using stable selectors:             ║
+║  1. (RECOMMENDED) Propose journeys using stable selectors:          ║
 ║     /artk.journey-propose                                          ║
+║                                                                     ║
+║  2. (OPTIONAL) Define a specific journey manually:                  ║
+║     /artk.journey-define id=JRN-0001 title="<title>"               ║
 ║                                                                     ║
 ║  3. (OPTIONAL) Implement a journey with data-testid selectors:      ║
 ║     /artk.journey-implement id=JRN-####                            ║
