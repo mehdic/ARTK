@@ -416,3 +416,35 @@ Do NOT “fix” timing/logic automatically here. That belongs in `/journey-veri
 - [ ] Lint gates pass (ESLint if available, else grep)
 - [ ] Contract mapping checks pass or are explicitly deferred
 - [ ] Validation report written
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (IF VALIDATION PASSED) Run and verify the tests:                ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  2. (IF VALIDATION FAILED) Fix issues and re-implement:             ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  3. (OPTIONAL) Validate another journey:                            ║
+║     /artk.journey-validate id=JRN-####                             ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Replace `<JRN-ID>` with the actual journey ID that was just validated (e.g., JRN-0001).**
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

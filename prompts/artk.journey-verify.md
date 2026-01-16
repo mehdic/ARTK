@@ -440,8 +440,43 @@ Always end with:
 
 # Edge cases you must handle
 - **SSO/MFA** blocks UI login: verification must rely on storageState provisioning. Mark blocked if not available.
-- **Region-restricted environments**: stop, don’t “assume” connectivity.
+- **Region-restricted environments**: stop, don't "assume" connectivity.
 - **Shared accounts**: avoid parallel runs until data isolation is proven.
 - **Flaky backends**: stabilize with explicit completion checks, not retries forever.
 - **Retry side effects**: prefer tracing that captures the *first failure* when supported.
 - **Non-deterministic UI** (feature flags/permissions): require actor/role clarification or mark blocked.
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (IF TESTS PASSED) Journey is complete! Implement another:       ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  2. (IF TESTS FAILED) Fix issues and re-run verification:           ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  3. (IF FLAKY) Stabilize tests and re-verify:                       ║
+║     /artk.journey-verify id=<JRN-ID> heal=auto                     ║
+║                                                                     ║
+║  4. (OPTIONAL) Run all tests for the tier:                          ║
+║     npm run test:smoke   (or test:release, test:regression)        ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Replace `<JRN-ID>` with the actual journey ID that was just verified (e.g., JRN-0001).**
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

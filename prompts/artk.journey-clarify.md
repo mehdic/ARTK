@@ -312,3 +312,38 @@ Maintain a canonical guidance doc with managed markers that includes:
 - [ ] BACKLOG.md regenerated
 - [ ] index.json regenerated
 - [ ] docs/JOURNEY_CLARIFY.md created/updated
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Audit selectors before implementation:            ║
+║     /artk.testid-audit mode=report scope=journey:<JRN-ID>          ║
+║                                                                     ║
+║  2. (RECOMMENDED) Implement the journey as Playwright tests:        ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  3. (AFTER IMPLEMENT) Validate the generated tests:                 ║
+║     /artk.journey-validate id=<JRN-ID>                             ║
+║                                                                     ║
+║  4. (OPTIONAL) Clarify another journey:                             ║
+║     /artk.journey-clarify id=JRN-####                              ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Replace `<JRN-ID>` with the actual journey ID that was just clarified (e.g., JRN-0001).**
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

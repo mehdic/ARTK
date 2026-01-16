@@ -555,3 +555,38 @@ Ask only when necessary:
 - [ ] `/journey-verify` passed (including stability gate)
 - [ ] Journey updated: tests[] linked, status implemented only when valid+verified
 - [ ] backlog/index regenerated
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (IF VALIDATE FAILED) Fix issues and re-validate:               ║
+║     /artk.journey-validate id=<JRN-ID>                             ║
+║                                                                     ║
+║  2. (IF VERIFY FAILED) Run verification again after fixes:          ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  3. (OPTIONAL) Implement another journey:                           ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  4. (OPTIONAL) Run all tests for the tier:                          ║
+║     npm run test:smoke   (or test:release, test:regression)        ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Replace `<JRN-ID>` with the actual journey ID that was just implemented (e.g., JRN-0001).**
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

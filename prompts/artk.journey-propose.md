@@ -570,7 +570,37 @@ When rerunning `/journey-propose` on a repo with existing proposals:
 **To start fresh:** Delete all files in `journeys/proposed/` before running.
 
 ## Step 11 — Generate proposed Journey files
-For each selected Journey:
+
+**Progress reporting (for large coverage or >20 journeys):**
+
+When generating many proposals, print progress to keep the user informed:
+
+```
+Generating proposed journeys...
+
+Smoke tier (10 journeys):
+  ✓ JRN-0001 User Login
+  ✓ JRN-0002 Dashboard Load
+  ✓ JRN-0003 Core Workflow
+  ... (7 more)
+  ✓ Smoke tier complete: 10/10
+
+Release tier (20 journeys):
+  ✓ JRN-0011 Submit Order
+  ✓ JRN-0012 View Order History
+  ... (18 more)
+  ✓ Release tier complete: 20/20
+
+Regression tier (15 journeys):
+  ✓ JRN-0031 Invalid Login Attempt
+  ✓ JRN-0032 Session Timeout Handling
+  ... (13 more)
+  ✓ Regression tier complete: 15/20 (5 excluded - low feasibility)
+
+Total: 45/50 journeys proposed
+```
+
+**For each selected Journey:**
 - Create file in `journeys/proposed/`:
   - `<ID>__<slug>.md` (kebab-case slug, max 60 chars)
 - Frontmatter:
@@ -754,3 +784,36 @@ Provide one reply template.
 - "Limited high-risk candidates for release tier"
 - "Remaining candidates had low feasibility (excluded)"
 - "maxJourneys cap reached before filling regression tier"
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Define a proposed journey with full structure:    ║
+║     /artk.journey-define source=JRN-####                           ║
+║                                                                     ║
+║  2. (ALTERNATIVE) Define a new journey manually:                    ║
+║     /artk.journey-define id=JRN-#### title="<title>"               ║
+║                                                                     ║
+║  3. (AFTER DEFINE) Add execution detail to a journey:               ║
+║     /artk.journey-clarify id=JRN-####                              ║
+║                                                                     ║
+║  4. (OPTIONAL) Audit selectors for stable test hooks:               ║
+║     /artk.testid-audit mode=report                                 ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.
