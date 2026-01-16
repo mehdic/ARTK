@@ -262,81 +262,108 @@ If `<harnessRoot>/modules/registry.json` exists:
 
 If registry missing, do not fail by default (warn).
 
-## Step 3.5 — Use AutoGen Core Validation API (Recommended)
+## Step 3.5 — Use AutoGen Validation CLI (Recommended)
 
-**PREFERRED: Use `@artk/core-autogen` for comprehensive validation**
+**PREFERRED: Use the `artk-autogen validate` CLI for comprehensive validation.**
 
-Instead of manual grep/lint checks, use the AutoGen Core validation engine:
+The AutoGen CLI validates Journey files and their associated test code.
 
-```typescript
-import { validateJourney } from '@artk/core-autogen';
+### Running Validation
 
-const result = await validateJourney({
-  journeyPath: 'journeys/JRN-0001-user-login.md',
-  testsDir: 'e2e/tests/',
-  options: {
-    // Enable all validation checks
-    checkForbiddenPatterns: true,
-    checkTags: true,
-    checkACMapping: true,
-    runESLint: true,
-    strict: true,
-  },
-});
+From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
-if (!result.valid) {
-  console.log('Validation failed:');
-  for (const issue of result.issues) {
-    console.log(`  ${issue.severity}: ${issue.message}`);
-    console.log(`    File: ${issue.file}:${issue.line}`);
-    console.log(`    Fix: ${issue.suggestion}`);
-  }
-}
+```bash
+# Validate a single Journey
+npx artk-autogen validate ../journeys/clarified/JRN-0001-user-login.md
+
+# Validate with ESLint checks (more thorough)
+npx artk-autogen validate ../journeys/clarified/JRN-0001.md --lint
+
+# Validate multiple Journeys
+npx artk-autogen validate "../journeys/clarified/*.md" --lint
+
+# Output as JSON (for machine processing)
+npx artk-autogen validate ../journeys/clarified/JRN-0001.md --format json
+
+# Strict mode (fail on warnings too)
+npx artk-autogen validate ../journeys/clarified/JRN-0001.md --strict
 ```
 
-**AutoGen Core Validation Checks:**
+**CLI Options:**
 
-1. **Forbidden Pattern Scanner** (`checkForbiddenPatterns`)
+| Option | Description |
+|--------|-------------|
+| `--lint` | Run ESLint checks (slower but more thorough) |
+| `--format <type>` | Output format: `text`, `json`, or `summary` |
+| `--strict` | Fail on warnings too (not just errors) |
+| `-q, --quiet` | Only show errors, suppress other output |
+
+**Example output:**
+```
+Validating 1 file(s)...
+
+✓ JRN-0001
+
+1 passed, 0 failed
+```
+
+**Example with issues:**
+```
+Validating 1 file(s)...
+
+✗ JRN-0001
+  ✗ [FORBIDDEN_PATTERN] Found page.waitForTimeout() - use web-first assertions
+    field: tests/smoke/jrn-0001.spec.ts:42
+    → Replace with expect(...).toPass() or expect.poll()
+  ⚠ [MISSING_TAG] Missing @scope-* tag
+    → Add @scope-<scope> tag to test describe block
+
+0 passed, 1 failed
+```
+
+### What AutoGen Validation Checks
+
+1. **Forbidden Pattern Scanner**
    - `page.waitForTimeout()` - time-based waits
    - `force: true` - forced actions
    - `page.pause()` - debug pauses
    - `.only(` - focused tests
    - Hardcoded URLs (http://, https://)
 
-2. **Tag Validation** (`checkTags`)
+2. **Tag Validation**
    - Required: `@JRN-####` tag present
    - Required: `@smoke`, `@release`, or `@regression` tier tag
    - Required: `@scope-<scope>` scope tag
 
-3. **AC Mapping Completeness** (`checkACMapping`)
+3. **AC Mapping Completeness**
    - Each AC in Journey has corresponding `test.step()`
    - Each `test.step()` contains at least one `expect()`
    - No orphaned steps (steps not in Journey ACs)
 
-4. **ESLint Integration** (`runESLint`)
+4. **ESLint Integration** (when `--lint` is used)
    - Uses eslint-plugin-playwright rules
    - Catches missing awaits, deprecated APIs
    - Enforces web-first assertions
 
-**Validation Output:**
+### Alternative: Programmatic API
+
+For advanced automation (CI pipelines, custom tooling):
 
 ```typescript
-interface ValidationResult {
-  valid: boolean;
-  summary: {
-    total: number;
-    passed: number;
-    failed: number;
-    warnings: number;
-  };
-  issues: Array<{
-    severity: 'error' | 'warning';
-    category: 'pattern' | 'tag' | 'mapping' | 'lint';
-    message: string;
-    file: string;
-    line: number;
-    suggestion: string;
-  }>;
+import { validateJourneys } from '@artk/core-autogen';
+
+const results = await validateJourneys(
+  ['journeys/clarified/JRN-0001.md'],
+  { runLint: true }
+);
+
+for (const [journeyId, result] of results) {
+  if (!result.valid) {
+    console.log(`${journeyId} failed validation:`);
+    for (const issue of result.issues) {
+      console.log(`  ${issue.severity}: ${issue.message}`);
+    }
+  }
 }
 ```
 
@@ -348,8 +375,9 @@ If `lint=auto|eslint`:
   - `eslint.config.*` or `.eslintrc*`
 - Detect eslint-plugin-playwright installed (package.json).
 - If available, run:
-  - `npx eslint <harnessRoot>/tests/**/*.{ts,js} --max-warnings=0`
-  - scope the run to files containing `@JRN-####` when possible.
+  - `npx eslint "<harnessRoot>/tests/**/*.{ts,js}" --max-warnings=0`
+  - Note: Quote the glob pattern to prevent shell expansion
+  - Scope the run to files containing `@JRN-####` when possible.
 
 If ESLint is not available:
 - If `lint=eslint`: fail
@@ -403,9 +431,9 @@ with:
 Only do safe mechanical fixes:
 - add missing `@JRN-####` tag (when obviously missing)
 - normalize tag format
-- fix import path to harness base `test`
-- remove accidental `.only` (only if it’s clearly unintended; otherwise warn)
-Do NOT “fix” timing/logic automatically here. That belongs in `/journey-verify`.
+- fix import path to use `@artk/core/fixtures` instead of direct Playwright imports
+- remove accidental `.only` (only if it's clearly unintended; otherwise warn)
+Do NOT "fix" timing/logic automatically here. That belongs in `/journey-verify`.
 
 ---
 
