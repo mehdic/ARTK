@@ -20,7 +20,8 @@ export default defineConfig({
     'schemas/index.ts',
     'compat/index.ts',
     'validation/index.ts',
-    'grid/index.ts'
+    'grid/index.ts',
+    'llkb/index.ts'
   ],
   format: ['esm'],
   dts: true,

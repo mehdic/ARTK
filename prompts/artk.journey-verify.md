@@ -426,7 +426,1031 @@ Include:
 
 Do NOT silently change Journey `status` unless:
 - it is already `implemented` and verification passes (fine), OR
-- you have explicit rule in playbook that “implemented requires verified”.
+- you have explicit rule in playbook that "implemented requires verified".
+
+## Step 17 — LLKB Integration: Learn and Extract
+
+**After tests pass (or after fixing and re-running), capture learnings and extract reusable patterns into the LLKB.**
+
+Check if `.artk/llkb/` exists and `config.yml` has `enabled: true`. If disabled or missing, skip this step.
+
+### LLKB Library Reference (@artk/core/llkb)
+
+**Use the `@artk/core/llkb` library for all LLKB operations. This provides atomic writes, file locking, and all utility functions.**
+
+```typescript
+import {
+  // File operations (atomic writes, locking)
+  saveJSONAtomic, saveJSONAtomicSync, updateJSONWithLock, updateJSONWithLockSync, loadJSON, ensureDir,
+  // History logging
+  appendToHistory, readTodayHistory, countTodayEvents, cleanupOldHistoryFiles,
+  // Confidence calculations
+  calculateConfidence, detectDecliningConfidence, needsConfidenceReview, updateConfidenceHistory,
+  // Analytics
+  updateAnalytics, updateAnalyticsWithData, createEmptyAnalytics,
+  // Similarity detection
+  calculateSimilarity, findSimilarPatterns, findNearDuplicates,
+  // Category inference
+  inferCategory, inferCategoryWithConfidence,
+  // Types
+  type Lesson, type Component, type HistoryEvent, type AnalyticsFile,
+} from '@artk/core/llkb';
+```
+
+**Key functions for journey-verify:**
+
+| Function | Usage |
+|----------|-------|
+| `saveJSONAtomic(path, data)` | Write files atomically (prevents corruption) |
+| `updateJSONWithLock(path, fn)` | Concurrent-safe read-modify-write |
+| `appendToHistory(event, llkbRoot)` | Log lesson_created, component_extracted events |
+| `calculateConfidence(metrics)` | Calculate lesson confidence score (0-1) |
+| `detectDecliningConfidence(lesson)` | Check if lesson confidence is dropping |
+| `updateAnalytics(llkbRoot)` | Recalculate analytics.json from lessons/components |
+| `findSimilarPatterns(code, patterns)` | Detect duplication for extraction |
+| `cleanupOldHistoryFiles(config, llkbRoot)` | Remove old history files per retention policy |
+
+### 17.0 File Safety Utilities (Concurrent Write Protection)
+
+**All LLKB JSON operations MUST use atomic writes to prevent data corruption during parallel runs. Use the library functions above instead of manual implementations.**
+
+```
+# ═══════════════════════════════════════════════════════════════
+# ATOMIC WRITE: Prevents partial writes and race conditions
+# ═══════════════════════════════════════════════════════════════
+FUNCTION saveJSONAtomic(path: string, data: object) -> SaveResult:
+  TRY:
+    tempPath = path + ".tmp." + generateRandomId()
+
+    # Write to temp file first
+    writeFile(tempPath, JSON.stringify(data, null, 2))
+
+    # Atomic rename (overwrites destination)
+    rename(tempPath, path)
+
+    RETURN { success: true }
+  CATCH error:
+    # Clean up temp file if it exists
+    IF exists(tempPath):
+      deleteFile(tempPath)
+    RETURN { success: false, error: error.message }
+
+# ═══════════════════════════════════════════════════════════════
+# LOCKED READ-MODIFY-WRITE: For concurrent updates to same file
+# ═══════════════════════════════════════════════════════════════
+FUNCTION updateJSONWithLock(path: string, updateFn: Function) -> UpdateResult:
+  lockPath = path + ".lock"
+  maxWaitMs = 5000
+  startTime = now()
+
+  # Acquire lock with timeout
+  WHILE exists(lockPath):
+    IF (now() - startTime) > maxWaitMs:
+      # Check if lock is stale (> 30 seconds old)
+      IF fileAge(lockPath) > 30000:
+        deleteFile(lockPath)  # Force release stale lock
+        logWarning("Released stale lock on " + path)
+      ELSE:
+        RETURN { success: false, error: "Lock timeout on " + path }
+    sleep(100)  # Wait 100ms before retry
+
+  TRY:
+    # Create lock file
+    writeFile(lockPath, now().toISO8601())
+
+    # Read current data
+    currentData = loadJSON(path)
+
+    # Apply update function
+    updatedData = updateFn(currentData)
+
+    # Write atomically
+    result = saveJSONAtomic(path, updatedData)
+
+    RETURN result
+  FINALLY:
+    # Always release lock
+    IF exists(lockPath):
+      deleteFile(lockPath)
+
+# ═══════════════════════════════════════════════════════════════
+# USAGE EXAMPLES
+# ═══════════════════════════════════════════════════════════════
+
+# Simple save (no concurrent risk):
+saveJSONAtomic(".artk/llkb/app-profile.json", profileData)
+
+# Concurrent update (lessons, components, analytics):
+updateJSONWithLock(".artk/llkb/lessons.json", (lessons) => {
+  lessons.lessons.push(newLesson)
+  RETURN lessons
+})
+```
+
+**When to use each:**
+| Operation | Function | Reason |
+|-----------|----------|--------|
+| Initial creation | `saveJSONAtomic` | No concurrent risk |
+| Update lessons.json | `updateJSONWithLock` | Multiple journeys may run in parallel |
+| Update components.json | `updateJSONWithLock` | Multiple journeys may run in parallel |
+| Update analytics.json | `updateJSONWithLock` | Updated after every verification |
+| Append to history | `appendToHistory` | JSONL append is inherently safe |
+
+### 17.1 Record Lessons from Fixes
+
+For each fix applied during verification:
+
+1. **Analyze the fix**:
+   - What selector/timing/pattern was wrong?
+   - What made it work?
+   - Is this generalizable or one-off?
+   - What category: `selector`, `timing`, `data`, `auth`, `quirk`, `assertion`, `navigation`
+
+2. **Classify as lesson if generalizable**:
+   - NOT one-off: If the pattern applies to multiple components or selectors
+   - NOT app bug: If the fix is in test code, not product code
+   - Has clear "bad → good" transformation
+
+3. **Check if similar lesson exists**:
+   ```
+   existingLesson = lessons.find(l =>
+     l.category === category AND
+     l.problem matches currentProblem AND
+     similarity(l.solution, currentSolution) > 0.7
+   )
+   ```
+
+4. **If similar lesson exists** → Update metrics:
+   ```json
+   {
+     "metrics": {
+       "occurrences": <increment by 1>,
+       "successRate": <recalculate based on this attempt>,
+       "confidence": <recalculate>,
+       "lastApplied": "<ISO8601>",
+       "lastSuccess": "<ISO8601 if this attempt succeeded>"
+     }
+   }
+   ```
+
+5. **If new lesson** → Create entry in `lessons.json`:
+   ```json
+   {
+     "id": "L###",
+     "category": "selector|timing|data|auth|quirk|assertion|navigation",
+     "severity": "critical|high|medium|low",
+     "scope": "universal|framework:<name>|app-specific",
+
+     "title": "Short descriptive title",
+     "problem": "What went wrong (detailed)",
+     "solution": "How to fix it (detailed)",
+     "rationale": "Why this solution works",
+
+     "codePattern": {
+       "bad": "Code that causes the problem",
+       "good": "Code that solves it",
+       "context": "When to apply this pattern"
+     },
+
+     "applicableTo": ["component-name", "selector-pattern", "scope-name"],
+     "tags": ["ag-grid", "async", "navigation", "etc"],
+
+     "metrics": {
+       "occurrences": 1,
+       "successRate": 1.0,
+       "confidence": 0.7,
+       "confidenceHistory": [],
+       "firstSeen": "<ISO8601>",
+       "lastApplied": "<ISO8601>",
+       "lastSuccess": "<ISO8601>"
+     },
+
+     "source": {
+       "discoveredBy": "journey-verify",
+       "journey": "JRN-####",
+       "file": "tests/<tier>/<file>.spec.ts",
+       "line": <line_number>
+     },
+
+     "validation": {
+       "autoValidated": true,
+       "humanReviewed": false,
+       "reviewedBy": null,
+       "reviewedAt": null
+     }
+   }
+   ```
+
+6. **Log to history**:
+   ```jsonl
+   {"timestamp":"<ISO8601>","event":"lesson_created","id":"L###","journey":"JRN-####","prompt":"journey-verify","summary":"Discovered <title>"}
+   ```
+
+**Example lesson creation:**
+```json
+{
+  "id": "L042",
+  "category": "selector",
+  "severity": "high",
+  "scope": "framework:ag-grid",
+  "title": "AG Grid cell selection requires aria-based targeting",
+  "problem": "CSS class selectors (.ag-cell-value) are dynamic and break when AG Grid updates",
+  "solution": "Use getByRole('gridcell', { name: expectedValue }) for stable targeting",
+  "rationale": "ARIA roles are stable across AG Grid versions and align with accessibility best practices",
+  "codePattern": {
+    "bad": "const cell = page.locator('.ag-cell-value').first();",
+    "good": "const cell = page.getByRole('gridcell', { name: 'Order ID' });",
+    "context": "When selecting cells in AG Grid data tables"
+  },
+  "applicableTo": ["ag-grid", "data-grid", "table-cell-selection"],
+  "tags": ["ag-grid", "selector", "aria"],
+  "metrics": {
+    "occurrences": 1,
+    "successRate": 1.0,
+    "confidence": 0.75,
+    "firstSeen": "2026-01-16T10:30:00Z",
+    "lastApplied": "2026-01-16T10:30:00Z",
+    "lastSuccess": "2026-01-16T10:30:00Z"
+  },
+  "source": {
+    "discoveredBy": "journey-verify",
+    "journey": "JRN-0005",
+    "file": "tests/smoke/jrn-0005__view-orders.spec.ts",
+    "line": 42
+  }
+}
+```
+
+### 17.2 Detect Extraction Opportunities
+
+After all tests pass, analyze test code for duplication and common patterns:
+
+#### 17.2.1 Cross-Journey Comparison Algorithm (MANDATORY)
+
+**Scan ALL test files in the project to find duplicate patterns:**
+
+```
+FUNCTION scanForExtractionCandidates(harnessRoot: string) -> ExtractionCandidate[]:
+  allTestSteps = []
+  existingComponents = loadComponents(".artk/llkb/components.json")
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 1: Extract all test.step() blocks from all test files
+  # ═══════════════════════════════════════════════════════════════
+  FOR each testFile in glob(harnessRoot + "/tests/**/*.spec.ts"):
+    fileContent = readFile(testFile)
+    journeyId = extractJourneyTag(fileContent)  # @JRN-#### from tags
+
+    # Extract test.step() blocks using AST or regex
+    stepBlocks = extractTestSteps(fileContent)
+
+    FOR each step in stepBlocks:
+      allTestSteps.push({
+        file: testFile,
+        journey: journeyId,
+        stepName: step.name,
+        code: step.code,
+        normalizedCode: normalizeCode(step.code),
+        hash: hashCode(normalizeCode(step.code)),
+        lineStart: step.lineStart,
+        lineEnd: step.lineEnd
+      })
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 2: Normalize code for comparison
+  # ═══════════════════════════════════════════════════════════════
+  FUNCTION normalizeCode(code: string) -> string:
+    normalized = code
+    # Remove string literals (replace with <STRING>)
+    normalized = normalized.replace(/'[^']*'/g, '<STRING>')
+    normalized = normalized.replace(/"[^"]*"/g, '<STRING>')
+    # Remove numbers (replace with <NUMBER>)
+    normalized = normalized.replace(/\d+/g, '<NUMBER>')
+    # Remove variable names (replace with <VAR>)
+    normalized = normalized.replace(/const \w+/g, 'const <VAR>')
+    normalized = normalized.replace(/let \w+/g, 'let <VAR>')
+    # Normalize whitespace
+    normalized = normalized.replace(/\s+/g, ' ').trim()
+    RETURN normalized
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 2.5: Infer category from code patterns
+  # ═══════════════════════════════════════════════════════════════
+  # Valid categories: selector, timing, quirk, auth, data, assertion, navigation, ui-interaction
+  # Note: "quirk" is lesson-only (app quirks don't become components)
+  FUNCTION inferCategory(code: string) -> string:
+    codeLower = code.toLowerCase()
+
+    # Navigation patterns
+    IF codeLower.includes("goto") OR codeLower.includes("navigate") OR codeLower.includes("route"):
+      RETURN "navigation"
+    IF codeLower.includes("sidebar") OR codeLower.includes("menu") OR codeLower.includes("breadcrumb"):
+      RETURN "navigation"
+
+    # Auth patterns
+    IF codeLower.includes("login") OR codeLower.includes("auth") OR codeLower.includes("password"):
+      RETURN "auth"
+    IF codeLower.includes("logout") OR codeLower.includes("session") OR codeLower.includes("token"):
+      RETURN "auth"
+
+    # Assertion patterns
+    IF codeLower.includes("expect") OR codeLower.includes("assert") OR codeLower.includes("verify"):
+      RETURN "assertion"
+    IF codeLower.includes("tobevisible") OR codeLower.includes("tohavetext") OR codeLower.includes("tobehidden"):
+      RETURN "assertion"
+
+    # Data patterns
+    IF codeLower.includes("api") OR codeLower.includes("fetch") OR codeLower.includes("response"):
+      RETURN "data"
+    IF codeLower.includes("request") OR codeLower.includes("json") OR codeLower.includes("payload"):
+      RETURN "data"
+
+    # Selector patterns
+    IF codeLower.includes("locator") OR codeLower.includes("getby") OR codeLower.includes("selector"):
+      RETURN "selector"
+    IF codeLower.includes("testid") OR codeLower.includes("data-testid") OR codeLower.includes("queryselector"):
+      RETURN "selector"
+
+    # Timing patterns
+    IF codeLower.includes("wait") OR codeLower.includes("timeout") OR codeLower.includes("delay"):
+      RETURN "timing"
+    IF codeLower.includes("sleep") OR codeLower.includes("settimeout") OR codeLower.includes("poll"):
+      RETURN "timing"
+
+    # UI interaction (default for common UI operations)
+    IF codeLower.includes("click") OR codeLower.includes("fill") OR codeLower.includes("type"):
+      RETURN "ui-interaction"
+    IF codeLower.includes("select") OR codeLower.includes("check") OR codeLower.includes("upload"):
+      RETURN "ui-interaction"
+
+    # Default fallback
+    RETURN "ui-interaction"
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 3: Group by hash and find duplicates
+  # ═══════════════════════════════════════════════════════════════
+  groupedByHash = groupBy(allTestSteps, 'hash')
+  candidates = []
+
+  FOR each hash, group in groupedByHash:
+    IF group.length >= 2:  # Found duplicate pattern
+      # Check if already a component
+      existingMatch = existingComponents.find(c =>
+        hashCode(normalizeCode(c.source.originalCode)) == hash
+      )
+
+      IF existingMatch IS NULL:
+        # Calculate extraction score
+        score = calculateExtractionScore(group)
+
+        candidates.push({
+          pattern: group[0].normalizedCode,
+          originalCode: group[0].code,
+          occurrences: group.length,
+          journeys: unique(group.map(s => s.journey)),
+          files: unique(group.map(s => s.file)),
+          category: inferCategory(group[0].code),
+          score: score,
+          recommendation: score >= 15 ? "EXTRACT_NOW" : "CONSIDER"
+        })
+
+  # Sort by score descending
+  candidates.sort((a, b) => b.score - a.score)
+
+  RETURN candidates
+```
+
+**Extraction scoring algorithm:**
+```
+FUNCTION calculateExtractionScore(group: TestStep[]) -> number:
+  score = 0
+
+  # Occurrence bonus (more uses = more valuable)
+  IF group.length >= 5: score += 20
+  ELIF group.length >= 3: score += 15
+  ELIF group.length >= 2: score += 10
+
+  # Category bonus (some patterns are more reusable)
+  # Valid categories: selector, timing, auth, data, assertion, navigation, ui-interaction
+  # Note: quirk is lesson-only, not applicable for component extraction
+  category = inferCategory(group[0].code)
+  IF category in ["navigation", "ui-interaction"]: score += 5  # High reuse potential
+  ELIF category in ["auth", "assertion", "data"]: score += 4   # Medium reuse potential
+  ELIF category in ["selector", "timing"]: score += 3          # Lower reuse potential
+
+  # Code complexity bonus (longer code = more value in extraction)
+  avgLines = average(group.map(s => s.lineEnd - s.lineStart))
+  IF avgLines > 10: score += 5
+  ELIF avgLines > 5: score += 3
+  ELIF avgLines > 3: score += 1
+
+  # Selector stability bonus
+  IF group[0].code.includes("getByRole"): score += 3
+  IF group[0].code.includes("getByTestId"): score += 2
+  IF group[0].code.includes("getByLabel"): score += 2
+
+  # Cross-journey bonus (used in multiple journeys = more valuable)
+  uniqueJourneys = unique(group.map(s => s.journey)).length
+  IF uniqueJourneys >= 3: score += 5
+  ELIF uniqueJourneys >= 2: score += 3
+
+  RETURN score
+
+# Thresholds:
+# score >= 15: EXTRACT_NOW (auto-extract)
+# score >= 10: CONSIDER (show to user)
+# score < 10: SKIP (inline is fine)
+```
+
+2. **Single-journey analysis** (checks current journey only):
+   ```
+   FOR each test.step in current journey:
+     IF step matches common pattern:
+       - Navigation (gotoBase, selectNavItem, verifyRoute)
+       - Forms (fillForm, submitForm, verifyValidation)
+       - Grids (sortGrid, filterGrid, expectRowCount)
+       - Modals (openModal, closeModal, confirmDialog)
+       - Notifications (expectToast, expectAlert, verifyMessage)
+
+     IF no component exists for this pattern:
+       candidates.push({
+         pattern: step.code,
+         category: matchedCategory,
+         journey: currentJourney,
+         reason: 'Common UI pattern'
+       })
+   ```
+
+3. **Prioritize extraction candidates**:
+   ```
+   FOR each candidate:
+     score = 0
+     IF candidate.occurrences >= 2: score += 10
+     IF candidate.category in ['navigation', 'ui-interaction']: score += 5
+     ELIF candidate.category in ['auth', 'assertion', 'data']: score += 4
+     IF candidate.code.length > 5 lines: score += 3
+     IF candidate.uses stable selectors (testid/role): score += 2
+
+     IF score >= 15:
+       EXTRACT NOW
+     ELIF score >= 10:
+       LOG as extraction candidate for review
+   ```
+
+### 17.3 Extract New Components
+
+When extracting a component:
+
+1. **Determine best location**:
+   - **Used across scopes** → `modules/foundation/<category>/`
+   - **Scope-specific** → `modules/feature/<scope>/`
+   - **Framework-specific** (e.g., AG Grid) → `modules/foundation/<category>/`
+   - **Universal** (toast, loading) → Suggest PR to `@artk/core` (note in output)
+
+2. **Generate module code**:
+   ```typescript
+   /**
+    * <Description of what the component does>
+    *
+    * @component COMP###
+    * @category <navigation|auth|assertion|data|ui-interaction>
+    * @scope <universal|framework:xxx|app-specific>
+    * @extractedFrom JRN-####
+    * @createdBy journey-verify
+    *
+    * @example
+    * ```typescript
+    * await componentName(page, { option: value });
+    * ```
+    */
+   export async function componentName(
+     page: Page,
+     options?: ComponentOptions
+   ): Promise<void> {
+     // Extracted and generalized code
+     // Remove Journey-specific literals, add options/params
+     // Preserve stable selectors and patterns
+   }
+   ```
+
+3. **Update all tests that use this pattern**:
+   - Replace inline code with import + function call
+   - Ensure tests still pass after refactor
+   - Run quick verification: `npx playwright test --grep @JRN-#### --workers=1`
+
+4. **Register component in `components.json`**:
+   - Full metadata (see structure in spec)
+   - `metrics.usedInJourneys` = list of journeys using this pattern
+   - `source.extractedFrom` = current journey or "multiple" if cross-journey
+   - `source.extractedBy` = "journey-verify"
+
+5. **Update `modules/registry.json`**:
+   - Add export entry with component metadata
+
+6. **Log to history**:
+   ```jsonl
+   {"timestamp":"<ISO8601>","event":"component_extracted","id":"COMP###","journey":"JRN-####","prompt":"journey-verify","summary":"Extracted <componentName> from JRN-#### (used in N journeys)"}
+   ```
+
+**Example component extraction:**
+```typescript
+/**
+ * Verify sidebar navigation is ready and interactive
+ *
+ * @component COMP015
+ * @category navigation
+ * @scope app-specific
+ * @extractedFrom JRN-0002, JRN-0005, JRN-0010
+ * @createdBy journey-verify
+ *
+ * @example
+ * ```typescript
+ * await verifySidebarReady(page);
+ * await verifySidebarReady(page, { minItems: 5 });
+ * ```
+ */
+export async function verifySidebarReady(
+  page: Page,
+  options: VerifySidebarOptions = {}
+): Promise<void> {
+  const { timeout = 10000, minItems = 1 } = options;
+
+  // Verify sidebar container is visible
+  const sidebar = page.locator('[data-testid="sidebar-nav"]');
+  await expect(sidebar).toBeVisible({ timeout });
+
+  // Verify navigation items are present
+  const navItems = page.locator('[data-testid^="sidebar-item-"]');
+  const count = await navItems.count();
+  expect(count).toBeGreaterThanOrEqual(minItems);
+}
+
+export interface VerifySidebarOptions {
+  timeout?: number;
+  minItems?: number;
+}
+```
+
+### 17.4 Discover App Quirks
+
+When a fix reveals unexpected app behavior:
+
+1. **Classify as quirk if**:
+   - Behavior is undocumented or differs from standard/expected
+   - Workaround is required for tests to pass
+   - Behavior is reproducible and deterministic (not a flaky env issue)
+
+2. **Add to `appQuirks` in `lessons.json`**:
+   ```json
+   {
+     "id": "AQ###",
+     "component": "Component name or UI area",
+     "location": "/route or selector",
+     "quirk": "Description of unexpected behavior",
+     "impact": "How it affects tests",
+     "workaround": "Code or approach to handle it",
+     "permanent": false,
+     "issueLink": "URL to bug tracker if bug filed",
+     "affectsJourneys": ["JRN-####", "JRN-####"]
+   }
+   ```
+
+**Example quirk:**
+```json
+{
+  "id": "AQ007",
+  "component": "Order submission form",
+  "location": "/orders/create",
+  "quirk": "Submit button can be double-clicked, creating duplicate orders",
+  "impact": "Tests must prevent double-click or clean up duplicates",
+  "workaround": "await submitButton.click(); await submitButton.waitFor({ state: 'disabled' });",
+  "permanent": false,
+  "issueLink": "https://jira.company.com/BUG-1234",
+  "affectsJourneys": ["JRN-0003", "JRN-0012"]
+}
+```
+
+### 17.5 Update Metrics
+
+After verification complete:
+
+1. **For each lesson applied**:
+   ```
+   IF test passed:
+     lesson.metrics.successRate = (successCount + 1) / (totalCount + 1)
+     lesson.metrics.lastSuccess = <ISO8601>
+   ELSE:
+     lesson.metrics.successRate = successCount / (totalCount + 1)
+
+   lesson.metrics.occurrences += 1
+   lesson.metrics.lastApplied = <ISO8601>
+
+   # Recalculate confidence
+   lesson.metrics.confidence = calculateConfidence(lesson)
+
+   # ═══════════════════════════════════════════════════════════════
+   # Update confidence history (for declining detection)
+   # ═══════════════════════════════════════════════════════════════
+   IF lesson.metrics.confidenceHistory IS NULL:
+     lesson.metrics.confidenceHistory = []
+
+   # Add current confidence to history
+   lesson.metrics.confidenceHistory.push({
+     "date": now().toISO8601(),
+     "value": lesson.metrics.confidence
+   })
+
+   # Keep only last 90 days OR max 100 entries, whichever is smaller
+   # This prevents unbounded growth while preserving useful history
+   MAX_HISTORY_ENTRIES = 100
+   lesson.metrics.confidenceHistory = lesson.metrics.confidenceHistory
+     .filter(h => daysBetween(now(), h.date) <= 90)
+     .slice(-MAX_HISTORY_ENTRIES)
+   ```
+
+2. **For each component used**:
+   ```
+   IF test passed:
+     component.metrics.successRate = (successCount + 1) / (totalCount + 1)
+   ELSE:
+     # Investigate: Is it component issue or test issue?
+     # If component issue, decrement successRate and add note
+
+   component.metrics.lastUsed = <ISO8601>
+   ```
+
+3. **Update `analytics.json`**:
+   - Recalculate `overview` totals
+   - Recalculate `lessonStats.avgConfidence` and `avgSuccessRate`
+   - Recalculate `componentStats.avgReusesPerComponent`
+   - Update `impact.verifyIterationsSaved` if healing was used
+   - Update `impact.avgIterationsAfterLLKB` running average
+   - Identify `topPerformers` (sort by applications/uses and successRate)
+   - Flag `needsReview` items:
+     - Lessons with `confidence < 0.5`
+     - Components with `totalUses < 2` and `age > 30 days`
+     - Lessons with `successRate` declining over time
+
+**Confidence calculation (MANDATORY ALGORITHM):**
+
+```
+FUNCTION calculateConfidence(lesson: Lesson) -> float:
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 1: Calculate base score (occurrence-based)
+  # ═══════════════════════════════════════════════════════════════
+  # More occurrences = higher base confidence
+  # Caps at 1.0 after 10 occurrences
+  occurrences = lesson.metrics.occurrences
+  baseScore = min(occurrences / 10.0, 1.0)
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 2: Calculate recency factor (time decay)
+  # ═══════════════════════════════════════════════════════════════
+  # Lessons not used recently lose confidence
+  # Decays by 30% over 90 days, floors at 0.7
+  IF lesson.metrics.lastSuccess IS NOT NULL:
+    daysSinceLastSuccess = daysBetween(now(), lesson.metrics.lastSuccess)
+    recencyFactor = max(1.0 - (daysSinceLastSuccess / 90.0) * 0.3, 0.7)
+  ELSE:
+    # Never succeeded yet - use creation date
+    daysSinceCreation = daysBetween(now(), lesson.metrics.firstSeen)
+    recencyFactor = max(1.0 - (daysSinceCreation / 30.0) * 0.5, 0.5)
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 3: Calculate success factor (effectiveness)
+  # ═══════════════════════════════════════════════════════════════
+  # Square root dampens the impact of low success rates
+  # e.g., 0.64 success rate → 0.8 factor
+  successRate = lesson.metrics.successRate
+  successFactor = sqrt(successRate)
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 4: Apply validation boost (human review)
+  # ═══════════════════════════════════════════════════════════════
+  # Human-reviewed lessons get 20% confidence boost
+  IF lesson.validation.humanReviewed == true:
+    validationBoost = 1.2
+  ELSE:
+    validationBoost = 1.0
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 5: Calculate final confidence
+  # ═══════════════════════════════════════════════════════════════
+  rawConfidence = baseScore * recencyFactor * successFactor * validationBoost
+
+  # Clamp to valid range [0.0, 1.0]
+  confidence = min(max(rawConfidence, 0.0), 1.0)
+
+  RETURN round(confidence, 2)
+```
+
+**Example calculations:**
+
+| Scenario | occurrences | daysSince | successRate | humanReviewed | confidence |
+|----------|-------------|-----------|-------------|---------------|------------|
+| New lesson, first success | 1 | 0 | 1.0 | false | 0.10 |
+| Used 5 times, recent, good | 5 | 7 | 0.80 | false | 0.44 |
+| Used 10+ times, recent, great | 15 | 3 | 0.95 | false | 0.97 |
+| Old lesson, not used recently | 8 | 60 | 0.75 | false | 0.55 |
+| Human-reviewed, moderate use | 6 | 14 | 0.85 | true | 0.63 |
+
+**Confidence thresholds (from config.yml):**
+- **Auto-apply**: confidence ≥ `config.extraction.confidenceThreshold` (default 0.7)
+- **Suggest only**: 0.4 ≤ confidence < 0.7
+- **Needs review**: confidence < 0.4 → add to `analytics.needsReview.lowConfidenceLessons`
+
+**Declining confidence detection:**
+```
+FUNCTION detectDecliningConfidence(lesson: Lesson) -> bool:
+  # Compare current confidence to 30-day rolling average
+  IF lesson.metrics.confidenceHistory IS NOT NULL:
+    recent = lesson.metrics.confidence
+    historical = average(lesson.metrics.confidenceHistory[-30:])
+    IF recent < historical * 0.8:  # 20% decline
+      RETURN true
+  RETURN false
+```
+
+**Analytics update algorithm (MANDATORY):**
+
+Call this function after modifying lessons or components to keep analytics.json in sync:
+
+```
+FUNCTION updateAnalytics(lessons: LessonsFile, components: ComponentsFile):
+  analytics = loadJSON(".artk/llkb/analytics.json")
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 1: Update overview totals
+  # ═══════════════════════════════════════════════════════════════
+  analytics.overview.totalLessons = lessons.lessons.length
+  analytics.overview.activeLessons = lessons.lessons.filter(l => !l.archived).length
+  analytics.overview.archivedLessons = (lessons.archived || []).length
+  analytics.overview.totalComponents = components.components.length
+  analytics.overview.activeComponents = components.components.filter(c => !c.archived).length
+  analytics.overview.archivedComponents = components.components.filter(c => c.archived).length
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 2: Update lesson statistics
+  # ═══════════════════════════════════════════════════════════════
+  activeLessons = lessons.lessons.filter(l => !l.archived)
+
+  IF activeLessons.length > 0:
+    # Calculate averages
+    analytics.lessonStats.avgConfidence = round(
+      average(activeLessons.map(l => l.metrics.confidence)), 2
+    )
+    analytics.lessonStats.avgSuccessRate = round(
+      average(activeLessons.map(l => l.metrics.successRate)), 2
+    )
+
+    # Count by category
+    # Valid categories: selector, timing, quirk, auth, data, assertion, navigation, ui-interaction
+    FOR category in Object.keys(analytics.lessonStats.byCategory):
+      analytics.lessonStats.byCategory[category] = activeLessons.filter(
+        l => l.category === category
+      ).length
+  ELSE:
+    analytics.lessonStats.avgConfidence = 0.0
+    analytics.lessonStats.avgSuccessRate = 0.0
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 3: Update component statistics
+  # ═══════════════════════════════════════════════════════════════
+  activeComponents = components.components.filter(c => !c.archived)
+
+  # Count by category
+  FOR category in Object.keys(analytics.componentStats.byCategory):
+    analytics.componentStats.byCategory[category] = activeComponents.filter(
+      c => c.category === category
+    ).length
+
+  # Count by scope
+  FOR scope in Object.keys(analytics.componentStats.byScope):
+    analytics.componentStats.byScope[scope] = activeComponents.filter(
+      c => c.scope === scope
+    ).length
+
+  # Calculate reuse metrics
+  IF activeComponents.length > 0:
+    analytics.componentStats.totalReuses = sum(activeComponents.map(c => c.metrics.totalUses || 0))
+    analytics.componentStats.avgReusesPerComponent = round(
+      analytics.componentStats.totalReuses / activeComponents.length, 2
+    )
+  ELSE:
+    analytics.componentStats.totalReuses = 0
+    analytics.componentStats.avgReusesPerComponent = 0.0
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 4: Identify top performers
+  # ═══════════════════════════════════════════════════════════════
+  # Top lessons: sort by (successRate * occurrences) - rewards both reliability and usage
+  analytics.topPerformers.lessons = activeLessons
+    .map(l => ({
+      id: l.id,
+      title: l.title,
+      score: round(l.metrics.successRate * l.metrics.occurrences, 2)
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+
+  # Top components: sort by totalUses
+  analytics.topPerformers.components = activeComponents
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      uses: c.metrics.totalUses || 0
+    }))
+    .sort((a, b) => b.uses - a.uses)
+    .slice(0, 5)
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 5: Flag items needing review
+  # ═══════════════════════════════════════════════════════════════
+  # Low confidence lessons (< 0.4)
+  analytics.needsReview.lowConfidenceLessons = activeLessons
+    .filter(l => l.metrics.confidence < 0.4)
+    .map(l => l.id)
+
+  # Lessons with declining success rate
+  analytics.needsReview.decliningSuccessRate = activeLessons
+    .filter(l => detectDecliningConfidence(l))
+    .map(l => l.id)
+
+  # Low usage components (< 2 uses and age > 30 days)
+  analytics.needsReview.lowUsageComponents = activeComponents
+    .filter(c => {
+      uses = c.metrics.totalUses || 0
+      age = daysBetween(now(), c.source.extractedAt)
+      RETURN uses < 2 AND age > 30
+    })
+    .map(c => c.id)
+
+  # ═══════════════════════════════════════════════════════════════
+  # STEP 6: Save updated analytics
+  # ═══════════════════════════════════════════════════════════════
+  analytics.lastUpdated = now().toISO8601()
+  saveJSONAtomic(".artk/llkb/analytics.json", analytics)
+```
+
+### 17.6 Log Everything (History Event Logging)
+
+**MANDATORY: All LLKB operations must be logged to history files for audit trail and analytics.**
+
+#### 17.6.1 History File Location and Format
+
+History files are append-only JSONL (JSON Lines) format:
+- **Location**: `.artk/llkb/history/YYYY-MM-DD.jsonl`
+- **Naming**: Based on current date (e.g., `2026-01-16.jsonl`)
+- **Format**: One JSON object per line, no trailing commas
+
+#### 17.6.2 Event Types and Schemas
+
+**Event Schema (all events):**
+```json
+{
+  "timestamp": "<ISO8601>",
+  "event": "<event_type>",
+  "id": "<entity_id>",
+  "journey": "<JRN-####>",
+  "prompt": "<originating_prompt>",
+  "summary": "<human-readable summary>",
+  "metadata": { /* optional additional data */ }
+}
+```
+
+**Supported event types:**
+| Event Type | When Logged | Required Fields |
+|------------|-------------|-----------------|
+| `lesson_created` | New lesson added to lessons.json | id, journey, summary |
+| `lesson_updated` | Existing lesson metrics updated | id, journey, changes |
+| `lesson_applied` | Lesson pattern used in test | id, journey, success |
+| `component_extracted` | New component extracted | id, journey, summary |
+| `component_used` | Existing component reused | id, journey, success |
+| `quirk_discovered` | New app quirk found | id, journey, summary |
+| `metrics_updated` | Analytics recalculated | summary |
+| `config_changed` | LLKB config modified | changes |
+
+#### 17.6.3 Implementation (Pseudocode)
+
+```
+FUNCTION appendToHistory(event: HistoryEvent) -> HistoryResult:
+  TRY:
+    # Determine file path
+    today = formatDate(now(), "YYYY-MM-DD")
+    historyPath = ".artk/llkb/history/" + today + ".jsonl"
+
+    # Ensure history directory exists
+    IF NOT exists(".artk/llkb/history/"):
+      TRY:
+        mkdir(".artk/llkb/history/")
+      CATCH mkdirError:
+        RETURN { success: false, error: "Cannot create history directory: " + mkdirError.message }
+
+    # Build event JSON
+    eventJson = {
+      "timestamp": now().toISO8601(),
+      "event": event.type,
+      "id": event.id,
+      "journey": event.journey,
+      "prompt": "journey-verify",
+      "summary": event.summary
+    }
+
+    # Append to file (atomic write)
+    appendLine(historyPath, JSON.stringify(eventJson))
+
+    RETURN { success: true, path: historyPath }
+
+  CATCH error:
+    # Graceful degradation - log warning but don't block workflow
+    logWarning("LLKB history logging failed: " + error.message)
+    RETURN { success: false, error: error.message }
+
+# Usage: Always check result but don't block on failure
+result = appendToHistory(event)
+IF NOT result.success:
+  # Log warning but continue with main workflow
+  output("⚠️ History logging failed: " + result.error + " (non-blocking)")
+```
+
+#### 17.6.4 Required Logging Points
+
+**After each LLKB operation, append to history:**
+
+1. **After creating/updating a lesson (Step 17.1):**
+   ```jsonl
+   {"timestamp":"2026-01-16T10:30:00Z","event":"lesson_created","id":"L042","journey":"JRN-0005","prompt":"journey-verify","summary":"AG Grid cell selection requires aria-based targeting"}
+   ```
+
+2. **After extracting a component (Step 17.3):**
+   ```jsonl
+   {"timestamp":"2026-01-16T10:31:00Z","event":"component_extracted","id":"COMP015","journey":"JRN-0005","prompt":"journey-verify","summary":"Extracted verifySidebarReady from JRN-0002, JRN-0005, JRN-0010"}
+   ```
+
+3. **After discovering a quirk (Step 17.4):**
+   ```jsonl
+   {"timestamp":"2026-01-16T10:32:00Z","event":"quirk_discovered","id":"AQ007","journey":"JRN-0005","prompt":"journey-verify","summary":"Order form double-click creates duplicates"}
+   ```
+
+4. **After applying a lesson pattern:**
+   ```jsonl
+   {"timestamp":"2026-01-16T10:33:00Z","event":"lesson_applied","id":"L001","journey":"JRN-0005","prompt":"journey-verify","success":true}
+   ```
+
+5. **After reusing a component:**
+   ```jsonl
+   {"timestamp":"2026-01-16T10:34:00Z","event":"component_used","id":"COMP020","journey":"JRN-0005","prompt":"journey-verify","success":true}
+   ```
+
+6. **After updating analytics (Step 17.5):**
+   ```jsonl
+   {"timestamp":"2026-01-16T10:35:00Z","event":"metrics_updated","id":"analytics","journey":"JRN-0005","prompt":"journey-verify","summary":"Updated stats: 43 lessons, 26 components, 0.83 avg confidence"}
+   ```
+
+#### 17.6.5 History Query Examples
+
+**Find all lessons created for a journey:**
+```bash
+grep '"event":"lesson_created"' .artk/llkb/history/*.jsonl | grep '"journey":"JRN-0005"'
+```
+
+**Count events by type (last 7 days):**
+```bash
+cat .artk/llkb/history/2026-01-*.jsonl | jq -r '.event' | sort | uniq -c
+```
+
+**Find low-success lesson applications:**
+```bash
+grep '"event":"lesson_applied"' .artk/llkb/history/*.jsonl | grep '"success":false'
+```
+
+### 17.7 Output LLKB Learning Summary
+
+Include in verification output:
+
+```
+LLKB Learning Summary:
+─────────────────────────────────────────────────────────────────
+Lessons Recorded:          2
+  - L042: AG Grid cell selection (selector, high)
+  - L043: Toast timing pattern (timing, medium)
+
+Components Extracted:      1
+  - COMP015: verifySidebarReady (navigation, app-specific)
+    Replaces code in: JRN-0002, JRN-0005, JRN-0010
+
+App Quirks Discovered:     1
+  - AQ007: Order form double-click issue (workaround applied)
+
+Metrics Updated:
+  - Lessons total: 43 (+2)
+  - Components total: 26 (+1)
+  - Avg confidence: 0.83
+  - Verify iterations saved (session): 2
+─────────────────────────────────────────────────────────────────
+```
+
+---
 
 ## Step 7 — Print final summary
 Always end with:

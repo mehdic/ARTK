@@ -82,6 +82,10 @@
       "import": "./dist/grid/index.js",
       "types": "./dist/grid/index.d.ts"
     },
+    "./llkb": {
+      "import": "./dist/llkb/index.js",
+      "types": "./dist/llkb/index.d.ts"
+    },
     "./templates/*": "./templates/*"
   },
   "files": [
