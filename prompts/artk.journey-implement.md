@@ -272,52 +272,131 @@ Never:
 - Namespace all created data using `runId`.
 - Cleanup if feasible; otherwise ensure namespacing and document.
 
-## Step 9.5 — Use AutoGen Core for Test Generation (Recommended)
+## Step 9.5 — Generate Tests with AutoGen CLI (Primary Approach)
 
-**PREFERRED: Use `@artk/core-autogen` for deterministic test generation**
+**PREFERRED: Use the `artk-autogen` CLI for deterministic test generation.**
 
-Instead of manually writing tests, use the AutoGen Core engine to generate tests from the clarified Journey:
+The AutoGen CLI generates Playwright tests directly from clarified Journey files.
 
-```typescript
-import { generateJourneyTests } from '@artk/core-autogen';
+### Running AutoGen
 
-// Generate tests from a clarified Journey
-const result = await generateJourneyTests({
-  journeyPath: 'journeys/JRN-0001-user-login.md',
-  outputDir: 'e2e/tests/smoke/',
-  options: {
-    // Use machine hints from Journey if present
-    respectHints: true,
-    // Generate feature modules if needed
-    generateModules: true,
-    // Use selector catalog for stable selectors
-    useCatalog: true,
-  },
-});
+From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
-console.log('Generated files:', result.files);
-console.log('Mapping stats:', result.stats);
+```bash
+# Generate tests from a single Journey
+npx artk-autogen generate ../journeys/clarified/JRN-0001-user-login.md \
+  -o tests/smoke/ \
+  -m
+
+# Generate tests from multiple Journeys
+npx artk-autogen generate "../journeys/clarified/*.md" \
+  -o tests/ \
+  -m
+
+# Dry run (preview without writing files)
+npx artk-autogen generate ../journeys/clarified/JRN-0001.md \
+  --dry-run
 ```
 
-**AutoGen Core Benefits:**
+**CLI Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output <dir>` | Output directory for generated tests (default: `./tests/generated`) |
+| `-m, --modules` | Also generate feature module files |
+| `--dry-run` | Preview what would be generated without writing |
+| `-c, --config <file>` | Custom autogen config file |
+| `-q, --quiet` | Suppress output except errors |
+
+**Example output:**
+```
+Found 1 journey file(s)
+Generated: tests/smoke/jrn-0001__user-login.spec.ts
+Generated: tests/smoke/modules/authentication.page.ts
+
+Summary:
+  Tests: 1
+  Modules: 1
+  Errors: 0
+  Warnings: 0
+```
+
+### AutoGen Benefits
 - Deterministic mapping from Journey steps to Playwright primitives
 - Automatic selector priority (role > label > testid > CSS)
 - Machine hint support for explicit locator overrides
 - Blocked step tracking with improvement suggestions
 - Module generation for shared flows
 
-**When to use manual implementation:**
-- AutoGen cannot map a step (blocked)
-- Complex async flows need custom polling
+### Alternative: Programmatic API
+
+For advanced automation (CI pipelines, custom tooling):
+
+```typescript
+import { generateJourneyTests } from '@artk/core-autogen';
+
+const result = await generateJourneyTests({
+  journeys: ['journeys/clarified/JRN-0001.md'],
+  isFilePaths: true,
+  outputDir: 'artk-e2e/tests/smoke/',
+  generateModules: true,
+});
+```
+
+## Step 9.6 — Review AutoGen Output and Handle Blocked Steps
+
+After running AutoGen, evaluate the output:
+
+### If AutoGen succeeds (no errors, no blocked steps):
+1. Review generated test code for correctness
+2. Verify selector strategies match Journey intent
+3. Confirm acceptance criteria are mapped to assertions
+4. **Skip to Step 10.5** (Pre-Compilation Validation)
+
+### If AutoGen reports blocked steps:
+
+**Option A: Add machine hints to Journey (preferred)**
+
+Edit the Journey to add explicit locator hints using inline syntax:
+```markdown
+## Steps
+3. Click the submit button `(role=button, name=Submit Order)`
+4. Verify the confirmation dialog appears `(testid=order-confirmation)`
+5. Check the status indicator shows success `(role=status, name=/success/i)`
+```
+
+Then re-run AutoGen:
+```bash
+npx artk-autogen generate ../journeys/clarified/JRN-0001.md -o tests/smoke/ -m
+```
+
+**Option B: Manual implementation for blocked steps**
+
+If machine hints can't resolve the issue (complex async, multi-actor, domain logic):
+1. Use AutoGen output as a starting point
+2. Manually implement blocked steps using Step 10 patterns
+3. Preserve AutoGen structure, tagging, and imports
+4. Document why manual implementation was needed
+
+### If AutoGen fails entirely:
+- Check Journey is `status: clarified`
+- Verify frontmatter is valid YAML
+- Fall back to Step 10 (Manual Implementation)
+
+## Step 10 — Manual Test Implementation (Fallback)
+
+**Use this step when:**
+- AutoGen cannot map certain steps (blocked)
+- Complex async flows need custom polling logic
 - Multi-actor coordination requires custom setup
-- Journey has domain-specific logic not in glossary
+- Domain-specific assertions not covered by AutoGen
+- Journey is not clarified (`allowNonClarified=true`)
 
-If AutoGen generates blocked steps, either:
-1. Add machine hints to the Journey: `(role=button, testid=submit-btn)`
-2. Update the glossary with new synonyms
-3. Implement manually as fallback
+**If AutoGen succeeded with no blocked steps, skip to Step 10.5.**
 
-## Step 10 — Write the test(s)
+---
+
+### Manual Test Writing Guidelines
 
 **CRITICAL: Import from ARTK Core Fixtures**
 
@@ -494,7 +573,9 @@ If validate and verify both pass:
 - Add/update:
   - `<!-- ARTK:IMPLEMENT:BEGIN --> ... <!-- ARTK:IMPLEMENT:END -->`
   - `<!-- ARTK:VERIFY:BEGIN --> ... <!-- ARTK:VERIFY:END -->`
-- Regenerate backlog/index.
+- Regenerate backlog/index:
+  - Preferred: `node <ARTK_ROOT>/tools/journeys/generate.js --artkRoot <ARTK_ROOT>`
+  - Or run the npm script if configured: `npm run journeys:generate`
 
 If either gate fails:
 - Do NOT set implemented.
