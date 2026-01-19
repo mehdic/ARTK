@@ -61,9 +61,22 @@ export declare function getImport(sourceFile: SourceFile, moduleSpecifier: strin
  */
 export declare function addNamedImport(sourceFile: SourceFile, moduleSpecifier: string, namedImport: string): boolean;
 /**
- * Add a locator property to a class
+ * Result of adding a locator property
  */
-export declare function addLocatorProperty(classDecl: ClassDeclaration, locator: ModuleLocator, options?: AstEditOptions): boolean;
+export interface AddLocatorResult {
+    /** Whether the property was added */
+    added: boolean;
+    /** Whether initialization was complete */
+    initialized: boolean;
+    /** Warning message if initialization was incomplete */
+    warning?: string;
+}
+/**
+ * Add a locator property to a class
+ *
+ * @returns Result object with added/initialized status and optional warning
+ */
+export declare function addLocatorProperty(classDecl: ClassDeclaration, locator: ModuleLocator, options?: AstEditOptions): AddLocatorResult;
 /**
  * Add a method to a class
  */

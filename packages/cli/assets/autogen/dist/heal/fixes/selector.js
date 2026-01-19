@@ -60,7 +60,7 @@ export function extractCSSSelector(code) {
         pattern.lastIndex = 0;
         const match = pattern.exec(code);
         if (match) {
-            return match[1];
+            return match[1] ?? null;
         }
     }
     return null;
@@ -93,7 +93,7 @@ export function extractNameFromSelector(selector) {
     // Extract text between brackets for attribute selectors
     const attrMatch = selector.match(/\[(?:aria-label|title|alt|name)=['"]([^'"]+)['"]\]/);
     if (attrMatch) {
-        return attrMatch[1];
+        return attrMatch[1] ?? null;
     }
     // Extract class name parts that might be descriptive
     const classMatch = selector.match(/\.([a-zA-Z][-a-zA-Z0-9_]*)/);

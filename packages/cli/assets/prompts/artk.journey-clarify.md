@@ -1,4 +1,5 @@
 ---
+name: artk.journey-clarify
 mode: agent
 description: "Add deterministic execution detail to a Journey - data strategy, assertions, async handling, promotes to clarified"
 handoffs:
@@ -35,7 +36,7 @@ handoffs:
 
 You are running **ARTK Phase 6**.
 
-A clarified Journey must be specific enough that `/journey-implement` (later phase) can implement Playwright tests **without guessing** about:
+A clarified Journey must be specific enough that `/artk.journey-implement` (later phase) can implement Playwright tests **without guessing** about:
 - actor/account assumptions
 - environment assumptions
 - deterministic data strategy
@@ -55,6 +56,7 @@ Unless the user sets `mode=minimal` or `mode=max`, use `mode=medium`.
 - **Deterministic**: produce stable outputs.
 - **Compliance-aware**: call out risk of sensitive data in test artifacts and request policy constraints.
 - **Discovery-aware**: if discovery/testability exists, use it to reduce questions and to flag blockers early.
+- **Edit safety**: MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 
@@ -140,7 +142,7 @@ If any are unknown or blocked, keep status as `defined` (or `proposed`) and list
    - nearest `artk.config.yml`
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/artk.init-playbook` first.
 
 ## Step 1 — Load Journey file
 - If `id=` provided, resolve using `<ARTK_ROOT>/journeys/index.json` if present.
@@ -160,9 +162,214 @@ Extract into a short internal summary (to be written into the Journey clarificat
 - likely auth entry points for this scope
 - environment access constraints (regions, base URLs)
 - known testability blockers for this scope/routes
-- async “flake zones” mentioned for this area
+- async "flake zones" mentioned for this area
 
 If discovery is unavailable, proceed but ask slightly more questions.
+
+## Step 2.5 — Surface LLKB Knowledge (Read-Only)
+
+**Load relevant LLKB data to inform clarification and surface known issues.**
+
+Check if `.artk/llkb/` exists and `config.yml` has `enabled: true`. If disabled or missing, skip this step.
+
+### LLKB Library Reference (@artk/core/llkb)
+
+**Use the `@artk/core/llkb` library for reading LLKB data. This step is READ-ONLY (no writes to LLKB).**
+
+```typescript
+import {
+  // File operations (read-only for clarify)
+  loadJSON,
+  // Confidence calculations (for filtering/sorting)
+  needsConfidenceReview, getConfidenceTrend,
+  // Category helpers
+  inferCategory, isComponentCategory, getAllCategories,
+  // Types
+  type Lesson, type Component, type AppQuirk, type LLKBConfig,
+} from '@artk/core/llkb';
+```
+
+**Key functions for journey-clarify:**
+
+| Function | Usage |
+|----------|-------|
+| `loadJSON<T>(path)` | Safely load lessons.json, components.json, app-profile.json |
+| `needsConfidenceReview(lesson)` | Check if lesson has low/declining confidence |
+| `getConfidenceTrend(lesson)` | Get confidence direction (increasing/stable/declining) |
+| `inferCategory(code)` | Categorize journey steps for component matching |
+
+**Note:** journey-clarify is READ-ONLY. It does NOT write to LLKB (no lessons created, no components extracted).
+
+### 2.5.1 Load Relevant LLKB Data
+
+1. **Read `.artk/llkb/app-profile.json`** - Get app characteristics
+2. **Read `.artk/llkb/lessons.json`** - Get lessons and app quirks
+3. **Read `.artk/llkb/components.json`** - Get available components
+
+### 2.5.2 Filter by Journey Scope
+
+Filter LLKB data to only what's relevant to this Journey:
+
+1. **Scope matching**:
+   ```
+   journeyScope = journey.scope  // e.g., "orders", "catalog", "dashboard"
+   journeyRoutes = inferRoutes(journey)  // e.g., ["/orders", "/orders/create"]
+
+   relevantLessons = lessons.filter(l =>
+     l.scope === 'universal' OR
+     l.scope === `framework:${appProfile.framework}` OR
+     l.applicableTo.some(pattern => pattern matches journeyScope) OR
+     l.tags.some(tag => tag matches journeyScope)
+   )
+
+   relevantQuirks = appQuirks.filter(q =>
+     q.location matches journeyRoutes OR
+     q.component matches journeyScope OR
+     q.affectsJourneys.includes(journey.id)
+   )
+
+   relevantComponents = components.filter(c =>
+     c.category matches journeyType OR
+     c.usageContext.some(ctx => ctx matches journeyScope) OR
+     c.usedInJourneys.some(j => j matches journeyScope)
+   )
+   ```
+
+2. **Prioritize by confidence/relevance**:
+   ```
+   relevantLessons.sort((a, b) => b.confidence - a.confidence)
+   relevantComponents.sort((a, b) => b.metrics.successRate - a.metrics.successRate)
+   ```
+
+3. **Include all relevant items** (no artificial limits):
+   ```
+   topLessons = relevantLessons      // All relevant, sorted by confidence
+   topComponents = relevantComponents // All relevant, sorted by success rate
+   topQuirks = relevantQuirks        // All quirks for this journey
+   ```
+
+### 2.5.3 Surface to User in Output
+
+**During clarification, present LLKB insights to the user:**
+
+```markdown
+═══════════════════════════════════════════════════════════════════
+LLKB INSIGHTS FOR THIS JOURNEY
+═══════════════════════════════════════════════════════════════════
+
+⚠️  KNOWN QUIRKS (Issues discovered in similar journeys):
+
+1. **AQ003 - DatePicker validation timing**
+   Location: /orders/create
+   Impact: Date picker requires blur event before validation check
+   Workaround: await datePicker.blur(); await expect(validationMessage).toBeVisible();
+   Affects: JRN-0001, JRN-0005
+
+2. **AQ007 - Order form double-click**
+   Location: /orders/create
+   Impact: Submit button can be double-clicked, creating duplicate orders
+   Workaround: await submitButton.click(); await submitButton.waitFor({ state: 'disabled' });
+   Affects: JRN-0003
+
+─────────────────────────────────────────────────────────────────
+
+📦 AVAILABLE COMPONENTS (Reusable test helpers):
+
+1. **COMP001 - verifySidebarReady** (95% confidence)
+   Category: navigation
+   Use when: After page load, before navigation actions
+   Import: `import { verifySidebarReady } from '@modules/foundation/navigation';`
+
+2. **COMP020 - expectToast** (98% confidence)
+   Category: assertion
+   Use when: After form submission, expecting success/error toast
+   Import: `import { expectToast } from '@artk/core/assertions';`
+
+3. **COMP015 - verifyCatalogGrid** (92% confidence)
+   Category: data grid
+   Use when: Verifying catalog/orders grid is loaded with data
+   Import: `import { verifyCatalogGrid } from '@modules/feature/catalog';`
+
+─────────────────────────────────────────────────────────────────
+
+💡 RELEVANT LESSONS (Patterns learned from similar tests):
+
+1. **L001 - AG Grid selectors** (HIGH, 92% confidence)
+   Problem: CSS class selectors (.ag-cell-value) break on updates
+   Solution: Use getByRole('gridcell', { name: value })
+   Apply to: Data grid interactions
+
+2. **L015 - Toast timing** (MEDIUM, 88% confidence)
+   Problem: Toast assertions fail with default timeout
+   Solution: Use timeout: 5000 for toast expectations
+   Apply to: Success/error message verification
+
+3. **L022 - Navigation completion** (HIGH, 91% confidence)
+   Problem: SPA navigation races cause flaky selectors
+   Solution: Assert on heading + URL after navigation
+   Apply to: Page transitions
+
+═══════════════════════════════════════════════════════════════════
+```
+
+### 2.5.4 Add to Journey Clarification Block
+
+**When writing the clarification block, include LLKB context:**
+
+```markdown
+<!-- ARTK:BEGIN clarification -->
+
+## Clarification Details
+
+### Actor Assumptions
+<from questions>
+
+### Auth Entry Point
+<from questions>
+
+### LLKB Context (Known Issues & Helpers)
+
+**Known Quirks:**
+- **AQ003**: DatePicker requires blur before validation check
+- **AQ007**: Order form submit button double-click issue (workaround in place)
+
+**Available Components:**
+- `verifySidebarReady()` - Navigation readiness check (COMP001)
+- `expectToast()` - Toast message assertion (COMP020)
+- `verifyCatalogGrid()` - Grid data verification (COMP015)
+
+**Relevant Lessons:**
+- L001: Use aria-based selectors for AG Grid cells
+- L015: Use 5s timeout for toast expectations
+- L022: Assert on heading + URL after navigation
+
+### Data Strategy
+<from questions>
+
+### Assertions
+<from questions>
+
+### Async Notes
+<from questions>
+
+### Compliance Constraints
+<from questions>
+
+### Blockers
+<from blocker detection>
+
+<!-- ARTK:END clarification -->
+```
+
+### 2.5.5 Benefits of LLKB Context Surfacing
+
+- **Prevents repeat issues**: User is aware of quirks before implementation
+- **Guides data strategy**: Known patterns inform setup/cleanup approach
+- **Informs assertions**: Learned timing patterns guide timeout expectations
+- **Highlights reuse**: User knows what components are available
+- **Reduces questions**: If LLKB has answer, skip the question
+
+**Note:** This step is READ-ONLY. journey-clarify does NOT write to LLKB (no lessons created, no components extracted). It only surfaces existing knowledge.
 
 ## Step 3 — Determine what is missing from the Journey
 Detect missing/weak content:
@@ -197,8 +404,14 @@ If testability data exists for this scope/routes:
 If blockers exist and `strictGates=true`:
 - keep status NOT clarified and set `statusReason` to a short “blocked by …” summary.
 
-## Step 5 — Ask the smallest smart questionnaire (single message)
-Ask questions in one batch and provide a reply template.
+## Step 5 — Ask the smallest smart questionnaire
+
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
 
 ### Adaptive question set (do not be annoying)
 If discovery already provides an answer, ask for confirmation only if high impact.
@@ -305,3 +518,38 @@ Maintain a canonical guidance doc with managed markers that includes:
 - [ ] BACKLOG.md regenerated
 - [ ] index.json regenerated
 - [ ] docs/JOURNEY_CLARIFY.md created/updated
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Audit selectors before implementation:            ║
+║     /artk.testid-audit mode=report scope=journey:<JRN-ID>          ║
+║                                                                     ║
+║  2. (RECOMMENDED) Implement the journey as Playwright tests:        ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  3. (AFTER IMPLEMENT) Validate the generated tests:                 ║
+║     /artk.journey-validate id=<JRN-ID>                             ║
+║                                                                     ║
+║  4. (OPTIONAL) Clarify another journey:                             ║
+║     /artk.journey-clarify id=JRN-####                              ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Replace `<JRN-ID>` with the actual journey ID that was just clarified (e.g., JRN-0001).**
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

@@ -31,6 +31,7 @@ export function extractManagedBlocks(code) {
     const lines = code.split('\n');
     const blocks = [];
     const preservedCode = [];
+    const warnings = [];
     let inBlock = false;
     let currentBlock = null;
     let blockContent = [];
@@ -39,8 +40,20 @@ export function extractManagedBlocks(code) {
         // Check for block start
         if (line.includes(BLOCK_START)) {
             if (inBlock) {
-                // Nested block detected - treat as malformed
-                console.warn(`Nested managed block detected at line ${i + 1}`);
+                // Nested block detected - close the previous block and record warning
+                warnings.push({
+                    type: 'nested',
+                    line: i + 1,
+                    message: `Nested managed block detected at line ${i + 1}. Previous block starting at line ${(currentBlock?.startLine ?? 0) + 1} will be closed.`,
+                });
+                // Save the incomplete previous block
+                if (currentBlock) {
+                    blocks.push({
+                        ...currentBlock,
+                        endLine: i - 1,
+                        content: blockContent.join('\n'),
+                    });
+                }
             }
             inBlock = true;
             const match = line.match(BLOCK_ID_PATTERN);
@@ -75,12 +88,17 @@ export function extractManagedBlocks(code) {
     }
     // Handle unclosed block
     if (inBlock && currentBlock) {
-        console.warn('Unclosed managed block detected - block will be ignored');
+        warnings.push({
+            type: 'unclosed',
+            line: (currentBlock.startLine ?? 0) + 1,
+            message: `Unclosed managed block starting at line ${(currentBlock.startLine ?? 0) + 1} - block will be ignored`,
+        });
     }
     return {
         blocks,
         preservedCode,
         hasBlocks: blocks.length > 0,
+        warnings,
     };
 }
 /**
@@ -99,7 +117,7 @@ export function extractManagedBlocks(code) {
  * // // ARTK:END GENERATED
  * ```
  */
-function wrapInBlock(content, id) {
+export function wrapInBlock(content, id) {
     const startMarker = id
         ? `${BLOCK_START} id=${id}`
         : BLOCK_START;
@@ -153,6 +171,10 @@ export function injectManagedBlocks(options) {
     // Replace existing blocks by ID, preserve structure
     const result = [];
     const processedIds = new Set();
+    // Track id-less blocks separately by position to avoid ambiguous matching
+    let idLessBlockIndex = 0;
+    const idLessNewBlocks = newBlocks.filter(b => !b.id);
+    const processedIdLessIndices = new Set();
     // Re-scan to maintain structure
     const lines = existingCode.split('\n');
     let inBlock = false;
@@ -165,10 +187,24 @@ export function injectManagedBlocks(options) {
             const match = line.match(BLOCK_ID_PATTERN);
             currentBlockId = match?.[1];
             // Find replacement block
-            const replacement = newBlocks.find(b => b.id === currentBlockId);
+            let replacement;
+            if (currentBlockId) {
+                // Match by ID for blocks with IDs
+                replacement = newBlocks.find(b => b.id === currentBlockId);
+                if (replacement) {
+                    processedIds.add(currentBlockId);
+                }
+            }
+            else {
+                // Match id-less blocks by position
+                if (idLessBlockIndex < idLessNewBlocks.length) {
+                    replacement = idLessNewBlocks[idLessBlockIndex];
+                    processedIdLessIndices.add(idLessBlockIndex);
+                }
+                idLessBlockIndex++;
+            }
             if (replacement) {
                 result.push(wrapInBlock(replacement.content, replacement.id));
-                processedIds.add(currentBlockId || '');
                 skipUntilEnd = true;
             }
             else {
@@ -196,10 +232,22 @@ export function injectManagedBlocks(options) {
         }
     }
     // Append new blocks that weren't replacements
-    for (const block of newBlocks) {
-        if (!processedIds.has(block.id || '')) {
-            result.push('');
-            result.push(wrapInBlock(block.content, block.id));
+    for (let i = 0; i < newBlocks.length; i++) {
+        const block = newBlocks[i];
+        if (block.id) {
+            // Check if this ID was processed
+            if (!processedIds.has(block.id)) {
+                result.push('');
+                result.push(wrapInBlock(block.content, block.id));
+            }
+        }
+        else {
+            // Check if this id-less block was processed (by its index in idLessNewBlocks)
+            const idLessIndex = idLessNewBlocks.indexOf(block);
+            if (!processedIdLessIndices.has(idLessIndex)) {
+                result.push('');
+                result.push(wrapInBlock(block.content, block.id));
+            }
         }
     }
     return result.join('\n');

@@ -1,4 +1,5 @@
 ---
+name: artk.init-playbook
 mode: agent
 version: "2.0.0"
 description: "Bootstrap ARTK + generate Playbook + install Journey system - complete setup in one command (idempotent, safe to re-run)"
@@ -38,7 +39,7 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /init-playbook — Complete Bootstrap + Playbook + Journey System
+# ARTK /artk.init-playbook — Complete Bootstrap + Playbook + Journey System
 
 You are **ARTK Init+Playbook**, the combined bootstrapper that installs the *Automatic Regression Testing Kit*, generates the governance playbook, AND sets up the Journey system in a single command.
 
@@ -80,6 +81,7 @@ This command does THREE things in one (ALL MANDATORY):
 4. **Complete the workflow.** Execute all steps (1-18) in sequence. Only the final Step 18 ends with a completion report.
 5. **No CI/CD yet.** Do not add/modify pipelines. Only scaffold code/docs/config.
 6. **No secrets.** Never request or write credentials. Capture only *where* secrets live and *how* auth works.
+7. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ## Inputs (parse from arguments if provided)
 
@@ -120,7 +122,7 @@ ARTK has THREE core components (ALL MANDATORY):
 
 | Component | Package Name | Source Location | Install Location | Purpose |
 |-----------|--------------|-----------------|------------------|---------|
-| **Runtime Core** | `@artk/core` | `core/typescript/` | `<ARTK_ROOT>/vendor/artk-core/` | Fixtures, auth, config, locators |
+| **Runtime Core** | `@artk/core` | `core/typescript/` | `<ARTK_ROOT>/vendor/artk-core/` | Fixtures, auth, config, locators, assertions, grid helpers |
 | **AutoGen** | `@artk/core-autogen` | `core/typescript/autogen/` | `<ARTK_ROOT>/vendor/artk-core-autogen/` | Test generation, validation, IR |
 | **Journey Core** | `artk-core-journeys` | `core/artk-core-journeys/artk-core-journeys/` | `<ARTK_ROOT>/.artk/core/journeys/` | Journey schemas, backlog tools |
 
@@ -167,7 +169,7 @@ After repo scan, determine which mode applies:
   2. Regenerate BACKLOG.md and index.json (always safe)
   3. Check for any config drift
   4. Print "ARTK already installed and up-to-date" with status summary
-  5. Suggest next command (`/discover-foundation` if not run, else `/journey-propose`)
+  5. Suggest next command (`/artk.discover-foundation` if not run, else `/artk.journey-propose`)
 
 **CRITICAL: In Mode C, do NOT re-scaffold. Just validate and report.**
 
@@ -246,6 +248,13 @@ Output proposed configuration:
 
 **FORBIDDEN BEHAVIOR: Saying "Next I'll do X" and stopping. You must either ASK or DO.**
 
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
+
 ### First: Check execution mode from Step 1
 
 **Mode C (Re-run):** ARTK is already installed and current.
@@ -271,8 +280,69 @@ Options:
 [1/2, or press Enter for 1]:
 ```
 
-If user chooses 1 (or presses Enter): → Run Step 4A (analysis) + Step 4B (questionnaire) + Step 4C (apply)
+If user chooses 1 (or presses Enter): → Run **targeted reconfiguration** (see below)
 If user chooses 2: → Skip to validation
+
+---
+
+#### Mode C Targeted Reconfiguration (ONLY ask about broken fields)
+
+**Do NOT run the full questionnaire in Mode C.** Only ask about fields that triggered reconfiguration.
+
+**Step 1: Identify incomplete fields**
+```
+INCOMPLETE_FIELDS = []
+if auth.bypass.mode == "unknown" or missing: INCOMPLETE_FIELDS.append("bypass")
+if auth.provider is missing: INCOMPLETE_FIELDS.append("auth")
+if mfa is missing: INCOMPLETE_FIELDS.append("mfa")
+# ... check other critical fields
+```
+
+**Step 2: Run analysis (Step 4A) for context**
+
+**Step 3: Ask ONLY about incomplete fields**
+
+For each field in INCOMPLETE_FIELDS, ask ONE question:
+
+*Example: Only auth.bypass.mode is incomplete:*
+```
+🔍 Analysis: Found VITE_BYPASS_AUTH in .env.development
+
+**Fixing: auth.bypass.mode** (currently: unknown)
+
+Should tests bypass authentication locally?
+
+1. mock-identity (recommended - found VITE_BYPASS_AUTH)
+2. identityless (skip auth, no role info)
+3. no (require full auth locally)
+
+Reply with a number (1-3):
+```
+
+*Wait for response.*
+
+**Step 4: Apply immediately (no confirmation needed for single-field fix)**
+```
+✓ Updated: auth.bypass.mode = mock-identity (was: unknown)
+✓ Updated: auth.bypass.toggle = VITE_BYPASS_AUTH
+
+Configuration complete. Running validation...
+```
+
+**If multiple fields are incomplete:**
+- Ask about each field ONE AT A TIME (same state tracking protocol)
+- After ALL incomplete fields answered → show confirmation summary
+- Then apply via Step 4C
+
+**Do NOT re-ask questions where current value is valid.** Show them as context only:
+```
+📂 Current settings (keeping):
+  • Auth approach: oidc ✓
+  • Test data: create_api ✓
+  • Flake posture: retries_ci_only ✓
+```
+
+---
 
 **If no reconfigure trigger (config is complete):**
 ```
@@ -352,9 +422,75 @@ Before presenting the questionnaire, you MUST analyze the project to discover:
 
 ### Step 4B: Present questionnaire with analysis results
 
-Present the questionnaire in ONE grouped block. For Mode B, include the "keep previous" option showing current values.
+Present questions ONE AT A TIME. For Mode B, include the "keep previous" option showing current values.
 
-**Mode A Example (Fresh Install):**
+---
+
+#### 🔴 CRITICAL: Question State Tracking Protocol
+
+**You MUST track your position in the questionnaire. Follow this protocol exactly:**
+
+**State variables to maintain:**
+```
+CURRENT_QUESTION = 1          # Which question you're about to ask (1-5)
+ANSWERS = {}                  # Collected answers: {1: "value", 2: "value", ...}
+TOTAL_QUESTIONS = 5           # For quick mode (adjust for standard/deep)
+```
+
+**After EACH user response:**
+
+1. **Parse the response:**
+   - Number (e.g., "1", "2") → map to the option for CURRENT_QUESTION
+   - Enter/empty → use recommended option (marked with "recommended")
+   - Text (e.g., "mock-identity") → match to option text
+   - Multiple answers (e.g., "1, 2, mock, unknown, create_api") → parse ALL, fill multiple ANSWERS slots
+
+2. **Store the answer:**
+   ```
+   ANSWERS[CURRENT_QUESTION] = parsed_value
+   ```
+
+3. **Advance to next unanswered question:**
+   ```
+   CURRENT_QUESTION = next question where ANSWERS[n] is empty
+   ```
+
+4. **Check completion:**
+   - If ALL questions answered (len(ANSWERS) == TOTAL_QUESTIONS) → show confirmation summary
+   - Else → present the next question
+
+**Handling multi-answer responses:**
+
+If user provides answers to multiple questions in one message:
+```
+User: "1, mock-identity, unknown, create_api"
+→ Parse: Q1=1, Q3=mock-identity, Q4=unknown, Q5=create_api
+→ ANSWERS = {1: "iss-frontend", 3: "mock-identity", 4: "unknown", 5: "create_api"}
+→ Q2 still unanswered → ask Q2 next
+```
+
+If user provides ALL answers at once:
+```
+User: "iss-frontend, oidc, mock-identity, unknown, create_api"
+→ All 5 answers provided
+→ Skip remaining questions → show confirmation summary immediately
+```
+
+**Handling shortcuts:**
+
+| User Input | Action |
+|------------|--------|
+| `Enter` (empty) | Use recommended for current question, advance |
+| `keep all` (Mode B) | Fill ALL remaining answers with current values, show confirmation |
+| `defaults` | Fill ALL remaining answers with safe defaults, show confirmation |
+| `skip` | Use recommended for current question, advance |
+
+---
+
+**Mode A Example (Fresh Install) — One Question at a Time:**
+
+After showing analysis results, ask questions ONE AT A TIME:
+
 ```
 📋 Configuration needed (Mode A: Fresh Install)
 
@@ -363,43 +499,104 @@ Present the questionnaire in ONE grouped block. For Mode B, include the "keep pr
   • Auth: OIDC detected (@azure/msal-browser)
   • Bypass: VITE_BYPASS_AUTH found in .env.development
 
-Questions (answer all, or press Enter to accept defaults):
-
-1) **Target app**: iss-frontend (detected)
-   → [Enter to accept, or specify different app]
-
-2) **Auth approach**:
-   - [x] SSO/OIDC (recommended - detected @azure/msal-browser)
-   - [ ] form-login (username/password form)
-   - [ ] token/API (bearer token, no UI login)
-   - [ ] none (no auth required)
-
-3) **Local auth bypass?**
-   - [ ] no (require full auth locally)
-   - [ ] identityless (skip auth, no role info)
-   - [x] mock-identity (recommended - found VITE_BYPASS_AUTH)
-   - Toggle: VITE_BYPASS_AUTH
-   - Environments: [local]
-
-4) **MFA/captcha in non-prod?**: unknown
-   - [ ] yes (will need workaround)
-   - [ ] no
-   - [x] unknown (will investigate later)
-
-5) **Test data strategy**:
-   - [x] create_api (recommended - create via API, cleanup after)
-   - [ ] seed (pre-seeded data)
-   - [ ] create_ui (create via UI)
-   - [ ] reuse_stable (use existing stable data)
-
-Reply format (or just press Enter for defaults):
-auth: oidc
-bypass: mock-identity, VITE_BYPASS_AUTH, [local]
-mfa: unknown
-data: create_api
+Starting configuration...
 ```
 
-**Mode B Example (Upgrade with "Keep Previous" option):**
+**Question 1 of 5: Target App**
+```
+Which app should ARTK target?
+
+1. iss-frontend (recommended - detected)
+2. Other (specify)
+
+Reply with a number, or press Enter for recommended:
+```
+
+*Wait for response, then:*
+
+**Question 2 of 5: Auth Approach**
+```
+How does the application handle authentication?
+
+1. SSO/OIDC (recommended - detected @azure/msal-browser)
+2. Form login (username/password)
+3. API token (bearer token, no UI login)
+4. None (no auth required)
+
+Reply with a number (1-4):
+```
+
+*Wait for response, then:*
+
+**Question 3 of 5: Local Auth Bypass**
+```
+Should tests bypass authentication locally?
+
+1. mock-identity (recommended - found VITE_BYPASS_AUTH)
+2. identityless (skip auth, no role info)
+3. no (require full auth locally)
+
+Reply with a number (1-3):
+```
+
+*Wait for response, then:*
+
+**Question 4 of 5: MFA/Captcha**
+```
+Does non-prod have MFA or captcha enabled?
+
+1. unknown (recommended - will investigate later)
+2. yes (will need workaround)
+3. no
+
+Reply with a number (1-3):
+```
+
+*Wait for response, then:*
+
+**Question 5 of 5: Test Data Strategy**
+```
+How should tests manage test data?
+
+1. create_api (recommended - create via API, cleanup after)
+2. seed (pre-seeded data)
+3. create_ui (create via UI)
+4. reuse_stable (use existing stable data)
+
+Reply with a number (1-4):
+```
+
+*After all questions answered (ANSWERS has 5 entries), show confirmation:*
+
+```
+**Configuration Summary:**
+  • Target app: iss-frontend
+  • Auth: SSO/OIDC
+  • Bypass: mock-identity (VITE_BYPASS_AUTH)
+  • MFA: unknown
+  • Data: create_api
+
+Proceed with these settings? (Y/n)
+```
+
+*Wait for confirmation response, then:*
+
+**After confirmation — route to next step:**
+
+| User Response | Action |
+|---------------|--------|
+| `Y`, `y`, `yes`, `Enter` (empty) | → Proceed to **Step 4C** (apply configuration) |
+| `N`, `n`, `no` | → Ask: "Which setting to change? (1-5 or 'all')" then re-ask those questions |
+| Specific change (e.g., "change bypass to none") | → Update that answer, show updated summary |
+
+**Do NOT stop after confirmation. Immediately proceed to Step 4C or re-ask as needed.**
+
+---
+
+**Mode B Example (Upgrade) — One Question at a Time:**
+
+After showing current settings and analysis, ask questions ONE AT A TIME:
+
 ```
 📋 Configuration review (Mode B: Upgrade from v0.9.0)
 
@@ -414,51 +611,66 @@ data: create_api
   • Auth bypass: Found VITE_BYPASS_AUTH in .env.development
   • Login page: src/pages/Login.tsx (OIDC flow)
 
-Questions (answer all, or choose "keep" to preserve current):
-
-1) **Auth approach**:
-   - [x] keep previous: oidc
-   - [ ] SSO/OIDC
-   - [ ] form-login
-   - [ ] token/API
-   - [ ] none
-
-2) **Local auth bypass?** (currently: unknown ⚠️)
-   - [ ] keep previous: unknown ⚠️ (not recommended)
-   - [ ] no (require full auth locally)
-   - [ ] identityless (skip auth, no role info)
-   - [x] mock-identity (recommended - found VITE_BYPASS_AUTH)
-   - Toggle: VITE_BYPASS_AUTH
-   - Environments: [local]
-
-3) **MFA/captcha in non-prod?** (currently: unknown)
-   - [x] keep previous: unknown
-   - [ ] yes
-   - [ ] no
-
-4) **Test data strategy** (currently: create_api)
-   - [x] keep previous: create_api
-   - [ ] seed
-   - [ ] create_ui
-   - [ ] reuse_stable
-
-5) **Flake posture** (currently: retries_ci_only)
-   - [x] keep previous: retries_ci_only
-   - [ ] no_retries
-   - [ ] retries_everywhere
-
-Reply format:
-auth: keep
-bypass: mock-identity, VITE_BYPASS_AUTH, [local]
-mfa: keep
-data: keep
-flake: keep
-
-Shortcuts:
-  • Enter → Accept [x] recommendations (bypass WILL change to mock-identity)
-  • "keep all" → Keep ALL current values (bypass stays unknown ⚠️)
-  • "defaults" → Use all safe defaults (ignore current and analysis)
+Starting configuration review...
 ```
+
+**Question 1 of 5: Auth Approach**
+```
+Current: oidc
+
+How does the application handle authentication?
+
+1. Keep current: oidc (recommended)
+2. SSO/OIDC
+3. Form login
+4. API token
+5. None
+
+Reply with a number, or press Enter for recommended:
+```
+
+*Wait for response, then:*
+
+**Question 2 of 5: Local Auth Bypass**
+```
+Current: unknown ⚠️ (incomplete - needs update)
+
+Should tests bypass authentication locally?
+
+1. mock-identity (recommended - found VITE_BYPASS_AUTH)
+2. identityless (skip auth, no role info)
+3. no (require full auth locally)
+4. Keep current: unknown (not recommended)
+
+Reply with a number (1-4):
+```
+
+*Wait for response, then continue with remaining questions...*
+
+*After all questions answered, show confirmation:*
+
+```
+**Configuration Summary:**
+  • Auth: oidc (kept)
+  • Bypass: mock-identity (CHANGED from unknown)
+  • MFA: unknown (kept)
+  • Data: create_api (kept)
+  • Flake: retries_ci_only (kept)
+
+Proceed with these settings? (Y/n)
+```
+
+**Note:** "keep all" and "defaults" shortcuts can be used DURING questioning (before confirmation) to skip remaining questions. At confirmation stage, only Y/N or specific changes are valid.
+
+*Wait for confirmation response, then:*
+
+**After confirmation — same routing as Mode A:**
+
+| User Response | Action |
+|---------------|--------|
+| `Y`, `y`, `yes`, `Enter` (empty) | → Proceed to **Step 4C** (apply configuration) |
+| `N`, `n`, `no` | → Ask: "Which setting to change? (1-5 or 'all')" then re-ask those questions |
+| Specific change (e.g., "change bypass to none") | → Update that answer, show updated summary |
 
 ---
 
@@ -677,12 +889,37 @@ If running non-interactively (detected via `--yes` argument or `CI` environment 
    ```
 4. **Proceed immediately to Step 5**
 
-**Warning for non-interactive with unknowns:**
-If critical values cannot be inferred and would remain `unknown`:
+**Handling unknowns in non-interactive mode:**
+
+**🔴 CRITICAL: Never silently proceed with `unknown` for critical fields.**
+
+If a critical field cannot be inferred:
+
+1. **Try harder:** Check additional patterns, files, env vars
+2. **Use safe fallback (not `unknown`):**
+   | Field | Safe Fallback | Reason |
+   |-------|---------------|--------|
+   | `auth.bypass.mode` | `none` | Requires real auth (safe, may be slower) |
+   | `auth.provider` | `form-login` | Most common pattern |
+   | `mfa` | `unknown` | OK — this one can be unknown |
+
+3. **If truly unknowable AND no safe fallback exists:**
+   ```
+   ❌ Non-interactive mode cannot proceed:
+     • auth.bypass.mode: Could not infer, no safe default available
+
+   Resolution options:
+     a) Run interactively: /artk.init-playbook (without --yes)
+     b) Pre-configure: Set auth.bypass.mode in artk.config.yml first
+   ```
+   **STOP execution. Do not proceed with broken config.**
+
+**Example (success with fallback):**
 ```
-⚠️ Non-interactive mode: Could not infer auth.bypass.mode
-  Using: unknown (may cause test failures)
-  Fix: Run interactively or set in artk.config.yml
+ℹ️ Non-interactive mode
+⚠️ Could not infer auth.bypass.mode
+  → Using safe fallback: none (requires real auth)
+  → To enable bypass: run interactively or edit artk.config.yml
 ```
 
 ---
@@ -859,7 +1096,7 @@ Create `.artk/context.json` in project root:
   "targets": [...],
   "initialized_at": "<ISO8601>",
   "journeySystemInstalled": true,
-  "next_suggested": "/discover-foundation"
+  "next_suggested": "/artk.discover-foundation"
 }
 ```
 
@@ -884,7 +1121,7 @@ Create `<ARTK_ROOT>/docs/PLAYBOOK.md` with these sections:
    - Tiers: smoke / release / regression
 
 3) **Workflow**
-   - Command sequence: /init-playbook → /discover-foundation → /journey-propose → /journey-define → ...
+   - Command sequence: /artk.init-playbook → /artk.discover-foundation → /artk.journey-propose → /artk.journey-define → ...
    - Journey lifecycle: proposed → defined → clarified → implemented
 
 4) **Testing Philosophy**
@@ -900,29 +1137,36 @@ Create `<ARTK_ROOT>/docs/PLAYBOOK.md` with these sections:
    - Meaningful assertions validating business outcomes
    - Avoid "element exists == success"
 
-7) **Test Data Policy**
+7) **Import Hygiene (TypeScript strictness)**
+   - Import only what is used; never speculatively import helpers
+   - Add imports incrementally as you actually use them
+   - After adding imports, confirm every symbol is referenced in the file
+   - Assume `noUnusedLocals`/`noUnusedParameters` can fail builds
+
+8) **Test Data Policy**
    - Chosen strategy from questionnaire
    - Run-id namespacing convention
    - Cleanup expectations
 
-8) **Flake Policy**
+9) **Flake Policy**
    - No fixed sleeps by default
    - Retries posture from questionnaire
    - Quarantine rule (tag/skip only with documented issue + owner)
 
-9) **Artifacts + Privacy**
+10) **Artifacts + Privacy**
    - Capture policy based on questionnaire answer
    - PII masking rules if applicable
 
-10) **Contribution Workflow**
+11) **Contribution Workflow**
     - How to add/update journeys
     - Definition of Done for "implemented journey"
 
-11) **Anti-patterns**
+12) **Anti-patterns**
     - Coupled tests, shared state
     - Testing third-party uptime
     - Massive do-everything journeys
     - Selectors tied to CSS classes
+    - Speculative imports or unused symbols
 
 ## Step 7 — Generate Copilot instructions
 
@@ -1001,6 +1245,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - No fixed sleeps — use Playwright auto-waits
 - All tests must be isolated and order-independent
 - Ask for context if something is unclear
+- For HTTP requests, use `Invoke-WebRequest -Uri <url>` (PowerShell) for direct API calls
 
 ### Test Files (`<ARTK_ROOT>/**/*.ts`)
 
@@ -1035,6 +1280,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - Import from `@artk/core/fixtures` — do not create custom fixtures
 - Available: `authenticatedPage`, `adminPage`, `config`, `runId`, `testData`
 - Use `testData.cleanup()` to register cleanup callbacks
+- For AG Grid testing, import from `@artk/core/grid` for specialized grid helpers
 ```
 
 **Replace `<ARTK_ROOT>` with the actual path** (e.g., `artk-e2e` or `e2e/artk`).
@@ -1056,6 +1302,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - No fixed sleeps — use Playwright auto-waits
 - All tests must be isolated and order-independent
 - Ask for context if something is unclear
+- For HTTP requests, use `Invoke-WebRequest -Uri <url>` (PowerShell) for direct API calls
 
 ### Test Files (`<ARTK_ROOT>/**/*.ts`)
 
@@ -1090,6 +1337,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - Import from `@artk/core/fixtures` — do not create custom fixtures
 - Available: `authenticatedPage`, `adminPage`, `config`, `runId`, `testData`
 - Use `testData.cleanup()` to register cleanup callbacks
+- For AG Grid testing, import from `@artk/core/grid` for specialized grid helpers
 ```
 
 (Replace `<ARTK_ROOT>` with the actual path)
@@ -1406,9 +1654,33 @@ npm install --legacy-peer-deps
 4. **Key guardrails** (locator policy, flake policy, ownership)
 5. **Journey System status** (installed/upgraded/validated)
 6. **Next commands:**
-   - `/artk.discover-foundation` (if not run yet)
-   - `/artk.journey-propose` (if discovery done)
-   - `/artk.journey-define` (to create new journeys)
+
+**Display this VERBATIM in the final output:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT STEPS                                                         ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. START YOUR APPLICATION                                          ║
+║     Before running discovery, start your app locally.               ║
+║     This enables auth flow detection and runtime scanning.          ║
+║                                                                     ║
+║     Example: npm run dev, npm start, etc.                           ║
+║                                                                     ║
+║  2. RUN DISCOVERY + FOUNDATION BUILD                                ║
+║     /artk.discover-foundation                                       ║
+║                                                                     ║
+║  3. (After discovery) PROPOSE JOURNEYS                              ║
+║     /artk.journey-propose                                           ║
+║                                                                     ║
+║  4. (Optional) CREATE JOURNEY MANUALLY                              ║
+║     /artk.journey-define id=JRN-0001 title="<title>"               ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:** Copy this box exactly. Do not summarize.
 
 **END OF WORKFLOW. Do not wait for user input.**
 
@@ -1469,7 +1741,7 @@ Trigger interactive fallback:
 
 ## Existing Journey files with no frontmatter
 - Do not rewrite them silently
-- Offer to convert later with `/journey-define`
+- Offer to convert later with `/artk.journey-define`
 
 ## Existing BACKLOG.md edited by humans
 - Preserve but warn
@@ -1559,3 +1831,36 @@ If anything is ambiguous, ask in the single grouped questionnaire and proceed on
 **Journey System is mandatory** - init-playbook always installs all three parts: Init + Playbook + Journey System. There is no option to skip any part.
 
 **This prompt is idempotent** - safe to run multiple times. It will detect existing installations and act appropriately (Mode A/B/C).
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Analyze app and build foundation harness:         ║
+║     /artk.discover-foundation                                       ║
+║                                                                     ║
+║  2. (AFTER DISCOVERY) Auto-propose journeys from findings:          ║
+║     /artk.journey-propose                                           ║
+║                                                                     ║
+║  3. (ALTERNATIVE) Define a journey manually:                        ║
+║     /artk.journey-define id=JRN-0001 title="<title>"                ║
+║                                                                     ║
+║  4. (OPTIONAL) Audit selectors for test hooks:                      ║
+║     /artk.testid-audit mode=report                                  ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

@@ -20,8 +20,8 @@ export interface StepPattern {
     regex: RegExp;
     /** IR primitive type this pattern produces */
     primitiveType: IRPrimitive['type'];
-    /** Extract IR primitive from match */
-    extract: (match: RegExpMatchArray) => IRPrimitive | null;
+    /** Extract IR primitive from match (prefix with _ if unused) */
+    extract: (_match: RegExpMatchArray) => IRPrimitive | null;
 }
 /**
  * Create a locator spec from pattern match

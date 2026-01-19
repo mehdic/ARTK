@@ -9,8 +9,10 @@ import * as fs from 'fs';
 
 /**
  * Get the directory path (CommonJS-compatible)
+ * @internal Reserved for future use
  */
-function getDirname(): string {
+// @ts-ignore - Reserved for future use in generated code
+function _getDirname(): string {
   return __dirname;
 }
 

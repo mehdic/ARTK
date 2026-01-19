@@ -292,7 +292,7 @@ export const authPatterns = [
         name: 'user-login',
         regex: /^(?:user\s+)?(?:logs?\s*in|login\s+is\s+performed|authenticates?)$/i,
         primitiveType: 'callModule',
-        extract: () => ({
+        extract: (_match) => ({
             type: 'callModule',
             module: 'auth',
             method: 'login',
@@ -302,7 +302,7 @@ export const authPatterns = [
         name: 'user-logout',
         regex: /^(?:user\s+)?(?:logs?\s*out|logout\s+is\s+performed|signs?\s*out)$/i,
         primitiveType: 'callModule',
-        extract: () => ({
+        extract: (_match) => ({
             type: 'callModule',
             module: 'auth',
             method: 'logout',
@@ -337,7 +337,7 @@ export const waitPatterns = [
         name: 'wait-for-page',
         regex: /^(?:user\s+)?(?:waits?\s+)?(?:for\s+)?(?:the\s+)?(.+?)\s+(?:page|screen)\s+to\s+load$/i,
         primitiveType: 'waitForLoadingComplete',
-        extract: () => ({
+        extract: (_match) => ({
             type: 'waitForLoadingComplete',
         }),
     },
