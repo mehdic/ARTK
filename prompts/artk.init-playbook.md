@@ -1245,6 +1245,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - No fixed sleeps — use Playwright auto-waits
 - All tests must be isolated and order-independent
 - Ask for context if something is unclear
+- For HTTP requests, use `Invoke-WebRequest -Uri <url>` (PowerShell) for direct API calls
 
 ### Test Files (`<ARTK_ROOT>/**/*.ts`)
 
@@ -1301,6 +1302,7 @@ Always follow the governance rules in `<ARTK_ROOT>/docs/PLAYBOOK.md`.
 - No fixed sleeps — use Playwright auto-waits
 - All tests must be isolated and order-independent
 - Ask for context if something is unclear
+- For HTTP requests, use `Invoke-WebRequest -Uri <url>` (PowerShell) for direct API calls
 
 ### Test Files (`<ARTK_ROOT>/**/*.ts`)
 
