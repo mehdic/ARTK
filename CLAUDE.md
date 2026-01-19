@@ -546,6 +546,113 @@ ARTK bootstrap selects a browser channel and stores metadata in `artk-e2e/artk.c
 - Runtime validation: generated Playwright config validates the channel at startup
 - Troubleshooting: install the requested browser or set `channel: bundled` and re-run bootstrap
 
+## Multi-Variant Build System
+
+ARTK Core supports 4 build variants targeting different Node.js versions and module systems:
+
+| Variant | Node.js | Module | Playwright | ES Target |
+|---------|---------|--------|------------|-----------|
+| `modern-esm` | 18+ | ESM | 1.57.x | ES2022 |
+| `modern-cjs` | 18+ | CJS | 1.57.x | ES2022 |
+| `legacy-16` | 16+ | CJS | 1.49.x | ES2021 |
+| `legacy-14` | 14+ | CJS | 1.33.x | ES2020 |
+
+### Building All Variants
+
+```bash
+# From core/typescript directory
+cd core/typescript
+
+# Build all 4 variants
+npm run build:variants
+
+# Or build individually
+npm run build           # modern-esm (default)
+npm run build:cjs       # modern-cjs
+npm run build:legacy-16 # legacy-16
+npm run build:legacy-14 # legacy-14
+```
+
+**Using the build script:**
+
+```bash
+# Unix/macOS/Linux
+./scripts/build-variants.sh --all
+
+# Windows (PowerShell)
+.\scripts\build-variants.ps1 -All
+
+# Build specific variant
+./scripts/build-variants.sh --variant legacy-16
+```
+
+**Output directories:**
+- `dist/` - modern-esm
+- `dist-cjs/` - modern-cjs
+- `dist-legacy-16/` - legacy-16
+- `dist-legacy-14/` - legacy-14
+
+### CLI Variant Selection
+
+The CLI auto-detects Node.js version and module system:
+
+```bash
+# Auto-detect (recommended)
+artk init /path/to/project
+
+# Force specific variant
+artk init --variant legacy-16 /path/to/project
+artk init --variant modern-cjs /path/to/project
+```
+
+**Detection logic:**
+1. Check Node.js version (`process.version`)
+2. Check `package.json` `"type"` field for module system
+3. Select appropriate variant based on compatibility
+
+### Context and Metadata
+
+After installation, variant info is stored in `.artk/context.json`:
+
+```json
+{
+  "variant": "modern-esm",
+  "nodeVersion": 20,
+  "moduleSystem": "esm",
+  "playwrightVersion": "1.57.x",
+  "variantInstalledAt": "2026-01-19T..."
+}
+```
+
+### Upgrading Variants
+
+When Node.js version changes, use the upgrade command:
+
+```bash
+# Re-detect environment and migrate if needed
+artk upgrade
+
+# Check installation health
+artk doctor
+```
+
+### AI Protection Markers
+
+Each variant installation includes AI protection files:
+
+- `vendor/artk-core/READONLY.md` - Warning for AI agents not to modify
+- `vendor/artk-core/.ai-ignore` - Files to exclude from AI analysis
+- `vendor/artk-core/variant-features.json` - Feature compatibility per variant
+
+### CI/CD Pipeline
+
+The GitHub Actions workflow (`.github/workflows/build-variants.yml`) tests all variants:
+
+- Builds all 4 variants on Node 20
+- Tests on Node 14, 16, 18, 20, 22
+- Verifies build completes within 5-minute target
+- Uploads build artifacts
+
 ## Transferring Changes Between Computers
 
 When you can't push to the remote repository (e.g., permission issues), use the export-patches script to create patch files for transfer:

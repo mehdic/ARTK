@@ -1,0 +1,89 @@
+{
+  "variant": "legacy-14",
+  "playwrightVersion": "1.33.x",
+  "nodeRange": ["14", "15", "16", "17", "18"],
+  "moduleSystem": "cjs",
+  "features": {
+    "aria_snapshots": {
+      "available": false,
+      "alternative": "Use page.evaluate() to query ARIA attributes directly:\n  const label = await page.evaluate(() => document.querySelector('button').getAttribute('aria-label'));",
+      "sincePlaywright": "1.35"
+    },
+    "clock_api": {
+      "available": false,
+      "alternative": "Use page.evaluate() with manual Date mocking:\n  await page.evaluate(() => { Date.now = () => 1234567890000; });",
+      "sincePlaywright": "1.45"
+    },
+    "route_from_har": {
+      "available": true,
+      "notes": "HAR-based network mocking (available since 1.23)"
+    },
+    "locator_or": {
+      "available": false,
+      "alternative": "Chain multiple locator.first() or use CSS :is() selector:\n  page.locator(':is(button, [role=\"button\"])')",
+      "sincePlaywright": "1.33"
+    },
+    "locator_filter": {
+      "available": true
+    },
+    "locator_and": {
+      "available": false,
+      "alternative": "Use more specific selectors or chain filter() calls",
+      "sincePlaywright": "1.34"
+    },
+    "web_first_assertions": {
+      "available": true
+    },
+    "trace_viewer": {
+      "available": true
+    },
+    "component_testing": {
+      "available": false,
+      "alternative": "Use E2E testing approach - mount component in test page",
+      "sincePlaywright": "1.34"
+    },
+    "api_testing": {
+      "available": true,
+      "notes": "APIRequestContext available"
+    },
+    "storage_state": {
+      "available": true
+    },
+    "video_recording": {
+      "available": true
+    },
+    "screenshot_assertions": {
+      "available": true
+    },
+    "request_interception": {
+      "available": true
+    },
+    "browser_contexts": {
+      "available": true
+    },
+    "esm_imports": {
+      "available": false,
+      "alternative": "Use require() or dynamic import()",
+      "notes": "CommonJS module system - use require() for imports"
+    },
+    "top_level_await": {
+      "available": false,
+      "alternative": "Wrap in async IIFE: (async () => { ... })()"
+    },
+    "webgl_locator": {
+      "available": false,
+      "alternative": "Use page.evaluate() for WebGL interactions",
+      "sincePlaywright": "1.50"
+    },
+    "dialog_api": {
+      "available": true,
+      "notes": "page.on('dialog') available but newer API methods not present"
+    },
+    "mask_option": {
+      "available": false,
+      "alternative": "Use page.evaluate() to hide elements before screenshot",
+      "sincePlaywright": "1.35"
+    }
+  },
+  "generatedAt": "{{GENERATED_AT}}"
+}

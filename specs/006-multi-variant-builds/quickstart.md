@@ -32,7 +32,7 @@ npx @artk/cli init /path/to/project --variant legacy-16
 artk doctor /path/to/project
 
 # Or manually
-cat artk-e2e/.artk/context.json | jq .variant
+cat .artk/context.json | jq .variant
 ```
 
 ### Upgrade After Node Version Change
@@ -73,10 +73,16 @@ npm run test:variants
 
 ```bash
 # Modern ESM only
-npm run build:modern
+npm run build
+
+# Modern CJS only
+npm run build:cjs
 
 # Legacy 16 only
 npm run build:legacy-16
+
+# Legacy 14 only
+npm run build:legacy-14
 ```
 
 ---
@@ -125,7 +131,7 @@ If you encounter compatibility issues:
 **Solution**:
 ```bash
 # Check variant
-cat artk-e2e/.artk/context.json | jq .variant
+cat .artk/context.json | jq .variant
 
 # If mismatch, reinstall
 artk init . --force
@@ -154,5 +160,6 @@ artk upgrade .
 | `.artk/context.json` | Installed variant metadata |
 | `.artk/install.log` | Installation history |
 | `.artk/install.lock` | Concurrent install prevention |
-| `vendor/artk-core/READONLY.md` | Immutability warning |
-| `vendor/artk-core/variant-features.json` | Feature availability |
+| `artk-e2e/vendor/artk-core/READONLY.md` | Immutability warning |
+| `artk-e2e/vendor/artk-core/.ai-ignore` | AI exclusion markers |
+| `artk-e2e/vendor/artk-core/variant-features.json` | Feature availability |

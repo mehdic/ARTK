@@ -1,0 +1,70 @@
+{
+  "variant": "modern-cjs",
+  "playwrightVersion": "1.57.x",
+  "nodeRange": ["18", "19", "20", "21", "22"],
+  "moduleSystem": "cjs",
+  "features": {
+    "aria_snapshots": {
+      "available": true,
+      "notes": "Full ARIA snapshot support"
+    },
+    "clock_api": {
+      "available": true,
+      "notes": "Full clock mocking support via page.clock"
+    },
+    "route_from_har": {
+      "available": true,
+      "notes": "HAR-based network mocking"
+    },
+    "locator_or": {
+      "available": true,
+      "notes": "locator.or() for combining locators"
+    },
+    "locator_filter": {
+      "available": true
+    },
+    "locator_and": {
+      "available": true,
+      "notes": "locator.and() for intersecting locators"
+    },
+    "web_first_assertions": {
+      "available": true
+    },
+    "trace_viewer": {
+      "available": true
+    },
+    "component_testing": {
+      "available": true,
+      "notes": "Experimental component testing support"
+    },
+    "api_testing": {
+      "available": true,
+      "notes": "Full APIRequestContext support"
+    },
+    "storage_state": {
+      "available": true
+    },
+    "video_recording": {
+      "available": true
+    },
+    "screenshot_assertions": {
+      "available": true
+    },
+    "request_interception": {
+      "available": true
+    },
+    "browser_contexts": {
+      "available": true
+    },
+    "esm_imports": {
+      "available": false,
+      "alternative": "Use require() or dynamic import()",
+      "notes": "CommonJS module system - use require() for imports"
+    },
+    "top_level_await": {
+      "available": false,
+      "alternative": "Wrap in async IIFE: (async () => { ... })()"
+    }
+  },
+  "generatedAt": "{{GENERATED_AT}}"
+}

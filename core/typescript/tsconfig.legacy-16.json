@@ -1,0 +1,39 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2021"],
+    "outDir": "./dist-legacy-16",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "downlevelIteration": true
+  },
+  "include": [
+    "**/*.ts",
+    "version.json"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-cjs",
+    "dist-legacy-16",
+    "dist-legacy-14",
+    "autogen/**",
+    "compat/**",
+    "scripts/**",
+    "src/templates/**",
+    "templates/**",
+    "ignore/**",
+    "docker/**",
+    "__fixtures__/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/tests/**",
+    "**/__tests__/**"
+  ]
+}

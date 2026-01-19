@@ -1,0 +1,19 @@
+# ARTK Vendor Directory - DO NOT MODIFY
+#
+# This directory contains vendored @artk/core code.
+# AI agents and code generation tools should NOT modify these files.
+#
+# Variant: {{VARIANT_ID}}
+# Installed: {{INSTALLED_AT}}
+#
+# If you need to change behavior:
+# 1. Create wrapper functions in your project code
+# 2. Use configuration in artk.config.yml
+# 3. Run `artk upgrade` to get latest version
+#
+# DO NOT:
+# - Edit any .js or .ts files in this directory
+# - Add polyfills or patches
+# - Modify package.json
+#
+*

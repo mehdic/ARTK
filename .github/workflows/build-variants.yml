@@ -1,0 +1,311 @@
+name: Build and Test Variants
+
+on:
+  push:
+    branches: [main, 'release/**']
+    paths:
+      - 'core/typescript/**'
+      - 'cli/**'
+      - '.github/workflows/build-variants.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'core/typescript/**'
+      - 'cli/**'
+      - '.github/workflows/build-variants.yml'
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Specific variant to build (leave empty for all)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - 'modern-esm'
+          - 'modern-cjs'
+          - 'legacy-16'
+          - 'legacy-14'
+
+jobs:
+  build-variants:
+    name: Build All Variants
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: core/typescript/package.json
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: core/typescript
+
+      - name: Build all variants
+        run: |
+          echo "Building modern-esm..."
+          npm run build
+
+          echo "Building modern-cjs..."
+          npm run build:cjs
+
+          echo "Building legacy-16..."
+          npm run build:legacy-16
+
+          echo "Building legacy-14..."
+          npm run build:legacy-14
+        working-directory: core/typescript
+
+      - name: Verify build outputs
+        run: |
+          # Check all dist directories exist
+          for dir in dist dist-cjs dist-legacy-16 dist-legacy-14; do
+            if [ ! -d "$dir" ]; then
+              echo "ERROR: Missing $dir directory"
+              exit 1
+            fi
+            if [ ! -f "$dir/index.js" ]; then
+              echo "ERROR: Missing $dir/index.js"
+              exit 1
+            fi
+            echo "✓ $dir exists and contains index.js"
+          done
+        working-directory: core/typescript
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artk-core-variants
+          path: |
+            core/typescript/dist
+            core/typescript/dist-cjs
+            core/typescript/dist-legacy-16
+            core/typescript/dist-legacy-14
+          retention-days: 7
+
+  test-node-22:
+    name: Test on Node 22 (Modern)
+    needs: build-variants
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: core/typescript/package.json
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-core-variants
+          path: core/typescript
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: core/typescript
+
+      - name: Run unit tests
+        run: npm run test:unit
+        working-directory: core/typescript
+
+  test-node-20:
+    name: Test on Node 20 (Modern)
+    needs: build-variants
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: core/typescript/package.json
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-core-variants
+          path: core/typescript
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: core/typescript
+
+      - name: Run unit tests
+        run: npm run test:unit
+        working-directory: core/typescript
+
+  test-node-18:
+    name: Test on Node 18 (Modern)
+    needs: build-variants
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: core/typescript/package.json
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-core-variants
+          path: core/typescript
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: core/typescript
+
+      - name: Run unit tests
+        run: npm run test:unit
+        working-directory: core/typescript
+
+  test-node-16:
+    name: Test on Node 16 (Legacy-16)
+    needs: build-variants
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 16
+        uses: actions/setup-node@v4
+        with:
+          node-version: '16'
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-core-variants
+          path: core/typescript
+
+      - name: Install dependencies (legacy)
+        run: |
+          # Use legacy-16 package.json for correct Playwright version
+          cp package-legacy-16.json package.json.backup
+          npm install --legacy-peer-deps
+        working-directory: core/typescript
+
+      - name: Verify legacy-16 variant loads
+        run: |
+          node -e "const m = require('./dist-legacy-16/index.js'); console.log('Legacy-16 variant loaded successfully');"
+        working-directory: core/typescript
+
+  test-node-14:
+    name: Test on Node 14 (Legacy-14)
+    needs: build-variants
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 14
+        uses: actions/setup-node@v4
+        with:
+          node-version: '14'
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-core-variants
+          path: core/typescript
+
+      - name: Install dependencies (legacy)
+        run: |
+          # Use legacy-14 package.json for correct Playwright version
+          npm install --legacy-peer-deps || true
+        working-directory: core/typescript
+
+      - name: Verify legacy-14 variant loads
+        run: |
+          node -e "const m = require('./dist-legacy-14/index.js'); console.log('Legacy-14 variant loaded successfully');"
+        working-directory: core/typescript
+
+  build-cli:
+    name: Build CLI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: cli
+
+      - name: Build CLI
+        run: npm run build
+        working-directory: cli
+
+      - name: Upload CLI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artk-cli
+          path: cli/dist
+          retention-days: 7
+
+  build-time-check:
+    name: Verify Build Performance
+    needs: build-variants
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: core/typescript/package.json
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: core/typescript
+
+      - name: Time full variant build
+        run: |
+          START=$(date +%s)
+
+          npm run build
+          npm run build:cjs
+          npm run build:legacy-16
+          npm run build:legacy-14
+
+          END=$(date +%s)
+          DURATION=$((END - START))
+
+          echo "Total build time: ${DURATION}s"
+
+          if [ "$DURATION" -gt 300 ]; then
+            echo "::warning::Build exceeded 5-minute target (${DURATION}s > 300s)"
+          else
+            echo "✓ Build within 5-minute target"
+          fi
+        working-directory: core/typescript

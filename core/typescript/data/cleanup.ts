@@ -8,6 +8,29 @@
 import { createLogger } from '../utils/logger.js';
 import type { CleanupEntry, CleanupOptions } from './types.js';
 
+/**
+ * Polyfill for AggregateError for Node.js 14 (ES2020) compatibility.
+ * AggregateError was introduced in ES2021/Node 15.
+ */
+declare const AggregateError: {
+  new (errors: Iterable<unknown>, message?: string): Error & { errors: unknown[] };
+} | undefined;
+
+const AggregateErrorPolyfill: new (
+  errors: Iterable<unknown>,
+  message?: string,
+) => Error & { errors: unknown[] } =
+  typeof AggregateError !== 'undefined'
+    ? AggregateError
+    : class extends Error {
+        errors: unknown[];
+        constructor(errors: Iterable<unknown>, message?: string) {
+          super(message);
+          this.name = 'AggregateError';
+          this.errors = Array.from(errors);
+        }
+      };
+
 const logger = createLogger('data', 'CleanupManager');
 
 /**
@@ -134,7 +157,7 @@ export class CleanupManager {
         totalCount: sorted.length,
       });
 
-      throw new AggregateError(
+      throw new AggregateErrorPolyfill(
         errors,
         `${errors.length} of ${sorted.length} cleanup operations failed`,
       );
