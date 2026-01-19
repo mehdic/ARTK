@@ -1829,3 +1829,36 @@ If anything is ambiguous, ask in the single grouped questionnaire and proceed on
 **Journey System is mandatory** - init-playbook always installs all three parts: Init + Playbook + Journey System. There is no option to skip any part.
 
 **This prompt is idempotent** - safe to run multiple times. It will detect existing installations and act appropriately (Mode A/B/C).
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Analyze app and build foundation harness:         ║
+║     /artk.discover-foundation                                       ║
+║                                                                     ║
+║  2. (AFTER DISCOVERY) Auto-propose journeys from findings:          ║
+║     /artk.journey-propose                                           ║
+║                                                                     ║
+║  3. (ALTERNATIVE) Define a journey manually:                        ║
+║     /artk.journey-define id=JRN-0001 title="<title>"                ║
+║                                                                     ║
+║  4. (OPTIONAL) Audit selectors for test hooks:                      ║
+║     /artk.testid-audit mode=report                                  ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.
