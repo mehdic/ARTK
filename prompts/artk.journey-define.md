@@ -31,13 +31,13 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /journey-define — User-defined Journeys (Phase 6)
+# ARTK /artk.journey-define — User-defined Journeys (Phase 6)
 
 You are running **ARTK Phase 6**.
 
 ARTK plugs into GitHub Copilot to help teams build and maintain complete automated regression suites for existing applications using **Journeys** as the source of truth.
 
-This command creates (or upgrades) a Journey into a canonical, structured, “definition-ready” artifact so `/journey-clarify` can finalize it for deterministic implementation.
+This command creates (or upgrades) a Journey into a canonical, structured, “definition-ready” artifact so `/artk.journey-clarify` can finalize it for deterministic implementation.
 
 ## What this command is for
 - Create a **new** Journey from human input (goal + business steps + assertions + tier).
@@ -122,7 +122,7 @@ Default: `standard`
    - nearest `artk.config.yml` up the tree
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/init-playbook` first.
+If missing: instruct user to run `/artk.init-playbook` first.
 
 ## Step 1 — Determine whether this is “create” or “promote”
 If `source=` is provided:
@@ -243,7 +243,7 @@ Use markers like:
 Insert near top of the body:
 ```
 <!-- ARTK:DEFINE:BEGIN -->
-definedBy: /journey-define
+definedBy: /artk.journey-define
 definedAt: <ISO date>
 sources:
   - user-input
@@ -276,7 +276,7 @@ Fallback:
 ## Step 8 — Ensure docs/JOURNEY_CLARIFY.md exists (minimal here)
 If `<ARTK_ROOT>/docs/JOURNEY_CLARIFY.md` does not exist, create it with managed markers only:
 - what “clarified” means
-- checklist of what `/journey-clarify` will collect
+- checklist of what `/artk.journey-clarify` will collect
 - a short example
 
 ---

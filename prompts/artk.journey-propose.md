@@ -31,14 +31,14 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /journey-propose — Automatic Journey Identification (Phase 5)
+# ARTK /artk.journey-propose — Automatic Journey Identification (Phase 5)
 
 You are running **ARTK Phase 5**.
 
 ARTK is a standardized kit that plugs into GitHub Copilot (repository instructions + prompt files + structured artifacts) to help teams build and continuously maintain **complete automated regression testing suites** for existing applications. These suites cover end-to-end **Journeys**, detect regressions early, and keep behavior stable across releases.
 
 This command generates a **high-signal proposed Journey backlog** with **module dependency hints**, using:
-- outputs from `/discover-foundation` (Phase 4), plus
+- outputs from `/artk.discover-foundation` (Phase 4), plus
 - **change risk signals** (code churn / hotspots), and
 - **incident/bug history signals** (ticket references, postmortems, changelog “fixes”)
 
@@ -84,7 +84,7 @@ Look for any of these in the repo:
 - bug/incident exports: `incidents.csv`, `bugs.csv`, `jira_export.*`, `tickets.*`
 - commit messages containing ticket IDs (e.g., `ABC-1234`, `INC123456`)
 
-If discovery sources are missing, stop and instruct the user to run `/discover-foundation` first.
+If discovery sources are missing, stop and instruct the user to run `/artk.discover-foundation` first.
 
 ---
 
@@ -121,7 +121,7 @@ All generated sections MUST include managed markers:
 ---
 
 # Inputs (optional)
-Parse `key=value` args after `/journey-propose`:
+Parse `key=value` args after `/artk.journey-propose`:
 
 ## General
 - `mode`: `quick | standard | max` (default: `standard`) — controls **question depth** (how much to ask)
@@ -234,7 +234,7 @@ Ask a compact questionnaire for a single reply, based on `mode`.
 - Optional evidence JSONs written
 
 At the end print:
-- Next commands (`/journey-define`, `/journey-clarify`)
+- Next commands (`/artk.journey-define`, `/artk.journey-clarify`)
 - Known blockers & remediation (from feasibility + incidents)
 
 ---
@@ -250,7 +250,7 @@ At the end print:
 2) **Load context from `.artk/context.json`:**
 
    Read `<ARTK_ROOT>/.artk/context.json` to get:
-   - `targets[]` - detected frontend targets from /init-playbook
+   - `targets[]` - detected frontend targets from /artk.init-playbook
    - `detectedTargets[]` - targets with detection confidence
    - `discovery` - if present, cached discovery results (routes, components)
    - `journeys` - existing journey statistics
@@ -265,12 +265,12 @@ At the end print:
 3) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/`
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/init-playbook` first.
+If missing: instruct user to run `/artk.init-playbook` first.
 
 4) Confirm discovery exists:
    - prefer `docs/discovery/*.json`, else `docs/DISCOVERY.md` + `docs/TESTABILITY.md`
    - alternatively, use `discovery` from context.json if present
-If missing: instruct user to run `/discover-foundation` first.
+If missing: instruct user to run `/artk.discover-foundation` first.
 
 ## Step 1 — Load Journey config + existing index
 - Read `<ARTK_ROOT>/journeys/journeys.config.yml` for:
@@ -554,7 +554,7 @@ Write scoring evidence to `docs/journey-proposals/evidence.scoring.json`:
 
 **Rerun behavior with existing proposals:**
 
-When rerunning `/journey-propose` on a repo with existing proposals:
+When rerunning `/artk.journey-propose` on a repo with existing proposals:
 
 1. **Existing proposals with fingerprint match:** Keep as-is, do not re-tier or re-score
 2. **New candidates not in existing proposals:** Assign tier based on criteria and propose
@@ -617,7 +617,7 @@ Total: 45/50 journeys proposed
 Add this managed evidence block near the top:
 ```
 <!-- ARTK:PROPOSAL:BEGIN -->
-proposedBy: /journey-propose
+proposedBy: /artk.journey-propose
 proposedAt: <ISO date>
 sources:
   - <file/path>

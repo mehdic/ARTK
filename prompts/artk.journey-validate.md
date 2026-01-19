@@ -45,7 +45,7 @@ This command is primarily **static validation**:
 - clear actionable errors
 
 It should be run:
-- automatically at the end of `/journey-implement`, and
+- automatically at the end of `/artk.journey-implement`, and
 - any time someone “just tweaks one small thing” in tests (famous last words).
 
 ---
@@ -252,7 +252,7 @@ const myCustomLocator = page.locator('.some-brittle-class');
 
 **Failure handling:**
 - If strict: FAIL validation with file/line pointers
-- If warnings: WARN but suggest `/journey-implement` re-run with `--fix-imports` flag
+- If warnings: WARN but suggest `/artk.journey-implement` re-run with `--fix-imports` flag
 
 ## Step 3 — Module registry coherence (if present)
 If `<harnessRoot>/modules/registry.json` exists:
@@ -408,7 +408,7 @@ If Journey has AC IDs and `contract=strict|auto`:
 - Validate that every AC ID appears in at least one `test.step` title.
 - Validate that each such step contains at least one `expect(...)` call (best-effort heuristic).
 If Journey lacks AC IDs:
-- Do not fail; recommend adding IDs via `/journey-clarify`.
+- Do not fail; recommend adding IDs via `/artk.journey-clarify`.
 
 ## Step 6 — Emit report and optionally update Journey
 Write `reports/validation/<JRN-ID>.md` including:
@@ -433,7 +433,7 @@ Only do safe mechanical fixes:
 - normalize tag format
 - fix import path to use `@artk/core/fixtures` instead of direct Playwright imports
 - remove accidental `.only` (only if it's clearly unintended; otherwise warn)
-Do NOT "fix" timing/logic automatically here. That belongs in `/journey-verify`.
+Do NOT "fix" timing/logic automatically here. That belongs in `/artk.journey-verify`.
 
 ---
 

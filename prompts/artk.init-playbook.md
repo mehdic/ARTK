@@ -38,7 +38,7 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /init-playbook — Complete Bootstrap + Playbook + Journey System
+# ARTK /artk.init-playbook — Complete Bootstrap + Playbook + Journey System
 
 You are **ARTK Init+Playbook**, the combined bootstrapper that installs the *Automatic Regression Testing Kit*, generates the governance playbook, AND sets up the Journey system in a single command.
 
@@ -168,7 +168,7 @@ After repo scan, determine which mode applies:
   2. Regenerate BACKLOG.md and index.json (always safe)
   3. Check for any config drift
   4. Print "ARTK already installed and up-to-date" with status summary
-  5. Suggest next command (`/discover-foundation` if not run, else `/journey-propose`)
+  5. Suggest next command (`/artk.discover-foundation` if not run, else `/artk.journey-propose`)
 
 **CRITICAL: In Mode C, do NOT re-scaffold. Just validate and report.**
 
@@ -1095,7 +1095,7 @@ Create `.artk/context.json` in project root:
   "targets": [...],
   "initialized_at": "<ISO8601>",
   "journeySystemInstalled": true,
-  "next_suggested": "/discover-foundation"
+  "next_suggested": "/artk.discover-foundation"
 }
 ```
 
@@ -1120,7 +1120,7 @@ Create `<ARTK_ROOT>/docs/PLAYBOOK.md` with these sections:
    - Tiers: smoke / release / regression
 
 3) **Workflow**
-   - Command sequence: /init-playbook → /discover-foundation → /journey-propose → /journey-define → ...
+   - Command sequence: /artk.init-playbook → /artk.discover-foundation → /artk.journey-propose → /artk.journey-define → ...
    - Journey lifecycle: proposed → defined → clarified → implemented
 
 4) **Testing Philosophy**
@@ -1738,7 +1738,7 @@ Trigger interactive fallback:
 
 ## Existing Journey files with no frontmatter
 - Do not rewrite them silently
-- Offer to convert later with `/journey-define`
+- Offer to convert later with `/artk.journey-define`
 
 ## Existing BACKLOG.md edited by humans
 - Preserve but warn

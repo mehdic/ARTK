@@ -161,10 +161,10 @@ Is your application currently running locally?
 Determine `ARTK_ROOT` in this order:
 1) `artkRoot=` argument
 2) nearest `artk.config.yml` (search upward from CWD)
-3) if still unknown, stop and instruct the user to run `/init-playbook` first
+3) if still unknown, stop and instruct the user to run `/artk.init-playbook` first
 
 Load context from `.artk/context.json`:
-- `targets[]` - detected frontend targets from /init-playbook
+- `targets[]` - detected frontend targets from /artk.init-playbook
 - `detectedTargets[]` - targets with confidence scores
 - `project.name` - project identifier
 - `uiLibraries[]` - detected UI component libraries (AG Grid, etc.)
@@ -1637,7 +1637,7 @@ import('./vendor/artk-core/dist/config/index.js').then(config => {
 **If import fails:**
 - Check that vendor/artk-core exists
 - Check that dist/ folder is populated
-- Re-run `/init-playbook` to re-copy core
+- Re-run `/artk.init-playbook` to re-copy core
 
 ## Step V5 — Optional: Auth Flow Smoke Test
 
@@ -1674,7 +1674,7 @@ Auth Flow (optional):    ✓ PASS / ⏭ SKIPPED / ✗ FAIL
 Overall: READY / NEEDS FIXES
 
 Next steps:
-- If READY: Proceed to /artk.testid-audit (strongly recommended) then /journey-propose
+- If READY: Proceed to /artk.testid-audit (strongly recommended) then /artk.journey-propose
 - If NEEDS FIXES: Address errors above before continuing
 ═══════════════════════════════════════════════════════════════════
 ```

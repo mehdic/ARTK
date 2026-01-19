@@ -1,6 +1,6 @@
 ---
 name: journey-implement
-description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the Phase 7 harness. Includes post-implementation quality gates: /journey-validate (static) and /journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
+description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the Phase 7 harness. Includes post-implementation quality gates: /artk.journey-validate (static) and /artk.journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
 argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false"
 agent: agent
 handoffs:
@@ -43,8 +43,8 @@ This command must:
 1) Convert a Journey (preferably `status: clarified`) into Playwright tests that follow the Phase 7 harness conventions.
 2) Create/extend **feature modules** only when needed (foundation modules are reused).
 3) Run **quality gates**:
-   - `/journey-validate` (static rules + traceability)
-   - `/journey-verify` (actually run + stabilize tests)
+   - `/artk.journey-validate` (static rules + traceability)
+   - `/artk.journey-verify` (actually run + stabilize tests)
 4) Only then: update the Journey system of record (status + tests links), update module registry, regenerate backlog/index.
 
 ---
@@ -77,8 +77,8 @@ These are not “style preferences”. They are how you avoid flaky, unreadable 
 - **Status rule (important)**:
   - You may create test code before verification,
   - but you may set Journey `status: implemented` **only after**:
-    1) `/journey-validate` passes, and
-    2) `/journey-verify` passes (tests run green + stability gate),
+    1) `/artk.journey-validate` passes, and
+    2) `/artk.journey-verify` passes (tests run green + stability gate),
     3) `tests[]` is non-empty and points to real files.
 
 ---
@@ -139,8 +139,8 @@ Default naming:
 - Only create if required by Journey dependencies and missing (or `createFeatureModules=true`).
 
 ## C) Quality gates (post steps)
-- Run (or instruct the user to run) `/journey-validate`
-- Run (or instruct) `/journey-verify` with bounded healing loop
+- Run (or instruct the user to run) `/artk.journey-validate`
+- Run (or instruct) `/artk.journey-verify` with bounded healing loop
 
 ## D) Update Journey + system of record (only after gates pass)
 - Add test links to Journey frontmatter `tests[]`
@@ -194,7 +194,7 @@ Extract from body (best effort):
 - compliance constraints (PII/artifacts)
 
 If the Journey is not clarified:
-- If `allowNonClarified=false`: stop and instruct `/journey-clarify id=...`
+- If `allowNonClarified=false`: stop and instruct `/artk.journey-clarify id=...`
 - If `allowNonClarified=true`: generate a **skeleton implementation** but mark tests skipped until clarification is complete. Do not mark Journey implemented.
 
 ## Step 2 — Pull discovery/testability signals (recommended)
@@ -244,7 +244,7 @@ Ensure equivalents exist for:
 - selectors/locators
 - data/run-id/builders
 
-If missing: stop and instruct `/discover-foundation`.
+If missing: stop and instruct `/artk.discover-foundation`.
 
 ### 6.2 Feature modules
 Create missing feature modules only when needed.
@@ -1393,18 +1393,18 @@ Do NOT set `status: implemented` yet.
 ## Step 12 — Update module registry draft (optional)
 If `updateModulesRegistry=true`, update registry with new modules and journeyDependencies.
 
-## Step 13 — Run /journey-validate (static gates)
+## Step 13 — Run /artk.journey-validate (static gates)
 If `postValidate=auto|true`:
-- Execute `/journey-validate id=<JRN-####> harnessRoot=<harnessRoot> mode=<validateMode> strict=true`
+- Execute `/artk.journey-validate id=<JRN-####> harnessRoot=<harnessRoot> mode=<validateMode> strict=true`
 - If it fails:
   - fix violations (tags/imports/forbidden patterns)
   - re-run validate
 If you cannot execute commands here:
-- output the exact `/journey-validate ...` invocation as the next step and stop before claiming success.
+- output the exact `/artk.journey-validate ...` invocation as the next step and stop before claiming success.
 
-## Step 14 — Run /journey-verify (run + stabilize)
+## Step 14 — Run /artk.journey-verify (run + stabilize)
 If `postVerify=auto|true`:
-- Execute `/journey-verify id=<JRN-####> harnessRoot=<harnessRoot> mode=<verifyMode> heal=<heal> healAttempts=<healAttempts> repeat=<repeatGate> failOnFlaky=<failOnFlaky>`
+- Execute `/artk.journey-verify id=<JRN-####> harnessRoot=<harnessRoot> mode=<verifyMode> heal=<heal> healAttempts=<healAttempts> repeat=<repeatGate> failOnFlaky=<failOnFlaky>`
 - If it fails:
   - apply bounded fixes based on evidence (selectors/data/async)
   - re-run verify until attempts exhausted or blocked
@@ -1479,8 +1479,8 @@ Ask only when necessary:
 - [ ] Web-first assertions used; no timing sleeps
 - [ ] Feature modules created only if needed and kept small
 - [ ] module registry updated (if enabled)
-- [ ] `/journey-validate` passed
-- [ ] `/journey-verify` passed (including stability gate)
+- [ ] `/artk.journey-validate` passed
+- [ ] `/artk.journey-verify` passed (including stability gate)
 - [ ] Journey updated: tests[] linked, status implemented only when valid+verified
 - [ ] backlog/index regenerated
 

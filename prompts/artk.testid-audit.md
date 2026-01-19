@@ -230,7 +230,7 @@ In chat, present:
 Do not proceed without an explicit answer.
 
 After presenting choices, also ask:
-**"Do you want me to apply the plan now, or skip implementation and move to the next ARTK prompt (`/journey-propose` or `/journey-define`)?"**
+**"Do you want me to apply the plan now, or skip implementation and move to the next ARTK prompt (`/artk.journey-propose` or `/artk.journey-define`)?"**
 Do NOT suggest `/artk.journey-generate`, `/artk.smoke-test`, or internal repo test commands.
 
 ---

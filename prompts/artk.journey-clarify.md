@@ -35,7 +35,7 @@ handoffs:
 
 You are running **ARTK Phase 6**.
 
-A clarified Journey must be specific enough that `/journey-implement` (later phase) can implement Playwright tests **without guessing** about:
+A clarified Journey must be specific enough that `/artk.journey-implement` (later phase) can implement Playwright tests **without guessing** about:
 - actor/account assumptions
 - environment assumptions
 - deterministic data strategy
@@ -141,7 +141,7 @@ If any are unknown or blocked, keep status as `defined` (or `proposed`) and list
    - nearest `artk.config.yml`
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/init-playbook` first.
+If missing: instruct user to run `/artk.init-playbook` first.
 
 ## Step 1 — Load Journey file
 - If `id=` provided, resolve using `<ARTK_ROOT>/journeys/index.json` if present.
