@@ -1,0 +1,7 @@
+#!/bin/sh
+# Pre-push hook: build CLI assets so deployed files stay in sync
+
+set -e
+
+echo "Building CLI assets and dist..."
+npm --prefix packages/cli run build
