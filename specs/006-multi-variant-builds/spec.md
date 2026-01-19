@@ -25,6 +25,18 @@ This reference document contains:
 
 ---
 
+## Clarifications
+
+### Session 2026-01-19
+
+- Q: What recovery behavior for partial installation failure? → A: Full rollback to clean pre-install state (remove all ARTK files)
+- Q: How to handle legacy variant feature limitations? → A: Provide LLM instructions for variant-specific features; LLM should auto-substitute unsupported features with equivalent supported alternatives
+- Q: Format for LLM feature compatibility instructions? → A: Both prose summary in Copilot instructions AND structured JSON/YAML file for programmatic access
+- Q: Should installation emit logs for troubleshooting? → A: Verbose logging to `.artk/install.log` file
+- Q: Handle concurrent installation processes? → A: Lock file (`.artk/install.lock`) - second process fails with clear message
+
+---
+
 ## Problem Statement
 
 ARTK currently ships a single build variant that attempts to work across all Node.js versions (14-22) and module systems (ESM/CommonJS). This "one size fits all" approach causes:
@@ -66,7 +78,7 @@ A developer at an enterprise organization needs to install ARTK on a project loc
 
 1. **Given** a project running Node.js 16, **When** the user runs the installation command, **Then** the legacy-16 variant is installed with Playwright 1.49.x
 2. **Given** a legacy-16 installation, **When** the user writes tests using ARTK fixtures, **Then** all core ARTK features work correctly
-3. **Given** a legacy-16 installation, **When** the user checks the variant information, **Then** the system displays clear information about feature limitations (if any)
+3. **Given** a legacy-16 installation, **When** the LLM generates tests, **Then** it uses only features available in Playwright 1.49.x or auto-substitutes with supported equivalents
 
 ---
 
@@ -81,7 +93,7 @@ A developer needs to install ARTK on a very old project running Node.js 14 that 
 **Acceptance Scenarios**:
 
 1. **Given** a project running Node.js 14, **When** the user runs the installation command, **Then** the legacy-14 variant is installed with Playwright 1.33.x
-2. **Given** a legacy-14 installation, **When** the user attempts to use a feature not available in Playwright 1.33, **Then** the system provides a clear error message explaining the limitation
+2. **Given** a legacy-14 installation, **When** the LLM attempts to use a feature not available in Playwright 1.33, **Then** the LLM auto-substitutes with an equivalent supported feature based on variant instructions
 3. **Given** a legacy-14 installation, **When** running basic Playwright tests, **Then** core testing functionality works correctly
 
 ---
@@ -140,7 +152,8 @@ A developer with an existing ARTK installation upgrades their Node.js version fr
 - What happens when detection cannot determine module type? → System defaults to CommonJS variant for safety
 - What happens when variant build files are missing? → System displays error directing user to build variants first
 - What happens when both @artk/core and @artk/core-autogen need different variants? → Both packages MUST use the same variant - system enforces this
-- What happens during partial installation failure? → System rolls back to previous state or clean state
+- What happens during partial installation failure? → System performs full rollback to clean pre-install state, removing all ARTK files to prevent partial/corrupt installations
+- What happens when two installations run simultaneously? → Second process fails immediately with clear error message; lock file (`.artk/install.lock`) prevents concurrent modifications
 
 ---
 
@@ -170,24 +183,41 @@ A developer with an existing ARTK installation upgrades their Node.js version fr
 - **FR-012**: Legacy-14 variant MUST work with Node.js 14, 16, and 18
 - **FR-013**: Each variant MUST use a compatible Playwright version (1.57.x, 1.49.x, 1.33.x respectively)
 
-**AI Protection**
+**AI Protection & LLM Guidance**
 
 - **FR-014**: System MUST create READONLY.md marker files in vendor directories
 - **FR-015**: System MUST create .ai-ignore files to signal AI agents not to modify vendor code
 - **FR-016**: Marker files MUST include variant information and troubleshooting instructions
 - **FR-017**: AI protection instructions MUST be included in generated Copilot instructions
+- **FR-021**: System MUST provide feature compatibility instructions per variant in dual format: prose summary in Copilot instructions AND structured JSON/YAML file (e.g., `variant-features.json`) for programmatic LLM access
+- **FR-022**: LLM instructions MUST include guidance to auto-substitute unsupported features with equivalent supported alternatives rather than failing
+- **FR-023**: Structured feature file MUST list available/unavailable Playwright APIs per variant with suggested alternatives for unavailable features
+
+**Concurrency Control**
+
+- **FR-026**: Installation MUST acquire a lock file (`.artk/install.lock`) before making any changes
+- **FR-027**: If lock file exists and is held by another process, installation MUST fail immediately with clear error message indicating another installation is in progress
+- **FR-028**: Lock file MUST be released (deleted) upon installation completion or failure (including rollback scenarios)
+
+**Observability**
+
+- **FR-024**: Installation MUST emit verbose logs to `.artk/install.log` including: detected Node version, detected module system, selected variant, files copied, and any errors encountered
+- **FR-025**: Log file MUST be appended (not overwritten) to preserve installation history for troubleshooting
 
 **Upgrade & Migration**
 
 - **FR-018**: Upgrade command MUST detect Node version changes and offer variant migration
 - **FR-019**: System MUST preserve user configuration during variant changes
-- **FR-020**: System MUST log variant changes for audit purposes
+- **FR-020**: System MUST log variant changes to `.artk/install.log` for audit purposes
 
 ### Key Entities
 
 - **Variant**: A pre-built distribution of ARTK packages targeting specific Node.js versions and module systems. Key attributes: ID (modern-esm, modern-cjs, legacy-16, legacy-14), Node range, Playwright version, module system
 - **Context**: Installation metadata stored in `.artk/context.json`. Contains: variant ID, installation timestamp, Node version at install time, detected module system
 - **Marker Files**: READONLY.md and .ai-ignore files that signal immutability to AI agents and human developers
+- **Feature Compatibility File**: Structured JSON/YAML file (`variant-features.json`) listing available/unavailable Playwright APIs per variant with suggested alternatives. Used by LLMs for programmatic feature checking.
+- **Install Log**: Append-only log file (`.artk/install.log`) recording all installation and upgrade operations with timestamps, detected environment, selected variant, and any errors for troubleshooting.
+- **Lock File**: Temporary file (`.artk/install.lock`) that prevents concurrent installation processes. Created at start, deleted on completion/failure.
 
 ---
 
