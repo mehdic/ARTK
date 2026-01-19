@@ -1,7 +1,12 @@
 #!/bin/sh
-# Pre-push hook: build CLI assets so deployed files stay in sync
+# Pre-push hook: sync deployed assets before pushing
 
 set -e
 
-echo "Building CLI assets and dist..."
-npm --prefix packages/cli run build
+echo "Syncing CLI assets..."
+npm --prefix packages/cli run bundle-assets
+
+if ! git diff --quiet -- packages/cli/assets; then
+  echo "ERROR: packages/cli/assets changed. Please commit the updated assets before pushing."
+  exit 1
+fi
