@@ -1,4 +1,5 @@
 ---
+name: artk.journey-define
 mode: agent
 description: "Create or promote a Journey to defined status - structured test scenario contract with acceptance criteria"
 handoffs:

@@ -1,4 +1,5 @@
 ---
+name: artk.uninstall
 mode: agent
 description: "Full uninstall of ARTK assets from a client repo (prompts, scripts, config, vendor, files)"
 ---

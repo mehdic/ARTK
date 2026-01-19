@@ -1,4 +1,5 @@
 ---
+name: artk.discover-foundation
 mode: agent
 description: "Discover app + Build foundation harness - analyzes routes/features/auth, generates DISCOVERY.md, creates Playwright harness with auth, fixtures, modules"
 handoffs:

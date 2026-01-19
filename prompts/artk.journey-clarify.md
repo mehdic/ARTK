@@ -1,4 +1,5 @@
 ---
+name: artk.journey-clarify
 mode: agent
 description: "Add deterministic execution detail to a Journey - data strategy, assertions, async handling, promotes to clarified"
 handoffs:

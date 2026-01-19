@@ -1,4 +1,5 @@
 ---
+name: artk.init-playbook
 mode: agent
 version: "2.0.0"
 description: "Bootstrap ARTK + generate Playbook + install Journey system - complete setup in one command (idempotent, safe to re-run)"

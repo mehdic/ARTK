@@ -1,4 +1,5 @@
 ---
+name: artk.journey-propose
 mode: agent
 description: "Auto-propose high-signal Journeys from discovery findings - generates proposed Journey files and JOURNEY_PROPOSALS.md"
 handoffs:
