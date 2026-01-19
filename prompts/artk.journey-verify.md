@@ -1,5 +1,5 @@
 ---
-name: journey-verify
+name: artk.journey-verify
 description: "Phase 8.5: Run the Playwright tests for a Journey (by @JRN tag), collect evidence (report/trace/video), detect flakiness, and optionally auto-heal common failures in a bounded loop. Updates Journey verification block and (optionally) status."
 argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> env=auto|<name> baseURL=auto|<url> project=auto|<pw-project> workers=1|auto retries=0|1|2 trace=auto|retain-on-first-failure|retain-on-failure|on-first-retry|off repeat=0|2|3 failOnFlaky=auto|true|false maxFailures=1|auto heal=auto|off healAttempts=2 timeoutMs=auto report=auto|html|line|list|json artifacts=standard|minimal|max redactPII=auto|true|false updateJourney=true|false dryRun=true|false"
 agent: agent

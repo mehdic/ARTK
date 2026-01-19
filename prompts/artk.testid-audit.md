@@ -1,5 +1,5 @@
 ---
-name: testid-audit
+name: artk.testid-audit
 description: "Audit UI code + existing tests for brittle selectors and missing stable test hooks, then produce a TestID Fix Report and (optionally) apply safe data-* attributes."
 argument-hint: "mode=report|apply attr=auto|data-testid|data-cy scope=repo|app:<path>|journey:<JRN-####> risk=low|medium|all idStyle=kebab prefix=<string> dryRun=true|false"
 agent: agent
