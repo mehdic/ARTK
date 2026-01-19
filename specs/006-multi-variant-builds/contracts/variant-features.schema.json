@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artk.dev/schemas/variant-features.schema.json",
+  "title": "ARTK Variant Feature Compatibility",
+  "description": "Schema for variant-features.json documenting Playwright feature availability per ARTK variant",
+  "type": "object",
+  "required": ["variant", "playwrightVersion", "nodeRange", "features"],
+  "properties": {
+    "variant": {
+      "type": "string",
+      "enum": ["modern-esm", "modern-cjs", "legacy-16", "legacy-14"],
+      "description": "The ARTK variant identifier"
+    },
+    "playwrightVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.x$",
+      "description": "Playwright version (e.g., '1.57.x')"
+    },
+    "nodeRange": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^\\d+$"
+      },
+      "minItems": 1,
+      "description": "Supported Node.js major versions"
+    },
+    "moduleSystem": {
+      "type": "string",
+      "enum": ["esm", "cjs"],
+      "description": "Module system used by this variant"
+    },
+    "features": {
+      "type": "object",
+      "description": "Map of feature names to availability information",
+      "additionalProperties": {
+        "$ref": "#/$defs/featureEntry"
+      }
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this file was generated"
+    }
+  },
+  "$defs": {
+    "featureEntry": {
+      "type": "object",
+      "required": ["available"],
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "Whether this feature is available in this variant"
+        },
+        "alternative": {
+          "type": "string",
+          "description": "Suggested alternative approach if feature is unavailable"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional context or caveats"
+        },
+        "sincePlaywright": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+$",
+          "description": "Playwright version when this feature was introduced"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "variant": "legacy-14",
+      "playwrightVersion": "1.33.x",
+      "nodeRange": ["14", "16", "18"],
+      "moduleSystem": "cjs",
+      "features": {
+        "aria_snapshots": {
+          "available": false,
+          "alternative": "Use page.evaluate() to query ARIA attributes directly",
+          "sincePlaywright": "1.35"
+        },
+        "clock_api": {
+          "available": false,
+          "alternative": "Use page.evaluate() with manual Date mocking",
+          "sincePlaywright": "1.45"
+        },
+        "route_from_har": {
+          "available": true,
+          "notes": "Supported since Playwright 1.23"
+        },
+        "locator_or": {
+          "available": false,
+          "alternative": "Chain multiple locator.first() or locator.nth() calls",
+          "sincePlaywright": "1.33"
+        },
+        "locator_filter": {
+          "available": true
+        },
+        "web_first_assertions": {
+          "available": true
+        },
+        "trace_viewer": {
+          "available": true
+        }
+      },
+      "generatedAt": "2026-01-19T00:00:00Z"
+    }
+  ]
+}

@@ -600,6 +600,8 @@ artk-export
 - File-based (`.artk/context.json` for detection cache, `.artk/validation-results.json` for validation history) (001-foundation-compatibility)
 - TypeScript 5.x (Node.js 18.0.0+) + @playwright/test ^1.57.0, @artk/core (internal) (005-ag-grid-helper)
 - N/A (stateless helper library) (005-ag-grid-helper)
+- TypeScript 5.x targeting multiple ES versions (ES2022, ES2021, ES2020) + @playwright/test (1.57.x, 1.49.x, 1.33.x), tsup, tsc, zod, yaml, otplib (006-multi-variant-builds)
+- File-based (`.artk/context.json`, `.artk/install.log`, `variant-features.json`) (006-multi-variant-builds)
 
 - TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.57.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation) (001-artk-core-v1)
 - File system (storage states in `.auth-states/`, config in `artk.config.yml`) (001-artk-core-v1)
