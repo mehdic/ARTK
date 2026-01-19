@@ -3,6 +3,11 @@
 
 set -e
 
+if [ ! -d "packages/cli/node_modules/ts-node" ]; then
+  echo "Installing CLI dev dependencies..."
+  npm --prefix packages/cli install --no-fund --no-audit
+fi
+
 echo "Syncing CLI assets..."
 npm --prefix packages/cli run bundle-assets
 
