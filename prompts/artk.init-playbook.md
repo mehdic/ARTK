@@ -279,8 +279,69 @@ Options:
 [1/2, or press Enter for 1]:
 ```
 
-If user chooses 1 (or presses Enter): → Run Step 4A (analysis) + Step 4B (questionnaire) + Step 4C (apply)
+If user chooses 1 (or presses Enter): → Run **targeted reconfiguration** (see below)
 If user chooses 2: → Skip to validation
+
+---
+
+#### Mode C Targeted Reconfiguration (ONLY ask about broken fields)
+
+**Do NOT run the full questionnaire in Mode C.** Only ask about fields that triggered reconfiguration.
+
+**Step 1: Identify incomplete fields**
+```
+INCOMPLETE_FIELDS = []
+if auth.bypass.mode == "unknown" or missing: INCOMPLETE_FIELDS.append("bypass")
+if auth.provider is missing: INCOMPLETE_FIELDS.append("auth")
+if mfa is missing: INCOMPLETE_FIELDS.append("mfa")
+# ... check other critical fields
+```
+
+**Step 2: Run analysis (Step 4A) for context**
+
+**Step 3: Ask ONLY about incomplete fields**
+
+For each field in INCOMPLETE_FIELDS, ask ONE question:
+
+*Example: Only auth.bypass.mode is incomplete:*
+```
+🔍 Analysis: Found VITE_BYPASS_AUTH in .env.development
+
+**Fixing: auth.bypass.mode** (currently: unknown)
+
+Should tests bypass authentication locally?
+
+1. mock-identity (recommended - found VITE_BYPASS_AUTH)
+2. identityless (skip auth, no role info)
+3. no (require full auth locally)
+
+Reply with a number (1-3):
+```
+
+*Wait for response.*
+
+**Step 4: Apply immediately (no confirmation needed for single-field fix)**
+```
+✓ Updated: auth.bypass.mode = mock-identity (was: unknown)
+✓ Updated: auth.bypass.toggle = VITE_BYPASS_AUTH
+
+Configuration complete. Running validation...
+```
+
+**If multiple fields are incomplete:**
+- Ask about each field ONE AT A TIME (same state tracking protocol)
+- After ALL incomplete fields answered → show confirmation summary
+- Then apply via Step 4C
+
+**Do NOT re-ask questions where current value is valid.** Show them as context only:
+```
+📂 Current settings (keeping):
+  • Auth approach: oidc ✓
+  • Test data: create_api ✓
+  • Flake posture: retries_ci_only ✓
+```
+
+---
 
 **If no reconfigure trigger (config is complete):**
 ```
@@ -360,7 +421,70 @@ Before presenting the questionnaire, you MUST analyze the project to discover:
 
 ### Step 4B: Present questionnaire with analysis results
 
-Present the questionnaire in ONE grouped block. For Mode B, include the "keep previous" option showing current values.
+Present questions ONE AT A TIME. For Mode B, include the "keep previous" option showing current values.
+
+---
+
+#### 🔴 CRITICAL: Question State Tracking Protocol
+
+**You MUST track your position in the questionnaire. Follow this protocol exactly:**
+
+**State variables to maintain:**
+```
+CURRENT_QUESTION = 1          # Which question you're about to ask (1-5)
+ANSWERS = {}                  # Collected answers: {1: "value", 2: "value", ...}
+TOTAL_QUESTIONS = 5           # For quick mode (adjust for standard/deep)
+```
+
+**After EACH user response:**
+
+1. **Parse the response:**
+   - Number (e.g., "1", "2") → map to the option for CURRENT_QUESTION
+   - Enter/empty → use recommended option (marked with "recommended")
+   - Text (e.g., "mock-identity") → match to option text
+   - Multiple answers (e.g., "1, 2, mock, unknown, create_api") → parse ALL, fill multiple ANSWERS slots
+
+2. **Store the answer:**
+   ```
+   ANSWERS[CURRENT_QUESTION] = parsed_value
+   ```
+
+3. **Advance to next unanswered question:**
+   ```
+   CURRENT_QUESTION = next question where ANSWERS[n] is empty
+   ```
+
+4. **Check completion:**
+   - If ALL questions answered (len(ANSWERS) == TOTAL_QUESTIONS) → show confirmation summary
+   - Else → present the next question
+
+**Handling multi-answer responses:**
+
+If user provides answers to multiple questions in one message:
+```
+User: "1, mock-identity, unknown, create_api"
+→ Parse: Q1=1, Q3=mock-identity, Q4=unknown, Q5=create_api
+→ ANSWERS = {1: "iss-frontend", 3: "mock-identity", 4: "unknown", 5: "create_api"}
+→ Q2 still unanswered → ask Q2 next
+```
+
+If user provides ALL answers at once:
+```
+User: "iss-frontend, oidc, mock-identity, unknown, create_api"
+→ All 5 answers provided
+→ Skip remaining questions → show confirmation summary immediately
+```
+
+**Handling shortcuts:**
+
+| User Input | Action |
+|------------|--------|
+| `Enter` (empty) | Use recommended for current question, advance |
+| `keep all` (Mode B) | Fill ALL remaining answers with current values, show confirmation |
+| `defaults` | Fill ALL remaining answers with safe defaults, show confirmation |
+| `skip` | Use recommended for current question, advance |
+
+---
 
 **Mode A Example (Fresh Install) — One Question at a Time:**
 
@@ -441,7 +565,7 @@ How should tests manage test data?
 Reply with a number (1-4):
 ```
 
-*After all questions answered, confirm:*
+*After all questions answered (ANSWERS has 5 entries), show confirmation:*
 
 ```
 **Configuration Summary:**
@@ -453,6 +577,20 @@ Reply with a number (1-4):
 
 Proceed with these settings? (Y/n)
 ```
+
+*Wait for confirmation response, then:*
+
+**After confirmation — route to next step:**
+
+| User Response | Action |
+|---------------|--------|
+| `Y`, `y`, `yes`, `Enter` (empty) | → Proceed to **Step 4C** (apply configuration) |
+| `N`, `n`, `no` | → Ask: "Which setting to change? (1-5 or 'all')" then re-ask those questions |
+| Specific change (e.g., "change bypass to none") | → Update that answer, show updated summary |
+
+**Do NOT stop after confirmation. Immediately proceed to Step 4C or re-ask as needed.**
+
+---
 
 **Mode B Example (Upgrade) — One Question at a Time:**
 
@@ -508,7 +646,8 @@ Reply with a number (1-4):
 
 *Wait for response, then continue with remaining questions...*
 
-**After all questions, confirm:**
+*After all questions answered, show confirmation:*
+
 ```
 **Configuration Summary:**
   • Auth: oidc (kept)
@@ -518,11 +657,19 @@ Reply with a number (1-4):
   • Flake: retries_ci_only (kept)
 
 Proceed with these settings? (Y/n)
-
-Shortcuts:
-  • "keep all" → Keep ALL current values (bypass stays unknown ⚠️)
-  • "defaults" → Use all safe defaults
 ```
+
+**Note:** "keep all" and "defaults" shortcuts can be used DURING questioning (before confirmation) to skip remaining questions. At confirmation stage, only Y/N or specific changes are valid.
+
+*Wait for confirmation response, then:*
+
+**After confirmation — same routing as Mode A:**
+
+| User Response | Action |
+|---------------|--------|
+| `Y`, `y`, `yes`, `Enter` (empty) | → Proceed to **Step 4C** (apply configuration) |
+| `N`, `n`, `no` | → Ask: "Which setting to change? (1-5 or 'all')" then re-ask those questions |
+| Specific change (e.g., "change bypass to none") | → Update that answer, show updated summary |
 
 ---
 
@@ -741,12 +888,37 @@ If running non-interactively (detected via `--yes` argument or `CI` environment 
    ```
 4. **Proceed immediately to Step 5**
 
-**Warning for non-interactive with unknowns:**
-If critical values cannot be inferred and would remain `unknown`:
+**Handling unknowns in non-interactive mode:**
+
+**🔴 CRITICAL: Never silently proceed with `unknown` for critical fields.**
+
+If a critical field cannot be inferred:
+
+1. **Try harder:** Check additional patterns, files, env vars
+2. **Use safe fallback (not `unknown`):**
+   | Field | Safe Fallback | Reason |
+   |-------|---------------|--------|
+   | `auth.bypass.mode` | `none` | Requires real auth (safe, may be slower) |
+   | `auth.provider` | `form-login` | Most common pattern |
+   | `mfa` | `unknown` | OK — this one can be unknown |
+
+3. **If truly unknowable AND no safe fallback exists:**
+   ```
+   ❌ Non-interactive mode cannot proceed:
+     • auth.bypass.mode: Could not infer, no safe default available
+
+   Resolution options:
+     a) Run interactively: /artk.init-playbook (without --yes)
+     b) Pre-configure: Set auth.bypass.mode in artk.config.yml first
+   ```
+   **STOP execution. Do not proceed with broken config.**
+
+**Example (success with fallback):**
 ```
-⚠️ Non-interactive mode: Could not infer auth.bypass.mode
-  Using: unknown (may cause test failures)
-  Fix: Run interactively or set in artk.config.yml
+ℹ️ Non-interactive mode
+⚠️ Could not infer auth.bypass.mode
+  → Using safe fallback: none (requires real auth)
+  → To enable bypass: run interactively or edit artk.config.yml
 ```
 
 ---
