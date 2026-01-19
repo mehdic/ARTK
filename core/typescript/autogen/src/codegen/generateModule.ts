@@ -3,16 +3,11 @@
  * @see research/2026-01-02_autogen-refined-plan.md Section 12
  */
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import type { IRJourney, IRPrimitive, LocatorSpec } from '../ir/types.js';
 import { toPlaywrightLocator } from '../selectors/priority.js';
 import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
-
-// Get current directory for template path
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { getTemplatePath } from '../utils/paths.js';
 
 /**
  * Locator definition for a module
@@ -374,7 +369,7 @@ function escapeString(str: string): string {
  * Load the default module template
  */
 function loadDefaultTemplate(): string {
-  const templatePath = join(__dirname, 'templates', 'module.ejs');
+  const templatePath = getTemplatePath('module.ejs');
   return readFileSync(templatePath, 'utf-8');
 }
 

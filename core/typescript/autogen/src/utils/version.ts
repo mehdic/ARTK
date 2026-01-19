@@ -7,12 +7,9 @@
  *
  * Falls back to runtime package.json reading if not injected.
  */
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { getPackageRoot } from './paths.js';
 
 /**
  * Build-time injected version (can be replaced by bundlers like esbuild/rollup)
@@ -56,24 +53,18 @@ export function getPackageVersion(): string {
 
   // 3. Fall back to runtime package.json reading
   try {
-    const paths = [
-      join(__dirname, '..', '..', 'package.json'),  // from src/utils/
-      join(__dirname, '..', 'package.json'),         // from dist/utils/
-    ];
+    const packageRoot = getPackageRoot();
+    const pkgPath = join(packageRoot, 'package.json');
 
-    for (const pkgPath of paths) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version?: string };
-        if (pkg.version) {
-          cachedVersion = pkg.version;
-          return cachedVersion;
-        }
-      } catch {
-        // Try next path
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version?: string };
+      if (pkg.version) {
+        cachedVersion = pkg.version;
+        return cachedVersion;
       }
     }
   } catch {
-    // All paths failed
+    // Package.json lookup failed
   }
 
   cachedVersion = 'unknown';

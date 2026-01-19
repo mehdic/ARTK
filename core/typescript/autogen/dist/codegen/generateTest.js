@@ -3,17 +3,13 @@
  * @see research/2026-01-02_autogen-refined-plan.md Section 12
  */
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import { toPlaywrightLocator } from '../selectors/priority.js';
 import { injectManagedBlocks } from './blocks.js';
 import { updateJourneyFrontmatter } from '../journey/updater.js';
 import { escapeRegex } from '../utils/escaping.js';
 import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
-// Get current directory for template path
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { getTemplatePath } from '../utils/paths.js';
 /**
  * Escape string for use in generated code
  */
@@ -153,7 +149,7 @@ function renderPrimitive(primitive, indent = '') {
  * Load the default test template
  */
 function loadDefaultTemplate() {
-    const templatePath = join(__dirname, 'templates', 'test.ejs');
+    const templatePath = getTemplatePath('test.ejs');
     return readFileSync(templatePath, 'utf-8');
 }
 /**

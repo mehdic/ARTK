@@ -24,6 +24,47 @@ npm install @artk/core-autogen
 npm install @playwright/test @artk/core
 ```
 
+## Node.js Version Support
+
+@artk/core-autogen ships **4 build variants** to support different Node.js versions and module systems:
+
+| Variant | Node.js | Playwright | Module System | ES Target |
+|---------|---------|------------|---------------|-----------|
+| **modern-esm** | 18, 20, 22 (LTS) | 1.57.x | ESM | ES2022 |
+| **modern-cjs** | 18, 20, 22 (LTS) | 1.57.x | CommonJS | ES2022 |
+| **legacy-16** | 16, 18, 20 (LTS) | 1.49.x | CommonJS | ES2021 |
+| **legacy-14** | 14.18+, 16, 18 (LTS) | 1.33.x | CommonJS | ES2020 |
+
+### Important Notes
+
+**CLI Requirements**:
+- The `artk-autogen` CLI requires **Node.js 18+** (uses `node:util.parseArgs`)
+- Legacy Node users should use pre-built artifacts via ARTK bootstrap, not the CLI directly
+
+**Node 14 Support**:
+- Requires Node **14.18.0+** (not 14.0.0-14.17.x)
+- Earlier versions lack support for `node:` prefixed imports
+- This is a minor limitation as most Node 14 users are on 14.18+
+
+**Variant Selection**:
+- ARTK bootstrap automatically detects your Node version and installs the correct variant
+- Manual override: `artk init --variant legacy-16`
+- Context stored in `.artk/context.json`
+
+### Feature Availability by Variant
+
+Some Playwright features are not available in legacy variants:
+
+| Feature | modern-* | legacy-16 | legacy-14 |
+|---------|----------|-----------|-----------|
+| `page.clock` API | Yes | Yes | No (use `page.evaluate`) |
+| `locator.or()` | Yes | Yes | No (use CSS `:is()`) |
+| `locator.and()` | Yes | Yes | No (use `filter()`) |
+| `expect.soft()` | Yes | Yes | No (collect manually) |
+| ARIA snapshots | Yes | Yes | No (query manually) |
+
+When generating tests for legacy variants, the system automatically uses compatible alternatives.
+
 ## Quick Start
 
 ### Generate Tests from Journey Files
