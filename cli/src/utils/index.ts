@@ -24,3 +24,6 @@ export * from './lock-manager.js';
 
 // Rollback
 export * from './rollback.js';
+
+// File Operations
+export * from './variant-files.js';

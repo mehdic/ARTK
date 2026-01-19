@@ -27,11 +27,18 @@ import { createInstallLogger } from '../utils/install-logger.js';
 import { createLockManager } from '../utils/lock-manager.js';
 import { rollback, needsRollback } from '../utils/rollback.js';
 import { isVariantId } from '../utils/variant-types.js';
+import {
+  getArtkVersion,
+  validateVariantBuildFiles,
+  copyVariantFiles,
+  writeAllAiProtectionMarkers,
+  writeCopilotInstructions,
+} from '../utils/variant-files.js';
 
 /**
- * ARTK version (should be read from package.json in production).
+ * Get ARTK version from package.json or fallback.
  */
-const ARTK_VERSION = '1.0.0';
+const ARTK_VERSION = getArtkVersion();
 
 /**
  * Init command options.
@@ -151,12 +158,12 @@ export async function init(options: InitOptions): Promise<InitResult> {
     const variantDef = getVariantDefinition(selectedVariant);
 
     // Check if variant build files exist
-    const missingBuildCheck = checkVariantBuildFiles(selectedVariant);
-    if (!missingBuildCheck.valid) {
+    const buildValidation = validateVariantBuildFiles(selectedVariant);
+    if (!buildValidation.valid) {
       lockManager.release();
       return {
         success: false,
-        error: missingBuildCheck.error,
+        error: buildValidation.error,
       };
     }
 
@@ -174,12 +181,43 @@ export async function init(options: InitOptions): Promise<InitResult> {
     const vendorAutogen = path.join(artkE2e, 'vendor', 'artk-core-autogen');
     const artkDir = path.join(targetPath, '.artk');
 
-    fs.mkdirSync(vendorCore, { recursive: true });
-    fs.mkdirSync(vendorAutogen, { recursive: true });
+    // Preserve user config if --force reinstall
+    const artkConfigPath = path.join(artkE2e, 'artk.config.yml');
+    let preservedConfig: string | null = null;
+    if (force && fs.existsSync(artkConfigPath)) {
+      preservedConfig = fs.readFileSync(artkConfigPath, 'utf-8');
+      logger.info('install', 'Preserved user config: artk.config.yml');
+    }
+
+    fs.mkdirSync(artkE2e, { recursive: true });
     fs.mkdirSync(artkDir, { recursive: true });
 
-    // Copy variant files (placeholder - in production, copy from dist directories)
-    // For now, we create the structure and write metadata
+    // Copy variant files from ARTK core to vendor directories
+    const copyResult = copyVariantFiles(selectedVariant, targetPath);
+    if (!copyResult.success) {
+      lockManager.release();
+      rollback(targetPath, `Failed to copy variant files: ${copyResult.error}`);
+      return {
+        success: false,
+        error: copyResult.error,
+      };
+    }
+
+    logger.info('install', `Copied ${copyResult.copiedFiles} files for variant ${selectedVariant}`);
+
+    // Add any warnings from copy operation
+    if (copyResult.warnings) {
+      warnings.push(...copyResult.warnings);
+      for (const warning of copyResult.warnings) {
+        logger.warn('install', warning);
+      }
+    }
+
+    // Restore preserved user config
+    if (preservedConfig !== null) {
+      fs.writeFileSync(artkConfigPath, preservedConfig, 'utf-8');
+      logger.info('install', 'Restored user config: artk.config.yml');
+    }
 
     // Write context.json
     const context: ArtkContext = {
@@ -199,14 +237,13 @@ export async function init(options: InitOptions): Promise<InitResult> {
       'utf-8'
     );
 
-    // Write AI protection markers
-    writeReadonlyMarker(vendorCore, variantDef, context);
-    writeAiIgnore(vendorCore, selectedVariant);
-    writeVariantFeatures(vendorCore, selectedVariant);
+    // Write AI protection markers to both vendor directories
+    writeAllAiProtectionMarkers(vendorCore, selectedVariant, context);
+    writeAllAiProtectionMarkers(vendorAutogen, selectedVariant, context);
 
-    // Also for autogen
-    writeReadonlyMarker(vendorAutogen, variantDef, context);
-    writeAiIgnore(vendorAutogen, selectedVariant);
+    // Write variant-aware Copilot instructions
+    writeCopilotInstructions(targetPath, selectedVariant);
+    logger.info('install', 'Generated variant-aware Copilot instructions');
 
     // Log completion
     logger.logInstallComplete(selectedVariant);
@@ -231,267 +268,6 @@ export async function init(options: InitOptions): Promise<InitResult> {
   } finally {
     lockManager.release();
   }
-}
-
-/**
- * Write READONLY.md marker file.
- */
-function writeReadonlyMarker(
-  vendorPath: string,
-  variantDef: ReturnType<typeof getVariantDefinition>,
-  context: ArtkContext
-): void {
-  const template = `# ⚠️ DO NOT MODIFY THIS DIRECTORY
-
-**This directory contains vendor code that should NOT be edited.**
-
-## What This Is
-
-This is a vendored copy of ARTK code.
-It was installed by the ARTK CLI and should be treated as read-only.
-
-## Variant Information
-
-| Property | Value |
-|----------|-------|
-| **Variant** | ${variantDef.id} |
-| **Display Name** | ${variantDef.displayName} |
-| **Node.js Range** | ${variantDef.nodeRange.join(', ')} |
-| **Playwright Version** | ${variantDef.playwrightVersion} |
-| **Module System** | ${variantDef.moduleSystem} |
-| **Installed At** | ${context.variantInstalledAt} |
-| **ARTK Version** | ${context.artkVersion} |
-
-## If You Encounter Issues
-
-### Import/Module Errors
-
-If you see errors like \`ERR_REQUIRE_ESM\` or \`Cannot use import statement\`:
-
-\`\`\`bash
-# Check the installed variant
-cat ../.artk/context.json | grep variant
-
-# Reinstall with correct variant detection
-artk init . --force
-\`\`\`
-
-### Feature Not Working
-
-Check \`variant-features.json\` in this directory to see if the feature is available.
-
-### Need Different Variant
-
-\`\`\`bash
-# Re-detect and install correct variant
-artk upgrade .
-
-# Or force a specific variant
-artk init . --variant modern-esm --force
-\`\`\`
-
-## For AI Agents
-
-**DO NOT modify files in this directory.**
-
-If you encounter compatibility issues:
-1. Check the variant information above
-2. Check \`variant-features.json\` for feature availability
-3. Suggest running \`artk init --force\` to reinstall with correct variant
-4. Use alternative approaches documented in \`variant-features.json\`
-
----
-
-*This file was generated by ARTK CLI v${context.artkVersion}*
-`;
-
-  fs.writeFileSync(path.join(vendorPath, 'READONLY.md'), template, 'utf-8');
-}
-
-/**
- * Write .ai-ignore file.
- */
-function writeAiIgnore(vendorPath: string, variant: VariantId): void {
-  const content = `# ARTK Vendor Directory - DO NOT MODIFY
-#
-# This directory contains vendored @artk/core code.
-# AI agents and code generation tools should NOT modify these files.
-#
-# Variant: ${variant}
-# Installed: ${new Date().toISOString()}
-#
-# If you need to change behavior:
-# 1. Create wrapper functions in your project code
-# 2. Use configuration in artk.config.yml
-# 3. Run \`artk upgrade\` to get latest version
-#
-# DO NOT:
-# - Edit any .js or .ts files in this directory
-# - Add polyfills or patches
-# - Modify package.json
-#
-*
-`;
-
-  fs.writeFileSync(path.join(vendorPath, '.ai-ignore'), content, 'utf-8');
-}
-
-/**
- * Write variant-features.json file.
- */
-function writeVariantFeatures(vendorPath: string, variant: VariantId): void {
-  const variantDef = VARIANT_DEFINITIONS[variant];
-
-  // Define features based on variant
-  const features: Record<string, { available: boolean; alternative?: string; notes?: string }> = {};
-
-  // Common features available in all variants
-  const commonFeatures = [
-    'route_from_har',
-    'locator_filter',
-    'web_first_assertions',
-    'trace_viewer',
-    'api_testing',
-    'storage_state',
-    'video_recording',
-    'screenshot_assertions',
-    'request_interception',
-    'browser_contexts',
-  ];
-
-  for (const feature of commonFeatures) {
-    features[feature] = { available: true };
-  }
-
-  // Variant-specific features
-  if (variant === 'modern-esm' || variant === 'modern-cjs') {
-    features['aria_snapshots'] = { available: true };
-    features['clock_api'] = { available: true };
-    features['locator_or'] = { available: true };
-    features['locator_and'] = { available: true };
-    features['component_testing'] = { available: true };
-  } else if (variant === 'legacy-16') {
-    features['aria_snapshots'] = { available: true };
-    features['clock_api'] = { available: true };
-    features['locator_or'] = { available: true };
-    features['locator_and'] = { available: true };
-    features['component_testing'] = { available: true };
-  } else if (variant === 'legacy-14') {
-    features['aria_snapshots'] = {
-      available: false,
-      alternative: 'Use page.evaluate() to query ARIA attributes',
-    };
-    features['clock_api'] = {
-      available: false,
-      alternative: 'Use page.evaluate() with manual Date mocking',
-    };
-    features['locator_or'] = {
-      available: false,
-      alternative: 'Use CSS :is() selector or chain locators',
-    };
-    features['locator_and'] = {
-      available: false,
-      alternative: 'Use more specific selectors',
-    };
-    features['component_testing'] = {
-      available: false,
-      alternative: 'Use E2E testing approach',
-    };
-  }
-
-  // ESM-specific
-  if (variant === 'modern-esm') {
-    features['esm_imports'] = { available: true };
-    features['top_level_await'] = { available: true };
-  } else {
-    features['esm_imports'] = {
-      available: false,
-      alternative: 'Use require() or dynamic import()',
-    };
-    features['top_level_await'] = {
-      available: false,
-      alternative: 'Wrap in async IIFE',
-    };
-  }
-
-  const featureDoc = {
-    variant,
-    playwrightVersion: variantDef.playwrightVersion,
-    nodeRange: variantDef.nodeRange,
-    moduleSystem: variantDef.moduleSystem,
-    features,
-    generatedAt: new Date().toISOString(),
-  };
-
-  fs.writeFileSync(
-    path.join(vendorPath, 'variant-features.json'),
-    JSON.stringify(featureDoc, null, 2),
-    'utf-8'
-  );
-}
-
-/**
- * Check if the variant build files exist.
- *
- * In CLI mode, this checks if the required variant dist directory is available
- * in the CLI package's bundled core distribution.
- *
- * Note: This is a validation check - actual copying happens elsewhere.
- */
-function checkVariantBuildFiles(variant: VariantId): { valid: boolean; error?: string } {
-  const variantDef = getVariantDefinition(variant);
-  const distDir = variantDef.distDirectory;
-
-  // In the CLI, we expect the core dist to be bundled
-  // For now, we check if we're running from a built CLI with bundled core
-  // This is a soft check - the bootstrap scripts handle actual file copying
-
-  // Try to locate the CLI's bundled core directory
-  // The CLI package should include the core dist directories
-  const possiblePaths = [
-    // When running from npm package
-    path.join(__dirname, '..', '..', 'vendor', 'artk-core', distDir),
-    // When running from source/development
-    path.join(__dirname, '..', '..', '..', '..', 'core', 'typescript', distDir),
-    // Monorepo structure
-    path.join(process.cwd(), 'core', 'typescript', distDir),
-  ];
-
-  // Also check the ARTK_CORE_PATH environment variable
-  if (process.env.ARTK_CORE_PATH) {
-    possiblePaths.unshift(path.join(process.env.ARTK_CORE_PATH, distDir));
-  }
-
-  // Check if any of the paths exist
-  for (const checkPath of possiblePaths) {
-    if (fs.existsSync(checkPath)) {
-      // Found the dist directory
-      const indexFile = path.join(checkPath, 'index.js');
-      if (fs.existsSync(indexFile)) {
-        return { valid: true };
-      }
-    }
-  }
-
-  // If we couldn't find the build files, provide helpful error message
-  return {
-    valid: false,
-    error: `Variant build files not found for '${variant}'.
-
-The ${distDir}/ directory is missing or incomplete.
-
-To build all variants, run from the ARTK repository:
-  cd core/typescript
-  npm run build:variants
-
-Or build a specific variant:
-  npm run build:${variant === 'modern-esm' ? '' : variant.replace('modern-', '')}
-
-If you have @artk/core installed elsewhere, set:
-  ARTK_CORE_PATH=/path/to/artk/core/typescript
-
-Available variants: modern-esm, modern-cjs, legacy-16, legacy-14`,
-  };
 }
 
 /**

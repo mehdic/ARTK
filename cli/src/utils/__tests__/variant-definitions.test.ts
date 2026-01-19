@@ -53,7 +53,8 @@ describe('variant-definitions', () => {
       expect(variant.tsTarget).toBe('ES2021');
       expect(variant.distDirectory).toBe('dist-legacy-16');
       expect(variant.nodeRange).toContain('16');
-      expect(variant.nodeRange).toContain('17');
+      expect(variant.nodeRange).toContain('18');
+      expect(variant.nodeRange).toContain('20');
     });
 
     it('should have correct properties for legacy-14', () => {
@@ -63,7 +64,8 @@ describe('variant-definitions', () => {
       expect(variant.tsTarget).toBe('ES2020');
       expect(variant.distDirectory).toBe('dist-legacy-14');
       expect(variant.nodeRange).toContain('14');
-      expect(variant.nodeRange).toContain('15');
+      expect(variant.nodeRange).toContain('16');
+      expect(variant.nodeRange).toContain('18');
     });
   });
 
@@ -104,10 +106,12 @@ describe('variant-definitions', () => {
       expect(variants).toContain('legacy-16');
     });
 
-    it('should return legacy-16 for Node 17', () => {
-      const variants = getVariantsForNodeVersion(17);
+    it('should return legacy variants for Node 16', () => {
+      const variants = getVariantsForNodeVersion(16);
       expect(variants).toContain('legacy-16');
       expect(variants).toContain('legacy-14');
+      expect(variants).not.toContain('modern-esm');
+      expect(variants).not.toContain('modern-cjs');
     });
 
     it('should return legacy-14 for Node 14', () => {
@@ -140,16 +144,16 @@ describe('variant-definitions', () => {
       expect(getRecommendedVariant(16, 'esm')).toBe('legacy-16');
     });
 
-    it('should return legacy-16 for Node 17', () => {
-      expect(getRecommendedVariant(17, 'cjs')).toBe('legacy-16');
-    });
-
     it('should return legacy-14 for Node 14', () => {
       expect(getRecommendedVariant(14, 'cjs')).toBe('legacy-14');
     });
 
-    it('should return legacy-14 for Node 15', () => {
+    it('should return legacy-14 for Node 15 (non-LTS, falls in 14-17 range)', () => {
       expect(getRecommendedVariant(15, 'cjs')).toBe('legacy-14');
+    });
+
+    it('should return legacy-16 for Node 17 (non-LTS, falls in 16-17 range)', () => {
+      expect(getRecommendedVariant(17, 'cjs')).toBe('legacy-16');
     });
 
     it('should throw for unsupported Node version', () => {

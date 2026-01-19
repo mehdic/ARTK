@@ -39,36 +39,80 @@ export function getNodeVersionFull(): string {
 }
 
 /**
- * Detect module system from package.json in target directory.
+ * Find the nearest package.json by walking up the directory tree.
+ * This handles monorepo scenarios where the target directory might not
+ * have its own package.json but inherits from a parent.
+ *
+ * @returns The path to the nearest package.json, or null if none found
+ */
+function findNearestPackageJson(startPath: string): string | null {
+  let currentPath = path.resolve(startPath);
+  const root = path.parse(currentPath).root;
+
+  while (currentPath !== root) {
+    const packageJsonPath = path.join(currentPath, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      return packageJsonPath;
+    }
+    currentPath = path.dirname(currentPath);
+  }
+
+  return null;
+}
+
+/**
+ * Detect module system from package.json in target directory or ancestors.
  *
  * Rules:
- * 1. If package.json has "type": "module" -> ESM
- * 2. If package.json has "type": "commonjs" -> CJS
- * 3. If package.json has no "type" field -> CJS (Node.js default)
- * 4. If no package.json exists -> CJS (safe default)
+ * 1. Check target directory's package.json first
+ * 2. If not found, walk up to parent directories (monorepo support)
+ * 3. If package.json has "type": "module" -> ESM
+ * 4. If package.json has "type": "commonjs" -> CJS
+ * 5. If package.json has no "type" field -> CJS (Node.js default)
+ * 6. If no package.json exists anywhere -> CJS (safe default)
  */
 export function detectModuleSystem(targetPath: string): ModuleSystem {
-  const packageJsonPath = path.join(targetPath, 'package.json');
+  // First check the target directory itself
+  const targetPackageJson = path.join(targetPath, 'package.json');
 
-  if (!fs.existsSync(packageJsonPath)) {
-    // No package.json, default to CJS
-    return 'cjs';
-  }
+  if (fs.existsSync(targetPackageJson)) {
+    try {
+      const content = fs.readFileSync(targetPackageJson, 'utf-8');
+      const pkg = JSON.parse(content) as { type?: string };
 
-  try {
-    const content = fs.readFileSync(packageJsonPath, 'utf-8');
-    const pkg = JSON.parse(content) as { type?: string };
+      if (pkg.type === 'module') {
+        return 'esm';
+      }
 
-    if (pkg.type === 'module') {
-      return 'esm';
+      // "commonjs" or no type field -> CJS
+      return 'cjs';
+    } catch {
+      // Parse error, continue to parent search
     }
-
-    // "commonjs" or no type field -> CJS
-    return 'cjs';
-  } catch {
-    // Parse error, default to CJS
-    return 'cjs';
   }
+
+  // Monorepo support: check parent directories
+  const nearestPackageJson = findNearestPackageJson(targetPath);
+
+  if (nearestPackageJson) {
+    try {
+      const content = fs.readFileSync(nearestPackageJson, 'utf-8');
+      const pkg = JSON.parse(content) as { type?: string };
+
+      if (pkg.type === 'module') {
+        return 'esm';
+      }
+
+      // "commonjs" or no type field -> CJS
+      return 'cjs';
+    } catch {
+      // Parse error, default to CJS
+      return 'cjs';
+    }
+  }
+
+  // No package.json found anywhere, default to CJS
+  return 'cjs';
 }
 
 /**

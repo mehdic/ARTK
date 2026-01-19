@@ -8,12 +8,16 @@ import type { Variant, VariantId } from './variant-types.js';
 
 /**
  * Complete definitions for all ARTK variants.
+ *
+ * Node.js version ranges only include LTS versions (even numbers: 14, 16, 18, 20, 22).
+ * Non-LTS versions (15, 17, 19, 21) have short support windows and are not recommended
+ * for production use, so they are intentionally excluded.
  */
 export const VARIANT_DEFINITIONS: Record<VariantId, Variant> = {
   'modern-esm': {
     id: 'modern-esm',
     displayName: 'Modern ESM',
-    nodeRange: ['18', '19', '20', '21', '22'],
+    nodeRange: ['18', '20', '22'], // LTS only
     playwrightVersion: '1.57.x',
     moduleSystem: 'esm',
     tsTarget: 'ES2022',
@@ -23,7 +27,7 @@ export const VARIANT_DEFINITIONS: Record<VariantId, Variant> = {
   'modern-cjs': {
     id: 'modern-cjs',
     displayName: 'Modern CJS',
-    nodeRange: ['18', '19', '20', '21', '22'],
+    nodeRange: ['18', '20', '22'], // LTS only
     playwrightVersion: '1.57.x',
     moduleSystem: 'cjs',
     tsTarget: 'ES2022',
@@ -33,7 +37,7 @@ export const VARIANT_DEFINITIONS: Record<VariantId, Variant> = {
   'legacy-16': {
     id: 'legacy-16',
     displayName: 'Legacy Node 16',
-    nodeRange: ['16', '17', '18', '19', '20'],
+    nodeRange: ['16', '18', '20'], // LTS only
     playwrightVersion: '1.49.x',
     moduleSystem: 'cjs',
     tsTarget: 'ES2021',
@@ -43,7 +47,7 @@ export const VARIANT_DEFINITIONS: Record<VariantId, Variant> = {
   'legacy-14': {
     id: 'legacy-14',
     displayName: 'Legacy Node 14',
-    nodeRange: ['14', '15', '16', '17', '18'],
+    nodeRange: ['14', '16', '18'], // LTS only
     playwrightVersion: '1.33.x',
     moduleSystem: 'cjs',
     tsTarget: 'ES2020',

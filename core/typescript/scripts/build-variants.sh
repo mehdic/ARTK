@@ -23,6 +23,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+AUTOGEN_DIR="$PROJECT_DIR/autogen"
 
 cd "$PROJECT_DIR"
 
@@ -82,6 +83,12 @@ fi
 if [ "$CLEAN" = true ]; then
     echo -e "${YELLOW}Cleaning dist directories...${NC}"
     rm -rf dist dist-cjs dist-legacy-16 dist-legacy-14
+    if [ -d "$AUTOGEN_DIR" ]; then
+        echo -e "${YELLOW}Cleaning autogen dist directories...${NC}"
+        cd "$AUTOGEN_DIR"
+        rm -rf dist dist-cjs dist-legacy-16 dist-legacy-14
+        cd "$PROJECT_DIR"
+    fi
 fi
 
 # Track build times
@@ -91,6 +98,7 @@ build_variant() {
     local variant="$1"
     local start=$(date +%s)
 
+    # Build core package
     case $variant in
         modern-esm)
             echo -e "${CYAN}Building modern-esm variant (tsup → dist/)...${NC}"
@@ -110,9 +118,30 @@ build_variant() {
             ;;
     esac
 
+    # Build autogen package for the same variant
+    if [ -d "$AUTOGEN_DIR" ]; then
+        echo -e "${CYAN}Building autogen $variant variant...${NC}"
+        cd "$AUTOGEN_DIR"
+        case $variant in
+            modern-esm)
+                npm run build
+                ;;
+            modern-cjs)
+                npm run build:cjs
+                ;;
+            legacy-16)
+                npm run build:legacy-16
+                ;;
+            legacy-14)
+                npm run build:legacy-14
+                ;;
+        esac
+        cd "$PROJECT_DIR"
+    fi
+
     local end=$(date +%s)
     local duration=$((end - start))
-    echo -e "${GREEN}✓ $variant built in ${duration}s${NC}"
+    echo -e "${GREEN}✓ $variant (core + autogen) built in ${duration}s${NC}"
 }
 
 if [ -n "$VARIANT" ]; then

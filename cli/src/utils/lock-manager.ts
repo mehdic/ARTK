@@ -94,14 +94,17 @@ export class LockManager {
   }
 
   /**
-   * Try to acquire the lock.
+   * Try to acquire the lock atomically.
+   *
+   * Uses O_EXCL flag to prevent race conditions where two processes
+   * might both pass the existence check simultaneously.
    *
    * Returns true if lock was acquired, false if another process holds it.
-   * Throws if there's an unexpected error.
    */
   acquire(operation: LockOperation): { acquired: boolean; error?: string } {
     this.ensureDirectory();
 
+    // Check for existing lock first
     const existingLock = this.readLock();
 
     if (existingLock) {
@@ -119,17 +122,38 @@ export class LockManager {
       }
     }
 
-    // Create new lock
+    // Create new lock atomically using O_EXCL flag
+    // This prevents TOCTOU race condition where two processes could
+    // both pass the existence check and try to create the lock
     const lock: LockFile = {
       pid: process.pid,
       startedAt: new Date().toISOString(),
       operation,
     };
 
+    const lockContent = JSON.stringify(lock, null, 2);
+
     try {
-      fs.writeFileSync(this.lockPath, JSON.stringify(lock, null, 2), 'utf-8');
+      // Use 'wx' flag for exclusive creation (fails if file exists)
+      const fd = fs.openSync(this.lockPath, 'wx');
+      fs.writeSync(fd, lockContent, 0, 'utf-8');
+      fs.closeSync(fd);
       return { acquired: true };
     } catch (err) {
+      // EEXIST means another process created the file between our check and create
+      if (err instanceof Error && 'code' in err && err.code === 'EEXIST') {
+        // Re-read the lock to get current holder info
+        const currentLock = this.readLock();
+        if (currentLock) {
+          const startedAt = new Date(currentLock.startedAt).toLocaleString();
+          return {
+            acquired: false,
+            error: `Another ${currentLock.operation} operation is in progress (PID: ${currentLock.pid}, started: ${startedAt}). ` +
+              `Please wait for it to complete or remove the lock file at ${this.lockPath}`,
+          };
+        }
+      }
+
       const message = err instanceof Error ? err.message : 'Unknown error';
       return {
         acquired: false,

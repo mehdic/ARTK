@@ -20,12 +20,19 @@ import {
 import { ArtkContextSchema } from '../utils/variant-schemas.js';
 import { createInstallLogger } from '../utils/install-logger.js';
 import { createLockManager } from '../utils/lock-manager.js';
-import { createBackup, restoreFromBackup } from '../utils/rollback.js';
+import { createBackup, restoreFromBackup, rollback } from '../utils/rollback.js';
+import {
+  getArtkVersion,
+  validateVariantBuildFiles,
+  copyVariantFiles,
+  writeAllAiProtectionMarkers,
+  writeCopilotInstructions,
+} from '../utils/variant-files.js';
 
 /**
- * ARTK version.
+ * ARTK version from package.json.
  */
-const ARTK_VERSION = '1.0.0';
+const ARTK_VERSION = getArtkVersion();
 
 /**
  * Upgrade command options.
@@ -143,12 +150,91 @@ export async function upgrade(options: UpgradeOptions): Promise<UpgradeResult> {
     // Log upgrade start
     if (variantChanged) {
       logger.logUpgradeStart(previousVariant, newVariant);
+      logger.info('upgrade', `Variant migration: ${previousVariant} -> ${newVariant}`, {
+        reason: `Node version: ${nodeVersion}, Module system: ${detection.moduleSystem}`,
+      });
+    }
+
+    // Validate new variant build files exist before making changes
+    const buildValidation = validateVariantBuildFiles(newVariant);
+    if (!buildValidation.valid) {
+      return {
+        success: false,
+        variantChanged: false,
+        error: buildValidation.error,
+        warnings: warnings.length > 0 ? warnings : undefined,
+      };
     }
 
     // Create backup
     const backup = createBackup(targetPath);
     if (!backup.success) {
       warnings.push(`Could not create backup: ${backup.error}`);
+    }
+
+    // If variant changed, replace vendor files
+    if (variantChanged || force) {
+      // FR-019: Preserve user config files before replacing vendor
+      const artkConfigPath = path.join(targetPath, 'artk-e2e', 'artk.config.yml');
+      let preservedConfig: string | null = null;
+
+      if (fs.existsSync(artkConfigPath)) {
+        preservedConfig = fs.readFileSync(artkConfigPath, 'utf-8');
+        logger.info('upgrade', 'Preserved user config: artk.config.yml');
+      }
+
+      // Remove old vendor directories
+      const vendorCorePath = path.join(targetPath, 'artk-e2e', 'vendor', 'artk-core');
+      const vendorAutogenPath = path.join(targetPath, 'artk-e2e', 'vendor', 'artk-core-autogen');
+
+      if (fs.existsSync(vendorCorePath)) {
+        fs.rmSync(vendorCorePath, { recursive: true, force: true });
+      }
+      if (fs.existsSync(vendorAutogenPath)) {
+        fs.rmSync(vendorAutogenPath, { recursive: true, force: true });
+      }
+
+      // Copy new variant files
+      const copyResult = copyVariantFiles(newVariant, targetPath);
+      if (!copyResult.success) {
+        // Attempt to restore from backup
+        if (backup.success && backup.backupPath) {
+          restoreFromBackup(targetPath, backup.backupPath);
+        }
+        return {
+          success: false,
+          variantChanged: false,
+          error: `Failed to copy variant files: ${copyResult.error}`,
+          warnings: warnings.length > 0 ? warnings : undefined,
+        };
+      }
+
+      logger.info('upgrade', `Copied ${copyResult.copiedFiles} files for variant ${newVariant}`);
+
+      // Add any warnings from copy operation
+      if (copyResult.warnings) {
+        warnings.push(...copyResult.warnings);
+        for (const warning of copyResult.warnings) {
+          logger.warn('upgrade', warning);
+        }
+      }
+
+      // FR-019: Restore user config after vendor replacement
+      if (preservedConfig !== null) {
+        fs.writeFileSync(artkConfigPath, preservedConfig, 'utf-8');
+        logger.info('upgrade', 'Restored user config: artk.config.yml');
+      }
+
+      // FR-020: Log variant change to install.log
+      if (variantChanged) {
+        logger.info('upgrade', `Variant migration complete: ${previousVariant} -> ${newVariant}`, {
+          previousVariant,
+          newVariant,
+          nodeVersion,
+          moduleSystem: detection.moduleSystem,
+          reason: force ? 'forced' : 'environment change detected',
+        });
+      }
     }
 
     // Update context with new variant info
@@ -181,12 +267,20 @@ export async function upgrade(options: UpgradeOptions): Promise<UpgradeResult> {
       'utf-8'
     );
 
-    // Update AI protection markers
+    // Update AI protection markers in both vendor directories
     const vendorCorePath = path.join(targetPath, 'artk-e2e', 'vendor', 'artk-core');
+    const vendorAutogenPath = path.join(targetPath, 'artk-e2e', 'vendor', 'artk-core-autogen');
+
     if (fs.existsSync(vendorCorePath)) {
-      updateVariantFeatures(vendorCorePath, newVariant);
-      updateReadonlyMarker(vendorCorePath, newVariant, newContext);
+      writeAllAiProtectionMarkers(vendorCorePath, newVariant, newContext);
     }
+    if (fs.existsSync(vendorAutogenPath)) {
+      writeAllAiProtectionMarkers(vendorAutogenPath, newVariant, newContext);
+    }
+
+    // Update variant-aware Copilot instructions
+    writeCopilotInstructions(targetPath, newVariant);
+    logger.info('upgrade', 'Updated variant-aware Copilot instructions');
 
     // Log completion
     if (variantChanged) {
@@ -213,116 +307,6 @@ export async function upgrade(options: UpgradeOptions): Promise<UpgradeResult> {
   } finally {
     lockManager.release();
   }
-}
-
-/**
- * Update variant-features.json for new variant.
- */
-function updateVariantFeatures(vendorPath: string, variant: VariantId): void {
-  const variantDef = getVariantDefinition(variant);
-  const features: Record<string, { available: boolean; alternative?: string }> = {};
-
-  // Common features
-  const commonFeatures = [
-    'route_from_har',
-    'locator_filter',
-    'web_first_assertions',
-    'trace_viewer',
-    'api_testing',
-    'storage_state',
-    'video_recording',
-    'screenshot_assertions',
-    'request_interception',
-    'browser_contexts',
-  ];
-
-  for (const feature of commonFeatures) {
-    features[feature] = { available: true };
-  }
-
-  // Variant-specific
-  if (variant === 'legacy-14') {
-    features['aria_snapshots'] = {
-      available: false,
-      alternative: 'Use page.evaluate()',
-    };
-    features['clock_api'] = {
-      available: false,
-      alternative: 'Use manual Date mocking',
-    };
-    features['locator_or'] = {
-      available: false,
-      alternative: 'Use CSS :is() selector',
-    };
-  } else {
-    features['aria_snapshots'] = { available: true };
-    features['clock_api'] = { available: true };
-    features['locator_or'] = { available: true };
-  }
-
-  if (variant === 'modern-esm') {
-    features['esm_imports'] = { available: true };
-    features['top_level_await'] = { available: true };
-  } else {
-    features['esm_imports'] = {
-      available: false,
-      alternative: 'Use require()',
-    };
-    features['top_level_await'] = {
-      available: false,
-      alternative: 'Use async IIFE',
-    };
-  }
-
-  const featureDoc = {
-    variant,
-    playwrightVersion: variantDef.playwrightVersion,
-    nodeRange: variantDef.nodeRange,
-    moduleSystem: variantDef.moduleSystem,
-    features,
-    generatedAt: new Date().toISOString(),
-  };
-
-  fs.writeFileSync(
-    path.join(vendorPath, 'variant-features.json'),
-    JSON.stringify(featureDoc, null, 2),
-    'utf-8'
-  );
-}
-
-/**
- * Update READONLY.md for new variant.
- */
-function updateReadonlyMarker(
-  vendorPath: string,
-  variant: VariantId,
-  context: ArtkContext
-): void {
-  const variantDef = getVariantDefinition(variant);
-
-  const content = `# ⚠️ DO NOT MODIFY THIS DIRECTORY
-
-## Variant Information
-
-| Property | Value |
-|----------|-------|
-| **Variant** | ${variantDef.id} |
-| **Display Name** | ${variantDef.displayName} |
-| **Node.js Range** | ${variantDef.nodeRange.join(', ')} |
-| **Playwright Version** | ${variantDef.playwrightVersion} |
-| **Module System** | ${variantDef.moduleSystem} |
-| **Installed At** | ${context.variantInstalledAt} |
-| **ARTK Version** | ${context.artkVersion} |
-${context.previousVariant ? `| **Previous Variant** | ${context.previousVariant} |` : ''}
-
-**DO NOT modify files in this directory.**
-
----
-
-*Updated by ARTK CLI v${context.artkVersion}*
-`;
-
-  fs.writeFileSync(path.join(vendorPath, 'READONLY.md'), content, 'utf-8');
 }
 
 /**

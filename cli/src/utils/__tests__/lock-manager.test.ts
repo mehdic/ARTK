@@ -25,21 +25,30 @@ describe('lock-manager', () => {
     describe('acquire', () => {
       it('should acquire lock when no existing lock', () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
+        vi.mocked(fs.openSync).mockReturnValue(123); // mock file descriptor
 
         const manager = new LockManager('/test/project');
         const result = manager.acquire('install');
 
         expect(result.acquired).toBe(true);
         expect(result.error).toBeUndefined();
-        expect(fs.writeFileSync).toHaveBeenCalledWith(
+        // Now uses atomic file creation via openSync with 'wx' flag
+        expect(fs.openSync).toHaveBeenCalledWith(
           expect.stringContaining('install.lock'),
+          'wx'
+        );
+        expect(fs.writeSync).toHaveBeenCalledWith(
+          123, // file descriptor
           expect.stringContaining('"pid":'),
+          0,
           'utf-8'
         );
+        expect(fs.closeSync).toHaveBeenCalledWith(123);
       });
 
       it('should create .artk directory if it does not exist', () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
+        vi.mocked(fs.openSync).mockReturnValue(123);
 
         const manager = new LockManager('/test/project');
         manager.acquire('install');
@@ -85,6 +94,7 @@ describe('lock-manager', () => {
 
         vi.mocked(fs.existsSync).mockReturnValue(true);
         vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(lockData));
+        vi.mocked(fs.openSync).mockReturnValue(123); // Mock successful atomic file creation
 
         // Mock process.kill to throw (process doesn't exist)
         const originalKill = process.kill;
@@ -109,6 +119,7 @@ describe('lock-manager', () => {
 
         vi.mocked(fs.existsSync).mockReturnValue(true);
         vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(lockData));
+        vi.mocked(fs.openSync).mockReturnValue(123); // Mock successful atomic file creation
 
         // Mock process.kill to indicate process is still running
         const originalKill = process.kill;
@@ -124,12 +135,13 @@ describe('lock-manager', () => {
 
       it('should include operation type in lock file', () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
+        vi.mocked(fs.openSync).mockReturnValue(123);
 
         const manager = new LockManager('/test/project');
         manager.acquire('upgrade');
 
-        expect(fs.writeFileSync).toHaveBeenCalled();
-        const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
+        expect(fs.writeSync).toHaveBeenCalled();
+        const writeCall = vi.mocked(fs.writeSync).mock.calls[0];
         const lockContent = writeCall[1] as string;
         expect(lockContent).toContain('"operation": "upgrade"');
       });
@@ -334,13 +346,14 @@ describe('lock-manager', () => {
   describe('withLock', () => {
     it('should execute function with lock', async () => {
       // First call (checking for existing lock) returns false
-      // After writeFileSync, the lock exists, so release should find it
+      // After openSync, the lock exists, so release should find it
       let lockCreated = false;
       vi.mocked(fs.existsSync).mockImplementation(() => {
         return lockCreated;
       });
-      vi.mocked(fs.writeFileSync).mockImplementation(() => {
+      vi.mocked(fs.openSync).mockImplementation(() => {
         lockCreated = true;
+        return 123; // mock file descriptor
       });
 
       let executed = false;
@@ -351,7 +364,7 @@ describe('lock-manager', () => {
 
       expect(executed).toBe(true);
       expect(result).toBe('result');
-      expect(fs.writeFileSync).toHaveBeenCalled(); // Lock acquired
+      expect(fs.openSync).toHaveBeenCalled(); // Lock acquired via atomic creation
       expect(fs.unlinkSync).toHaveBeenCalled(); // Lock released
     });
 
@@ -361,8 +374,9 @@ describe('lock-manager', () => {
       vi.mocked(fs.existsSync).mockImplementation(() => {
         return lockCreated;
       });
-      vi.mocked(fs.writeFileSync).mockImplementation(() => {
+      vi.mocked(fs.openSync).mockImplementation(() => {
         lockCreated = true;
+        return 123;
       });
 
       await expect(
