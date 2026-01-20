@@ -740,8 +740,12 @@ Write-Host "Environment: Node $NodeMajor, $ModuleSystem" -ForegroundColor Cyan
 Write-Host "Variant:     $SelectedVariant (Playwright $VariantPwVersion)" -ForegroundColor Cyan
 Write-Host ""
 
-# Step 1: Build @artk/core if needed
+# Step 1: Build @artk/core if needed (including variant-specific builds)
 $CoreDist = Join-Path $ArtkCore "dist"
+$CoreVariantDist = Join-Path $ArtkCore $VariantDistDir
+$AutogenVariantDist = Join-Path $ArtkAutogen $VariantDistDir
+
+# Check if default ESM build exists
 if (-not (Test-Path $CoreDist)) {
     Write-Host "[1/7] Building @artk/core..." -ForegroundColor Yellow
     Push-Location $ArtkCore
@@ -753,6 +757,58 @@ if (-not (Test-Path $CoreDist)) {
     }
 } else {
     Write-Host "[1/7] @artk/core already built" -ForegroundColor Cyan
+}
+
+# Build variant-specific dist if needed (e.g., dist-cjs for modern-cjs)
+if ($VariantDistDir -ne "dist" -and -not (Test-Path $CoreVariantDist)) {
+    Write-Host "[1/7] Building @artk/core variant ($SelectedVariant)..." -ForegroundColor Yellow
+    Push-Location $ArtkCore
+    try {
+        $buildScript = switch ($SelectedVariant) {
+            "modern-cjs" { "build:cjs" }
+            "legacy-16" { "build:legacy-16" }
+            "legacy-14" { "build:legacy-14" }
+            default { $null }
+        }
+        if ($buildScript) {
+            npm run $buildScript 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Warning: Failed to build variant $SelectedVariant, falling back to ESM" -ForegroundColor Yellow
+            } else {
+                Write-Host "  Built $VariantDistDir successfully" -ForegroundColor Green
+            }
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+# Build autogen variant if needed
+if ($VariantDistDir -ne "dist" -and -not (Test-Path $AutogenVariantDist)) {
+    Write-Host "[1/7] Building @artk/core-autogen variant ($SelectedVariant)..." -ForegroundColor Yellow
+    Push-Location $ArtkAutogen
+    try {
+        # Ensure dependencies are installed
+        if (-not (Test-Path "node_modules")) {
+            npm install 2>&1 | Out-Null
+        }
+        $buildScript = switch ($SelectedVariant) {
+            "modern-cjs" { "build:cjs" }
+            "legacy-16" { "build:legacy-16" }
+            "legacy-14" { "build:legacy-14" }
+            default { $null }
+        }
+        if ($buildScript) {
+            npm run $buildScript 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Warning: Failed to build autogen variant $SelectedVariant" -ForegroundColor Yellow
+            } else {
+                Write-Host "  Built autogen $VariantDistDir successfully" -ForegroundColor Green
+            }
+        }
+    } finally {
+        Pop-Location
+    }
 }
 
 # Step 2: Create artk-e2e structure
