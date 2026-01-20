@@ -89,6 +89,22 @@ jobs:
             fi
             echo "✓ $dir exists and contains index.cjs (CJS)"
           done
+
+          # Verify type declarations exist for all variants
+          echo ""
+          echo "Checking type declarations..."
+          for dir in dist dist-cjs dist-legacy-16 dist-legacy-14; do
+            if [ ! -f "$dir/index.d.ts" ]; then
+              echo "ERROR: Missing $dir/index.d.ts (types)"
+              exit 1
+            fi
+            echo "✓ $dir/index.d.ts exists"
+          done
+        working-directory: core/typescript
+
+      - name: Verify modern-cjs variant loads
+        run: |
+          node -e "const m = require('./dist-cjs/index.cjs'); console.log('Modern-CJS variant loaded successfully, exports:', Object.keys(m).length);"
         working-directory: core/typescript
 
       - name: Upload build artifacts

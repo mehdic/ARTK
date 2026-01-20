@@ -317,7 +317,7 @@ export function isReportSuccessful(report: PlaywrightReport): boolean {
 /**
  * Check if report has flaky tests
  */
-export function hasFlaky(report: PlaywrightReport): boolean {
+export function reportHasFlaky(report: PlaywrightReport): boolean {
   return report.stats.flaky > 0;
 }
 

@@ -41,7 +41,7 @@ export {
   extractErrorStacks,
   getFailedStep,
   isReportSuccessful,
-  hasFlaky as reportHasFlaky,
+  reportHasFlaky,
   formatTestResult,
   generateMarkdownSummary,
 } from './parser.js';
@@ -96,7 +96,7 @@ export {
   generateSummaryFromReport,
   isVerificationPassed,
   hasFailures,
-  hasFlaky as summaryHasFlaky,
+  summaryHasFlaky,
   getRecommendations,
   formatVerifySummary,
   saveSummary,

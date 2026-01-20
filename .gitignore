@@ -18,6 +18,7 @@ core/typescript/dist/
 core/typescript/dist-cjs/
 core/typescript/dist-legacy-16/
 core/typescript/dist-legacy-14/
+core/typescript/autogen/dist/
 core/typescript/autogen/dist-cjs/
 core/typescript/autogen/dist-legacy-16/
 core/typescript/autogen/dist-legacy-14/
