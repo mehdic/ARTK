@@ -289,6 +289,120 @@ describe('Package.json Variant Files', () => {
   });
 });
 
+describe('Bootstrap Path Resolution', () => {
+  /**
+   * These tests verify that package.json files use paths that will work
+   * AFTER bootstrap.sh copies variant dist to vendor/artk-core/dist/
+   *
+   * CRITICAL: bootstrap.sh always copies to ./dist/ regardless of variant:
+   *   cp -r "$VARIANT_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core/dist/"
+   *
+   * So all variant package.json files MUST use ./dist/ paths, not ./dist-legacy-XX/
+   */
+
+  const packageFiles = [
+    { file: 'package-cjs.json', variant: 'modern-cjs' },
+    { file: 'package-legacy-16.json', variant: 'legacy-16' },
+    { file: 'package-legacy-14.json', variant: 'legacy-14' },
+  ];
+
+  describe.each(packageFiles)('$file paths for bootstrap', ({ file, variant }) => {
+    const filePath = join(CORE_ROOT, file);
+
+    it('should use ./dist/ paths (not ./dist-legacy-XX/) for bootstrap compatibility', () => {
+      if (!existsSync(filePath)) return;
+
+      const content = readFileSync(filePath, 'utf-8');
+      const pkg = JSON.parse(content);
+
+      // Check main field - must point to ./dist/
+      expect(pkg.main).toMatch(/^\.\/dist\//);
+      expect(pkg.main).not.toMatch(/dist-legacy/);
+
+      // Check types field
+      if (pkg.types) {
+        expect(pkg.types).toMatch(/^\.\/dist\//);
+        expect(pkg.types).not.toMatch(/dist-legacy/);
+      }
+
+      // Check exports - all paths must use ./dist/
+      if (pkg.exports) {
+        const exportPaths = JSON.stringify(pkg.exports);
+        expect(exportPaths).not.toContain('dist-legacy-16');
+        expect(exportPaths).not.toContain('dist-legacy-14');
+      }
+
+      // Check files field - should reference 'dist' not variant-specific dirs
+      if (pkg.files) {
+        const filesStr = JSON.stringify(pkg.files);
+        expect(filesStr).not.toContain('dist-legacy-16');
+        expect(filesStr).not.toContain('dist-legacy-14');
+      }
+    });
+
+    it('should have "type": "commonjs" for CJS variants', () => {
+      if (!existsSync(filePath)) return;
+
+      const pkg = JSON.parse(readFileSync(filePath, 'utf-8'));
+
+      // All CJS variants MUST have type: commonjs
+      expect(pkg.type).toBe('commonjs');
+    });
+
+    it('should have consistent paths in main, types, and exports', () => {
+      if (!existsSync(filePath)) return;
+
+      const pkg = JSON.parse(readFileSync(filePath, 'utf-8'));
+
+      // Main should match exports root
+      if (pkg.exports?.['.']?.require) {
+        expect(pkg.main).toBe(pkg.exports['.'].require);
+      }
+
+      // Types should match exports types
+      if (pkg.exports?.['.']?.types) {
+        expect(pkg.types).toBe(pkg.exports['.'].types);
+      }
+    });
+  });
+
+  describe('Autogen package files for bootstrap', () => {
+    const autogenRoot = join(CORE_ROOT, 'autogen');
+    const autogenPackageFiles = [
+      { file: 'package-cjs.json', variant: 'modern-cjs' },
+      { file: 'package-legacy-16.json', variant: 'legacy-16' },
+      { file: 'package-legacy-14.json', variant: 'legacy-14' },
+    ];
+
+    describe.each(autogenPackageFiles)('autogen/$file', ({ file, variant }) => {
+      const filePath = join(autogenRoot, file);
+
+      it('should use dist/ paths (not dist-legacy-XX/)', () => {
+        if (!existsSync(filePath)) return;
+
+        const pkg = JSON.parse(readFileSync(filePath, 'utf-8'));
+
+        // Main should use dist/ path
+        expect(pkg.main).toMatch(/^dist\//);
+        expect(pkg.main).not.toMatch(/dist-legacy/);
+
+        // Bin paths should use dist/
+        if (pkg.bin) {
+          const binPaths = JSON.stringify(pkg.bin);
+          expect(binPaths).not.toContain('dist-legacy');
+        }
+      });
+
+      it('should have "type": "commonjs" for CJS variants', () => {
+        if (!existsSync(filePath)) return;
+
+        const pkg = JSON.parse(readFileSync(filePath, 'utf-8'));
+        expect(pkg.type).toBe('commonjs');
+      });
+    });
+  });
+});
+
 /**
  * Recursively find all .cjs files in a directory
  */

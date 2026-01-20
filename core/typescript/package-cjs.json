@@ -1,7 +1,8 @@
 {
   "name": "@artk/core",
   "version": "1.0.0",
-  "description": "ARTK Core v1 - Vendorable Playwright infrastructure library",
+  "description": "ARTK Core v1 - Vendorable Playwright infrastructure library (Modern CJS variant)",
+  "type": "commonjs",
   "main": "./dist/index.cjs",
   "types": "./dist/index.d.ts",
   "exports": {
