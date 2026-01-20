@@ -14,13 +14,12 @@ import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import type { TemplateVariant, TemplateResolutionResult } from '../../templates/shared/types/index.js';
 
-// CJS-specific globals - these are injected by Node.js module wrapper in CJS context
-// They will be undefined in ESM context
-declare const __dirnameGlobal: string | undefined;
-
 /**
  * Get the directory where this module file is located.
  * Works in both ESM and CJS environments.
+ *
+ * In CJS: __dirname is injected by Node.js module wrapper
+ * In ESM: Uses import.meta.url (ESM-only block stripped from CJS builds)
  */
 function getModuleDir(): string {
   // In CJS, __dirname is injected by Node.js module wrapper

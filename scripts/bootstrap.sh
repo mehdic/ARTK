@@ -842,7 +842,15 @@ if [ ! -d "$VARIANT_DIST_PATH" ]; then
     fi
 fi
 
-cp -r "$VARIANT_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core/dist/" 2>/dev/null || cp -r "$VARIANT_DIST_PATH" "$ARTK_E2E/vendor/artk-core/dist"
+# Copy variant dist contents to vendor/artk-core/dist/
+# Note: Must copy CONTENTS (/*) not the directory itself to avoid nested dist/dist-xxx
+if ! cp -r "$VARIANT_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core/dist/" 2>/dev/null; then
+    # Fallback: if glob fails, copy contents explicitly
+    mkdir -p "$ARTK_E2E/vendor/artk-core/dist"
+    for item in "$VARIANT_DIST_PATH"/*; do
+        [ -e "$item" ] && cp -r "$item" "$ARTK_E2E/vendor/artk-core/dist/"
+    done
+fi
 
 # Use variant-specific package.json (package-cjs.json, package-legacy-16.json, etc.)
 CORE_PACKAGE_JSON=$(get_variant_package_json "$SELECTED_VARIANT")
@@ -929,7 +937,14 @@ if [ ! -d "$AUTOGEN_DIST_PATH" ]; then
 fi
 
 mkdir -p "$ARTK_E2E/vendor/artk-core-autogen/dist"
-cp -r "$AUTOGEN_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core-autogen/dist/" 2>/dev/null || cp -r "$AUTOGEN_DIST_PATH" "$ARTK_E2E/vendor/artk-core-autogen/dist"
+# Copy autogen variant dist contents to vendor/artk-core-autogen/dist/
+# Note: Must copy CONTENTS (/*) not the directory itself to avoid nested dist/dist-xxx
+if ! cp -r "$AUTOGEN_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core-autogen/dist/" 2>/dev/null; then
+    # Fallback: if glob fails, copy contents explicitly
+    for item in "$AUTOGEN_DIST_PATH"/*; do
+        [ -e "$item" ] && cp -r "$item" "$ARTK_E2E/vendor/artk-core-autogen/dist/"
+    done
+fi
 
 # Use variant-specific package.json for autogen (package-cjs.json, package-legacy-16.json, etc.)
 AUTOGEN_PACKAGE_JSON=$(get_variant_package_json "$SELECTED_VARIANT")

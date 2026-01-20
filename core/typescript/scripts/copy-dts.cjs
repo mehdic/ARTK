@@ -10,9 +10,13 @@
  * Example:
  *   node scripts/copy-dts.cjs dist-cjs
  *   node scripts/copy-dts.cjs dist-legacy-16
+ *
+ * Behavior:
+ *   - If source 'dist/' doesn't exist, prints warning and exits 0 (allows standalone CJS builds)
+ *   - If target doesn't exist, prints error and exits 1
  */
 
-const { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync, copyFileSync } = require('fs');
+const { readdirSync, statSync, existsSync, mkdirSync, copyFileSync } = require('fs');
 const { join, dirname, relative } = require('path');
 
 const sourceDir = 'dist';
@@ -28,9 +32,11 @@ if (!targetDir) {
 }
 
 if (!existsSync(sourceDir)) {
-  console.error(`Error: Source directory "${sourceDir}" does not exist.`);
-  console.error('Build the ESM variant first: npm run build');
-  process.exit(1);
+  // Graceful skip - allows build:cjs to be run standalone
+  console.warn(`Warning: Source directory "${sourceDir}" does not exist.`);
+  console.warn('Type definitions will not be copied. Run "npm run build" first to generate types.');
+  console.warn('Skipping type copy (this is OK for standalone CJS builds).');
+  process.exit(0);
 }
 
 if (!existsSync(targetDir)) {
