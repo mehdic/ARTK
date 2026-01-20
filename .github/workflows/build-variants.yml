@@ -212,14 +212,20 @@ jobs:
 
       - name: Install dependencies (legacy)
         run: |
-          # Use legacy-16 package.json for correct Playwright version
-          cp package-legacy-16.json package.json.backup
+          # Use legacy-16 package.json for correct module system and Playwright version
+          cp package.json package.json.backup
+          cp package-legacy-16.json package.json
           npm install --legacy-peer-deps
         working-directory: core/typescript
 
       - name: Verify legacy-16 variant loads
         run: |
-          node -e "import('./dist-legacy-16/index.js').then(() => console.log('Legacy-16 variant loaded successfully')).catch((err) => { console.error(err); process.exit(1); })"
+          node -e "const m = require('./dist-legacy-16/index.js'); console.log('Legacy-16 variant loaded successfully');"
+        working-directory: core/typescript
+
+      - name: Restore package.json
+        run: |
+          mv package.json.backup package.json
         working-directory: core/typescript
 
   test-node-14:
@@ -244,13 +250,20 @@ jobs:
 
       - name: Install dependencies (legacy)
         run: |
-          # Use legacy-14 package.json for correct Playwright version
+          # Use legacy-14 package.json for correct module system and Playwright version
+          cp package.json package.json.backup
+          cp package-legacy-14.json package.json
           npm install --legacy-peer-deps || true
         working-directory: core/typescript
 
       - name: Verify legacy-14 variant loads
         run: |
-          node -e "import('./dist-legacy-14/index.js').then(() => console.log('Legacy-14 variant loaded successfully')).catch((err) => { console.error(err); process.exit(1); })"
+          node -e "const m = require('./dist-legacy-14/index.js'); console.log('Legacy-14 variant loaded successfully');"
+        working-directory: core/typescript
+
+      - name: Restore package.json
+        run: |
+          mv package.json.backup package.json
         working-directory: core/typescript
 
   build-cli:
