@@ -871,13 +871,17 @@ Provide one reply template.
 ║  3. (AFTER DEFINE) Add execution detail to a journey:               ║
 ║     /artk.journey-clarify id=JRN-####                              ║
 ║                                                                     ║
-║  4. (OPTIONAL) Audit selectors for stable test hooks:               ║
+║  4. (AFTER CLARIFY) Generate Playwright tests:                      ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  5. (OPTIONAL) Audit selectors for stable test hooks:               ║
 ║     /artk.testid-audit mode=report                                 ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-**IMPORTANT:**
-- Copy the commands box exactly. Do not abbreviate or summarize.
-- Do NOT invent commands that don't exist.
+**CRITICAL - ANTI-HALLUCINATION RULES:**
+- Copy the commands box EXACTLY. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist (e.g., `/artk.journey-gen` does NOT exist).
 - Only use commands from the handoffs section of this prompt.
+- The ONLY valid ARTK commands are those listed in the handoffs section at the top of this file.
