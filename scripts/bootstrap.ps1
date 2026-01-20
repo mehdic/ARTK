@@ -703,7 +703,7 @@ if ($Variant) {
         Write-Host "Variant '$Variant' supports Node.js: $variantRange" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Options:"
-        Write-Host "  1. Use a compatible variant for Node.js $NodeMajor:"
+        Write-Host "  1. Use a compatible variant for Node.js ${NodeMajor}:"
         Write-Host "     -Variant $recommendedVariant (recommended for Node $NodeMajor)"
         Write-Host "  2. Switch to a supported Node.js version"
         Write-Host "  3. Remove -Variant flag to use auto-detection"
