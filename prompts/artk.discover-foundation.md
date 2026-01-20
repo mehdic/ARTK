@@ -1473,6 +1473,13 @@ Create `tests/foundation/foundation.validation.spec.ts`:
  * Run with: npx playwright test tests/foundation/
  */
 import { test, expect } from '@playwright/test';
+import * as path from 'path';
+import * as fs from 'fs';
+
+// Module-system agnostic __dirname (works in both CommonJS and ESM)
+const __testDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : path.dirname(new URL(import.meta.url).pathname);
 
 // ═══════════════════════════════════════════════════════════════════
 // Module Import Validation
@@ -1532,15 +1539,8 @@ test.describe('Config Validation', () => {
   });
 
   test('environments.json exists and is valid', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const { dirname } = await import('path');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-
-    const envPath = path.join(__dirname, '../../config/environments.json');
-    const envExamplePath = path.join(__dirname, '../../config/environments.example.json');
+    const envPath = path.join(__testDir, '../../config/environments.json');
+    const envExamplePath = path.join(__testDir, '../../config/environments.example.json');
 
     // Either environments.json or environments.example.json should exist
     const exists = fs.existsSync(envPath) || fs.existsSync(envExamplePath);
@@ -1565,14 +1565,7 @@ test.describe('Playwright Config Validation', () => {
 
 test.describe('Module Registry', () => {
   test('registry.json exists and is valid', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const { dirname } = await import('path');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-
-    const registryPath = path.join(__dirname, '../../src/modules/registry.json');
+    const registryPath = path.join(__testDir, '../../src/modules/registry.json');
     expect(fs.existsSync(registryPath)).toBe(true);
 
     const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
@@ -1582,18 +1575,11 @@ test.describe('Module Registry', () => {
   });
 
   test('all registered modules exist', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const { dirname } = await import('path');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-
-    const registryPath = path.join(__dirname, '../../src/modules/registry.json');
+    const registryPath = path.join(__testDir, '../../src/modules/registry.json');
     const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
 
     for (const mod of registry.foundation) {
-      const modPath = path.join(__dirname, '../../src/modules', mod.path);
+      const modPath = path.join(__testDir, '../../src/modules', mod.path);
       expect(fs.existsSync(modPath)).toBe(true);
     }
   });
@@ -1619,8 +1605,19 @@ npx playwright test tests/foundation/ --reporter=list
 
 ## Step V4 — Verify @artk/core Integration
 
-Test that core library integration works:
+Test that core library integration works.
 
+**For CommonJS projects:**
+```bash
+# Test core imports work (CommonJS require)
+node -e "
+const config = require('./vendor/artk-core/dist/config/index.js');
+const harness = require('./vendor/artk-core/dist/harness/index.js');
+console.log('✓ @artk/core imports successful');
+"
+```
+
+**For ESM projects (package.json has "type": "module"):**
 ```bash
 # Test core imports work (ESM dynamic import)
 node --input-type=module -e "
@@ -1635,9 +1632,13 @@ import('./vendor/artk-core/dist/config/index.js').then(config => {
 "
 ```
 
+**Detect module system:**
+Check `package.json` for `"type": "module"`. If absent or `"type": "commonjs"`, use the CommonJS version.
+
 **If import fails:**
 - Check that vendor/artk-core exists
 - Check that dist/ folder is populated
+- For CommonJS: Ensure dist contains .js files (not just .mjs)
 - Re-run `/artk.init-playbook` to re-copy core
 
 ## Step V5 — Optional: Auth Flow Smoke Test
