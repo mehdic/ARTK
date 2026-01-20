@@ -6,20 +6,20 @@
  * from the specified files. This is necessary because CJS builds don't support
  * import.meta.url, but they don't need it since __dirname is available.
  *
- * Usage: node scripts/strip-esm-code.js <dist-dir>
+ * Usage: node scripts/strip-esm-code.cjs <dist-dir>
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+const { readFileSync, writeFileSync, readdirSync, statSync } = require('fs');
+const { join } = require('path');
 
 const distDir = process.argv[2];
 if (!distDir) {
-  console.error('Usage: node scripts/strip-esm-code.js <dist-dir>');
+  console.error('Usage: node scripts/strip-esm-code.cjs <dist-dir>');
   process.exit(1);
 }
 
 /**
- * Recursively find all .js files in a directory
+ * Recursively find all .js and .cjs files in a directory
  */
 function findJsFiles(dir, files = []) {
   const entries = readdirSync(dir);
@@ -28,7 +28,7 @@ function findJsFiles(dir, files = []) {
     const stat = statSync(fullPath);
     if (stat.isDirectory()) {
       findJsFiles(fullPath, files);
-    } else if (entry.endsWith('.js')) {
+    } else if (entry.endsWith('.js') || entry.endsWith('.cjs')) {
       files.push(fullPath);
     }
   }
@@ -56,6 +56,13 @@ function stripEsmCode(filePath) {
 }
 
 // Process all JS files in the dist directory
+console.log(`Processing files in: ${distDir}`);
+
+if (!statSync(distDir).isDirectory()) {
+  console.error(`Error: ${distDir} is not a directory`);
+  process.exit(1);
+}
+
 const files = findJsFiles(distDir);
 let strippedCount = 0;
 
