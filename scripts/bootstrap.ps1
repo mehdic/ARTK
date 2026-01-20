@@ -162,6 +162,18 @@ function Get-VariantNodeRange {
     }
 }
 
+function Get-VariantPackageJson {
+    param([string]$VariantId)
+
+    switch ($VariantId) {
+        "modern-esm" { return "package.json" }
+        "modern-cjs" { return "package-cjs.json" }
+        "legacy-16" { return "package-legacy-16.json" }
+        "legacy-14" { return "package-legacy-14.json" }
+        default { return "package.json" }
+    }
+}
+
 function Get-AutogenDistDir {
     param([string]$VariantId)
 
@@ -864,7 +876,15 @@ if (-not (Test-Path $DistTarget)) {
     Copy-Item -Path $VariantDistPath -Destination $DistTarget -Recurse -Force
 }
 
-Copy-Item -Path (Join-Path $ArtkCore "package.json") -Destination $VendorTarget -Force
+# Use variant-specific package.json (package-cjs.json, package-legacy-16.json, etc.)
+$CorePackageJsonName = Get-VariantPackageJson -VariantId $SelectedVariant
+$CorePackageJsonPath = Join-Path $ArtkCore $CorePackageJsonName
+if (Test-Path $CorePackageJsonPath) {
+    Copy-Item -Path $CorePackageJsonPath -Destination (Join-Path $VendorTarget "package.json") -Force
+} else {
+    Write-Host "Warning: Variant package.json not found ($CorePackageJsonName), using default" -ForegroundColor Yellow
+    Copy-Item -Path (Join-Path $ArtkCore "package.json") -Destination $VendorTarget -Force
+}
 $VersionJson = Join-Path $ArtkCore "version.json"
 if (Test-Path $VersionJson) {
     Copy-Item -Path $VersionJson -Destination $VendorTarget -Force
@@ -955,7 +975,16 @@ Copy-Item -Path (Join-Path $AutogenDist "*") -Destination $AutogenDistTarget -Re
 if (-not (Test-Path $AutogenDistTarget)) {
     Copy-Item -Path $AutogenDist -Destination $AutogenDistTarget -Recurse -Force
 }
-Copy-Item -Path (Join-Path $ArtkAutogen "package.json") -Destination $AutogenVendorTarget -Force
+
+# Use variant-specific package.json for autogen (package-cjs.json, package-legacy-16.json, etc.)
+$AutogenPackageJsonName = Get-VariantPackageJson -VariantId $SelectedVariant
+$AutogenPackageJsonPath = Join-Path $ArtkAutogen $AutogenPackageJsonName
+if (Test-Path $AutogenPackageJsonPath) {
+    Copy-Item -Path $AutogenPackageJsonPath -Destination (Join-Path $AutogenVendorTarget "package.json") -Force
+} else {
+    Write-Host "Warning: Autogen variant package.json not found ($AutogenPackageJsonName), using default" -ForegroundColor Yellow
+    Copy-Item -Path (Join-Path $ArtkAutogen "package.json") -Destination $AutogenVendorTarget -Force
+}
 $AutogenReadmePath = Join-Path $ArtkAutogen "README.md"
 if (Test-Path $AutogenReadmePath) {
     Copy-Item -Path $AutogenReadmePath -Destination $AutogenVendorTarget -Force

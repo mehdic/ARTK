@@ -1,0 +1,123 @@
+{
+  "name": "@artk/core",
+  "version": "1.0.0",
+  "description": "ARTK Core v1 - Vendorable Playwright infrastructure library",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./config": {
+      "require": "./dist/config/index.js",
+      "types": "./dist/config/index.d.ts"
+    },
+    "./auth": {
+      "require": "./dist/auth/index.js",
+      "types": "./dist/auth/index.d.ts"
+    },
+    "./fixtures": {
+      "require": "./dist/fixtures/index.js",
+      "types": "./dist/fixtures/index.d.ts"
+    },
+    "./locators": {
+      "require": "./dist/locators/index.js",
+      "types": "./dist/locators/index.d.ts"
+    },
+    "./assertions": {
+      "require": "./dist/assertions/index.js",
+      "types": "./dist/assertions/index.d.ts"
+    },
+    "./data": {
+      "require": "./dist/data/index.js",
+      "types": "./dist/data/index.d.ts"
+    },
+    "./reporters": {
+      "require": "./dist/reporters/index.js",
+      "types": "./dist/reporters/index.d.ts"
+    },
+    "./harness": {
+      "require": "./dist/harness/index.js",
+      "types": "./dist/harness/index.d.ts"
+    },
+    "./errors": {
+      "require": "./dist/errors/index.js",
+      "types": "./dist/errors/index.d.ts"
+    },
+    "./utils": {
+      "require": "./dist/utils/index.js",
+      "types": "./dist/utils/index.d.ts"
+    },
+    "./detection": {
+      "require": "./dist/detection/index.js",
+      "types": "./dist/detection/index.d.ts"
+    },
+    "./targets": {
+      "require": "./dist/targets/index.js",
+      "types": "./dist/targets/index.d.ts"
+    },
+    "./install": {
+      "require": "./dist/install/index.js",
+      "types": "./dist/install/index.d.ts"
+    },
+    "./types": {
+      "require": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./schemas": {
+      "require": "./dist/schemas/index.js",
+      "types": "./dist/schemas/index.d.ts"
+    },
+    "./compat": {
+      "require": "./dist/compat/index.js",
+      "types": "./dist/compat/index.d.ts"
+    },
+    "./validation": {
+      "require": "./dist/validation/index.js",
+      "types": "./dist/validation/index.d.ts"
+    },
+    "./grid": {
+      "require": "./dist/grid/index.js",
+      "types": "./dist/grid/index.d.ts"
+    },
+    "./llkb": {
+      "require": "./dist/llkb/index.js",
+      "types": "./dist/llkb/index.d.ts"
+    },
+    "./templates/*": "./templates/*"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "version.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "artkVariant": {
+    "id": "modern-cjs",
+    "nodeRange": ["18", "19", "20", "21", "22"],
+    "playwrightVersion": "1.57.x",
+    "moduleSystem": "cjs",
+    "tsTarget": "ES2022"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.57.0",
+    "otplib": "^12.0.1",
+    "strip-json-comments": "^5.0.3",
+    "yaml": "^2.3.4",
+    "zod": "^3.22.4"
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "e2e",
+    "automation",
+    "artk",
+    "regression-testing"
+  ],
+  "author": "ARTK Team",
+  "license": "MIT"
+}

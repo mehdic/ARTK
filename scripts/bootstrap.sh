@@ -500,6 +500,17 @@ get_variant_playwright_version() {
     esac
 }
 
+get_variant_package_json() {
+    local variant="$1"
+    case "$variant" in
+        modern-esm) echo "package.json" ;;
+        modern-cjs) echo "package-cjs.json" ;;
+        legacy-16) echo "package-legacy-16.json" ;;
+        legacy-14) echo "package-legacy-14.json" ;;
+        *) echo "package.json" ;;
+    esac
+}
+
 get_autogen_dist_dir() {
     local variant="$1"
     case "$variant" in
@@ -832,7 +843,15 @@ if [ ! -d "$VARIANT_DIST_PATH" ]; then
 fi
 
 cp -r "$VARIANT_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core/dist/" 2>/dev/null || cp -r "$VARIANT_DIST_PATH" "$ARTK_E2E/vendor/artk-core/dist"
-cp "$ARTK_CORE/package.json" "$ARTK_E2E/vendor/artk-core/"
+
+# Use variant-specific package.json (package-cjs.json, package-legacy-16.json, etc.)
+CORE_PACKAGE_JSON=$(get_variant_package_json "$SELECTED_VARIANT")
+if [ -f "$ARTK_CORE/$CORE_PACKAGE_JSON" ]; then
+    cp "$ARTK_CORE/$CORE_PACKAGE_JSON" "$ARTK_E2E/vendor/artk-core/package.json"
+else
+    echo -e "${YELLOW}Warning: Variant package.json not found ($CORE_PACKAGE_JSON), using default${NC}"
+    cp "$ARTK_CORE/package.json" "$ARTK_E2E/vendor/artk-core/"
+fi
 cp "$ARTK_CORE/version.json" "$ARTK_E2E/vendor/artk-core/" 2>/dev/null || true
 cp "$ARTK_CORE/README.md" "$ARTK_E2E/vendor/artk-core/" 2>/dev/null || true
 
@@ -911,7 +930,15 @@ fi
 
 mkdir -p "$ARTK_E2E/vendor/artk-core-autogen/dist"
 cp -r "$AUTOGEN_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core-autogen/dist/" 2>/dev/null || cp -r "$AUTOGEN_DIST_PATH" "$ARTK_E2E/vendor/artk-core-autogen/dist"
-cp "$ARTK_CORE/autogen/package.json" "$ARTK_E2E/vendor/artk-core-autogen/"
+
+# Use variant-specific package.json for autogen (package-cjs.json, package-legacy-16.json, etc.)
+AUTOGEN_PACKAGE_JSON=$(get_variant_package_json "$SELECTED_VARIANT")
+if [ -f "$ARTK_CORE/autogen/$AUTOGEN_PACKAGE_JSON" ]; then
+    cp "$ARTK_CORE/autogen/$AUTOGEN_PACKAGE_JSON" "$ARTK_E2E/vendor/artk-core-autogen/package.json"
+else
+    echo -e "${YELLOW}Warning: Autogen variant package.json not found ($AUTOGEN_PACKAGE_JSON), using default${NC}"
+    cp "$ARTK_CORE/autogen/package.json" "$ARTK_E2E/vendor/artk-core-autogen/"
+fi
 cp "$ARTK_CORE/autogen/README.md" "$ARTK_E2E/vendor/artk-core-autogen/" 2>/dev/null || true
 
 # Step 4: Install prompts

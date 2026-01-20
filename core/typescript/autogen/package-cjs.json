@@ -1,0 +1,48 @@
+{
+  "name": "@artk/core-autogen",
+  "version": "0.1.0",
+  "description": "ARTK AutoGen Core - Deterministic test generation engine for Playwright E2E tests",
+  "main": "dist-cjs/index.js",
+  "types": "dist-cjs/index.d.ts",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "artk-autogen": "./dist-cjs/cli/index.js"
+  },
+  "keywords": [
+    "artk",
+    "playwright",
+    "test-generation",
+    "e2e",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "fast-glob": "^3.3.3",
+    "ts-morph": "^24.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  },
+  "peerDependencies": {
+    "@artk/core": ">=1.0.0",
+    "@playwright/test": ">=1.57.0"
+  },
+  "peerDependenciesMeta": {
+    "@artk/core": {
+      "optional": true
+    },
+    "@playwright/test": {
+      "optional": true
+    }
+  },
+  "artkVariant": {
+    "id": "modern-cjs",
+    "nodeRange": ["18", "19", "20", "21", "22"],
+    "playwrightVersion": "1.57.x",
+    "moduleSystem": "cjs",
+    "tsTarget": "ES2022"
+  }
+}
