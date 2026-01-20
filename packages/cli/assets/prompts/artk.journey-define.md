@@ -1,4 +1,5 @@
 ---
+name: artk.journey-define
 mode: agent
 description: "Create or promote a Journey to defined status - structured test scenario contract with acceptance criteria"
 handoffs:
@@ -31,13 +32,13 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /journey-define — User-defined Journeys (Phase 6)
+# ARTK /artk.journey-define — User-defined Journeys (Phase 6)
 
 You are running **ARTK Phase 6**.
 
 ARTK plugs into GitHub Copilot to help teams build and maintain complete automated regression suites for existing applications using **Journeys** as the source of truth.
 
-This command creates (or upgrades) a Journey into a canonical, structured, “definition-ready” artifact so `/journey-clarify` can finalize it for deterministic implementation.
+This command creates (or upgrades) a Journey into a canonical, structured, “definition-ready” artifact so `/artk.journey-clarify` can finalize it for deterministic implementation.
 
 ## What this command is for
 - Create a **new** Journey from human input (goal + business steps + assertions + tier).
@@ -55,6 +56,7 @@ This command creates (or upgrades) a Journey into a canonical, structured, “de
 - **Deterministic outputs**: stable IDs, stable ordering, stable file naming.
 - **No secrets**: do not ask for passwords/tokens. If login is involved, ask for *test account provisioning process* only.
 - **Medium friction**: minimize questions; default to reasonable placeholders and mark unknowns.
+- **Edit safety**: MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 
@@ -121,7 +123,7 @@ Default: `standard`
    - nearest `artk.config.yml` up the tree
 2) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/artk.init-playbook` first.
 
 ## Step 1 — Determine whether this is “create” or “promote”
 If `source=` is provided:
@@ -183,6 +185,13 @@ LINKS:
 
 If anything required is missing, ask questions based on mode.
 
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
+
 ### Question policy (keep it short)
 Ask only what is necessary to create a defined Journey:
 - missing title: ask for a short title
@@ -235,7 +244,7 @@ Use markers like:
 Insert near top of the body:
 ```
 <!-- ARTK:DEFINE:BEGIN -->
-definedBy: /journey-define
+definedBy: /artk.journey-define
 definedAt: <ISO date>
 sources:
   - user-input
@@ -268,7 +277,7 @@ Fallback:
 ## Step 8 — Ensure docs/JOURNEY_CLARIFY.md exists (minimal here)
 If `<ARTK_ROOT>/docs/JOURNEY_CLARIFY.md` does not exist, create it with managed markers only:
 - what “clarified” means
-- checklist of what `/journey-clarify` will collect
+- checklist of what `/artk.journey-clarify` will collect
 - a short example
 
 ---
@@ -280,3 +289,38 @@ If `<ARTK_ROOT>/docs/JOURNEY_CLARIFY.md` does not exist, create it with managed 
 - [ ] BACKLOG.md regenerated
 - [ ] index.json regenerated
 - [ ] JOURNEY_CLARIFY.md created if missing (minimal)
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Add execution detail to this journey:             ║
+║     /artk.journey-clarify id=<JRN-ID>                              ║
+║                                                                     ║
+║  2. (OPTIONAL) Audit selectors before implementation:               ║
+║     /artk.testid-audit mode=report scope=journey:<JRN-ID>          ║
+║                                                                     ║
+║  3. (AFTER CLARIFY) Implement the journey as Playwright tests:      ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  4. (OPTIONAL) Define another journey:                              ║
+║     /artk.journey-define id=JRN-#### title="<title>"               ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Replace `<JRN-ID>` with the actual journey ID that was just created (e.g., JRN-0001).**
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

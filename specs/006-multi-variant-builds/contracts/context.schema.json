@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artk.dev/schemas/context.schema.json",
+  "title": "ARTK Installation Context",
+  "description": "Schema for .artk/context.json storing installation metadata",
+  "type": "object",
+  "required": ["variant", "variantInstalledAt", "nodeVersion", "moduleSystem", "playwrightVersion", "artkVersion", "installMethod"],
+  "properties": {
+    "variant": {
+      "type": "string",
+      "enum": ["modern-esm", "modern-cjs", "legacy-16", "legacy-14"],
+      "description": "Installed ARTK variant identifier"
+    },
+    "variantInstalledAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO8601 timestamp of installation"
+    },
+    "nodeVersion": {
+      "type": "integer",
+      "minimum": 14,
+      "maximum": 30,
+      "description": "Node.js major version at install time"
+    },
+    "moduleSystem": {
+      "type": "string",
+      "enum": ["esm", "cjs"],
+      "description": "Detected module system of the target project"
+    },
+    "playwrightVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.x$",
+      "description": "Playwright version in installed variant"
+    },
+    "artkVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "ARTK version installed"
+    },
+    "installMethod": {
+      "type": "string",
+      "enum": ["cli", "bootstrap", "manual"],
+      "description": "How ARTK was installed"
+    },
+    "overrideUsed": {
+      "type": "boolean",
+      "description": "True if --variant override was used"
+    },
+    "previousVariant": {
+      "type": "string",
+      "enum": ["modern-esm", "modern-cjs", "legacy-16", "legacy-14"],
+      "description": "Previous variant if this is an upgrade"
+    },
+    "upgradeHistory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "History of variant upgrades"
+    }
+  },
+  "examples": [
+    {
+      "variant": "modern-esm",
+      "variantInstalledAt": "2026-01-19T10:30:00Z",
+      "nodeVersion": 20,
+      "moduleSystem": "esm",
+      "playwrightVersion": "1.57.x",
+      "artkVersion": "1.0.0",
+      "installMethod": "cli",
+      "overrideUsed": false
+    },
+    {
+      "variant": "legacy-16",
+      "variantInstalledAt": "2026-01-19T10:30:00Z",
+      "nodeVersion": 16,
+      "moduleSystem": "cjs",
+      "playwrightVersion": "1.49.x",
+      "artkVersion": "1.0.0",
+      "installMethod": "bootstrap",
+      "overrideUsed": true,
+      "previousVariant": "modern-cjs",
+      "upgradeHistory": [
+        {
+          "from": "modern-cjs",
+          "to": "legacy-16",
+          "at": "2026-01-19T10:30:00Z"
+        }
+      ]
+    }
+  ]
+}

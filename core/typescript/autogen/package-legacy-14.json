@@ -1,0 +1,59 @@
+{
+  "name": "@artk/core-autogen",
+  "version": "0.1.0",
+  "description": "ARTK AutoGen Core - Deterministic test generation engine (Legacy Node 14 variant)",
+  "main": "dist-legacy-14/index.js",
+  "types": "dist-legacy-14/index.d.ts",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.legacy-14.json && npm run copy-templates:legacy-14",
+    "copy-templates:legacy-14": "mkdir -p dist-legacy-14/codegen/templates && cp src/codegen/templates/*.ejs dist-legacy-14/codegen/templates/"
+  },
+  "bin": {
+    "artk-autogen": "./dist-legacy-14/cli/index.js"
+  },
+  "files": [
+    "dist-legacy-14",
+    "README.md"
+  ],
+  "keywords": [
+    "artk",
+    "playwright",
+    "test-generation",
+    "e2e",
+    "automation",
+    "legacy",
+    "node14"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "fast-glob": "^3.3.3",
+    "ts-morph": "^24.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  },
+  "peerDependencies": {
+    "@artk/core": ">=1.0.0",
+    "@playwright/test": "~1.33.0"
+  },
+  "peerDependenciesMeta": {
+    "@artk/core": {
+      "optional": true
+    },
+    "@playwright/test": {
+      "optional": true
+    }
+  },
+  "artkVariant": {
+    "id": "legacy-14",
+    "nodeRange": ["14", "16", "18"],
+    "playwrightVersion": "1.33.x",
+    "moduleSystem": "cjs",
+    "tsTarget": "ES2020"
+  }
+}

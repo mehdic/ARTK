@@ -100,11 +100,11 @@ export function selectBestLocator(alternatives, config) {
     const allowed = alternatives.filter((loc) => !isForbiddenSelector(loc, config));
     if (allowed.length === 0) {
         // All forbidden, return first original
-        return alternatives[0];
+        return alternatives[0] ?? null;
     }
     // Sort by priority
     allowed.sort((a, b) => scoreLocator(a, priority) - scoreLocator(b, priority));
-    return allowed[0];
+    return allowed[0] ?? null;
 }
 /**
  * Check if a locator is a role locator

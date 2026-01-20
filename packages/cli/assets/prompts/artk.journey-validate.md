@@ -1,7 +1,7 @@
 ---
-name: journey-validate
+name: artk.journey-validate
 description: "Phase 8.4: Validate Journey implementation quality (static gates). Checks traceability, schema, tags, module registry, and Playwright best-practice violations (ESLint plugin when available, fallback greps otherwise). Produces a validation report."
-argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|docs/JOURNEY_VALIDATION_<id>.md dryRun=true|false"
+argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|reports/validation/<id>.md dryRun=true|false"
 agent: agent
 handoffs:
   - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
@@ -45,7 +45,7 @@ This command is primarily **static validation**:
 - clear actionable errors
 
 It should be run:
-- automatically at the end of `/journey-implement`, and
+- automatically at the end of `/artk.journey-implement`, and
 - any time someone “just tweaks one small thing” in tests (famous last words).
 
 ---
@@ -108,10 +108,18 @@ Ensures the test structure respects the Journey contract:
 ---
 
 ## Outputs (must produce)
-- A validation report markdown file (default):
-  - `docs/JOURNEY_VALIDATION_<JRN-ID>.md`
-- Optional Journey update:
-  - managed validation block including last validation time and result
+
+**Follow Output File Standards from `.github/prompts/common/GENERAL_RULES.md`.**
+
+Create `reports/validation/` directory and generate:
+- `reports/validation/<JRN-ID>.md` — Human-readable validation report
+- `reports/validation/<JRN-ID>.json` — Machine-readable results (optional)
+
+Optional Journey update:
+- managed validation block including last validation time and result
+
+## Edit safety
+If `autofix=true|auto` or `updateJourney=true`, MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before making any edits.
 
 ---
 
@@ -244,7 +252,7 @@ const myCustomLocator = page.locator('.some-brittle-class');
 
 **Failure handling:**
 - If strict: FAIL validation with file/line pointers
-- If warnings: WARN but suggest `/journey-implement` re-run with `--fix-imports` flag
+- If warnings: WARN but suggest `/artk.journey-implement` re-run with `--fix-imports` flag
 
 ## Step 3 — Module registry coherence (if present)
 If `<harnessRoot>/modules/registry.json` exists:
@@ -254,81 +262,108 @@ If `<harnessRoot>/modules/registry.json` exists:
 
 If registry missing, do not fail by default (warn).
 
-## Step 3.5 — Use AutoGen Core Validation API (Recommended)
+## Step 3.5 — Use AutoGen Validation CLI (Recommended)
 
-**PREFERRED: Use `@artk/core-autogen` for comprehensive validation**
+**PREFERRED: Use the `artk-autogen validate` CLI for comprehensive validation.**
 
-Instead of manual grep/lint checks, use the AutoGen Core validation engine:
+The AutoGen CLI validates Journey files and their associated test code.
 
-```typescript
-import { validateJourney } from '@artk/core-autogen';
+### Running Validation
 
-const result = await validateJourney({
-  journeyPath: 'journeys/JRN-0001-user-login.md',
-  testsDir: 'e2e/tests/',
-  options: {
-    // Enable all validation checks
-    checkForbiddenPatterns: true,
-    checkTags: true,
-    checkACMapping: true,
-    runESLint: true,
-    strict: true,
-  },
-});
+From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
-if (!result.valid) {
-  console.log('Validation failed:');
-  for (const issue of result.issues) {
-    console.log(`  ${issue.severity}: ${issue.message}`);
-    console.log(`    File: ${issue.file}:${issue.line}`);
-    console.log(`    Fix: ${issue.suggestion}`);
-  }
-}
+```bash
+# Validate a single Journey
+npx artk-autogen validate ../journeys/clarified/JRN-0001-user-login.md
+
+# Validate with ESLint checks (more thorough)
+npx artk-autogen validate ../journeys/clarified/JRN-0001.md --lint
+
+# Validate multiple Journeys
+npx artk-autogen validate "../journeys/clarified/*.md" --lint
+
+# Output as JSON (for machine processing)
+npx artk-autogen validate ../journeys/clarified/JRN-0001.md --format json
+
+# Strict mode (fail on warnings too)
+npx artk-autogen validate ../journeys/clarified/JRN-0001.md --strict
 ```
 
-**AutoGen Core Validation Checks:**
+**CLI Options:**
 
-1. **Forbidden Pattern Scanner** (`checkForbiddenPatterns`)
+| Option | Description |
+|--------|-------------|
+| `--lint` | Run ESLint checks (slower but more thorough) |
+| `--format <type>` | Output format: `text`, `json`, or `summary` |
+| `--strict` | Fail on warnings too (not just errors) |
+| `-q, --quiet` | Only show errors, suppress other output |
+
+**Example output:**
+```
+Validating 1 file(s)...
+
+✓ JRN-0001
+
+1 passed, 0 failed
+```
+
+**Example with issues:**
+```
+Validating 1 file(s)...
+
+✗ JRN-0001
+  ✗ [FORBIDDEN_PATTERN] Found page.waitForTimeout() - use web-first assertions
+    field: tests/smoke/jrn-0001.spec.ts:42
+    → Replace with expect(...).toPass() or expect.poll()
+  ⚠ [MISSING_TAG] Missing @scope-* tag
+    → Add @scope-<scope> tag to test describe block
+
+0 passed, 1 failed
+```
+
+### What AutoGen Validation Checks
+
+1. **Forbidden Pattern Scanner**
    - `page.waitForTimeout()` - time-based waits
    - `force: true` - forced actions
    - `page.pause()` - debug pauses
    - `.only(` - focused tests
    - Hardcoded URLs (http://, https://)
 
-2. **Tag Validation** (`checkTags`)
+2. **Tag Validation**
    - Required: `@JRN-####` tag present
    - Required: `@smoke`, `@release`, or `@regression` tier tag
    - Required: `@scope-<scope>` scope tag
 
-3. **AC Mapping Completeness** (`checkACMapping`)
+3. **AC Mapping Completeness**
    - Each AC in Journey has corresponding `test.step()`
    - Each `test.step()` contains at least one `expect()`
    - No orphaned steps (steps not in Journey ACs)
 
-4. **ESLint Integration** (`runESLint`)
+4. **ESLint Integration** (when `--lint` is used)
    - Uses eslint-plugin-playwright rules
    - Catches missing awaits, deprecated APIs
    - Enforces web-first assertions
 
-**Validation Output:**
+### Alternative: Programmatic API
+
+For advanced automation (CI pipelines, custom tooling):
 
 ```typescript
-interface ValidationResult {
-  valid: boolean;
-  summary: {
-    total: number;
-    passed: number;
-    failed: number;
-    warnings: number;
-  };
-  issues: Array<{
-    severity: 'error' | 'warning';
-    category: 'pattern' | 'tag' | 'mapping' | 'lint';
-    message: string;
-    file: string;
-    line: number;
-    suggestion: string;
-  }>;
+import { validateJourneys } from '@artk/core-autogen';
+
+const results = await validateJourneys(
+  ['journeys/clarified/JRN-0001.md'],
+  { runLint: true }
+);
+
+for (const [journeyId, result] of results) {
+  if (!result.valid) {
+    console.log(`${journeyId} failed validation:`);
+    for (const issue of result.issues) {
+      console.log(`  ${issue.severity}: ${issue.message}`);
+    }
+  }
 }
 ```
 
@@ -340,8 +375,9 @@ If `lint=auto|eslint`:
   - `eslint.config.*` or `.eslintrc*`
 - Detect eslint-plugin-playwright installed (package.json).
 - If available, run:
-  - `npx eslint <harnessRoot>/tests/**/*.{ts,js} --max-warnings=0`
-  - scope the run to files containing `@JRN-####` when possible.
+  - `npx eslint "<harnessRoot>/tests/**/*.{ts,js}" --max-warnings=0`
+  - Note: Quote the glob pattern to prevent shell expansion
+  - Scope the run to files containing `@JRN-####` when possible.
 
 If ESLint is not available:
 - If `lint=eslint`: fail
@@ -372,10 +408,10 @@ If Journey has AC IDs and `contract=strict|auto`:
 - Validate that every AC ID appears in at least one `test.step` title.
 - Validate that each such step contains at least one `expect(...)` call (best-effort heuristic).
 If Journey lacks AC IDs:
-- Do not fail; recommend adding IDs via `/journey-clarify`.
+- Do not fail; recommend adding IDs via `/artk.journey-clarify`.
 
 ## Step 6 — Emit report and optionally update Journey
-Write `docs/JOURNEY_VALIDATION_<id>.md` including:
+Write `reports/validation/<JRN-ID>.md` including:
 - summary table of gates (pass/fail/warn)
 - list of issues with file/line pointers (best effort)
 - recommended remediation steps
@@ -395,9 +431,9 @@ with:
 Only do safe mechanical fixes:
 - add missing `@JRN-####` tag (when obviously missing)
 - normalize tag format
-- fix import path to harness base `test`
-- remove accidental `.only` (only if it’s clearly unintended; otherwise warn)
-Do NOT “fix” timing/logic automatically here. That belongs in `/journey-verify`.
+- fix import path to use `@artk/core/fixtures` instead of direct Playwright imports
+- remove accidental `.only` (only if it's clearly unintended; otherwise warn)
+Do NOT "fix" timing/logic automatically here. That belongs in `/artk.journey-verify`.
 
 ---
 
@@ -409,3 +445,34 @@ Do NOT “fix” timing/logic automatically here. That belongs in `/journey-veri
 - [ ] Contract mapping checks pass or are explicitly deferred
 - [ ] Validation report written
 
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (IF VALIDATION PASSED) Run and verify the tests:                ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  2. (IF VALIDATION FAILED) Fix issues and re-implement:             ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  3. (OPTIONAL) Validate another journey:                            ║
+║     /artk.journey-validate id=JRN-####                             ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Replace `<JRN-ID>` with the actual journey ID that was just validated (e.g., JRN-0001).**
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

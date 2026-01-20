@@ -1,0 +1,32 @@
+# ARTK Test Environment - Node 20 (Modern Variants)
+FROM node:20-slim
+
+LABEL maintainer="ARTK Team"
+LABEL description="Test environment for ARTK modern-esm and modern-cjs variants"
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files first for caching
+COPY package.json ./
+
+# Install dependencies
+RUN npm install || true
+
+# Copy source
+COPY . .
+
+# Build both modern variants
+RUN npm run build && npm run build:cjs || echo "Build will run from mounted volume"
+
+# Verify the builds
+CMD ["bash", "-c", "\
+    echo 'Testing modern-esm:' && \
+    node -e \"import('./dist/index.js').then(m => console.log('ESM loaded:', Object.keys(m).length, 'exports'))\" && \
+    echo 'Testing modern-cjs:' && \
+    node -e \"const m = require('./dist-cjs/index.js'); console.log('CJS loaded:', Object.keys(m).length, 'exports')\" \
+"]

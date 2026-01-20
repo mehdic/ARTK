@@ -1,0 +1,28 @@
+# ARTK Test Environment - Node 14 (Legacy-14 Variant)
+FROM node:14-slim
+
+LABEL maintainer="ARTK Team"
+LABEL description="Test environment for ARTK legacy-14 variant"
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files first for caching
+COPY package.json package-legacy-14.json ./
+
+# Install dependencies using legacy package.json
+RUN cp package-legacy-14.json package.json.bak && \
+    npm install --legacy-peer-deps || true
+
+# Copy source
+COPY . .
+
+# Build legacy-14 variant
+RUN npm run build:legacy-14 || echo "Build will run from mounted volume"
+
+# Verify the build
+CMD ["node", "-e", "const m = require('./dist-legacy-14/index.js'); console.log('Legacy-14 variant loaded:', Object.keys(m).length, 'exports');"]

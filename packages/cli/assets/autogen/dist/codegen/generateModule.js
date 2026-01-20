@@ -3,13 +3,10 @@
  * @see research/2026-01-02_autogen-refined-plan.md Section 12
  */
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import { toPlaywrightLocator } from '../selectors/priority.js';
-// Get current directory for template path
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
+import { getTemplatePath } from '../utils/paths.js';
 /**
  * Convert a scope/name to PascalCase class name
  */
@@ -240,7 +237,7 @@ function escapeString(str) {
  * Load the default module template
  */
 function loadDefaultTemplate() {
-    const templatePath = join(__dirname, 'templates', 'module.ejs');
+    const templatePath = getTemplatePath('module.ejs');
     return readFileSync(templatePath, 'utf-8');
 }
 /**
@@ -266,9 +263,11 @@ export function generateModule(journey, options = {}) {
         locators,
         methods,
     };
-    // Render template
+    // Render template with version branding
     const code = ejs.render(template, {
         ...moduleDef,
+        version: getPackageVersion(),
+        timestamp: getGeneratedTimestamp(),
     });
     // Generate filename
     const filename = `${journey.scope.toLowerCase()}.page.ts`;

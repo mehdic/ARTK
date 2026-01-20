@@ -79,7 +79,7 @@ export function extractName(text) {
     // Look for quoted strings
     const quotedMatch = text.match(/['"]([^'"]+)['"]/);
     if (quotedMatch) {
-        return quotedMatch[1];
+        return quotedMatch[1] ?? null;
     }
     // Look for "the X button" pattern
     const theMatch = text.match(/(?:the\s+)?['"]?([^'"]+?)['"]?\s+(?:button|link|field|input|checkbox|dropdown)/i);

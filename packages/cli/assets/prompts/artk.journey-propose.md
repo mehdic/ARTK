@@ -1,4 +1,5 @@
 ---
+name: artk.journey-propose
 mode: agent
 description: "Auto-propose high-signal Journeys from discovery findings - generates proposed Journey files and JOURNEY_PROPOSALS.md"
 handoffs:
@@ -31,14 +32,14 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /journey-propose — Automatic Journey Identification (Phase 5)
+# ARTK /artk.journey-propose — Automatic Journey Identification (Phase 5)
 
 You are running **ARTK Phase 5**.
 
 ARTK is a standardized kit that plugs into GitHub Copilot (repository instructions + prompt files + structured artifacts) to help teams build and continuously maintain **complete automated regression testing suites** for existing applications. These suites cover end-to-end **Journeys**, detect regressions early, and keep behavior stable across releases.
 
 This command generates a **high-signal proposed Journey backlog** with **module dependency hints**, using:
-- outputs from `/discover` (Phase 4), plus
+- outputs from `/artk.discover-foundation` (Phase 4), plus
 - **change risk signals** (code churn / hotspots), and
 - **incident/bug history signals** (ticket references, postmortems, changelog “fixes”)
 
@@ -52,6 +53,7 @@ The objective is simple: propose the Journeys most likely to catch regressions *
 - **Deterministic.** Same inputs ⇒ same proposal ordering and file names.
 - **No secrets.** Never ask for credentials. If auth is needed, request a test account *process*, not secrets.
 - **Graceful degradation.** If git history or incident sources are unavailable, proceed with discovery-only signals and label uncertainty.
+- **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 
@@ -83,7 +85,7 @@ Look for any of these in the repo:
 - bug/incident exports: `incidents.csv`, `bugs.csv`, `jira_export.*`, `tickets.*`
 - commit messages containing ticket IDs (e.g., `ABC-1234`, `INC123456`)
 
-If discovery sources are missing, stop and instruct the user to run `/discover-foundation` first.
+If discovery sources are missing, stop and instruct the user to run `/artk.discover-foundation` first.
 
 ---
 
@@ -120,22 +122,71 @@ All generated sections MUST include managed markers:
 ---
 
 # Inputs (optional)
-Parse `key=value` args after `/journey-propose`:
+Parse `key=value` args after `/artk.journey-propose`:
 
 ## General
-- `mode`: `quick | standard | max` (default: `standard`)
+- `mode`: `quick | standard | max` (default: `standard`) — controls **question depth** (how much to ask)
 - `artkRoot`: ARTK root folder path (default: infer from `artk.config.yml`)
 - `appScope`: `auto | all | <appName>` (default: `auto`)
-- `maxJourneys`: default `20`
-- `smokeCount`: default `6`
-- `releaseCount`: default `14`
-- `includeRegression`: default `false`
+- `coverage`: `small | large` (default: `large`) — controls **proposal quantity** (how many journeys)
+  - `small`: 20 journeys (5 smoke, 10 release, 5 regression) — quick start
+  - `large`: 50 journeys (10 smoke, 20 release, 20 regression) — comprehensive
+- `maxJourneys`: default depends on `coverage` (20 for small, 50 for large)
+- `smokeCount`: default depends on `coverage` (5 for small, 10 for large)
+- `releaseCount`: default depends on `coverage` (10 for small, 20 for large)
+- `regressionCount`: default depends on `coverage` (5 for small, 20 for large)
+- `includeRegression`: default `true` — regression tier is now included by default
 - `includeBlocked`: default `true`
 - `minFeasibility`: `high | medium` (default: `medium`)
 - `allowDuplicates`: default `false`
 - `outProposedDir`: default `journeys/proposed`
 - `outDocsDir`: default `docs`
 - `dryRun`: default `false`
+
+**Coverage presets (user can override individual counts):**
+
+| Coverage | Smoke | Release | Regression | Total |
+|----------|-------|---------|------------|-------|
+| `small`  | 5     | 10      | 5          | 20    |
+| `large`  | 10    | 20      | 20         | 50    |
+
+### Parameter Priority Rules (explicit overrides implicit)
+
+When parameters conflict, apply this priority order:
+
+1. **Explicit tier counts override coverage presets:**
+   - `smokeCount=15` overrides the preset value from `coverage`
+   - Same for `releaseCount` and `regressionCount`
+
+2. **`includeRegression=false` disables regression regardless of coverage:**
+   - `coverage=large includeRegression=false` → smoke + release only, no regression
+   - The `regressionCount` is ignored when `includeRegression=false`
+
+3. **`maxJourneys` caps total (priority-based filling):**
+   - Fill smoke tier first (up to `smokeCount`)
+   - Fill release tier next (up to `releaseCount`)
+   - Fill regression tier last (up to `regressionCount`)
+   - Stop when total reaches `maxJourneys`
+   - Example: `smokeCount=10, releaseCount=20, regressionCount=20, maxJourneys=30`
+     → Smoke: 10, Release: 20, Regression: 0 (maxJourneys hit)
+
+### Backward Compatibility Note
+
+**Breaking change (v2.0):** `includeRegression` now defaults to `true` (was `false`).
+To restore old behavior, use `includeRegression=false`.
+
+### Insufficient Data Handling
+
+If there aren't enough quality candidates to fill the requested counts:
+1. Apply tier criteria to all candidates first (see Step 9.4)
+2. Assign each candidate to the appropriate tier based on criteria, not counts
+3. Report actual counts vs requested counts in the output
+4. Do NOT spread candidates thin just to fill tiers
+5. Do NOT pad with low-quality proposals
+
+Example: 5 candidates found, all meet smoke criteria
+→ Smoke: 5, Release: 0, Regression: 0
+→ Output explains: "Only 5 smoke-quality candidates found"
 
 ## Change/incident signal controls
 - `changeSignals`: `auto | on | off` (default: `auto`)
@@ -168,7 +219,8 @@ Parse `key=value` args after `/journey-propose`:
 
 ## 2) Proposal plan (short)
 - Inputs used (discovery + change + incident)
-- Proposed counts by tier
+- Coverage scope (`small` or `large`)
+- Proposed counts by tier (smoke / release / regression)
 - Dedup strategy
 - How IDs will be allocated
 - Scoring weights used
@@ -183,7 +235,7 @@ Ask a compact questionnaire for a single reply, based on `mode`.
 - Optional evidence JSONs written
 
 At the end print:
-- Next commands (`/journey-define`, `/journey-clarify`)
+- Next commands (`/artk.journey-define`, `/artk.journey-clarify`)
 - Known blockers & remediation (from feasibility + incidents)
 
 ---
@@ -199,7 +251,7 @@ At the end print:
 2) **Load context from `.artk/context.json`:**
 
    Read `<ARTK_ROOT>/.artk/context.json` to get:
-   - `targets[]` - detected frontend targets from /init
+   - `targets[]` - detected frontend targets from /artk.init-playbook
    - `detectedTargets[]` - targets with detection confidence
    - `discovery` - if present, cached discovery results (routes, components)
    - `journeys` - existing journey statistics
@@ -214,12 +266,12 @@ At the end print:
 3) Confirm Journey system exists:
    - `<ARTK_ROOT>/journeys/`
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
-If missing: instruct user to run `/journey-system` first.
+If missing: instruct user to run `/artk.init-playbook` first.
 
 4) Confirm discovery exists:
    - prefer `docs/discovery/*.json`, else `docs/DISCOVERY.md` + `docs/TESTABILITY.md`
    - alternatively, use `discovery` from context.json if present
-If missing: instruct user to run `/discover-foundation` first.
+If missing: instruct user to run `/artk.discover-foundation` first.
 
 ## Step 1 — Load Journey config + existing index
 - Read `<ARTK_ROOT>/journeys/journeys.config.yml` for:
@@ -414,22 +466,142 @@ Then apply:
 Boost candidates that demand reusable foundation modules shared across many proposals.
 
 ### 9.4 Select top Journeys
-Select:
-- up to `smokeCount` smoke Journeys
-- up to `releaseCount` release Journeys
-- optionally regression if `includeRegression=true`
-Never exceed `maxJourneys` total.
 
-Write scoring evidence:
-- `docs/journey-proposals/evidence.scoring.json`
+**First, determine counts based on `coverage` parameter:**
+
+| Coverage | Smoke | Release | Regression | Total |
+|----------|-------|---------|------------|-------|
+| `small`  | 5     | 10      | 5          | 20    |
+| `large`  | 10    | 20      | 20         | 50    |
+
+User-provided `smokeCount`, `releaseCount`, `regressionCount`, or `maxJourneys` override the preset values (see Parameter Priority Rules above).
+
+**Tier Assignment Criteria (NOT just sequential by risk score):**
+
+Before filling tiers, evaluate each candidate against tier criteria:
+
+**Smoke tier candidates MUST:**
+- Be happy-path only (no negative/edge cases)
+- Have HIGH feasibility (no blockers, stable selectors)
+- Cover critical business functionality (auth, core workflow, health check)
+- Be expected to complete quickly (< 2 minutes)
+- Have low flakiness risk (no complex async, no timing-sensitive operations)
+
+**Release tier candidates SHOULD:**
+- Be happy-path or common alternative paths
+- Have MEDIUM or HIGH feasibility
+- Cover breadth of features (not depth of one feature)
+- Be representative of typical user journeys
+
+**Regression tier candidates MAY:**
+- Include edge cases, negative paths, error handling
+- Include complex multi-step workflows
+- Include lower-feasibility candidates (with remediation noted)
+- Include incident-driven coverage (flows that caused past bugs)
+- Include feature variants (different user types, data states)
+
+**Demotion rule:** If a high-risk candidate doesn't meet smoke criteria, demote to release. If it doesn't meet release criteria, demote to regression. Never promote a candidate to a higher tier just to fill counts.
+
+**Then select journeys (criteria-first, then risk-ranked within tier):**
+
+1. **Smoke tier:** From candidates meeting smoke criteria, select top `smokeCount` by augmentedRisk score
+2. **Release tier:** From candidates meeting release criteria (excluding already-selected), select top `releaseCount` by augmentedRisk score
+3. **Regression tier:** From remaining candidates meeting regression criteria, select top `regressionCount` by augmentedRisk score (if `includeRegression=true`)
+
+**Empty tier handling:**
+- Empty tiers are allowed (e.g., 10 smoke, 0 release, 5 regression is valid)
+- Do NOT promote lower-tier candidates to fill empty higher tiers
+- Note in output: "Release tier: 0 (no candidates met release criteria)"
+
+**maxJourneys enforcement (priority-based):**
+- Fill smoke first, then release, then regression
+- Stop when total reaches `maxJourneys`
+- Example: `maxJourneys=30` with 10/20/20 counts → Smoke: 10, Release: 20, Regression: 0
+
+Never exceed `maxJourneys` total across all tiers.
+
+Write scoring evidence to `docs/journey-proposals/evidence.scoring.json`:
+```json
+{
+  "generatedAt": "<ISO date>",
+  "coverage": "small|large",
+  "requestedCounts": { "smoke": 10, "release": 20, "regression": 20, "total": 50 },
+  "actualCounts": { "smoke": 8, "release": 15, "regression": 12, "total": 35 },
+  "parametersUsed": {
+    "includeRegression": true,
+    "maxJourneys": 50,
+    "minFeasibility": "medium"
+  },
+  "candidates": [
+    {
+      "id": "JRN-0001",
+      "title": "...",
+      "tier": "smoke",
+      "augmentedRisk": 42.5,
+      "meetsSmokeCriteria": true,
+      "meetsReleaseCriteria": true,
+      "feasibility": "high"
+    }
+  ]
+}
+```
 
 ## Step 10 — Allocate IDs deterministically
-- Determine next available ID from existing index (max suffix).
-- Never reuse IDs.
-- On rerun: if an equivalent proposal exists (fingerprint match), reuse that file/ID.
+
+**ID allocation rules:**
+- Determine next available ID from existing index (max suffix)
+- Never reuse IDs
+- On rerun: if an equivalent proposal exists (fingerprint match), reuse that file/ID
+
+**Rerun behavior with existing proposals:**
+
+When rerunning `/artk.journey-propose` on a repo with existing proposals:
+
+1. **Existing proposals with fingerprint match:** Keep as-is, do not re-tier or re-score
+2. **New candidates not in existing proposals:** Assign tier based on criteria and propose
+3. **Tier changes between runs:**
+   - If `includeRegression` was `false` before and is now `true`:
+     - Existing smoke/release proposals: unchanged
+     - New regression proposals: added for candidates not already proposed
+   - Never demote an existing proposal to a lower tier
+   - Never promote an existing proposal to a higher tier (user can do this manually)
+4. **Count toward limits:** Existing proposals count toward tier limits
+   - Example: 5 existing smoke proposals + `smokeCount=10` → only 5 new smoke proposals possible
+
+**To start fresh:** Delete all files in `journeys/proposed/` before running.
 
 ## Step 11 — Generate proposed Journey files
-For each selected Journey:
+
+**Progress reporting (for large coverage or >20 journeys):**
+
+When generating many proposals, print progress to keep the user informed:
+
+```
+Generating proposed journeys...
+
+Smoke tier (10 journeys):
+  ✓ JRN-0001 User Login
+  ✓ JRN-0002 Dashboard Load
+  ✓ JRN-0003 Core Workflow
+  ... (7 more)
+  ✓ Smoke tier complete: 10/10
+
+Release tier (20 journeys):
+  ✓ JRN-0011 Submit Order
+  ✓ JRN-0012 View Order History
+  ... (18 more)
+  ✓ Release tier complete: 20/20
+
+Regression tier (15 journeys):
+  ✓ JRN-0031 Invalid Login Attempt
+  ✓ JRN-0032 Session Timeout Handling
+  ... (13 more)
+  ✓ Regression tier complete: 15/20 (5 excluded - low feasibility)
+
+Total: 45/50 journeys proposed
+```
+
+**For each selected Journey:**
 - Create file in `journeys/proposed/`:
   - `<ID>__<slug>.md` (kebab-case slug, max 60 chars)
 - Frontmatter:
@@ -446,7 +618,7 @@ For each selected Journey:
 Add this managed evidence block near the top:
 ```
 <!-- ARTK:PROPOSAL:BEGIN -->
-proposedBy: /journey-propose
+proposedBy: /artk.journey-propose
 proposedAt: <ISO date>
 sources:
   - <file/path>
@@ -472,25 +644,68 @@ If you cannot execute scripts:
 - emulate Core generator exactly (parse frontmatter, validate constraints, sort by ID, generate backlog and index).
 
 ## Step 13 — Write `docs/JOURNEY_PROPOSALS.md`
+
 Create/update a readable report with:
-- executive summary
-- inputs used (discovery + change + incident windows)
-- proposed Journeys table (ranked):
-  - ID, title, tier, scope, actor
-  - baseRisk, changeScore, incidentScore, feasibility, complexity
-  - modules
-  - blocked? and remediation
-- “Top hotspots” section (top 10 paths) with churn metrics
-- “Top incident clusters” section (top 10) with ticket counts
-- recommended foundation modules to build early
-- demanded feature modules
-- deferred candidates (optional) + reasons
+
+### Required sections:
+
+1. **Executive summary** including:
+   - Coverage used (small/large)
+   - Counts: requested vs actual per tier
+   - Key findings (top risk areas, blockers)
+
+2. **Inputs used:**
+   - Discovery sources
+   - Change window (days/commits)
+   - Incident sources found
+
+3. **Proposed Journeys table (ranked by tier, then risk):**
+
+```markdown
+| # | ID | Title | Tier | Scope | Actor | Risk | Feasibility | Blocked? |
+|---|-----|-------|------|-------|-------|------|-------------|----------|
+| 1 | JRN-0001 | User Login | smoke | auth | user | 42.5 | high | - |
+| 2 | JRN-0002 | Dashboard Load | smoke | home | user | 38.2 | high | - |
+| 3 | JRN-0003 | Submit Order | release | checkout | user | 35.1 | medium | - |
+```
+
+4. **Tier summary:**
+   - Smoke: X of Y (list key journeys)
+   - Release: X of Y (list key journeys)
+   - Regression: X of Y (list key journeys)
+   - If any tier is empty or under-filled, explain why
+
+5. **Top hotspots** (top 10 paths with churn metrics)
+
+6. **Top incident clusters** (top 10 with ticket counts)
+
+7. **Module recommendations:**
+   - Foundation modules to build early
+   - Feature modules demanded by proposals
+
+8. **Deferred candidates** (optional) with reasons
+
+### Tier balance guidance:
+
+A well-balanced proposal set should approximate:
+- Smoke: 15-25% of total (critical paths only)
+- Release: 40-50% of total (happy paths, breadth)
+- Regression: 30-40% of total (edge cases, depth)
+
+The `large` preset (10/20/20 = 20%/40%/40%) follows this guidance.
 
 Keep output deterministic.
 
 ---
 
-# Mode-based questions (don’t exhaust the user)
+# Mode-based questions (don't exhaust the user)
+
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
 
 ## QUICK (≤ 3, only if missing)
 1) Confirm top 1–2 business-critical workflows (names only).
@@ -501,7 +716,9 @@ Keep output deterministic.
 Quick +:
 4) Confirm auth style (SSO redirect vs login form vs both).
 5) Confirm test data approach (seeded env vs API setup vs manual).
-6) Confirm target smoke size and release size (defaults ok).
+6) Confirm coverage scope:
+   - `large` (recommended): 50 journeys (10 smoke, 20 release, 20 regression)
+   - `small`: 20 journeys (5 smoke, 10 release, 5 regression)
 7) Confirm whether blocked journeys should be included (default true).
 
 ## MAX (add up to 8)
@@ -518,18 +735,86 @@ Provide one reply template.
 ---
 
 # Edge cases you MUST handle
+
 - **No UI**: do not fabricate UI Journeys. Produce a short explanation + suggest API-focused journeys or skip.
 - **Monorepo**: separate proposals per app or ask user to pick appScope.
 - **Overlap with existing journeys**: dedupe; only propose new.
 - **No git history accessible**: proceed with discovery-only and label change signals as unavailable.
 - **Huge repo**: cap window; prefer folder-level mapping; avoid O(N files) expensive work.
 - **Incident sources absent**: use commit-message tickets as proxy; label uncertainty.
+- **Insufficient candidates**: propose only what data supports; explain gaps in output (see Insufficient Data Handling above).
+- **Parameter conflicts**: apply Parameter Priority Rules (explicit overrides implicit).
+- **Rerun with existing proposals**: follow Rerun Behavior rules (don't re-tier existing).
 
 ---
 
 # Completion checklist (print at end)
+
+**Artifacts created:**
 - [ ] Proposed Journey files created under `journeys/proposed/`
+- [ ] Proposals evaluated against tier criteria (not just sequential fill)
 - [ ] Each proposed Journey has goal, steps, tentative assertions, dependencies
 - [ ] Backlog/index regenerated
-- [ ] `docs/JOURNEY_PROPOSALS.md` created/updated
-- [ ] Evidence JSONs written (recommended)
+- [ ] `docs/JOURNEY_PROPOSALS.md` created/updated with tier breakdown
+- [ ] `docs/journey-proposals/evidence.scoring.json` written
+
+**Tier coverage:**
+- [ ] Smoke tier: candidates evaluated against smoke criteria
+- [ ] Release tier: candidates evaluated against release criteria
+- [ ] Regression tier: candidates evaluated (if `includeRegression=true`)
+
+**Print tier summary:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  PROPOSAL SUMMARY                                                   ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Coverage: large                                                    ║
+║                                                                     ║
+║  Tier         Proposed    Maximum    Status                        ║
+║  ──────────   ─────────   ───────    ──────────────────────────    ║
+║  Smoke        8           10         ✓ (2 candidates demoted)      ║
+║  Release      15          20         ✓ (5 below max - limited data)║
+║  Regression   12          20         ✓ (8 below max - low risk)    ║
+║  ──────────   ─────────   ───────                                  ║
+║  Total        35          50                                        ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**If any tier has fewer proposals than maximum, explain why:**
+- "Not enough candidates met smoke criteria (demoted to release)"
+- "Limited high-risk candidates for release tier"
+- "Remaining candidates had low feasibility (excluded)"
+- "maxJourneys cap reached before filling regression tier"
+
+---
+
+# MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Define a proposed journey with full structure:    ║
+║     /artk.journey-define source=JRN-####                           ║
+║                                                                     ║
+║  2. (ALTERNATIVE) Define a new journey manually:                    ║
+║     /artk.journey-define id=JRN-#### title="<title>"               ║
+║                                                                     ║
+║  3. (AFTER DEFINE) Add execution detail to a journey:               ║
+║     /artk.journey-clarify id=JRN-####                              ║
+║                                                                     ║
+║  4. (OPTIONAL) Audit selectors for stable test hooks:               ║
+║     /artk.testid-audit mode=report                                 ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:**
+- Copy the commands box exactly. Do not abbreviate or summarize.
+- Do NOT invent commands that don't exist.
+- Only use commands from the handoffs section of this prompt.

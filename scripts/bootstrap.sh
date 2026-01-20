@@ -1,7 +1,14 @@
 #!/bin/bash
 #
 # ARTK Bootstrap Script
-# Usage: ./bootstrap.sh /path/to/target-project [--skip-npm]
+# Usage: ./bootstrap.sh /path/to/target-project [options]
+#
+# Options:
+#   --skip-npm                Skip npm install
+#   --variant=<variant>       Force specific variant (modern-esm, modern-cjs, legacy-16, legacy-14)
+#   --force-detect            Force environment re-detection
+#   --skip-validation         Skip validation of generated code
+#   --template-variant=<v>    Legacy option (use --variant instead)
 #
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
@@ -410,12 +417,143 @@ EOF
     fi
 }
 
+# Multi-variant support: Valid variant IDs
+VALID_VARIANTS=("modern-esm" "modern-cjs" "legacy-16" "legacy-14")
+
+validate_variant() {
+    local variant="$1"
+    for v in "${VALID_VARIANTS[@]}"; do
+        if [ "$v" = "$variant" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+get_node_major_version() {
+    node -e "console.log(process.version.slice(1).split('.')[0])" 2>/dev/null || echo "0"
+}
+
+detect_module_system() {
+    local project_path="$1"
+    local current_path
+    current_path=$(cd "$project_path" 2>/dev/null && pwd)
+
+    # Walk up the directory tree to find nearest package.json (monorepo support)
+    while [ "$current_path" != "/" ]; do
+        local pkg_json="$current_path/package.json"
+        if [ -f "$pkg_json" ]; then
+            local type_field
+            type_field=$(node -e "const p=require('$pkg_json'); console.log(p.type || '')" 2>/dev/null || echo "")
+            if [ "$type_field" = "module" ]; then
+                echo "esm"
+                return
+            fi
+            # Found package.json but no type: module, default to cjs
+            echo "cjs"
+            return
+        fi
+        current_path=$(dirname "$current_path")
+    done
+
+    # No package.json found anywhere, default to cjs
+    echo "cjs"
+}
+
+select_variant() {
+    local node_major="$1"
+    local module_system="$2"
+
+    if [ "$node_major" -ge 18 ]; then
+        if [ "$module_system" = "esm" ]; then
+            echo "modern-esm"
+        else
+            echo "modern-cjs"
+        fi
+    elif [ "$node_major" -ge 16 ]; then
+        echo "legacy-16"
+    elif [ "$node_major" -ge 14 ]; then
+        echo "legacy-14"
+    else
+        echo ""
+    fi
+}
+
+get_variant_dist_dir() {
+    local variant="$1"
+    case "$variant" in
+        modern-esm) echo "dist" ;;
+        modern-cjs) echo "dist-cjs" ;;
+        legacy-16) echo "dist-legacy-16" ;;
+        legacy-14) echo "dist-legacy-14" ;;
+        *) echo "dist" ;;
+    esac
+}
+
+get_variant_playwright_version() {
+    local variant="$1"
+    case "$variant" in
+        modern-esm|modern-cjs) echo "1.57.x" ;;
+        legacy-16) echo "1.49.x" ;;
+        legacy-14) echo "1.33.x" ;;
+        *) echo "1.57.x" ;;
+    esac
+}
+
+get_autogen_dist_dir() {
+    local variant="$1"
+    case "$variant" in
+        modern-esm) echo "dist" ;;
+        modern-cjs) echo "dist-cjs" ;;
+        legacy-16) echo "dist-legacy-16" ;;
+        legacy-14) echo "dist-legacy-14" ;;
+        *) echo "dist" ;;
+    esac
+}
+
+# Check if variant is compatible with Node version
+check_variant_compatibility() {
+    local variant="$1"
+    local node_major="$2"
+
+    case "$variant" in
+        modern-esm|modern-cjs)
+            if [ "$node_major" -lt 18 ]; then
+                return 1
+            fi
+            ;;
+        legacy-16)
+            if [ "$node_major" -lt 16 ] || [ "$node_major" -gt 20 ]; then
+                return 1
+            fi
+            ;;
+        legacy-14)
+            if [ "$node_major" -lt 14 ] || [ "$node_major" -gt 18 ]; then
+                return 1
+            fi
+            ;;
+    esac
+    return 0
+}
+
+get_variant_node_range() {
+    # Returns LTS versions only (even numbers: 14, 16, 18, 20, 22)
+    local variant="$1"
+    case "$variant" in
+        modern-esm|modern-cjs) echo "18, 20, 22 (LTS)" ;;
+        legacy-16) echo "16, 18, 20 (LTS)" ;;
+        legacy-14) echo "14, 16, 18 (LTS)" ;;
+        *) echo "18, 20, 22 (LTS)" ;;
+    esac
+}
+
 # Parse arguments
 TARGET=""
 SKIP_NPM=false
 FORCE_DETECT=false
 SKIP_VALIDATION=false
 TEMPLATE_VARIANT=""
+FORCED_VARIANT=""
 
 for arg in "$@"; do
     case $arg in
@@ -428,8 +566,22 @@ for arg in "$@"; do
         --skip-validation)
             SKIP_VALIDATION=true
             ;;
+        --variant=*)
+            FORCED_VARIANT="${arg#*=}"
+            if ! validate_variant "$FORCED_VARIANT"; then
+                echo -e "${RED}Error: Invalid variant '$FORCED_VARIANT'${NC}"
+                echo ""
+                echo "Valid variants:"
+                for v in "${VALID_VARIANTS[@]}"; do
+                    echo "  - $v"
+                done
+                exit 1
+            fi
+            ;;
         --template-variant=*)
+            # Legacy option - map to new variant system
             TEMPLATE_VARIANT="${arg#*=}"
+            echo -e "${YELLOW}Warning: --template-variant is deprecated. Use --variant instead.${NC}"
             ;;
         *)
             if [ -z "$TARGET" ]; then
@@ -446,14 +598,20 @@ if [ -z "$TARGET" ]; then
     echo ""
     echo "Options:"
     echo "  --skip-npm                    Skip npm install"
+    echo "  --variant=<variant>           Force specific variant (overrides auto-detection)"
     echo "  --force-detect                Force environment re-detection"
     echo "  --skip-validation             Skip validation of generated code"
-    echo "  --template-variant=<variant>  Force template variant (commonjs|esm)"
+    echo ""
+    echo "Available variants:"
+    echo "  modern-esm   Node 18+, ESM, Playwright 1.57.x"
+    echo "  modern-cjs   Node 18+, CJS, Playwright 1.57.x"
+    echo "  legacy-16    Node 16+, CJS, Playwright 1.49.x"
+    echo "  legacy-14    Node 14+, CJS, Playwright 1.33.x"
     echo ""
     echo "Examples:"
     echo "  $0 ~/projects/my-app"
     echo "  $0 . --skip-npm"
-    echo "  $0 ~/projects/esm-app --template-variant=esm"
+    echo "  $0 ~/projects/legacy --variant=legacy-16"
     echo "  $0 ~/projects/existing --force-detect"
     exit 1
 fi
@@ -471,6 +629,63 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo "ARTK Source: $ARTK_REPO"
 echo "Target:      $TARGET_PROJECT"
+echo ""
+
+# Early variant detection (needed for correct dist directory)
+SELECTED_VARIANT=""
+OVERRIDE_USED="false"
+NODE_MAJOR=$(get_node_major_version)
+MODULE_SYSTEM=$(detect_module_system "$TARGET_PROJECT")
+
+# Check Node.js version first
+if [ "$NODE_MAJOR" -lt 14 ]; then
+    echo -e "${RED}Error: Node.js $NODE_MAJOR is not supported. ARTK requires Node.js 14 or higher.${NC}"
+    exit 1
+fi
+
+if [ -n "$FORCED_VARIANT" ]; then
+    # Check if forced variant is compatible with current Node version
+    if ! check_variant_compatibility "$FORCED_VARIANT" "$NODE_MAJOR"; then
+        VARIANT_RANGE=$(get_variant_node_range "$FORCED_VARIANT")
+        echo -e "${RED}Error: Variant '$FORCED_VARIANT' is not compatible with Node.js $NODE_MAJOR${NC}"
+        echo ""
+        echo -e "${YELLOW}Variant '$FORCED_VARIANT' supports Node.js: $VARIANT_RANGE${NC}"
+        echo ""
+        echo "Options:"
+        echo "  1. Use a compatible variant for Node.js $NODE_MAJOR:"
+        RECOMMENDED=$(select_variant "$NODE_MAJOR" "$MODULE_SYSTEM")
+        echo "     --variant=$RECOMMENDED (recommended for Node $NODE_MAJOR)"
+        echo "  2. Switch to a supported Node.js version"
+        echo "  3. Remove --variant flag to use auto-detection"
+        exit 1
+    fi
+    SELECTED_VARIANT="$FORCED_VARIANT"
+    OVERRIDE_USED="true"
+    echo -e "${CYAN}Using forced variant: $SELECTED_VARIANT${NC}"
+elif [ -n "$TEMPLATE_VARIANT" ]; then
+    case "$TEMPLATE_VARIANT" in
+        esm) SELECTED_VARIANT="modern-esm" ;;
+        commonjs|cjs) SELECTED_VARIANT="modern-cjs" ;;
+        *) SELECTED_VARIANT=$(select_variant "$NODE_MAJOR" "$MODULE_SYSTEM") ;;
+    esac
+elif [ -f "$TARGET_PROJECT/.artk/context.json" ] && [ "$FORCE_DETECT" != true ]; then
+    SELECTED_VARIANT=$(grep -o '"variant":"[^"]*"' "$TARGET_PROJECT/.artk/context.json" | cut -d'"' -f4 || echo "")
+    if [ -z "$SELECTED_VARIANT" ]; then
+        SELECTED_VARIANT=$(select_variant "$NODE_MAJOR" "$MODULE_SYSTEM")
+    fi
+else
+    SELECTED_VARIANT=$(select_variant "$NODE_MAJOR" "$MODULE_SYSTEM")
+fi
+
+if [ -z "$SELECTED_VARIANT" ]; then
+    SELECTED_VARIANT="modern-cjs"
+fi
+
+VARIANT_DIST_DIR=$(get_variant_dist_dir "$SELECTED_VARIANT")
+VARIANT_PW_VERSION=$(get_variant_playwright_version "$SELECTED_VARIANT")
+
+echo -e "${CYAN}Environment: Node $NODE_MAJOR, $MODULE_SYSTEM${NC}"
+echo -e "${CYAN}Variant:     $SELECTED_VARIANT (Playwright $VARIANT_PW_VERSION)${NC}"
 echo ""
 
 # Step 1: Build @artk/core if needed
@@ -599,21 +814,103 @@ done
 
 echo -e "${CYAN}  ✓ Created foundation module structure${NC}"
 
-# Step 3: Copy @artk/core to vendor
-echo -e "${YELLOW}[3/7] Installing @artk/core to vendor/...${NC}"
-cp -r "$ARTK_CORE/dist" "$ARTK_E2E/vendor/artk-core/"
+# Step 3: Copy @artk/core to vendor (using variant-specific dist)
+echo -e "${YELLOW}[3/7] Installing @artk/core ($SELECTED_VARIANT) to vendor/...${NC}"
+
+# Check if variant dist exists, fall back to default dist
+VARIANT_DIST_PATH="$ARTK_CORE/$VARIANT_DIST_DIR"
+if [ ! -d "$VARIANT_DIST_PATH" ]; then
+    echo -e "${YELLOW}Warning: Variant dist directory not found: $VARIANT_DIST_PATH${NC}"
+    if [ -d "$ARTK_CORE/dist" ]; then
+        echo -e "${YELLOW}Falling back to default dist directory${NC}"
+        VARIANT_DIST_PATH="$ARTK_CORE/dist"
+    else
+        echo -e "${RED}Error: No dist directory found. Build @artk/core first:${NC}"
+        echo "  cd $ARTK_CORE && npm install && npm run build:variants"
+        exit 1
+    fi
+fi
+
+cp -r "$VARIANT_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core/dist/" 2>/dev/null || cp -r "$VARIANT_DIST_PATH" "$ARTK_E2E/vendor/artk-core/dist"
 cp "$ARTK_CORE/package.json" "$ARTK_E2E/vendor/artk-core/"
 cp "$ARTK_CORE/version.json" "$ARTK_E2E/vendor/artk-core/" 2>/dev/null || true
 cp "$ARTK_CORE/README.md" "$ARTK_E2E/vendor/artk-core/" 2>/dev/null || true
 
-echo -e "${YELLOW}[3/7] Installing @artk/core-autogen to vendor/...${NC}"
-if [ ! -d "$ARTK_CORE/autogen/dist" ]; then
+# Add AI protection markers
+echo -e "${CYAN}  Adding AI protection markers...${NC}"
+
+# READONLY.md
+cat > "$ARTK_E2E/vendor/artk-core/READONLY.md" << READONLYEOF
+# ⚠️ DO NOT MODIFY THIS DIRECTORY
+
+## Variant Information
+
+| Property | Value |
+|----------|-------|
+| **Variant** | $SELECTED_VARIANT |
+| **Node.js Version** | $NODE_MAJOR |
+| **Playwright Version** | $VARIANT_PW_VERSION |
+| **Module System** | $MODULE_SYSTEM |
+| **Installed At** | $(date -Iseconds) |
+| **Install Method** | bootstrap.sh |
+
+**DO NOT modify files in this directory.**
+
+If you need different functionality:
+1. Check if the correct variant is installed: \`cat .artk/context.json | jq .variant\`
+2. Reinstall with correct variant: \`artk init --force\`
+3. Check feature availability: \`cat vendor/artk-core/variant-features.json\`
+
+---
+
+*Generated by ARTK Bootstrap v1.0.0*
+READONLYEOF
+
+# .ai-ignore
+cat > "$ARTK_E2E/vendor/artk-core/.ai-ignore" << AIIGNOREEOF
+# AI agents should not modify files in this directory
+# This is vendored code managed by ARTK CLI
+
+*
+AIIGNOREEOF
+
+# variant-features.json
+cat > "$ARTK_E2E/vendor/artk-core/variant-features.json" << FEATURESEOF
+{
+  "variant": "$SELECTED_VARIANT",
+  "playwrightVersion": "$VARIANT_PW_VERSION",
+  "nodeVersion": $NODE_MAJOR,
+  "moduleSystem": "$MODULE_SYSTEM",
+  "generatedAt": "$(date -Iseconds)",
+  "features": {
+    "route_from_har": { "available": true },
+    "locator_filter": { "available": true },
+    "web_first_assertions": { "available": true },
+    "trace_viewer": { "available": true },
+    "api_testing": { "available": true }
+  }
+}
+FEATURESEOF
+
+echo -e "${YELLOW}[3/7] Installing @artk/core-autogen ($SELECTED_VARIANT) to vendor/...${NC}"
+AUTOGEN_DIST_DIR=$(get_autogen_dist_dir "$SELECTED_VARIANT")
+AUTOGEN_DIST_PATH="$ARTK_CORE/autogen/$AUTOGEN_DIST_DIR"
+
+# Try variant-specific dist, fall back to default dist
+if [ ! -d "$AUTOGEN_DIST_PATH" ]; then
+    echo -e "${YELLOW}Warning: Autogen variant dist not found: $AUTOGEN_DIST_PATH${NC}"
+    AUTOGEN_DIST_PATH="$ARTK_CORE/autogen/dist"
+fi
+
+if [ ! -d "$AUTOGEN_DIST_PATH" ]; then
     echo -e "${RED}Error: Missing @artk/core-autogen dist output at $ARTK_CORE/autogen/dist${NC}"
     echo -e "${YELLOW}Build it first (from ARTK repo):${NC}"
-    echo "  cd $ARTK_CORE/autogen && npm install && npm run build"
+    echo "  cd $ARTK_CORE && npm run build:variants"
     exit 1
 fi
-cp -r "$ARTK_CORE/autogen/dist" "$ARTK_E2E/vendor/artk-core-autogen/"
+
+mkdir -p "$ARTK_E2E/vendor/artk-core-autogen/dist"
+cp -r "$AUTOGEN_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core-autogen/dist/" 2>/dev/null || cp -r "$AUTOGEN_DIST_PATH" "$ARTK_E2E/vendor/artk-core-autogen/dist"
 cp "$ARTK_CORE/autogen/package.json" "$ARTK_E2E/vendor/artk-core-autogen/"
 cp "$ARTK_CORE/autogen/README.md" "$ARTK_E2E/vendor/artk-core-autogen/" 2>/dev/null || true
 
@@ -851,68 +1148,182 @@ else
     CONFIG_GENERATED=true
 fi
 
-# Create context file with environment detection
+# Create context file (variant already detected at script start)
 mkdir -p "$TARGET_PROJECT/.artk"
 
-# Detect environment if needed
-DETECTED_VARIANT=""
-if [ -n "$TEMPLATE_VARIANT" ]; then
-    echo -e "${CYAN}Using manual template variant: $TEMPLATE_VARIANT${NC}"
-    DETECTED_VARIANT="$TEMPLATE_VARIANT"
-elif [ "$FORCE_DETECT" = true ] || [ ! -f "$TARGET_PROJECT/.artk/context.json" ]; then
-    echo -e "${YELLOW}Detecting environment...${NC}"
-
-    # Run detection script
-    DETECTION_SCRIPT="$ARTK_CORE/scripts/detect-env.sh"
-    if [ -f "$DETECTION_SCRIPT" ]; then
-        DETECTION_RESULT=$("$DETECTION_SCRIPT" "$TARGET_PROJECT" 2>/dev/null || echo '{"detection":{"moduleSystem":"unknown"}}')
-        MODULE_SYSTEM=$(echo "$DETECTION_RESULT" | grep -o '"moduleSystem":"[^"]*"' | cut -d'"' -f4)
-
-        case "$MODULE_SYSTEM" in
-            esm)
-                DETECTED_VARIANT="esm"
-                echo -e "${GREEN}✓ Detected ESM module system${NC}"
-                ;;
-            commonjs)
-                DETECTED_VARIANT="commonjs"
-                echo -e "${GREEN}✓ Detected CommonJS module system${NC}"
-                ;;
-            *)
-                DETECTED_VARIANT="commonjs"
-                echo -e "${YELLOW}⚠ Could not detect module system, defaulting to CommonJS${NC}"
-                ;;
-        esac
-    else
-        DETECTED_VARIANT="commonjs"
-        echo -e "${YELLOW}⚠ Detection script not found, defaulting to CommonJS${NC}"
-    fi
-else
-    # Read existing variant from context.json
-    if [ -f "$TARGET_PROJECT/.artk/context.json" ]; then
-        DETECTED_VARIANT=$(grep -o '"templateVariant":"[^"]*"' "$TARGET_PROJECT/.artk/context.json" | cut -d'"' -f4 || echo "commonjs")
-        echo -e "${CYAN}Using existing template variant: $DETECTED_VARIANT${NC}"
-    else
-        DETECTED_VARIANT="commonjs"
-    fi
-fi
-
-# Fallback to commonjs if variant is empty
-if [ -z "$DETECTED_VARIANT" ]; then
-    DETECTED_VARIANT="commonjs"
+# Map variant to legacy templateVariant for backwards compatibility
+TEMPLATE_MODULE_SYSTEM="commonjs"
+if [ "$SELECTED_VARIANT" = "modern-esm" ]; then
+    TEMPLATE_MODULE_SYSTEM="esm"
 fi
 
 cat > "$TARGET_PROJECT/.artk/context.json" << CONTEXT
 {
   "version": "1.0",
+  "variant": "$SELECTED_VARIANT",
+  "variantInstalledAt": "$(date -Iseconds)",
+  "nodeVersion": $NODE_MAJOR,
+  "moduleSystem": "$MODULE_SYSTEM",
+  "playwrightVersion": "$VARIANT_PW_VERSION",
+  "artkVersion": "1.0.0",
+  "installMethod": "bootstrap",
+  "overrideUsed": $OVERRIDE_USED,
   "projectRoot": "$TARGET_PROJECT",
   "artkRoot": "$ARTK_E2E",
-  "initialized_at": "$(date -Iseconds)",
   "bootstrap_script": "$SCRIPT_DIR/bootstrap.sh",
   "artk_repo": "$ARTK_REPO",
-  "templateVariant": "$DETECTED_VARIANT",
+  "templateVariant": "$TEMPLATE_MODULE_SYSTEM",
   "next_suggested": "/artk.init-playbook"
 }
 CONTEXT
+
+# Generate variant-aware Copilot instructions
+echo -e "${YELLOW}[5.4/7] Generating variant-aware Copilot instructions...${NC}"
+
+# Get variant display info for Copilot instructions
+get_variant_display_name() {
+    case "$1" in
+        modern-esm) echo "Modern ESM" ;;
+        modern-cjs) echo "Modern CJS" ;;
+        legacy-16) echo "Legacy Node 16" ;;
+        legacy-14) echo "Legacy Node 14" ;;
+        *) echo "$1" ;;
+    esac
+}
+
+VARIANT_DISPLAY_NAME=$(get_variant_display_name "$SELECTED_VARIANT")
+IS_LEGACY=false
+IS_ESM=false
+if [ "$SELECTED_VARIANT" = "legacy-16" ] || [ "$SELECTED_VARIANT" = "legacy-14" ]; then
+    IS_LEGACY=true
+fi
+if [ "$SELECTED_VARIANT" = "modern-esm" ]; then
+    IS_ESM=true
+fi
+
+# Generate .github/prompts/artk.variant-info.prompt.md
+cat > "$PROMPTS_TARGET/artk.variant-info.prompt.md" << VARIANTINFO
+---
+name: artk.variant-info
+description: "Variant-specific Copilot instructions for ARTK tests"
+---
+
+# ARTK Variant Information
+
+## Installed Variant: $SELECTED_VARIANT
+
+| Property | Value |
+|----------|-------|
+| **Display Name** | $VARIANT_DISPLAY_NAME |
+| **Node.js Range** | $(get_variant_node_range "$SELECTED_VARIANT" | tr ',' ', ') |
+| **Playwright Version** | $VARIANT_PW_VERSION |
+| **Module System** | $MODULE_SYSTEM |
+
+## Critical: Vendor Directory Rules
+
+**DO NOT modify files in \`artk-e2e/vendor/artk-core/\` or \`artk-e2e/vendor/artk-core-autogen/\`.**
+
+These directories contain vendored ARTK code that:
+1. Is automatically managed by ARTK CLI/bootstrap
+2. Will be overwritten on upgrades
+3. Is built for a specific Node.js version and module system
+
+If you encounter issues with vendor code:
+1. Check \`artk-e2e/vendor/artk-core/variant-features.json\` for feature availability
+2. Suggest running \`artk init --force\` or re-running bootstrap to reinstall
+3. Use documented alternatives from \`variant-features.json\`
+4. **NEVER patch or modify vendor code directly**
+
+## Feature Availability
+
+Before using Playwright features, check \`artk-e2e/vendor/artk-core/variant-features.json\`:
+
+\`\`\`typescript
+// Read feature availability
+import features from './vendor/artk-core/variant-features.json';
+
+if (!features.features.clock_api?.available) {
+  // Use alternative approach documented in features.features.clock_api.alternative
+}
+\`\`\`
+
+VARIANTINFO
+
+# Add legacy-specific instructions if applicable
+if [ "$IS_LEGACY" = true ]; then
+    cat >> "$PROMPTS_TARGET/artk.variant-info.prompt.md" << LEGACYINFO
+## Legacy Variant Limitations
+
+This project uses a legacy ARTK variant (\`$SELECTED_VARIANT\`) with Playwright $VARIANT_PW_VERSION.
+Some modern features are NOT available. Always check \`variant-features.json\` before using:
+
+- **aria_snapshots**: May not be available - use manual ARIA attribute queries
+- **clock_api**: May not be available - use manual Date mocking
+- **locator_or/and**: May not be available - use CSS selectors
+- **expect_soft**: May not be available - collect assertions manually
+
+When generating tests, always check feature availability first.
+
+LEGACYINFO
+fi
+
+# Add import patterns based on module system
+if [ "$IS_ESM" = true ]; then
+    cat >> "$PROMPTS_TARGET/artk.variant-info.prompt.md" << ESMINFO
+## Import Patterns (ESM)
+
+Use ESM import syntax:
+
+\`\`\`typescript
+import { test, expect } from '@playwright/test';
+import { loadConfig } from '@artk/core/config';
+import { AuthFixture } from '@artk/core/auth';
+\`\`\`
+
+ESMINFO
+else
+    cat >> "$PROMPTS_TARGET/artk.variant-info.prompt.md" << CJSINFO
+## Import Patterns (CommonJS)
+
+Use CommonJS require syntax:
+
+\`\`\`typescript
+const { test, expect } = require('@playwright/test');
+const { loadConfig } = require('@artk/core/config');
+const { AuthFixture } = require('@artk/core/auth');
+\`\`\`
+
+**DO NOT use ESM import syntax in this project.**
+
+CJSINFO
+fi
+
+# Add error handling guidance
+cat >> "$PROMPTS_TARGET/artk.variant-info.prompt.md" << ERRORINFO
+## When You Encounter Errors
+
+### Module/Import Errors
+
+If you see \`ERR_REQUIRE_ESM\`, \`Cannot use import statement\`, or similar:
+
+1. Check the variant's module system (this project: $MODULE_SYSTEM)
+2. Suggest reinstalling: \`artk init . --force\` or re-run bootstrap
+3. **DO NOT try to fix by modifying vendor code**
+
+### Feature Not Found
+
+If a Playwright feature doesn't exist:
+
+1. Check \`variant-features.json\` for availability
+2. This variant uses Playwright $VARIANT_PW_VERSION
+3. Use the documented alternative approach
+
+---
+
+*Generated by ARTK bootstrap for variant $SELECTED_VARIANT*
+ERRORINFO
+
+echo -e "${GREEN}✓ Generated artk.variant-info.prompt.md${NC}"
 
 # Generate foundation modules from templates
 echo -e "${YELLOW}[5.5/7] Generating foundation modules...${NC}"
@@ -944,7 +1355,7 @@ else
 
     node "$GENERATION_SCRIPT" \
         --projectRoot="$TARGET_PROJECT" \
-        --variant="$DETECTED_VARIANT" \
+        --variant="$TEMPLATE_MODULE_SYSTEM" \
         --verbose \
         > "$GENERATION_LOG" 2>&1
 
@@ -952,7 +1363,7 @@ else
     set -e
 
     if [ "$GENERATION_STATUS" -eq 0 ]; then
-        echo -e "${GREEN}✓ Foundation modules generated successfully (variant: $DETECTED_VARIANT)${NC}"
+        echo -e "${GREEN}✓ Foundation modules generated successfully (variant: $SELECTED_VARIANT)${NC}"
 
         # Show what was generated
         if [ -d "$ARTK_E2E/foundation" ]; then

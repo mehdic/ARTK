@@ -1,0 +1,28 @@
+# ARTK Test Environment - Node 16 (Legacy-16 Variant)
+FROM node:16-slim
+
+LABEL maintainer="ARTK Team"
+LABEL description="Test environment for ARTK legacy-16 variant"
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files first for caching
+COPY package.json package-legacy-16.json ./
+
+# Install dependencies using legacy package.json
+RUN cp package-legacy-16.json package.json.bak && \
+    npm install --legacy-peer-deps || true
+
+# Copy source
+COPY . .
+
+# Build legacy-16 variant
+RUN npm run build:legacy-16 || echo "Build will run from mounted volume"
+
+# Verify the build
+CMD ["node", "-e", "const m = require('./dist-legacy-16/index.js'); console.log('Legacy-16 variant loaded:', Object.keys(m).length, 'exports');"]

@@ -1,0 +1,126 @@
+{
+  "name": "@artk/core",
+  "version": "1.0.0",
+  "description": "ARTK Core v1 - Vendorable Playwright infrastructure library (Legacy Node 14 variant)",
+  "type": "commonjs",
+  "main": "./dist-legacy-14/index.js",
+  "types": "./dist-legacy-14/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist-legacy-14/index.js",
+      "types": "./dist-legacy-14/index.d.ts"
+    },
+    "./config": {
+      "require": "./dist-legacy-14/config/index.js",
+      "types": "./dist-legacy-14/config/index.d.ts"
+    },
+    "./auth": {
+      "require": "./dist-legacy-14/auth/index.js",
+      "types": "./dist-legacy-14/auth/index.d.ts"
+    },
+    "./fixtures": {
+      "require": "./dist-legacy-14/fixtures/index.js",
+      "types": "./dist-legacy-14/fixtures/index.d.ts"
+    },
+    "./locators": {
+      "require": "./dist-legacy-14/locators/index.js",
+      "types": "./dist-legacy-14/locators/index.d.ts"
+    },
+    "./assertions": {
+      "require": "./dist-legacy-14/assertions/index.js",
+      "types": "./dist-legacy-14/assertions/index.d.ts"
+    },
+    "./data": {
+      "require": "./dist-legacy-14/data/index.js",
+      "types": "./dist-legacy-14/data/index.d.ts"
+    },
+    "./reporters": {
+      "require": "./dist-legacy-14/reporters/index.js",
+      "types": "./dist-legacy-14/reporters/index.d.ts"
+    },
+    "./harness": {
+      "require": "./dist-legacy-14/harness/index.js",
+      "types": "./dist-legacy-14/harness/index.d.ts"
+    },
+    "./errors": {
+      "require": "./dist-legacy-14/errors/index.js",
+      "types": "./dist-legacy-14/errors/index.d.ts"
+    },
+    "./utils": {
+      "require": "./dist-legacy-14/utils/index.js",
+      "types": "./dist-legacy-14/utils/index.d.ts"
+    },
+    "./detection": {
+      "require": "./dist-legacy-14/detection/index.js",
+      "types": "./dist-legacy-14/detection/index.d.ts"
+    },
+    "./targets": {
+      "require": "./dist-legacy-14/targets/index.js",
+      "types": "./dist-legacy-14/targets/index.d.ts"
+    },
+    "./install": {
+      "require": "./dist-legacy-14/install/index.js",
+      "types": "./dist-legacy-14/install/index.d.ts"
+    },
+    "./types": {
+      "require": "./dist-legacy-14/types/index.js",
+      "types": "./dist-legacy-14/types/index.d.ts"
+    },
+    "./schemas": {
+      "require": "./dist-legacy-14/schemas/index.js",
+      "types": "./dist-legacy-14/schemas/index.d.ts"
+    },
+    "./compat": {
+      "require": "./dist-legacy-14/compat/index.js",
+      "types": "./dist-legacy-14/compat/index.d.ts"
+    },
+    "./validation": {
+      "require": "./dist-legacy-14/validation/index.js",
+      "types": "./dist-legacy-14/validation/index.d.ts"
+    },
+    "./grid": {
+      "require": "./dist-legacy-14/grid/index.js",
+      "types": "./dist-legacy-14/grid/index.d.ts"
+    },
+    "./llkb": {
+      "require": "./dist-legacy-14/llkb/index.js",
+      "types": "./dist-legacy-14/llkb/index.d.ts"
+    },
+    "./templates/*": "./templates/*"
+  },
+  "files": [
+    "dist-legacy-14",
+    "templates",
+    "version.json",
+    "README.md"
+  ],
+  "dependencies": {
+    "@playwright/test": "~1.33.0",
+    "otplib": "^12.0.1",
+    "strip-json-comments": "^5.0.3",
+    "yaml": "^2.3.4",
+    "zod": "^3.22.4"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "artkVariant": {
+    "id": "legacy-14",
+    "nodeRange": ["14", "16", "18"],
+    "playwrightVersion": "1.33.x",
+    "moduleSystem": "cjs",
+    "tsTarget": "ES2020"
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "e2e",
+    "automation",
+    "artk",
+    "regression-testing",
+    "legacy",
+    "node14"
+  ],
+  "author": "ARTK Team",
+  "license": "MIT"
+}

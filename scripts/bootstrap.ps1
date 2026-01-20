@@ -1,6 +1,12 @@
 #
 # ARTK Bootstrap Script (PowerShell)
-# Usage: .\bootstrap.ps1 -TargetPath C:\path\to\target-project [-SkipNpm]
+# Usage: .\bootstrap.ps1 -TargetPath C:\path\to\target-project [options]
+#
+# Options:
+#   -SkipNpm                   Skip npm install
+#   -Variant <variant>         Force specific variant (modern-esm, modern-cjs, legacy-16, legacy-14)
+#   -ForceDetect               Force environment re-detection
+#   -SkipValidation            Skip validation of generated code
 #
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
@@ -14,8 +20,159 @@ param(
     [Parameter(Mandatory=$true, Position=0)]
     [string]$TargetPath,
 
-    [switch]$SkipNpm
+    [switch]$SkipNpm,
+
+    [ValidateSet("modern-esm", "modern-cjs", "legacy-16", "legacy-14", "")]
+    [string]$Variant = "",
+
+    [switch]$ForceDetect,
+
+    [switch]$SkipValidation
 )
+
+# Multi-variant support functions
+$ValidVariants = @("modern-esm", "modern-cjs", "legacy-16", "legacy-14")
+
+function Get-NodeMajorVersion {
+    try {
+        $versionOutput = node -e "console.log(process.version.slice(1).split('.')[0])" 2>$null
+        return [int]$versionOutput
+    } catch {
+        return 0
+    }
+}
+
+function Get-ModuleSystem {
+    param([string]$ProjectPath)
+
+    # Resolve to absolute path
+    $CurrentPath = $null
+    try {
+        $CurrentPath = (Resolve-Path $ProjectPath -ErrorAction Stop).Path
+    } catch {
+        $CurrentPath = $ProjectPath
+    }
+
+    # Walk up the directory tree to find nearest package.json (monorepo support)
+    while ($CurrentPath -and $CurrentPath -ne [System.IO.Path]::GetPathRoot($CurrentPath)) {
+        $pkgJson = Join-Path $CurrentPath "package.json"
+        if (Test-Path $pkgJson) {
+            try {
+                $pkg = Get-Content $pkgJson -Raw | ConvertFrom-Json
+                if ($pkg.type -eq "module") {
+                    return "esm"
+                }
+                # Found package.json without "type": "module", so it's CJS
+                return "cjs"
+            } catch {
+                # If parsing fails, continue walking up
+            }
+        }
+        $CurrentPath = Split-Path -Parent $CurrentPath
+    }
+
+    # Check root directory as well
+    if ($CurrentPath) {
+        $pkgJson = Join-Path $CurrentPath "package.json"
+        if (Test-Path $pkgJson) {
+            try {
+                $pkg = Get-Content $pkgJson -Raw | ConvertFrom-Json
+                if ($pkg.type -eq "module") {
+                    return "esm"
+                }
+            } catch { }
+        }
+    }
+
+    return "cjs"
+}
+
+function Select-Variant {
+    param([int]$NodeMajor, [string]$ModuleSystem)
+
+    if ($NodeMajor -ge 18) {
+        if ($ModuleSystem -eq "esm") {
+            return "modern-esm"
+        } else {
+            return "modern-cjs"
+        }
+    } elseif ($NodeMajor -ge 16) {
+        return "legacy-16"
+    } elseif ($NodeMajor -ge 14) {
+        return "legacy-14"
+    } else {
+        return ""
+    }
+}
+
+function Get-VariantDistDir {
+    param([string]$VariantId)
+
+    switch ($VariantId) {
+        "modern-esm" { return "dist" }
+        "modern-cjs" { return "dist-cjs" }
+        "legacy-16" { return "dist-legacy-16" }
+        "legacy-14" { return "dist-legacy-14" }
+        default { return "dist" }
+    }
+}
+
+function Get-VariantPlaywrightVersion {
+    param([string]$VariantId)
+
+    switch ($VariantId) {
+        { $_ -in @("modern-esm", "modern-cjs") } { return "1.57.x" }
+        "legacy-16" { return "1.49.x" }
+        "legacy-14" { return "1.33.x" }
+        default { return "1.57.x" }
+    }
+}
+
+function Test-VariantCompatibility {
+    param(
+        [string]$VariantId,
+        [int]$NodeMajor
+    )
+
+    switch ($VariantId) {
+        { $_ -in @("modern-esm", "modern-cjs") } {
+            return $NodeMajor -ge 18
+        }
+        "legacy-16" {
+            return ($NodeMajor -ge 16) -and ($NodeMajor -le 20)
+        }
+        "legacy-14" {
+            return ($NodeMajor -ge 14) -and ($NodeMajor -le 18)
+        }
+        default {
+            return $false
+        }
+    }
+}
+
+function Get-VariantNodeRange {
+    # Returns LTS versions only (even numbers: 14, 16, 18, 20, 22)
+    param([string]$VariantId)
+
+    switch ($VariantId) {
+        { $_ -in @("modern-esm", "modern-cjs") } { return "18, 20, 22 (LTS)" }
+        "legacy-16" { return "16, 18, 20 (LTS)" }
+        "legacy-14" { return "14, 16, 18 (LTS)" }
+        default { return "18, 20, 22 (LTS)" }
+    }
+}
+
+function Get-AutogenDistDir {
+    param([string]$VariantId)
+
+    switch ($VariantId) {
+        "modern-esm" { return "dist" }
+        "modern-cjs" { return "dist-cjs" }
+        "legacy-16" { return "dist-legacy-16" }
+        "legacy-14" { return "dist-legacy-14" }
+        default { return "dist" }
+    }
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -524,6 +681,65 @@ Write-Host "ARTK Source: $ArtkRepo"
 Write-Host "Target:      $TargetProject"
 Write-Host ""
 
+# Early variant detection (needed for correct dist directory)
+$script:NodeMajor = Get-NodeMajorVersion
+$script:ModuleSystem = Get-ModuleSystem -ProjectPath $TargetProject
+$script:OverrideUsed = $false
+
+# Check Node.js version
+if ($NodeMajor -lt 14) {
+    Write-Host "Error: Node.js $NodeMajor is not supported. ARTK requires Node.js 14 or higher." -ForegroundColor Red
+    exit 1
+}
+
+# Determine variant
+if ($Variant) {
+    # Check if forced variant is compatible with current Node version
+    if (-not (Test-VariantCompatibility -VariantId $Variant -NodeMajor $NodeMajor)) {
+        $variantRange = Get-VariantNodeRange -VariantId $Variant
+        $recommendedVariant = Select-Variant -NodeMajor $NodeMajor -ModuleSystem $ModuleSystem
+        Write-Host "Error: Variant '$Variant' is not compatible with Node.js $NodeMajor" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Variant '$Variant' supports Node.js: $variantRange" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Options:"
+        Write-Host "  1. Use a compatible variant for Node.js $NodeMajor:"
+        Write-Host "     -Variant $recommendedVariant (recommended for Node $NodeMajor)"
+        Write-Host "  2. Switch to a supported Node.js version"
+        Write-Host "  3. Remove -Variant flag to use auto-detection"
+        exit 1
+    }
+    $script:SelectedVariant = $Variant
+    $script:OverrideUsed = $true
+    Write-Host "Using forced variant: $SelectedVariant" -ForegroundColor Cyan
+} elseif (-not $ForceDetect -and (Test-Path (Join-Path $TargetProject ".artk\context.json"))) {
+    try {
+        $existingContext = Get-Content (Join-Path $TargetProject ".artk\context.json") -Raw | ConvertFrom-Json
+        $script:SelectedVariant = $existingContext.variant
+        if (-not $SelectedVariant) {
+            $script:SelectedVariant = Select-Variant -NodeMajor $NodeMajor -ModuleSystem $ModuleSystem
+        }
+        Write-Host "Using existing variant: $SelectedVariant" -ForegroundColor Cyan
+    } catch {
+        $script:SelectedVariant = Select-Variant -NodeMajor $NodeMajor -ModuleSystem $ModuleSystem
+    }
+} else {
+    $script:SelectedVariant = Select-Variant -NodeMajor $NodeMajor -ModuleSystem $ModuleSystem
+    Write-Host "Auto-selected variant: $SelectedVariant" -ForegroundColor Green
+}
+
+if (-not $SelectedVariant) {
+    $script:SelectedVariant = "modern-cjs"
+    Write-Host "Warning: Defaulting to modern-cjs variant" -ForegroundColor Yellow
+}
+
+$script:VariantDistDir = Get-VariantDistDir -VariantId $SelectedVariant
+$script:VariantPwVersion = Get-VariantPlaywrightVersion -VariantId $SelectedVariant
+
+Write-Host "Environment: Node $NodeMajor, $ModuleSystem" -ForegroundColor Cyan
+Write-Host "Variant:     $SelectedVariant (Playwright $VariantPwVersion)" -ForegroundColor Cyan
+Write-Host ""
+
 # Step 1: Build @artk/core if needed
 $CoreDist = Join-Path $ArtkCore "dist"
 if (-not (Test-Path $CoreDist)) {
@@ -568,10 +784,30 @@ Write-Host "[2/7] Creating artk-e2e/ structure..." -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
 
-# Step 3: Copy @artk/core to vendor
-Write-Host "[3/7] Installing @artk/core to vendor/..." -ForegroundColor Yellow
+# Step 3: Copy @artk/core to vendor (using variant-specific dist)
+Write-Host "[3/7] Installing @artk/core ($SelectedVariant) to vendor/..." -ForegroundColor Yellow
 $VendorTarget = Join-Path $ArtkE2e "vendor\artk-core"
-Copy-Item -Path (Join-Path $ArtkCore "dist") -Destination $VendorTarget -Recurse -Force
+
+# Check if variant dist exists, fall back to default dist
+$VariantDistPath = Join-Path $ArtkCore $VariantDistDir
+if (-not (Test-Path $VariantDistPath)) {
+    Write-Host "Warning: Variant dist directory not found: $VariantDistPath" -ForegroundColor Yellow
+    $VariantDistPath = Join-Path $ArtkCore "dist"
+    if (-not (Test-Path $VariantDistPath)) {
+        Write-Host "Error: No dist directory found. Build @artk/core first:" -ForegroundColor Red
+        Write-Host "  cd $ArtkCore; npm install; npm run build:variants" -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host "Falling back to default dist directory" -ForegroundColor Yellow
+}
+
+$DistTarget = Join-Path $VendorTarget "dist"
+New-Item -ItemType Directory -Force -Path $DistTarget | Out-Null
+Copy-Item -Path (Join-Path $VariantDistPath "*") -Destination $DistTarget -Recurse -Force -ErrorAction SilentlyContinue
+if (-not (Test-Path $DistTarget)) {
+    Copy-Item -Path $VariantDistPath -Destination $DistTarget -Recurse -Force
+}
+
 Copy-Item -Path (Join-Path $ArtkCore "package.json") -Destination $VendorTarget -Force
 $VersionJson = Join-Path $ArtkCore "version.json"
 if (Test-Path $VersionJson) {
@@ -582,16 +818,87 @@ if (Test-Path $ReadmePath) {
     Copy-Item -Path $ReadmePath -Destination $VendorTarget -Force
 }
 
-Write-Host "[3/7] Installing @artk/core-autogen to vendor/..." -ForegroundColor Yellow
+# Add AI protection markers
+Write-Host "  Adding AI protection markers..." -ForegroundColor Cyan
+
+# READONLY.md
+$ReadonlyContent = @"
+# ⚠️ DO NOT MODIFY THIS DIRECTORY
+
+## Variant Information
+
+| Property | Value |
+|----------|-------|
+| **Variant** | $SelectedVariant |
+| **Node.js Version** | $NodeMajor |
+| **Playwright Version** | $VariantPwVersion |
+| **Module System** | $ModuleSystem |
+| **Installed At** | $(Get-Date -Format "o") |
+| **Install Method** | bootstrap.ps1 |
+
+**DO NOT modify files in this directory.**
+
+If you need different functionality:
+1. Check if the correct variant is installed: ``Get-Content .artk\context.json | ConvertFrom-Json | Select variant``
+2. Reinstall with correct variant: ``artk init --force``
+3. Check feature availability: ``Get-Content vendor\artk-core\variant-features.json``
+
+---
+
+*Generated by ARTK Bootstrap v1.0.0*
+"@
+Set-Content -Path (Join-Path $VendorTarget "READONLY.md") -Value $ReadonlyContent
+
+# .ai-ignore
+$AiIgnoreContent = @"
+# AI agents should not modify files in this directory
+# This is vendored code managed by ARTK CLI
+
+*
+"@
+Set-Content -Path (Join-Path $VendorTarget ".ai-ignore") -Value $AiIgnoreContent
+
+# variant-features.json
+$VariantFeatures = @{
+    variant = $SelectedVariant
+    playwrightVersion = $VariantPwVersion
+    nodeVersion = $NodeMajor
+    moduleSystem = $ModuleSystem
+    generatedAt = (Get-Date -Format "o")
+    features = @{
+        route_from_har = @{ available = $true }
+        locator_filter = @{ available = $true }
+        web_first_assertions = @{ available = $true }
+        trace_viewer = @{ available = $true }
+        api_testing = @{ available = $true }
+    }
+}
+$VariantFeatures | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $VendorTarget "variant-features.json")
+
+Write-Host "[3/7] Installing @artk/core-autogen ($SelectedVariant) to vendor/..." -ForegroundColor Yellow
 $AutogenVendorTarget = Join-Path $ArtkE2e "vendor\artk-core-autogen"
-$AutogenDist = Join-Path $ArtkAutogen "dist"
+$AutogenDistDir = Get-AutogenDistDir -VariantId $SelectedVariant
+$AutogenDist = Join-Path $ArtkAutogen $AutogenDistDir
+
+# Try variant-specific dist, fall back to default dist
+if (-not (Test-Path $AutogenDist)) {
+    Write-Host "Warning: Autogen variant dist not found: $AutogenDist" -ForegroundColor Yellow
+    $AutogenDist = Join-Path $ArtkAutogen "dist"
+}
+
 if (-not (Test-Path $AutogenDist)) {
     Write-Host "Error: Missing @artk/core-autogen dist output at $AutogenDist" -ForegroundColor Red
     Write-Host "Build it first (from ARTK repo):" -ForegroundColor Yellow
-    Write-Host "  cd $ArtkAutogen; npm install; npm run build" -ForegroundColor Yellow
+    Write-Host "  cd $ArtkCore; npm run build:variants" -ForegroundColor Yellow
     exit 1
 }
-Copy-Item -Path $AutogenDist -Destination $AutogenVendorTarget -Recurse -Force
+
+$AutogenDistTarget = Join-Path $AutogenVendorTarget "dist"
+New-Item -ItemType Directory -Force -Path $AutogenDistTarget | Out-Null
+Copy-Item -Path (Join-Path $AutogenDist "*") -Destination $AutogenDistTarget -Recurse -Force -ErrorAction SilentlyContinue
+if (-not (Test-Path $AutogenDistTarget)) {
+    Copy-Item -Path $AutogenDist -Destination $AutogenDistTarget -Recurse -Force
+}
 Copy-Item -Path (Join-Path $ArtkAutogen "package.json") -Destination $AutogenVendorTarget -Force
 $AutogenReadmePath = Join-Path $ArtkAutogen "README.md"
 if (Test-Path $AutogenReadmePath) {
@@ -811,18 +1118,175 @@ if (Test-Path $configPath) {
 # Create context file
 $ArtkDir = Join-Path $TargetProject ".artk"
 New-Item -ItemType Directory -Force -Path $ArtkDir | Out-Null
+
+# Map variant to legacy templateVariant for backwards compatibility
+$TemplateModuleSystem = if ($SelectedVariant -eq "modern-esm") { "esm" } else { "commonjs" }
+
 $ContextJson = @"
 {
   "version": "1.0",
+  "variant": "$SelectedVariant",
+  "variantInstalledAt": "$(Get-Date -Format "o")",
+  "nodeVersion": $NodeMajor,
+  "moduleSystem": "$ModuleSystem",
+  "playwrightVersion": "$VariantPwVersion",
+  "artkVersion": "1.0.0",
+  "installMethod": "bootstrap",
+  "overrideUsed": $($OverrideUsed.ToString().ToLower()),
   "projectRoot": "$($TargetProject -replace '\\', '\\')",
   "artkRoot": "$($ArtkE2e -replace '\\', '\\')",
   "initialized_at": "$(Get-Date -Format "yyyy-MM-ddTHH:mm:ssK")",
   "bootstrap_script": "$($ScriptDir -replace '\\', '\\')\\bootstrap.ps1",
   "artk_repo": "$($ArtkRepo -replace '\\', '\\')",
+  "templateVariant": "$TemplateModuleSystem",
   "next_suggested": "/artk.init-playbook"
 }
 "@
 Set-Content -Path (Join-Path $ArtkDir "context.json") -Value $ContextJson
+
+# Generate variant-aware Copilot instructions
+Write-Host "[5.4/7] Generating variant-aware Copilot instructions..." -ForegroundColor Yellow
+
+function Get-VariantDisplayName {
+    param([string]$Variant)
+    switch ($Variant) {
+        "modern-esm" { return "Modern ESM" }
+        "modern-cjs" { return "Modern CJS" }
+        "legacy-16" { return "Legacy Node 16" }
+        "legacy-14" { return "Legacy Node 14" }
+        default { return $Variant }
+    }
+}
+
+$VariantDisplayName = Get-VariantDisplayName -Variant $SelectedVariant
+$IsLegacy = ($SelectedVariant -eq "legacy-16" -or $SelectedVariant -eq "legacy-14")
+$IsESM = ($SelectedVariant -eq "modern-esm")
+$VariantNodeRangeStr = (Get-VariantNodeRange -Variant $SelectedVariant) -join ", "
+
+$VariantInfoPrompt = @"
+---
+name: artk.variant-info
+description: "Variant-specific Copilot instructions for ARTK tests"
+---
+
+# ARTK Variant Information
+
+## Installed Variant: $SelectedVariant
+
+| Property | Value |
+|----------|-------|
+| **Display Name** | $VariantDisplayName |
+| **Node.js Range** | $VariantNodeRangeStr |
+| **Playwright Version** | $VariantPwVersion |
+| **Module System** | $ModuleSystem |
+
+## Critical: Vendor Directory Rules
+
+**DO NOT modify files in ``artk-e2e/vendor/artk-core/`` or ``artk-e2e/vendor/artk-core-autogen/``.**
+
+These directories contain vendored ARTK code that:
+1. Is automatically managed by ARTK CLI/bootstrap
+2. Will be overwritten on upgrades
+3. Is built for a specific Node.js version and module system
+
+If you encounter issues with vendor code:
+1. Check ``artk-e2e/vendor/artk-core/variant-features.json`` for feature availability
+2. Suggest running ``artk init --force`` or re-running bootstrap to reinstall
+3. Use documented alternatives from ``variant-features.json``
+4. **NEVER patch or modify vendor code directly**
+
+## Feature Availability
+
+Before using Playwright features, check ``artk-e2e/vendor/artk-core/variant-features.json``:
+
+```typescript
+// Read feature availability
+import features from './vendor/artk-core/variant-features.json';
+
+if (!features.features.clock_api?.available) {
+  // Use alternative approach documented in features.features.clock_api.alternative
+}
+```
+
+"@
+
+# Add legacy-specific instructions if applicable
+if ($IsLegacy) {
+    $VariantInfoPrompt += @"
+## Legacy Variant Limitations
+
+This project uses a legacy ARTK variant (``$SelectedVariant``) with Playwright $VariantPwVersion.
+Some modern features are NOT available. Always check ``variant-features.json`` before using:
+
+- **aria_snapshots**: May not be available - use manual ARIA attribute queries
+- **clock_api**: May not be available - use manual Date mocking
+- **locator_or/and**: May not be available - use CSS selectors
+- **expect_soft**: May not be available - collect assertions manually
+
+When generating tests, always check feature availability first.
+
+"@
+}
+
+# Add import patterns based on module system
+if ($IsESM) {
+    $VariantInfoPrompt += @"
+## Import Patterns (ESM)
+
+Use ESM import syntax:
+
+```typescript
+import { test, expect } from '@playwright/test';
+import { loadConfig } from '@artk/core/config';
+import { AuthFixture } from '@artk/core/auth';
+```
+
+"@
+} else {
+    $VariantInfoPrompt += @"
+## Import Patterns (CommonJS)
+
+Use CommonJS require syntax:
+
+```typescript
+const { test, expect } = require('@playwright/test');
+const { loadConfig } = require('@artk/core/config');
+const { AuthFixture } = require('@artk/core/auth');
+```
+
+**DO NOT use ESM import syntax in this project.**
+
+"@
+}
+
+# Add error handling guidance
+$VariantInfoPrompt += @"
+## When You Encounter Errors
+
+### Module/Import Errors
+
+If you see ``ERR_REQUIRE_ESM``, ``Cannot use import statement``, or similar:
+
+1. Check the variant's module system (this project: $ModuleSystem)
+2. Suggest reinstalling: ``artk init . --force`` or re-run bootstrap
+3. **DO NOT try to fix by modifying vendor code**
+
+### Feature Not Found
+
+If a Playwright feature doesn't exist:
+
+1. Check ``variant-features.json`` for availability
+2. This variant uses Playwright $VariantPwVersion
+3. Use the documented alternative approach
+
+---
+
+*Generated by ARTK bootstrap for variant $SelectedVariant*
+"@
+
+$PromptsTarget = Join-Path $TargetProject ".github\prompts"
+Set-Content -Path (Join-Path $PromptsTarget "artk.variant-info.prompt.md") -Value $VariantInfoPrompt
+Write-Host "Generated artk.variant-info.prompt.md" -ForegroundColor Green
 
 # .artk/.gitignore
 $ArtkGitIgnore = @"

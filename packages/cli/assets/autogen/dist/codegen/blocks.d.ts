@@ -22,6 +22,17 @@ export interface ManagedBlock {
     content: string;
 }
 /**
+ * Information about a malformed block
+ */
+export interface BlockWarning {
+    /** Type of warning */
+    type: 'nested' | 'unclosed';
+    /** Line number where the issue occurred */
+    line: number;
+    /** Human-readable message */
+    message: string;
+}
+/**
  * Result of extracting managed blocks from code
  */
 export interface BlockExtractionResult {
@@ -31,6 +42,8 @@ export interface BlockExtractionResult {
     preservedCode: string[];
     /** Whether any blocks were found */
     hasBlocks: boolean;
+    /** Warnings about malformed blocks */
+    warnings: BlockWarning[];
 }
 /**
  * Options for injecting managed blocks
@@ -66,6 +79,23 @@ export interface InjectBlocksOptions {
  * ```
  */
 export declare function extractManagedBlocks(code: string): BlockExtractionResult;
+/**
+ * Wrap content in managed block markers
+ *
+ * @param content - Code to wrap
+ * @param id - Optional block identifier
+ * @returns Wrapped content with markers
+ *
+ * @example
+ * ```typescript
+ * const wrapped = wrapInBlock("test('foo', () => {});", 'test-foo');
+ * // Returns:
+ * // // ARTK:BEGIN GENERATED id=test-foo
+ * // test('foo', () => {});
+ * // // ARTK:END GENERATED
+ * ```
+ */
+export declare function wrapInBlock(content: string, id?: string): string;
 /**
  * Inject managed blocks into code, preserving user code outside blocks
  *

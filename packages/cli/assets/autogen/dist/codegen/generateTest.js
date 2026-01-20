@@ -3,16 +3,13 @@
  * @see research/2026-01-02_autogen-refined-plan.md Section 12
  */
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import { toPlaywrightLocator } from '../selectors/priority.js';
 import { injectManagedBlocks } from './blocks.js';
 import { updateJourneyFrontmatter } from '../journey/updater.js';
 import { escapeRegex } from '../utils/escaping.js';
-// Get current directory for template path
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
+import { getTemplatePath } from '../utils/paths.js';
 /**
  * Escape string for use in generated code
  */
@@ -86,8 +83,8 @@ function renderPrimitive(primitive, indent = '') {
             return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.setInputFiles([${primitive.files.map(f => `'${escapeString(f)}'`).join(', ')}]);`;
         // Assertions
         case 'expectVisible':
-            const visibleTimeout = primitive.timeout ? `, { timeout: ${primitive.timeout} }` : '';
-            return `${indent}await expect(page.${toPlaywrightLocator(primitive.locator)}).toBeVisible(${visibleTimeout ? `{ timeout: ${primitive.timeout} }` : ''});`;
+            const visibleOptions = primitive.timeout ? `{ timeout: ${primitive.timeout} }` : '';
+            return `${indent}await expect(page.${toPlaywrightLocator(primitive.locator)}).toBeVisible(${visibleOptions});`;
         case 'expectNotVisible':
             return `${indent}await expect(page.${toPlaywrightLocator(primitive.locator)}).not.toBeVisible();`;
         case 'expectHidden':
@@ -134,10 +131,13 @@ function renderPrimitive(primitive, indent = '') {
             return `${indent}page.on('dialog', dialog => dialog.accept());`;
         case 'dismissAlert':
             return `${indent}page.on('dialog', dialog => dialog.dismiss());`;
-        // Module calls
+        // Module calls - use factory function to create instance
         case 'callModule':
+            // Generate factory function name from module name (e.g., LoginModule -> createLoginModule)
+            const factoryName = `create${primitive.module}`;
             const args = primitive.args ? primitive.args.map(a => JSON.stringify(a)).join(', ') : '';
-            return `${indent}await ${primitive.module}.${primitive.method}(${args ? `page, ${args}` : 'page'});`;
+            // Create instance via factory and call method
+            return `${indent}await ${factoryName}(page).${primitive.method}(${args});`;
         // Blocked - must throw to fail the test
         case 'blocked':
             return `${indent}// ARTK BLOCKED: ${primitive.reason}\n${indent}// Source: ${escapeString(primitive.sourceText)}\n${indent}throw new Error('ARTK BLOCKED: ${escapeString(primitive.reason)}');`;
@@ -149,33 +149,36 @@ function renderPrimitive(primitive, indent = '') {
  * Load the default test template
  */
 function loadDefaultTemplate() {
-    const templatePath = join(__dirname, 'templates', 'test.ejs');
+    const templatePath = getTemplatePath('test.ejs');
     return readFileSync(templatePath, 'utf-8');
 }
 /**
  * Collect module imports from journey
+ *
+ * Imports factory functions (e.g., createLoginModule) for module calls.
+ * The factory function naming follows the pattern: create{ModuleName}
  */
 function collectImports(journey) {
     const imports = [];
-    const moduleImports = new Map();
+    // Track unique module names to avoid duplicate imports
+    const usedModules = new Set();
     // Collect module calls from all steps
     for (const step of journey.steps) {
         for (const action of step.actions) {
             if (action.type === 'callModule') {
-                const module = action.module;
-                if (!moduleImports.has(module)) {
-                    moduleImports.set(module, new Set());
-                }
-                // Import the module itself
-                moduleImports.get(module).add(module);
+                usedModules.add(action.module);
             }
         }
     }
-    // Convert to import statements
-    for (const [module, members] of moduleImports) {
+    // Convert to import statements - import factory functions
+    for (const module of usedModules) {
+        // Use lowercase-first path convention (e.g., @modules/loginModule for LoginModule)
+        const modulePath = module.charAt(0).toLowerCase() + module.slice(1);
+        // Import the factory function (e.g., createLoginModule)
+        const factoryName = `create${module}`;
         imports.push({
-            members: Array.from(members),
-            from: `@modules/${module}`,
+            members: [factoryName],
+            from: `@modules/${modulePath}`,
         });
     }
     return imports;
@@ -191,13 +194,15 @@ export function generateTest(journey, options = {}) {
         : loadDefaultTemplate();
     // Collect imports
     const imports = [...collectImports(journey), ...additionalImports];
-    // Render template
+    // Render template with version branding
     let code = ejs.render(template, {
         journey,
         imports,
         renderPrimitive,
         escapeString,
         escapeRegex,
+        version: getPackageVersion(),
+        timestamp: getGeneratedTimestamp(),
     });
     // Apply strategy-specific processing
     if (strategy === 'blocks' && existingCode) {

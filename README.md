@@ -187,6 +187,10 @@ Navigate to the login page.
 - url: /login
 ```
 
+## Docs
+
+- Journey proposal metadata fields: `docs/JOURNEY_PROPOSAL_FIELDS.md`
+
 ## Journey Lifecycle
 
 ```text

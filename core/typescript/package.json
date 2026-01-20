@@ -8,94 +8,125 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js",
       "types": "./dist/index.d.ts"
     },
     "./config": {
       "import": "./dist/config/index.js",
+      "require": "./dist-cjs/config/index.js",
       "types": "./dist/config/index.d.ts"
     },
     "./auth": {
       "import": "./dist/auth/index.js",
+      "require": "./dist-cjs/auth/index.js",
       "types": "./dist/auth/index.d.ts"
     },
     "./fixtures": {
       "import": "./dist/fixtures/index.js",
+      "require": "./dist-cjs/fixtures/index.js",
       "types": "./dist/fixtures/index.d.ts"
     },
     "./locators": {
       "import": "./dist/locators/index.js",
+      "require": "./dist-cjs/locators/index.js",
       "types": "./dist/locators/index.d.ts"
     },
     "./assertions": {
       "import": "./dist/assertions/index.js",
+      "require": "./dist-cjs/assertions/index.js",
       "types": "./dist/assertions/index.d.ts"
     },
     "./data": {
       "import": "./dist/data/index.js",
+      "require": "./dist-cjs/data/index.js",
       "types": "./dist/data/index.d.ts"
     },
     "./reporters": {
       "import": "./dist/reporters/index.js",
+      "require": "./dist-cjs/reporters/index.js",
       "types": "./dist/reporters/index.d.ts"
     },
     "./harness": {
       "import": "./dist/harness/index.js",
+      "require": "./dist-cjs/harness/index.js",
       "types": "./dist/harness/index.d.ts"
     },
     "./errors": {
       "import": "./dist/errors/index.js",
+      "require": "./dist-cjs/errors/index.js",
       "types": "./dist/errors/index.d.ts"
     },
     "./utils": {
       "import": "./dist/utils/index.js",
+      "require": "./dist-cjs/utils/index.js",
       "types": "./dist/utils/index.d.ts"
     },
     "./detection": {
       "import": "./dist/detection/index.js",
+      "require": "./dist-cjs/detection/index.js",
       "types": "./dist/detection/index.d.ts"
     },
     "./targets": {
       "import": "./dist/targets/index.js",
+      "require": "./dist-cjs/targets/index.js",
       "types": "./dist/targets/index.d.ts"
     },
     "./install": {
       "import": "./dist/install/index.js",
+      "require": "./dist-cjs/install/index.js",
       "types": "./dist/install/index.d.ts"
     },
     "./types": {
       "import": "./dist/types/index.js",
+      "require": "./dist-cjs/types/index.js",
       "types": "./dist/types/index.d.ts"
     },
     "./schemas": {
       "import": "./dist/schemas/index.js",
+      "require": "./dist-cjs/schemas/index.js",
       "types": "./dist/schemas/index.d.ts"
     },
     "./compat": {
       "import": "./dist/compat/index.js",
+      "require": "./dist-cjs/compat/index.js",
       "types": "./dist/compat/index.d.ts"
     },
     "./validation": {
       "import": "./dist/validation/index.js",
+      "require": "./dist-cjs/validation/index.js",
       "types": "./dist/validation/index.d.ts"
     },
     "./grid": {
       "import": "./dist/grid/index.js",
+      "require": "./dist-cjs/grid/index.js",
       "types": "./dist/grid/index.d.ts"
     },
     "./llkb": {
       "import": "./dist/llkb/index.js",
+      "require": "./dist-cjs/llkb/index.js",
       "types": "./dist/llkb/index.d.ts"
     },
     "./templates/*": "./templates/*"
   },
   "files": [
     "dist",
+    "dist-cjs",
+    "dist-legacy-16",
+    "dist-legacy-14",
     "templates",
     "version.json",
-    "README.md"
+    "README.md",
+    "package-legacy-16.json",
+    "package-legacy-14.json"
   ],
   "scripts": {
     "build": "tsup",
+    "build:cjs": "tsc --project tsconfig.cjs.json",
+    "build:legacy-16": "tsc --project tsconfig.legacy-16.json",
+    "build:legacy-14": "tsc --project tsconfig.legacy-14.json",
+    "build:modern": "npm run build && npm run build:cjs",
+    "build:variants": "./scripts/build-variants.sh",
+    "build:variants:win": "powershell -ExecutionPolicy Bypass -File ./scripts/build-variants.ps1",
     "test": "vitest",
     "test:unit": "vitest run",
     "test:watch": "vitest watch",
@@ -126,6 +157,13 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "artkVariant": {
+    "id": "modern-esm",
+    "nodeRange": ["18", "19", "20", "21", "22"],
+    "playwrightVersion": "1.57.x",
+    "moduleSystem": "esm",
+    "tsTarget": "ES2022"
   },
   "keywords": [
     "playwright",

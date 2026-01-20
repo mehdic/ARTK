@@ -1,0 +1,17 @@
+#!/bin/sh
+# Pre-push hook: sync deployed assets before pushing
+
+set -e
+
+if [ ! -d "packages/cli/node_modules/ts-node" ]; then
+  echo "Installing CLI dev dependencies..."
+  npm --prefix packages/cli install --no-fund --no-audit
+fi
+
+echo "Syncing CLI assets..."
+npm --prefix packages/cli run bundle-assets
+
+if ! git diff --quiet -- packages/cli/assets; then
+  echo "ERROR: packages/cli/assets changed. Please commit the updated assets before pushing."
+  exit 1
+fi

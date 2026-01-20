@@ -1,5 +1,5 @@
 ---
-name: testid-audit
+name: artk.testid-audit
 description: "Audit UI code + existing tests for brittle selectors and missing stable test hooks, then produce a TestID Fix Report and (optionally) apply safe data-* attributes."
 argument-hint: "mode=report|apply attr=auto|data-testid|data-cy scope=repo|app:<path>|journey:<JRN-####> risk=low|medium|all idStyle=kebab prefix=<string> dryRun=true|false"
 agent: agent
@@ -42,6 +42,7 @@ This command must:
 2) Produce a **human-readable Fix Report** (table) + a **machine plan** (JSON/YAML).
 3) Make **no code changes** unless the user explicitly approves.
 4) If approved, apply **only safe, additive changes** (add attributes / forward props), then regenerate the report.
+5) Recommend only **agent-executable** next steps (no external team plans).
 
 ---
 
@@ -160,10 +161,12 @@ Prefer accessibility fixes when they also improve the user experience.
 
 ## Phase 3 - Generate the Fix Report (no changes)
 
-Create these artifacts:
+Create these artifacts (per Output File Standards in GENERAL_RULES.md):
 
-1) `docs/TESTID_FIX_REPORT.md`
-2) `artk/reports/testid-fix-plan.json`
+1) `reports/testid/audit-report.md` — Human-readable report
+2) `reports/testid/fix-plan.json` — Machine-readable plan
+
+**Note:** Create `reports/testid/` directory if it doesn't exist.
 
 ### Report content
 Include:
@@ -214,6 +217,10 @@ For dynamic lists:
 In chat, present:
 - a short summary
 - the top 10 P0/P1 items
+- a **Must / Could / Avoid** recommendation block:
+  - **Must do (recommended now)**: low-risk, additive changes with clear value
+  - **Could do (optional)**: medium-risk items that may require review
+  - **Avoid for now (high risk)**: items that could break behavior or are unclear
 - and ask the user to choose one:
 
 **A)** Apply only LOW-risk items (recommended)
@@ -221,6 +228,10 @@ In chat, present:
 **C)** Apply nothing (report only)
 
 Do not proceed without an explicit answer.
+
+After presenting choices, also ask:
+**"Do you want me to apply the plan now, or skip implementation and move to the next ARTK prompt (`/artk.journey-propose` or `/artk.journey-define`)?"**
+Do NOT suggest `/artk.journey-generate`, `/artk.smoke-test`, or internal repo test commands.
 
 ---
 
@@ -231,6 +242,8 @@ Do not proceed without an explicit answer.
   - add `data-testid="..."` or `data-cy="..."`
   - optionally add `aria-label="..."` if that is the preferred fix
 - Never change component behavior, event handlers, or layouts.
+- **Default guardrail**: only modify native DOM nodes. Do NOT add or change component props (no prop-forwarding edits). If a custom component is required, mark as **manual** unless the user explicitly approves a broader change scope.
+- **Edit safety**: MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before making any file edits.
 
 ### How to apply across stacks (adaptive)
 Choose the correct strategy based on detected stack:
@@ -261,21 +274,63 @@ If chosen `attr` differs from `use.testIdAttribute`, apply the smallest possible
 
 ---
 
-## Phase 6 - Post-apply validation (must do)
+## Phase 6 - Post-apply validation (MANDATORY - must execute)
 
-After changes:
-1) Re-run your scans to ensure:
-   - attributes exist
-   - IDs match naming policy
-   - duplicates are not introduced
-2) Update:
-   - `docs/TESTID_FIX_REPORT.md` (mark applied rows as done)
-   - `docs/TESTABILITY.md` (remove selector debt items if resolved, or add remaining debt)
-3) Provide a recommended local verification command list (do not assume package manager):
-   - `npm|pnpm|yarn lint`
-   - `npm|pnpm|yarn test`
-   - `npx playwright test --grep @JRN-####` (if journey scope)
-   - `npx playwright test --list` (sanity)
+**After applying changes, you MUST run validation and fix any errors before completing.**
+
+### Step 6.1: Re-scan to verify changes
+Re-run your scans to ensure:
+- Attributes exist in the modified files
+- IDs match naming policy
+- No duplicates were introduced
+
+### Step 6.2: Update reports
+- `reports/testid/audit-report.md` (mark applied rows as APPLIED)
+- `docs/TESTABILITY.md` (remove selector debt items if resolved)
+
+### Step 6.3: Run validation commands (EXECUTE NOW)
+
+**YOU MUST ACTUALLY RUN THESE COMMANDS using the Bash tool. Do not just list them.**
+
+**Action: Execute this command NOW:**
+```bash
+cd <ARTK_ROOT> && npx tsc --noEmit
+```
+
+**Capture the output. If it fails, go to Step 6.4. If it passes, continue.**
+
+**Action: Execute this command NOW:**
+```bash
+cd <ARTK_ROOT> && npx playwright test --project=validation --reporter=list 2>&1 || echo "Validation project not found - skipping"
+```
+
+**Capture the output. If tests fail, go to Step 6.4. If they pass or project doesn't exist, continue.**
+
+### Step 6.4: Fix any errors found (LOOP UNTIL PASS)
+
+**If ANY validation command failed:**
+1. Read the error message
+2. Identify the file and line number
+3. Fix the issue (syntax, duplicate testid, etc.)
+4. **GO BACK TO Step 6.3 and re-run the failed command**
+5. Repeat until ALL commands pass
+
+**Common errors and fixes:**
+| Error | Fix |
+|-------|-----|
+| Syntax error in JSX | Check attribute placement, quotes, braces |
+| Duplicate testid | Rename one with more specific name |
+| TypeScript error | Check prop types, missing imports |
+
+**CRITICAL: You CANNOT proceed to final output until validation passes. Loop back to Step 6.3 as many times as needed.**
+
+### Step 6.5: Optional - Run frontend build
+If the project has a build command, run it:
+```bash
+npm run build  # or pnpm/yarn
+```
+
+Fix any build errors before completing.
 
 ---
 
@@ -295,8 +350,60 @@ BUT ARTK's approach must remain: **explicit, reviewed, deterministic, and safe**
 ## Output checklist
 
 You must produce:
-- [ ] `docs/TESTID_FIX_REPORT.md`
-- [ ] `artk/reports/testid-fix-plan.json`
+- [ ] `reports/testid/audit-report.md`
+- [ ] `reports/testid/fix-plan.json`
 - [ ] (apply mode) code changes only after approval
+- [ ] (apply mode) validation executed and passing
 - [ ] updated report reflecting what was applied
-- [ ] clear next steps for remaining medium/high risk items
+- [ ] validation status summary
+- [ ] next commands for remaining work
+
+---
+
+## MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+### Validation Status
+
+**Display validation results:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  VALIDATION RESULTS                                                 ║
+╠════════════════════════════════════════════════════════════════════╣
+║  TypeScript Compilation:  ✓ PASS / ✗ FAIL                          ║
+║  Playwright Validation:   ✓ PASS / ✗ FAIL / ⏭ SKIPPED              ║
+║  Test List Check:         ✓ PASS / ✗ FAIL                          ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+### Next Commands
+
+**Display the following commands VERBATIM (do not summarize or paraphrase):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Propose journeys using stable selectors:          ║
+║     /artk.journey-propose                                          ║
+║                                                                     ║
+║  2. (OPTIONAL) Define a specific journey manually:                  ║
+║     /artk.journey-define id=JRN-0001 title="<title>"               ║
+║                                                                     ║
+║  3. (OPTIONAL) Implement a journey with data-testid selectors:      ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  4. (IF ITEMS REMAIN) Re-run audit for remaining items:             ║
+║     /artk.testid-audit mode=report scope=<component>               ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Usage tips:**
+- Use `getByTestId('...')` in page objects for maximum test stability
+- Prefer `data-testid` over CSS selectors for critical user flows
+- Run `/artk.testid-audit mode=report` periodically to track selector debt
+
+**IMPORTANT:** Copy the commands box exactly. Do not abbreviate or summarize.

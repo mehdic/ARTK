@@ -1,4 +1,5 @@
 ---
+name: artk.discover-foundation
 mode: agent
 description: "Discover app + Build foundation harness - analyzes routes/features/auth, generates DISCOVERY.md, creates Playwright harness with auth, fixtures, modules"
 handoffs:
@@ -55,6 +56,7 @@ By combining these, discovery findings directly inform foundation build decision
 6. **Do not break existing test tooling.** If Playwright already exists, integrate carefully.
 7. **No hardcoded URLs.** Base URL and env must come from the config loader.
 8. **Local-first defaults.** Retries should be low locally; CI can raise them later.
+9. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
 ---
 
@@ -99,23 +101,26 @@ Parse `key=value` arguments:
 
 ## Discovery Outputs
 
-Write outputs under `<ARTK_ROOT>/docs/`:
+**Follow Output File Standards from `.github/prompts/common/GENERAL_RULES.md`.**
 
+### Human-readable documentation (`docs/`):
 1) `docs/DISCOVERY.md` - Route inventory, feature areas, auth entry points
 2) `docs/TESTABILITY.md` - Locator readiness, data feasibility, async risks
-3) `docs/DISCOVERY.md` must include an **Environment Matrix** section (see Step D0), managed by:
+
+`docs/DISCOVERY.md` must include an **Environment Matrix** section (see Step D0), managed by:
 ```
 <!-- ARTK:BEGIN environment-matrix -->
 ...managed content...
 <!-- ARTK:END environment-matrix -->
 ```
 
-Optional machine outputs under `docs/discovery/`:
-- `docs/discovery/routes.json`
-- `docs/discovery/features.json`
-- `docs/discovery/apis.json`
-- `docs/discovery/risk.json`
-- `docs/discovery/summary.json`
+### Machine-readable reports (`reports/discovery/`):
+Create `reports/discovery/` directory and generate:
+- `reports/discovery/routes.json`
+- `reports/discovery/features.json`
+- `reports/discovery/apis.json`
+- `reports/discovery/risk.json`
+- `reports/discovery/summary.json`
 
 All generated sections MUST include:
 ```
@@ -126,17 +131,48 @@ All generated sections MUST include:
 
 ---
 
-## Step D0 — Locate ARTK_ROOT and Load Context
+## Step D0 — Check Application Running Status
+
+**Before proceeding with auth detection, check if the application is running.**
+
+Ask the user:
+```
+Is your application currently running locally?
+(Required for auth flow detection; can be skipped for static-only discovery)
+
+1. Yes - app is running at [baseUrl from config or ask user]
+2. No - skip auth detection (I'll run it later)
+3. Skip auth detection entirely
+```
+
+**If user selects "No" or "Skip":**
+- Set `skipAuthDetection=true` internally
+- Proceed with static discovery only
+- Auth setup tests will be created but marked with TODO for credentials
+- Document in output: "Auth detection skipped - run with app running for full detection"
+
+**If user selects "Yes":**
+- Proceed with full discovery including runtime auth detection
+- Validate baseUrl is accessible before starting
+
+---
+
+## Step D1 — Locate ARTK_ROOT and Load Context
 
 Determine `ARTK_ROOT` in this order:
 1) `artkRoot=` argument
 2) nearest `artk.config.yml` (search upward from CWD)
-3) if still unknown, stop and instruct the user to run `/init-playbook` first
+3) if still unknown, stop and instruct the user to run `/artk.init-playbook` first
 
 Load context from `.artk/context.json`:
-- `targets[]` - detected frontend targets from /init-playbook
+- `targets[]` - detected frontend targets from /artk.init-playbook
 - `detectedTargets[]` - targets with confidence scores
 - `project.name` - project identifier
+- `uiLibraries[]` - detected UI component libraries (AG Grid, etc.)
+- `uiLibraries[].name` - library name (e.g., "ag-grid")
+- `uiLibraries[].packages` - detected package names
+- `uiLibraries[].hasEnterprise` - whether enterprise features are available
+- `uiLibraries[].artkModule` - recommended ARTK module (e.g., "@artk/core/grid")
 
 If context has `interactive_fallback_needed: true`:
 - Prompt user to confirm/correct detected targets before proceeding
@@ -159,7 +195,7 @@ Classification rules (be conservative):
 - `bypassed-mock-identity`: a user identity is injected locally and RBAC still enforced; roles are switchable via toggle/flag.
 - `unknown`: conflicting or insufficient signals.
 
-## Step D1 — Identify app candidates (monorepo-aware)
+## Step D2 — Identify app candidates (monorepo-aware)
 
 Detect app roots using common patterns:
 - `apps/*`, `packages/*`, `services/*`, `src/*`
@@ -172,7 +208,7 @@ Choose scope:
 - `appScope=<name>`: focus on that app
 - `auto`: if exactly 1 frontend exists, use it; otherwise ask
 
-## Step D2 — Detect framework(s) and routing style
+## Step D3 — Detect framework(s) and routing style
 
 Use file and dependency heuristics:
 - **Next.js**: `next.config.*`, `pages/`, `app/` directories
@@ -187,7 +223,24 @@ Also detect API patterns:
 - GraphQL schemas (`schema.graphql`, `.gql`)
 - REST clients (`axios`, `fetch`, `ky`, `graphql-request`)
 
-## Step D3 — Build route/page inventory (static scan)
+## Step D3.5 — Detect UI component libraries
+
+Detect UI component libraries that require specialized testing helpers:
+
+**AG Grid** (data grid):
+- Dependencies: `ag-grid-community`, `ag-grid-enterprise`, `ag-grid-react`, `ag-grid-vue`, `ag-grid-vue3`, `ag-grid-angular`, `@ag-grid-community/core`, `@ag-grid-enterprise/core`
+- If detected: Flag for `@artk/core/grid` usage in test implementation
+- Enterprise features: If `ag-grid-enterprise` or `@ag-grid-enterprise/core` detected, note that grouping/tree/master-detail helpers are available
+
+**Other data grids** (future):
+- DevExtreme, Handsontable, TanStack Table, etc.
+
+Output:
+- List of detected UI libraries with versions
+- Recommended ARTK modules for testing
+- Special testing considerations (virtualization, enterprise features)
+
+## Step D4 — Build route/page inventory (static scan)
 
 Output should include:
 - route path pattern
@@ -209,7 +262,7 @@ If exact extraction is hard, fall back to:
 - `Link`/`routerLink` usage
 - sitemap-like lists if they exist
 
-## Step D4 — Group routes into feature areas
+## Step D5 — Group routes into feature areas
 
 Group using heuristic layers:
 1) explicit feature/module folders (`src/features/*`, `modules/*`, `domain/*`)
@@ -224,7 +277,7 @@ Produce a feature map:
 - Primary APIs used
 - Auth/role hints
 
-## Step D5 — Identify auth entry points + role/permission hints
+## Step D6 — Identify auth entry points + role/permission hints
 
 Collect:
 - login/logout URLs or components
@@ -240,12 +293,13 @@ Output:
 
 Do NOT request credentials.
 
-## Step D6 — Testability assessment
+## Step D7 — Testability assessment
 
 ### A) Locator readiness
 - accessible roles/names (labels, headings, button names)
 - presence and consistency of `data-testid` / `data-test` / `data-qa` attributes
 - patterns that will be brittle (CSS class selectors, deep DOM)
+- **AG Grid/Data grids**: Note virtualization (only visible rows in DOM), recommend `@artk/core/grid` for ARIA-based targeting (`aria-rowindex`, `col-id`)
 
 ### B) Data feasibility
 - seeded data scripts
@@ -273,7 +327,7 @@ Each finding must include:
 - where it was observed (file path / module)
 - recommended remediation
 
-## Step D7 — Risk ranking model + scoring
+## Step D8 — Risk ranking model + scoring
 
 Create a risk model:
 - Risk = **impact** × **likelihood**
@@ -288,7 +342,7 @@ Produce:
 - Risk rationale for each
 - Suggested test tier: `smoke` vs `release` vs `regression`
 
-## Step D8 — Recommend initial Journeys (shortlist)
+## Step D9 — Recommend initial Journeys (shortlist)
 
 If `generateJourneyShortlist=true`:
 - Propose 5–10 **Smoke Journeys** (auth + global nav + one critical flow)
@@ -308,7 +362,7 @@ If `generateJourneyStubs=true` and Journey system is installed:
 - Create `journeys/` markdown files with `status: proposed`
 - Update backlog/index
 
-## Step D9 — Optional runtime scan
+## Step D10 — Optional runtime scan
 
 If `runtimeScan=true`:
 - Require `baseUrl=`
@@ -326,6 +380,8 @@ If `runtimeScan=true`:
 # ═══════════════════════════════════════════════════════════════════
 
 ## Foundation Outputs
+
+**IMPORTANT:** Before generating any code, review the Code Quality Rules in `.github/prompts/common/GENERAL_RULES.md`.
 
 Create under `<ARTK_ROOT>`:
 
@@ -602,11 +658,13 @@ Rules:
 - Assume API helpers may exist later
 - Always namespace by runId
 
-## Step F9 — Module registry
+## Step F9 — Module registry (with LLKB Integration)
 
 Create `src/modules/registry.json`:
 ```json
 {
+  "version": "1.0.0",
+  "generatedAt": "<ISO8601>",
   "foundation": [
     { "name": "auth", "path": "foundation/auth", "description": "Authentication harness" },
     { "name": "navigation", "path": "foundation/navigation", "description": "Navigation helpers" },
@@ -614,10 +672,87 @@ Create `src/modules/registry.json`:
     { "name": "data", "path": "foundation/data", "description": "Data harness" }
   ],
   "feature": [],
-  "generatedAt": "<ISO8601>",
-  "journeyDependencies": {}
+  "journeyDependencies": {},
+  "llkbComponents": {}
 }
 ```
+
+**LLKB Component Registry Integration:**
+
+When LLKB extracts a new component (Step 17.3 in journey-verify), it must also register in `modules/registry.json`:
+
+```
+FUNCTION registerComponentInRegistry(component: Component):
+  registry = loadJSON("src/modules/registry.json")
+
+  # Add to llkbComponents map
+  registry.llkbComponents[component.id] = {
+    name: component.name,
+    path: component.module.path,
+    importPath: component.module.importPath,
+    category: component.category,
+    scope: component.scope,
+    createdAt: component.metrics.createdAt,
+    usedInJourneys: component.metrics.usedInJourneys
+  }
+
+  # Update generatedAt
+  registry.generatedAt = now().toISO8601()
+
+  saveJSON("src/modules/registry.json", registry)
+
+  # Log to LLKB history
+  appendToHistory({
+    event: "registry_updated",
+    id: component.id,
+    summary: "Added " + component.name + " to module registry"
+  })
+```
+
+**Example registry with LLKB components:**
+```json
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-01-16T12:30:00Z",
+  "foundation": [
+    { "name": "auth", "path": "foundation/auth", "description": "Authentication harness" },
+    { "name": "navigation", "path": "foundation/navigation", "description": "Navigation helpers" }
+  ],
+  "feature": [
+    { "name": "orders", "path": "feature/orders", "description": "Order management flows" }
+  ],
+  "journeyDependencies": {
+    "JRN-0001": { "foundation": ["auth", "navigation"], "feature": [] },
+    "JRN-0005": { "foundation": ["navigation"], "feature": ["orders"] }
+  },
+  "llkbComponents": {
+    "COMP001": {
+      "name": "verifySidebarReady",
+      "path": "foundation/navigation/nav.ts",
+      "importPath": "@modules/foundation/navigation",
+      "category": "navigation",
+      "scope": "app-specific",
+      "createdAt": "2026-01-16T10:00:00Z",
+      "usedInJourneys": ["JRN-0001", "JRN-0002", "JRN-0005"]
+    },
+    "COMP015": {
+      "name": "verifyGridReady",
+      "path": "foundation/data-grid/grid-helpers.ts",
+      "importPath": "@modules/foundation/data-grid",
+      "category": "assertion",
+      "scope": "framework:ag-grid",
+      "createdAt": "2026-01-16T10:30:00Z",
+      "usedInJourneys": ["JRN-0003", "JRN-0005"]
+    }
+  }
+}
+```
+
+**Sync between components.json and registry.json:**
+- `components.json` (in .artk/llkb/) is the source of truth for LLKB metadata
+- `registry.json` (in src/modules/) links LLKB components to actual module files
+- When journey-implement needs a component, it queries registry for import path
+- When journey-verify extracts a component, it updates both files
 
 ## Step F10 — Create test folders + README
 
@@ -632,6 +767,594 @@ Create `README.md` with:
 - How storageState works
 - Where reports/artifacts live
 
+## Step F11 — Initialize LLKB (Lessons Learned Knowledge Base)
+
+**After foundation build completes, initialize the LLKB structure:**
+
+### 11.0 Migration Detection (MANDATORY FOR EXISTING PROJECTS)
+
+**Before creating new LLKB files, check for existing installations:**
+
+```
+FUNCTION detectLLKBMigration() -> MigrationResult:
+  # ═══════════════════════════════════════════════════════════════
+  # CHECK 1: Does LLKB already exist?
+  # ═══════════════════════════════════════════════════════════════
+  IF exists(".artk/llkb/config.yml"):
+    existingConfig = loadYAML(".artk/llkb/config.yml")
+    existingVersion = existingConfig.version || "0.0.0"
+
+    CURRENT_VERSION = "1.0.0"  # Current schema version
+
+    IF existingVersion == CURRENT_VERSION:
+      RETURN {
+        action: "SKIP",
+        reason: "LLKB already exists at version " + existingVersion,
+        recommendation: "Run LLKB health check instead: artk llkb health"
+      }
+    ELSE:
+      RETURN {
+        action: "MIGRATE",
+        fromVersion: existingVersion,
+        toVersion: CURRENT_VERSION,
+        recommendation: "Backup existing data before migration"
+      }
+
+  # ═══════════════════════════════════════════════════════════════
+  # CHECK 2: Legacy format detection (pre-LLKB learnings)
+  # ═══════════════════════════════════════════════════════════════
+  legacyPaths = [
+    ".artk/learnings.json",           # Old learning format
+    ".artk/patterns.json",             # Old patterns format
+    "artk-e2e/learnings/",            # Alternative location
+    "docs/TEST-PATTERNS.md"            # Manual patterns doc
+  ]
+
+  legacyFound = []
+  FOR path in legacyPaths:
+    IF exists(path):
+      legacyFound.push(path)
+
+  IF legacyFound.length > 0:
+    RETURN {
+      action: "IMPORT_LEGACY",
+      legacyFiles: legacyFound,
+      recommendation: "Import existing patterns into new LLKB format"
+    }
+
+  # ═══════════════════════════════════════════════════════════════
+  # CHECK 3: Existing test patterns (mine from existing tests)
+  # ═══════════════════════════════════════════════════════════════
+  existingTests = glob("<harnessRoot>/tests/**/*.spec.ts")
+  IF existingTests.length > 0:
+    RETURN {
+      action: "SEED_FROM_TESTS",
+      testCount: existingTests.length,
+      recommendation: "Analyze existing tests to seed initial LLKB patterns"
+    }
+
+  # Fresh install
+  RETURN { action: "FRESH_INSTALL" }
+```
+
+**Migration actions:**
+
+| Action | What to Do |
+|--------|------------|
+| `SKIP` | LLKB exists, skip initialization. Run health check instead. |
+| `MIGRATE` | Backup `.artk/llkb/`, run schema migration, preserve data. |
+| `IMPORT_LEGACY` | Read legacy files, convert to new schema, create LLKB. |
+| `SEED_FROM_TESTS` | Analyze existing tests, extract patterns, seed LLKB. |
+| `FRESH_INSTALL` | Create new LLKB from scratch (Steps 11.1-11.7). |
+
+**Migration procedure (when `action == MIGRATE`):**
+
+```
+FUNCTION migrateLLKB(fromVersion: string, toVersion: string):
+  # Step 1: Backup
+  backupPath = ".artk/llkb-backup-" + formatDate(now(), "YYYY-MM-DD-HHmmss")
+  copyDir(".artk/llkb/", backupPath)
+  logInfo("Backed up LLKB to " + backupPath)
+
+  # Step 2: Apply migrations
+  migrations = [
+    { from: "0.9.0", to: "1.0.0", fn: migrate_0_9_to_1_0 }
+    # Future migrations added here
+  ]
+
+  currentVersion = fromVersion
+  FOR migration in migrations:
+    IF versionCompare(currentVersion, migration.from) <= 0:
+      migration.fn()
+      currentVersion = migration.to
+      logInfo("Migrated from " + migration.from + " to " + migration.to)
+
+  # Step 3: Update version
+  config = loadYAML(".artk/llkb/config.yml")
+  config.version = toVersion
+  saveYAML(".artk/llkb/config.yml", config)
+
+  RETURN { success: true, backupPath: backupPath }
+
+FUNCTION migrate_0_9_to_1_0():
+  # Example migration: Add new required fields
+  lessons = loadJSON(".artk/llkb/lessons.json")
+  IF NOT lessons.globalRules:
+    lessons.globalRules = []
+  IF NOT lessons.appQuirks:
+    lessons.appQuirks = []
+  saveJSON(".artk/llkb/lessons.json", lessons)
+
+  components = loadJSON(".artk/llkb/components.json")
+  IF NOT components.componentsByScope:
+    components.componentsByScope = {
+      "universal": [],
+      "framework:angular": [],
+      "framework:react": [],
+      "app-specific": []
+    }
+  saveJSON(".artk/llkb/components.json", components)
+```
+
+**Output migration status:**
+```
+LLKB Migration Check:
+────────────────────────────────────────────────────
+Status: MIGRATE
+From Version: 0.9.0
+To Version: 1.0.0
+
+Migration Steps:
+1. ✓ Backup created: .artk/llkb-backup-2026-01-16-120000/
+2. ✓ Schema migration 0.9.0 → 1.0.0 applied
+3. ✓ Version updated to 1.0.0
+
+Preserved:
+- 15 lessons
+- 8 components
+- 3 app quirks
+
+New features available:
+- Global rules support
+- App quirks tracking
+- Enhanced analytics
+────────────────────────────────────────────────────
+```
+
+### 11.1 Create LLKB Directory Structure
+
+```
+.artk/llkb/
+├── config.yml                  # LLKB configuration
+├── app-profile.json            # Application DNA
+├── lessons.json                # Fixes, quirks, timing patterns
+├── components.json             # Reusable test components catalog
+├── patterns/                   # Categorized pattern details
+│   ├── selectors.json          # Selector strategies
+│   ├── timing.json             # Async/timing patterns
+│   ├── data.json               # Test data patterns
+│   ├── auth.json               # Authentication patterns
+│   └── assertions.json         # Common assertion patterns
+├── history/                    # Learning event log
+└── analytics.json              # Effectiveness metrics
+```
+
+### 11.2 Generate app-profile.json from Discovery Data
+
+Use discovery outputs to populate the app profile:
+
+```json
+{
+  "version": "1.0.0",
+  "createdBy": "discover-foundation",
+  "lastUpdated": "<ISO8601 timestamp>",
+
+  "application": {
+    "name": "<detected app name from discovery>",
+    "framework": "<angular|react|vue|nextjs|other from Step D3>",
+    "uiLibrary": "<material|antd|primeng|bootstrap|custom|none from discovery>",
+    "dataGrid": "<ag-grid|tanstack-table|custom|none from Step D3.5>",
+    "authProvider": "<azure-ad|okta|auth0|cognito|custom|none from Step D6>",
+    "stateManagement": "<ngrx|redux|zustand|none from discovery>"
+  },
+
+  "testability": {
+    "testIdAttribute": "<data-testid|data-test|data-cy from discovery or config>",
+    "testIdCoverage": "<high|medium|low from Step D7.A>",
+    "ariaCoverage": "<high|medium|low from Step D7.A>",
+    "asyncComplexity": "<high|medium|low from Step D7.C>"
+  },
+
+  "environment": {
+    "baseUrls": {
+      "<env_name>": "<baseUrl from artk.config.yml>",
+      "...": "..."
+    },
+    "authBypass": {
+      "available": <true|false from Step D6>,
+      "method": "<storage-state|api-token|mock-user|none>"
+    }
+  }
+}
+```
+
+### 11.3 Initialize Empty LLKB Databases
+
+**lessons.json** (empty template):
+```json
+{
+  "version": "1.0.0",
+  "lastUpdated": "<ISO8601>",
+  "lessons": [],
+  "globalRules": [],
+  "appQuirks": []
+}
+```
+
+**components.json** (empty template):
+```json
+{
+  "version": "1.0.0",
+  "lastUpdated": "<ISO8601>",
+  "components": [],
+  "componentsByCategory": {
+    "navigation": [],
+    "auth": [],
+    "assertion": [],
+    "data": [],
+    "ui-interaction": []
+  },
+  "componentsByScope": {
+    "universal": [],
+    "framework:<name>": [],
+    "app-specific": []
+  }
+}
+```
+
+### 11.4 Create config.yml with Defaults
+
+```yaml
+version: "1.0.0"
+enabled: true
+
+# Learning thresholds
+extraction:
+  minOccurrences: 2              # Extract after N uses
+  predictiveExtraction: true     # Extract on first use if predicted reusable
+  confidenceThreshold: 0.7       # Min confidence to auto-apply pattern
+
+# Retention policies
+retention:
+  maxLessonAge: 90               # Days before lesson marked stale
+  minSuccessRate: 0.6            # Demote lessons below this rate
+  archiveUnused: 30              # Archive components unused for N days
+
+# Context injection
+injection:
+  # No artificial limits - all relevant content is injected
+  # Model's context window is the only natural constraint
+  prioritizeByConfidence: true   # Sort by confidence score (highest first)
+
+# Scopes tracked
+scopes:
+  universal: true                # Track @artk/core patterns
+  frameworkSpecific: true        # Track framework patterns
+  appSpecific: true              # Track app-specific patterns
+```
+
+### 11.5 Initialize patterns/*.json with App-Appropriate Defaults
+
+**patterns/selectors.json**:
+```json
+{
+  "version": "1.0.0",
+  "selectorPriority": {
+    "comment": "App-specific selector priority based on discovery",
+    "order": [
+      { "type": "data-testid", "reliability": 0.98, "note": "Primary strategy" },
+      { "type": "role+name", "reliability": 0.95 },
+      { "type": "aria-label", "reliability": 0.90 },
+      { "type": "text-content", "reliability": 0.75 },
+      { "type": "css-class", "reliability": 0.40, "note": "Avoid if possible" }
+    ]
+  },
+  "selectorPatterns": [],
+  "avoidSelectors": [
+    { "pattern": "[class*='_']", "reason": "CSS module hashed classes" },
+    { "pattern": ".ng-*", "reason": "Angular internal classes" },
+    { "pattern": "[class*='sc-']", "reason": "Styled-components hashes" }
+  ],
+  "preferredSelectors": [
+    { "pattern": "[data-testid='*']", "priority": 1, "reason": "Stable, explicit" },
+    { "pattern": "getByRole('*')", "priority": 2, "reason": "Accessible, semantic" },
+    { "pattern": "getByLabel('*')", "priority": 3, "reason": "User-visible" }
+  ]
+}
+```
+
+**If AG Grid detected** in Step D3.5, add to avoidSelectors:
+```json
+{ "pattern": ".ag-cell-*", "reason": "Dynamic AG Grid classes" }
+```
+
+**patterns/timing.json**:
+```json
+{
+  "version": "1.0.0",
+  "asyncPatterns": [],
+  "loadingIndicators": [],
+  "networkPatterns": [],
+  "forbiddenPatterns": [
+    {
+      "pattern": "page.waitForTimeout(*)",
+      "severity": "error",
+      "alternative": "Use web-first assertions or expect.poll()"
+    },
+    {
+      "pattern": "waitForLoadState('networkidle')",
+      "severity": "warning",
+      "alternative": "Use 'domcontentloaded' or explicit element waits"
+    }
+  ]
+}
+```
+
+**patterns/assertions.json**:
+```json
+{
+  "version": "1.0.0",
+  "commonAssertions": [],
+  "assertionHelpers": [
+    {
+      "name": "expectToast",
+      "module": "@artk/core/assertions",
+      "signature": "expectToast(page, { message, type?, timeout? })",
+      "scope": "universal"
+    },
+    {
+      "name": "expectLoading",
+      "module": "@artk/core/assertions",
+      "signature": "expectLoading(page, { indicator?, timeout? })",
+      "scope": "universal"
+    }
+  ]
+}
+```
+
+**patterns/data.json**, **patterns/auth.json**: Initialize as empty:
+```json
+{
+  "version": "1.0.0"
+}
+```
+
+### 11.6 Create Empty History and Analytics
+
+**history/<YYYY-MM-DD>.jsonl** (empty, will be populated by journey-verify):
+- Create directory only
+
+**analytics.json** (empty template):
+```json
+{
+  "version": "1.0.0",
+  "lastUpdated": "<ISO8601>",
+  "overview": {
+    "totalLessons": 0,
+    "activeLessons": 0,
+    "archivedLessons": 0,
+    "totalComponents": 0,
+    "activeComponents": 0,
+    "archivedComponents": 0
+  },
+  "lessonStats": {
+    "byCategory": {},
+    "avgConfidence": 0,
+    "avgSuccessRate": 0
+  },
+  "componentStats": {
+    "byCategory": {},
+    "byScope": {},
+    "totalReuses": 0,
+    "avgReusesPerComponent": 0
+  },
+  "impact": {
+    "verifyIterationsSaved": 0,
+    "avgIterationsBeforeLLKB": 0,
+    "avgIterationsAfterLLKB": 0,
+    "codeDeduplicationRate": 0,
+    "estimatedHoursSaved": 0
+  },
+  "topPerformers": {
+    "lessons": [],
+    "components": []
+  },
+  "needsReview": {
+    "lowConfidenceLessons": [],
+    "lowUsageComponents": [],
+    "decliningSuccessRate": []
+  }
+}
+```
+
+### 11.7 LLKB Library Reference (@artk/core/llkb)
+
+**The LLKB library is available as part of @artk/core. Use these functions instead of manual implementations.**
+
+**Installation:**
+```bash
+# Already included with @artk/core - no separate install needed
+```
+
+**Key exports from `@artk/core/llkb`:**
+
+| Category | Functions | Description |
+|----------|-----------|-------------|
+| **File Operations** | `saveJSONAtomic`, `updateJSONWithLock`, `loadJSON`, `ensureDir` | Atomic writes, file locking for concurrent access |
+| **History Logging** | `appendToHistory`, `readHistoryFile`, `countTodayEvents`, `getHistoryDir` | Event logging, rate limit checking |
+| **Rate Limiting** | `isDailyRateLimitReached`, `isJourneyRateLimitReached`, `countPredictiveExtractionsToday` | Prevent LLKB bloat |
+| **Similarity** | `calculateSimilarity`, `jaccardSimilarity`, `findSimilarPatterns`, `isNearDuplicate` | Pattern detection |
+| **Inference** | `inferCategory`, `inferCategoryWithConfidence`, `isComponentCategory` | Categorize code patterns |
+| **Confidence** | `calculateConfidence`, `detectDecliningConfidence`, `needsConfidenceReview` | Lesson health tracking |
+| **Normalization** | `normalizeCode`, `hashCode`, `tokenize` | Code comparison |
+| **Analytics** | `updateAnalytics`, `createEmptyAnalytics`, `getAnalyticsSummary` | Metrics updates |
+| **CLI Functions** | `runHealthCheck`, `getStats`, `prune`, `formatHealthCheck` | CLI operations |
+
+**Example usage in prompts:**
+
+```typescript
+import {
+  saveJSONAtomic,
+  updateJSONWithLock,
+  appendToHistory,
+  calculateSimilarity,
+  inferCategory,
+  isDailyRateLimitReached,
+  runHealthCheck,
+  formatHealthCheck,
+} from '@artk/core/llkb';
+
+// Atomic file writes (safe for concurrent access)
+await saveJSONAtomic('.artk/llkb/lessons.json', lessonsData);
+
+// Locked updates (prevents race conditions)
+await updateJSONWithLock('.artk/llkb/components.json', (data) => {
+  data.components.push(newComponent);
+  return data;
+});
+
+// Check rate limits before extraction
+const config = loadConfig();
+if (isDailyRateLimitReached(config, llkbRoot)) {
+  console.log('Daily extraction limit reached');
+}
+
+// Log history event
+appendToHistory({
+  event: 'lesson_created',
+  timestamp: new Date().toISOString(),
+  lessonId: 'L042',
+  journeyId: 'JRN-0005',
+}, llkbRoot);
+
+// Run health check
+const result = runHealthCheck(llkbRoot);
+console.log(formatHealthCheck(result));
+```
+
+### 11.8 Create LLKB CLI Utility Script
+
+**Create a utility script for common LLKB operations (uses @artk/core/llkb library):**
+
+Create `.artk/llkb/scripts/llkb-cli.ts`:
+
+```typescript
+#!/usr/bin/env npx ts-node
+/**
+ * LLKB CLI Utility
+ *
+ * Uses @artk/core/llkb library for all operations.
+ *
+ * Commands:
+ *   health    - Check LLKB health and integrity
+ *   stats     - Display LLKB statistics
+ *   prune     - Archive stale lessons/components
+ *
+ * Usage:
+ *   npx ts-node .artk/llkb/scripts/llkb-cli.ts <command> [options]
+ */
+
+import * as path from 'path';
+import {
+  runHealthCheck,
+  getStats,
+  prune,
+  formatHealthCheck,
+  formatStats,
+  formatPruneResult,
+} from '@artk/core/llkb';
+
+const LLKB_ROOT = path.join(process.cwd(), '.artk', 'llkb');
+
+// ═══════════════════════════════════════════════════════════════
+// CLI COMMANDS (using @artk/core/llkb library)
+// ═══════════════════════════════════════════════════════════════
+
+const command = process.argv[2];
+const args = process.argv.slice(3);
+
+switch (command) {
+  case 'health': {
+    const result = runHealthCheck(LLKB_ROOT);
+    console.log(formatHealthCheck(result));
+    process.exit(result.overall === 'fail' ? 1 : 0);
+    break;
+  }
+  case 'stats': {
+    const result = getStats(LLKB_ROOT);
+    console.log(formatStats(result));
+    break;
+  }
+  case 'prune': {
+    const dryRun = !args.includes('--force');
+    const result = prune(LLKB_ROOT, { dryRun });
+    console.log(formatPruneResult(result));
+    break;
+  }
+  default:
+    console.log('LLKB CLI - Usage:');
+    console.log('  npx ts-node .artk/llkb/scripts/llkb-cli.ts health');
+    console.log('  npx ts-node .artk/llkb/scripts/llkb-cli.ts stats');
+    console.log('  npx ts-node .artk/llkb/scripts/llkb-cli.ts prune [--force]');
+}
+```
+
+**Add to package.json (scripts and yaml dependency):**
+```json
+{
+  "scripts": {
+    "llkb:health": "npx ts-node .artk/llkb/scripts/llkb-cli.ts health",
+    "llkb:stats": "npx ts-node .artk/llkb/scripts/llkb-cli.ts stats",
+    "llkb:prune": "npx ts-node .artk/llkb/scripts/llkb-cli.ts prune"
+  },
+  "devDependencies": {
+    "yaml": "^2.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+**Install dependencies:**
+```bash
+npm install --save-dev yaml ts-node typescript
+```
+
+### 11.8 Output Summary
+
+After LLKB initialization, output:
+
+```
+LLKB (Lessons Learned Knowledge Base) initialized:
+✓ Created .artk/llkb/ directory structure
+✓ Generated app-profile.json from discovery data
+✓ Initialized empty lessons.json and components.json
+✓ Created patterns/*.json with app-specific defaults
+✓ Set up config.yml with default thresholds
+✓ Created history/ and analytics.json
+✓ Created LLKB CLI utility script
+
+The LLKB is now ready to:
+- Capture lessons from journey-verify (test failures/fixes)
+- Suggest reusable components during journey-implement
+- Track pattern effectiveness over time
+
+CLI Commands Available:
+- npm run llkb:health   - Check LLKB integrity
+- npm run llkb:stats    - View statistics
+- npm run llkb:prune    - Archive stale patterns
+```
+
 ---
 
 # ═══════════════════════════════════════════════════════════════════
@@ -639,6 +1362,13 @@ Create `README.md` with:
 # ═══════════════════════════════════════════════════════════════════
 
 ## Mode-based Question Policy
+
+**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
+- Ask ONE question at a time
+- Use numbered options (NOT checkboxes)
+- Show progress (Question X of Y)
+- Provide recommended defaults
+- Wait for user response before asking the next question
 
 ### QUICK (≤ 5 questions)
 1) Which app scope (if multiple frontends)?
@@ -693,6 +1423,21 @@ browsers: [chromium]
 # ═══════════════════════════════════════════════════════════════════
 
 **This step validates that all foundation modules compile and work correctly.**
+
+## Step V0 — Pre-Compilation Validation (MANDATORY)
+
+**BEFORE running TypeScript compilation, you MUST complete the Pre-Compilation Validation Checklist from `.github/prompts/common/GENERAL_RULES.md`.**
+
+Run through each check:
+1. **Duplicate Function Check** — No function defined in multiple files
+2. **ESM Import Path Check** — Directory imports include `/index`
+3. **Import Usage Check** — No unused imports, unused params prefixed with `_`
+4. **Path Alias Check** — Consistent import patterns, aliases defined in tsconfig
+5. **Syntax Quick Check** — Template literals use backticks, no unclosed brackets
+
+**Only proceed to Step V1 after ALL checks pass.**
+
+---
 
 ## Step V1 — TypeScript Compilation Check
 
@@ -893,7 +1638,7 @@ import('./vendor/artk-core/dist/config/index.js').then(config => {
 **If import fails:**
 - Check that vendor/artk-core exists
 - Check that dist/ folder is populated
-- Re-run `/init-playbook` to re-copy core
+- Re-run `/artk.init-playbook` to re-copy core
 
 ## Step V5 — Optional: Auth Flow Smoke Test
 
@@ -930,7 +1675,7 @@ Auth Flow (optional):    ✓ PASS / ⏭ SKIPPED / ✗ FAIL
 Overall: READY / NEEDS FIXES
 
 Next steps:
-- If READY: Proceed to /artk.testid-audit (strongly recommended) then /journey-propose
+- If READY: Proceed to /artk.testid-audit (strongly recommended) then /artk.journey-propose
 - If NEEDS FIXES: Address errors above before continuing
 ═══════════════════════════════════════════════════════════════════
 ```
@@ -963,6 +1708,46 @@ Next steps:
 - [ ] @artk/core integration verified
 - [ ] Validation summary output
 
+---
+
+## MANDATORY: Final Output Section
+
+**You MUST display this section at the end of your output, exactly as formatted.**
+
+### Data-Testid Warning (if applicable)
+
+**If NO `data-testid` or `data-test` attributes were detected during discovery, display this warning:**
+
+```
+⚠️  WARNING: No data-testid attributes detected in the codebase!
+    This will make tests brittle and hard to maintain.
+
+    STRONGLY RECOMMENDED: Run the testid audit before implementing journeys:
+
+    /artk.testid-audit mode=report
+
+    This will identify critical elements that need test hooks.
+```
+
 ### Next Commands
-- `/artk.testid-audit` (strongly recommended before generating tests)
-- `/journey-propose` (auto-identify high-signal Journeys)
+
+**Display the following commands VERBATIM (do not summarize or paraphrase):**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (RECOMMENDED) Audit testid coverage:                            ║
+║     /artk.testid-audit mode=report                                 ║
+║                                                                     ║
+║  2. (OPTIONAL) Propose journeys from discovery:                     ║
+║     /artk.journey-propose                                          ║
+║                                                                     ║
+║  3. (OPTIONAL) Create a specific journey manually:                  ║
+║     /artk.journey-define id=JRN-0001 title="<your title>"          ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IMPORTANT:** Copy the commands box exactly. Do not abbreviate or summarize.

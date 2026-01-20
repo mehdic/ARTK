@@ -1,0 +1,42 @@
+# ARTK Multi-Variant Test Environment
+#
+# Usage:
+#   docker-compose up --build           # Build and test all variants
+#   docker-compose up node20            # Test modern variants only
+#   docker-compose up node16            # Test legacy-16 variant only
+#   docker-compose up node14            # Test legacy-14 variant only
+#
+
+version: '3.8'
+
+services:
+  node20:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node20
+    volumes:
+      - ../src:/app/src:ro
+      - ../dist:/app/dist
+      - ../dist-cjs:/app/dist-cjs
+    environment:
+      - NODE_ENV=test
+
+  node16:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node16
+    volumes:
+      - ../src:/app/src:ro
+      - ../dist-legacy-16:/app/dist-legacy-16
+    environment:
+      - NODE_ENV=test
+
+  node14:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node14
+    volumes:
+      - ../src:/app/src:ro
+      - ../dist-legacy-14:/app/dist-legacy-14
+    environment:
+      - NODE_ENV=test

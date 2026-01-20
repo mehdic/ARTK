@@ -10,7 +10,16 @@
   },
   "scripts": {
     "build": "tsc && npm run copy-templates",
+    "build:cjs": "tsc --project tsconfig.cjs.json && npm run copy-templates:cjs && npm run strip-esm:cjs",
+    "build:legacy-16": "tsc --project tsconfig.legacy-16.json && npm run copy-templates:legacy-16 && npm run strip-esm:legacy-16",
+    "build:legacy-14": "tsc --project tsconfig.legacy-14.json && npm run copy-templates:legacy-14 && npm run strip-esm:legacy-14",
+    "strip-esm:cjs": "node scripts/strip-esm-code.js dist-cjs",
+    "strip-esm:legacy-16": "node scripts/strip-esm-code.js dist-legacy-16",
+    "strip-esm:legacy-14": "node scripts/strip-esm-code.js dist-legacy-14",
     "copy-templates": "mkdir -p dist/codegen/templates && cp src/codegen/templates/*.ejs dist/codegen/templates/",
+    "copy-templates:cjs": "mkdir -p dist-cjs/codegen/templates && cp src/codegen/templates/*.ejs dist-cjs/codegen/templates/ && echo '{\"type\": \"commonjs\"}' > dist-cjs/package.json",
+    "copy-templates:legacy-16": "mkdir -p dist-legacy-16/codegen/templates && cp src/codegen/templates/*.ejs dist-legacy-16/codegen/templates/ && echo '{\"type\": \"commonjs\"}' > dist-legacy-16/package.json",
+    "copy-templates:legacy-14": "mkdir -p dist-legacy-14/codegen/templates && cp src/codegen/templates/*.ejs dist-legacy-14/codegen/templates/ && echo '{\"type\": \"commonjs\"}' > dist-legacy-14/package.json",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -18,7 +27,7 @@
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist dist-cjs dist-legacy-16 dist-legacy-14",
     "prepublishOnly": "npm run build"
   },
   "bin": {
@@ -26,7 +35,12 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "dist-cjs",
+    "dist-legacy-16",
+    "dist-legacy-14",
+    "README.md",
+    "package-legacy-16.json",
+    "package-legacy-14.json"
   ],
   "keywords": [
     "artk",
@@ -67,5 +81,12 @@
     "@playwright/test": {
       "optional": true
     }
+  },
+  "artkVariant": {
+    "id": "modern-esm",
+    "nodeRange": ["18", "19", "20", "21", "22"],
+    "playwrightVersion": "1.57.x",
+    "moduleSystem": "esm",
+    "tsTarget": "ES2022"
   }
 }

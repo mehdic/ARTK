@@ -1,4 +1,5 @@
 import { JourneyFrontmatterSchema, JourneyStatusSchema, type JourneyFrontmatter, type JourneyStatus } from './schema.js';
+import { type Result, CodedError } from '../utils/result.js';
 export { JourneyFrontmatterSchema, JourneyStatusSchema };
 export type { JourneyFrontmatter, JourneyStatus };
 /**
@@ -6,8 +7,8 @@ export type { JourneyFrontmatter, JourneyStatus };
  */
 export declare class JourneyParseError extends Error {
     readonly filePath: string;
-    readonly cause?: unknown | undefined;
-    constructor(message: string, filePath: string, cause?: unknown | undefined);
+    readonly cause?: unknown;
+    constructor(message: string, filePath: string, cause?: unknown);
 }
 /**
  * Parsed journey structure
@@ -96,4 +97,25 @@ export declare function parseJourneyForAutoGen(filePath: string): ParsedJourney;
  * Parse journey from string content (for testing)
  */
 export declare function parseJourneyContent(content: string, virtualPath?: string): ParsedJourney;
+/**
+ * Parse journey from string content with Result type (no exceptions)
+ *
+ * This is the recommended way to parse journey content as it returns
+ * structured errors via Result type instead of throwing exceptions.
+ *
+ * @param content - Raw markdown content to parse
+ * @param virtualPath - Virtual path for error reporting (default: 'virtual.journey.md')
+ * @returns Result with ParsedJourney on success or CodedError on failure
+ *
+ * @example
+ * ```typescript
+ * const result = tryParseJourneyContent(markdownContent);
+ * if (result.success) {
+ *   console.log('Parsed:', result.value.frontmatter.id);
+ * } else {
+ *   console.error(`[${result.error.code}] ${result.error.message}`);
+ * }
+ * ```
+ */
+export declare function tryParseJourneyContent(content: string, virtualPath?: string): Result<ParsedJourney, CodedError>;
 //# sourceMappingURL=parseJourney.d.ts.map

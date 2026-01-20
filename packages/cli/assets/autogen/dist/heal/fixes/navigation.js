@@ -25,17 +25,17 @@ export function extractUrlFromError(errorMessage) {
     // Pattern: Expected URL to match '/pattern/'
     const matchPattern = errorMessage.match(/Expected\s+URL\s+to\s+match\s+['"]([^'"]+)['"]/i);
     if (matchPattern) {
-        return matchPattern[1];
+        return matchPattern[1] ?? null;
     }
     // Pattern: expected "url" to match
     const matchUrl = errorMessage.match(/expected\s+['"]([^'"]+)['"]\s+to\s+match/i);
     if (matchUrl) {
-        return matchUrl[1];
+        return matchUrl[1] ?? null;
     }
     // Pattern: waiting for URL pattern
     const waitingPattern = errorMessage.match(/waiting\s+for\s+URL\s+['"]([^'"]+)['"]/i);
     if (waitingPattern) {
-        return waitingPattern[1];
+        return waitingPattern[1] ?? null;
     }
     return null;
 }
@@ -44,7 +44,7 @@ export function extractUrlFromError(errorMessage) {
  */
 export function extractUrlFromGoto(code) {
     const match = code.match(/page\.goto\s*\(\s*['"`]([^'"`]+)['"`]/);
-    return match ? match[1] : null;
+    return match ? (match[1] ?? null) : null;
 }
 /**
  * Infer expected URL pattern from navigation action

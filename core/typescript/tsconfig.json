@@ -47,6 +47,7 @@
   "exclude": [
     "node_modules",
     "dist",
+    "ignore",
     "autogen/test-fixtures",
     "**/*.test.ts",
     "**/*.spec.ts",
