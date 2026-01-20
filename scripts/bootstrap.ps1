@@ -871,9 +871,13 @@ if (-not (Test-Path $VariantDistPath)) {
 
 $DistTarget = Join-Path $VendorTarget "dist"
 New-Item -ItemType Directory -Force -Path $DistTarget | Out-Null
-Copy-Item -Path (Join-Path $VariantDistPath "*") -Destination $DistTarget -Recurse -Force -ErrorAction SilentlyContinue
-if (-not (Test-Path $DistTarget)) {
-    Copy-Item -Path $VariantDistPath -Destination $DistTarget -Recurse -Force
+# Copy contents of variant dist to target dist (flatten, don't nest)
+$CopyResult = Copy-Item -Path (Join-Path $VariantDistPath "*") -Destination $DistTarget -Recurse -Force -ErrorAction SilentlyContinue -PassThru
+if (-not $CopyResult -or $CopyResult.Count -eq 0) {
+    # Fallback: copy contents individually to avoid nesting
+    Get-ChildItem -Path $VariantDistPath | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination $DistTarget -Recurse -Force
+    }
 }
 
 # Use variant-specific package.json (package-cjs.json, package-legacy-16.json, etc.)

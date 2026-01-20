@@ -137,7 +137,7 @@ describe('CJS Build Variants', () => {
       } catch (error: any) {
         // If the command failed, try to parse the error
         const stderr = error.stderr?.toString() || error.message;
-        expect.fail(`Failed to require ${name} variant: ${stderr}`);
+        throw new Error(`Failed to require ${name} variant: ${stderr}`);
       }
     });
 
@@ -169,7 +169,7 @@ describe('CJS Build Variants', () => {
         }
       } catch (error: any) {
         const stderr = error.stderr?.toString() || error.message;
-        expect.fail(`Failed to check exports for ${name}: ${stderr}`);
+        throw new Error(`Failed to check exports for ${name}: ${stderr}`);
       }
     });
 
@@ -199,7 +199,7 @@ describe('CJS Build Variants', () => {
             expect(result.trim()).toBe('ok');
           } catch (error: any) {
             const stderr = error.stderr?.toString() || error.message;
-            expect.fail(`Failed to require ${name}/${submodule}: ${stderr}`);
+            throw new Error(`Failed to require ${name}/${submodule}: ${stderr}`);
           }
         }
       }
@@ -245,7 +245,7 @@ describe('Autogen CJS Build', () => {
         expect(result).toContain('artk-autogen');
       } catch (error: any) {
         const stderr = error.stderr?.toString() || error.message;
-        expect.fail(`CLI --help failed for ${name}: ${stderr}`);
+        throw new Error(`CLI --help failed for ${name}: ${stderr}`);
       }
     });
   });

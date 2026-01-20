@@ -58,6 +58,13 @@ function stripEsmCode(filePath) {
 // Process all JS files in the dist directory
 console.log(`Processing files in: ${distDir}`);
 
+const { existsSync } = require('fs');
+if (!existsSync(distDir)) {
+  console.warn(`Warning: Directory "${distDir}" does not exist.`);
+  console.warn('Skipping ESM code stripping (build the CJS variant first).');
+  process.exit(0);
+}
+
 if (!statSync(distDir).isDirectory()) {
   console.error(`Error: ${distDir} is not a directory`);
   process.exit(1);
