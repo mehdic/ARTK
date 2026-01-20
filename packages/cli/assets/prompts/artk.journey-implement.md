@@ -1,7 +1,7 @@
 ---
 name: artk.journey-implement
 description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the Phase 7 harness. Includes post-implementation quality gates: /artk.journey-validate (static) and /artk.journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
-argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false batchMode=subagent|serial"
+argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false batchMode=serial|subagent batchSize=2|3|4|5 subagentTimeout=60000-600000"
 agent: agent
 tools: ['edit', 'search', 'runSubagent']
 handoffs:
@@ -70,45 +70,24 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║                                                                           ║
 # ║  When implementing MULTIPLE journeys (batch execution):                   ║
 # ║                                                                           ║
-# ║  DEFAULT MODE (batchMode=subagent): PARALLEL SUBAGENT EXECUTION           ║
-# ║  ✅ Process journeys in BATCHES OF 3 using #runSubagent                   ║
-# ║  ✅ Each subagent handles ONE journey independently                       ║
-# ║  ✅ After each batch completes, merge LLKB updates before next batch      ║
+# ║  DEFAULT MODE (batchMode=serial): SERIAL EXECUTION                        ║
+# ║  ✅ Process journeys one at a time                                        ║
+# ║  ✅ Best LLKB knowledge transfer between journeys                         ║
+# ║  ✅ Works in ALL environments (VS Code, GitHub.com, CLI)                  ║
 # ║                                                                           ║
-# ║  ALTERNATIVE MODE (batchMode=serial): SERIAL EXECUTION                    ║
-# ║  ✅ Process journeys one at a time (legacy behavior)                      ║
-# ║  ✅ Better LLKB knowledge transfer between journeys                       ║
-# ║  ✅ Use when journeys have high interdependency                           ║
+# ║  OPT-IN MODE (batchMode=subagent): PARALLEL SUBAGENT EXECUTION            ║
+# ║  ⚠️  ONLY works in VS Code local sessions                                 ║
+# ║  ✅ Faster for large batches (processes N journeys in parallel)           ║
+# ║  ✅ LLKB updates merged between batches                                   ║
 # ║                                                                           ║
-# ║  SUBAGENT BATCH EXECUTION ALGORITHM (DEFAULT):                            ║
+# ║  ENVIRONMENT DETECTION (MANDATORY for subagent mode):                     ║
+# ║  Before using subagent mode, detect environment:                          ║
+# ║  - VS Code local session: #runSubagent supported ✓                        ║
+# ║  - GitHub.com Copilot Chat: #runSubagent NOT supported ✗                  ║
+# ║  - CLI (Codex, Claude): #runSubagent NOT supported ✗                      ║
+# ║  If NOT VS Code local → auto-fallback to serial mode                      ║
 # ║                                                                           ║
-# ║  journeys = parseRequestedJourneys(userInput)                             ║
-# ║  batches = chunk(journeys, 3)  # Groups of 3                              ║
-# ║                                                                           ║
-# ║  FOR batchIndex, batch IN enumerate(batches):                             ║
-# ║    OUTPUT: "═══ BATCH {batchIndex+1}/{len(batches)} ═══"                  ║
-# ║    OUTPUT: "Processing: {batch.map(j => j.id).join(', ')}"                ║
-# ║                                                                           ║
-# ║    # Load current LLKB snapshot for this batch                            ║
-# ║    llkbSnapshot = loadLLKBContext()                                       ║
-# ║                                                                           ║
-# ║    # Spawn 3 subagents in parallel using #runSubagent                     ║
-# ║    FOR journey IN batch:                                                  ║
-# ║      Use #runSubagent to implement journey {journey.id}:                  ║
-# ║        - Load LLKB context from snapshot                                  ║
-# ║        - Run AutoGen for this journey                                     ║
-# ║        - Handle blocked steps if any                                      ║
-# ║        - Run validation and verification gates                            ║
-# ║        - Return: {journeyId, status, newComponents[], newLessons[]}       ║
-# ║                                                                           ║
-# ║    # Wait for all subagents in batch to complete                          ║
-# ║    # Merge LLKB updates from all 3 subagents                              ║
-# ║    mergeLLKBUpdates(subagentResults)                                      ║
-# ║                                                                           ║
-# ║    OUTPUT: "✅ Batch {batchIndex+1} complete. LLKB merged."               ║
-# ║    # Next batch will see merged LLKB from all previous batches            ║
-# ║                                                                           ║
-# ║  If context was compacted: Re-read this section. Follow batch algorithm.  ║
+# ║  If context was compacted: Re-read this section. Serial is default.       ║
 # ║                                                                           ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
@@ -153,7 +132,9 @@ These are not "style preferences". They are how you avoid flaky, unreadable E2E 
   - if selectors/data/env are blocked, do not "pretend-implement" the Journey.
 - **LLKB is mandatory**: Load and use LLKB context before ANY code generation.
 - **AutoGen is primary**: Use the AutoGen CLI; manual implementation is a fallback only.
-- **Subagent batch execution**: Multiple journeys are processed in parallel batches of 3 using `#runSubagent` (default). Use `batchMode=serial` for sequential processing when journeys have high interdependency.
+- **Batch execution modes**:
+  - `serial` (default): Process journeys one at a time for best LLKB knowledge transfer
+  - `subagent`: Process in parallel batches using `#runSubagent` (VS Code only, opt-in)
 - **Status rule (important)**:
   - You may create test code before verification,
   - but you may set Journey `status: implemented` **only after**:
@@ -188,9 +169,11 @@ Key args:
 - `repeatGate`: auto|0|2|3 (default auto = 2 in standard, 0 in quick, 3 in max)
 - `failOnFlaky`: auto|true|false (default auto = true in standard/max, false in quick)
 - `dryRun`: true|false (default false)
-- `batchMode`: subagent|serial (default: subagent)
-  - `subagent`: Process journeys in parallel batches of 3 using `#runSubagent` (faster)
-  - `serial`: Process journeys one at a time (better LLKB knowledge transfer)
+- `batchMode`: serial|subagent (default: serial)
+  - `serial`: Process journeys one at a time (default, better LLKB knowledge transfer)
+  - `subagent`: Process journeys in parallel batches using `#runSubagent` (faster, VS Code only)
+- `batchSize`: 2|3|4|5 (default: 3) — journeys per parallel batch (only applies when batchMode=subagent)
+- `subagentTimeout`: 60000-600000 (default: 300000 = 5 minutes) — max time per subagent before timeout
 
 ---
 
@@ -280,15 +263,61 @@ If `dryRun=true`, output sections 1–4 only.
 
 ## Step 1 — Load Journey(s) and validate readiness
 
-### 1.1 Parse Journey List and Determine Batch Mode
-If multiple journeys requested:
+### 1.1 Parse Journey List, Validate Batch Mode, Detect Environment
+
 ```
 journeyList = parseJourneyList(userInput)  // e.g., ["JRN-0001", "JRN-0002", ...]
 totalJourneys = journeyList.length
-batchMode = parseBatchMode(args) || "subagent"  // default: subagent
+batchMode = parseBatchMode(args) || "serial"  // default: serial (CHANGED for safety)
+batchSize = parseBatchSize(args) || 3         // default: 3 journeys per batch
+subagentTimeout = parseSubagentTimeout(args) || 300000  // default: 5 minutes
 
 # ═══════════════════════════════════════════════════════════════
-# BATCH SIZE LIMITS (prevent context overflow and quality degradation)
+# STEP 1: Validate batchMode parameter
+# ═══════════════════════════════════════════════════════════════
+VALID_BATCH_MODES = ["serial", "subagent"]
+IF batchMode NOT IN VALID_BATCH_MODES:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ❌ INVALID BATCH MODE: "{batchMode}"                              ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  Valid values: serial | subagent                                   ║
+  ║                                                                    ║
+  ║  serial (default): Process journeys one at a time                  ║
+  ║  subagent: Parallel batches using #runSubagent (VS Code only)      ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  STOP
+
+# ═══════════════════════════════════════════════════════════════
+# STEP 2: Environment detection for subagent mode (MANDATORY)
+# ═══════════════════════════════════════════════════════════════
+IF batchMode == "subagent":
+  # Detect environment - #runSubagent ONLY works in VS Code local sessions
+  #
+  # Detection heuristics:
+  # - VS Code local: Has access to #runSubagent tool, workspace context
+  # - GitHub.com: URL contains github.com, no local file access
+  # - CLI (Codex, Claude Code): Terminal environment, no VS Code APIs
+  #
+  # If you cannot determine the environment, assume NOT VS Code and fallback.
+
+  isVSCodeLocal = detectVSCodeLocalEnvironment()
+
+  IF NOT isVSCodeLocal:
+    OUTPUT:
+    ╔════════════════════════════════════════════════════════════════════╗
+    ║  ⚠️  SUBAGENT MODE NOT AVAILABLE                                   ║
+    ╠════════════════════════════════════════════════════════════════════╣
+    ║  #runSubagent is only supported in VS Code local sessions.         ║
+    ║                                                                    ║
+    ║  Detected environment: {environmentType}                           ║
+    ║  Automatically falling back to batchMode=serial.                   ║
+    ╚════════════════════════════════════════════════════════════════════╝
+
+    batchMode = "serial"  # Auto-fallback
+
+# ═══════════════════════════════════════════════════════════════
+# STEP 3: Validate batch size limits
 # ═══════════════════════════════════════════════════════════════
 SOFT_LIMIT = 10   # Warning threshold
 HARD_LIMIT = 50   # Maximum allowed
@@ -316,148 +345,260 @@ IF totalJourneys > SOFT_LIMIT:
   ║  Proceeding anyway, but quality may degrade for later journeys.    ║
   ╚════════════════════════════════════════════════════════════════════╝
 
-IF totalJourneys > 1:
-  IF batchMode == "subagent":
-    batches = chunk(journeyList, 3)  # Groups of 3
-    OUTPUT:
-    ╔════════════════════════════════════════════════════════════════════╗
-    ║  PARALLEL BATCH EXECUTION: {totalJourneys} journeys               ║
-    ╠════════════════════════════════════════════════════════════════════╣
-    ║  Mode: SUBAGENT (parallel batches of 3)                            ║
-    ║  Total batches: {batches.length}                                   ║
-    ║                                                                    ║
-    ║  Batch 1: {batches[0].join(", ")}                                  ║
-    ║  Batch 2: {batches[1]?.join(", ") || "N/A"}                        ║
-    ║  ...                                                               ║
-    ║                                                                    ║
-    ║  Each batch runs 3 journeys in parallel using #runSubagent.        ║
-    ║  LLKB updates are merged between batches.                          ║
-    ╚════════════════════════════════════════════════════════════════════╝
-  ELSE:
-    OUTPUT:
-    ╔════════════════════════════════════════════════════════════════════╗
-    ║  SERIAL BATCH EXECUTION: {totalJourneys} journeys                  ║
-    ╠════════════════════════════════════════════════════════════════════╣
-    ║  Mode: SERIAL (one at a time)                                      ║
-    ║  This allows LLKB wisdom to accumulate between journeys.           ║
-    ║                                                                    ║
-    ║  Order: {journeyList.join(" → ")}                                  ║
-    ╚════════════════════════════════════════════════════════════════════╝
+# ═══════════════════════════════════════════════════════════════
+# STEP 4: Output execution plan
+# ═══════════════════════════════════════════════════════════════
+IF totalJourneys == 1:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  SINGLE JOURNEY: {journeyList[0]}                                  ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  # Proceed directly to Step 1.3 (Load Single Journey)
+
+ELSE IF batchMode == "serial":
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  SERIAL BATCH EXECUTION: {totalJourneys} journeys                  ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  Mode: SERIAL (one at a time)                                      ║
+  ║  Best LLKB knowledge transfer between journeys.                    ║
+  ║                                                                    ║
+  ║  Order: {journeyList.join(" → ")}                                  ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  # Proceed to Step 1.2b (Serial Mode)
+
+ELSE IF batchMode == "subagent":
+  batches = chunk(journeyList, batchSize)
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  PARALLEL BATCH EXECUTION: {totalJourneys} journeys                ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  Mode: SUBAGENT (parallel batches of {batchSize})                  ║
+  ║  Total batches: {batches.length}                                   ║
+  ║  Timeout per subagent: {subagentTimeout/1000}s                     ║
+  ║                                                                    ║
+  ║  Batch 1: {batches[0].join(", ")}                                  ║
+  ║  Batch 2: {batches[1]?.join(", ") || "N/A"}                        ║
+  ║  ...                                                               ║
+  ║                                                                    ║
+  ║  Each batch spawns {batchSize} subagents using #runSubagent.       ║
+  ║  LLKB updates are merged between batches.                          ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  # Proceed to Step 1.2a (Subagent Mode)
 ```
 
-### 1.2 Execute Batch (Subagent Mode - DEFAULT)
+### 1.2a Execute Batch (Subagent Mode - OPT-IN, VS Code Only)
 
-**When `batchMode=subagent` (default), use `#runSubagent` to process journeys in parallel batches of 3:**
+**⚠️ IMPORTANT: This mode ONLY works in VS Code local sessions.**
+
+**When `batchMode=subagent`, you MUST output multiple `#runSubagent` calls explicitly in a SINGLE message.**
+
+The LLM cannot programmatically spawn subagents in a loop. Instead, you must write out each `#runSubagent` invocation explicitly.
 
 ```
 IF batchMode == "subagent" AND totalJourneys > 1:
 
-  batches = chunk(journeyList, 3)  # Split into groups of 3
+  batches = chunk(journeyList, batchSize)
 
   FOR batchIndex, batch IN enumerate(batches):
+
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 1: Output batch header
+    # ═══════════════════════════════════════════════════════════════
     OUTPUT:
     ═══════════════════════════════════════════════════════════════════
     BATCH {batchIndex + 1} of {batches.length}: {batch.join(", ")}
     ═══════════════════════════════════════════════════════════════════
 
     # ═══════════════════════════════════════════════════════════════
-    # STEP 1: Load LLKB snapshot before spawning subagents
+    # STEP 2: Load LLKB snapshot (shared by all subagents in this batch)
     # ═══════════════════════════════════════════════════════════════
     llkbSnapshot = loadLLKBContext()
+    llkbComponentIds = llkbSnapshot.components.map(c => c.id)
+    llkbLessonIds = llkbSnapshot.lessons.map(l => l.id)
 
     # ═══════════════════════════════════════════════════════════════
-    # STEP 2: Spawn subagents for each journey in batch (PARALLEL)
-    # Use #runSubagent tool to spawn up to 3 subagents simultaneously
+    # STEP 3: Spawn subagents EXPLICITLY (NOT in a loop)
+    #
+    # YOU MUST OUTPUT EACH #runSubagent CALL SEPARATELY IN YOUR RESPONSE.
+    # The LLM cannot loop - write each one explicitly.
     # ═══════════════════════════════════════════════════════════════
 
-    FOR journey IN batch:
-      # Each invocation spawns a subagent with isolated context
-      Use #runSubagent to implement journey {journey.id}:
+    OUTPUT (EXACT FORMAT - copy this pattern for each journey in batch):
+    ```
+    Spawning {batch.length} subagents for batch {batchIndex + 1}:
 
-        Context to pass to subagent:
-        - ARTK_ROOT: {artkRoot}
-        - harnessRoot: {harnessRoot}
-        - Journey ID: {journey.id}
-        - LLKB Snapshot: {llkbSnapshot} (read-only for this batch)
-        - Mode: {mode}
-        - Tier: {tier}
+    **Subagent 1: {batch[0]}**
+    Use #runSubagent to implement journey {batch[0]}:
+    - ARTK_ROOT: {artkRoot}
+    - harnessRoot: {harnessRoot}
+    - Journey ID: {batch[0]}
+    - LLKB components available: [{llkbComponentIds.slice(0,5).join(", ")}...]
+    - Timeout: {subagentTimeout}ms
+    Task: Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Return: {journeyId, status, testFiles[], newComponents[], errors[]}
+    DO NOT regenerate backlog/index (main agent will do this).
 
-        Subagent task:
-        1. Load journey file for {journey.id}
-        2. Load LLKB context from snapshot
-        3. Run AutoGen CLI: npx artk-autogen generate {journey.file}
-        4. Handle any blocked steps
-        5. Run /artk.journey-validate
-        6. Run /artk.journey-verify
-        7. Update journey status if gates pass
-        8. Return results:
-           {
-             journeyId: "{journey.id}",
-             status: "implemented|failed|blocked",
-             testFiles: [...],
-             newComponents: [...],
-             newLessons: [...],
-             errors: [...]
-           }
+    **Subagent 2: {batch[1]}** (if batch.length >= 2)
+    Use #runSubagent to implement journey {batch[1]}:
+    - ARTK_ROOT: {artkRoot}
+    - harnessRoot: {harnessRoot}
+    - Journey ID: {batch[1]}
+    - LLKB components available: [{llkbComponentIds.slice(0,5).join(", ")}...]
+    - Timeout: {subagentTimeout}ms
+    Task: Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Return: {journeyId, status, testFiles[], newComponents[], errors[]}
+    DO NOT regenerate backlog/index (main agent will do this).
+
+    **Subagent 3: {batch[2]}** (if batch.length >= 3)
+    Use #runSubagent to implement journey {batch[2]}:
+    - ARTK_ROOT: {artkRoot}
+    - harnessRoot: {harnessRoot}
+    - Journey ID: {batch[2]}
+    - LLKB components available: [{llkbComponentIds.slice(0,5).join(", ")}...]
+    - Timeout: {subagentTimeout}ms
+    Task: Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Return: {journeyId, status, testFiles[], newComponents[], errors[]}
+    DO NOT regenerate backlog/index (main agent will do this).
+
+    Awaiting subagent results (timeout: {subagentTimeout}ms each)...
+    ```
 
     # ═══════════════════════════════════════════════════════════════
-    # STEP 3: Wait for all subagents in batch to complete
+    # STEP 4: Process subagent results with error handling
     # ═══════════════════════════════════════════════════════════════
-    subagentResults = awaitAllSubagents(batch)
+    subagentResults = []
+
+    FOR each subagent result received:
+      IF result.status == "timeout":
+        # Subagent did not complete within timeout
+        LOG ERROR: "⏱️ Subagent for {result.journeyId} TIMED OUT after {subagentTimeout}ms"
+        subagentResults.push({
+          journeyId: result.journeyId,
+          status: "timeout",
+          testFiles: [],
+          newComponents: [],
+          errors: ["Subagent timeout - journey not implemented"]
+        })
+        CONTINUE
+
+      IF result.status == "error" OR result.errors.length > 0:
+        # Subagent crashed or encountered errors
+        LOG ERROR: "❌ Subagent for {result.journeyId} FAILED: {result.errors.join(', ')}"
+        subagentResults.push({
+          journeyId: result.journeyId,
+          status: "failed",
+          testFiles: [],
+          newComponents: [],
+          errors: result.errors
+        })
+        CONTINUE
+
+      IF result.status == "blocked":
+        # Journey has blockers that prevented implementation
+        LOG WARNING: "🚫 Journey {result.journeyId} BLOCKED: {result.errors.join(', ')}"
+        subagentResults.push(result)
+        CONTINUE
+
+      # Success case
+      subagentResults.push(result)
 
     # ═══════════════════════════════════════════════════════════════
-    # STEP 4: Merge LLKB updates from all subagents
+    # STEP 5: Merge LLKB updates with deduplication
     # ═══════════════════════════════════════════════════════════════
+    newComponentsAdded = 0
+    newLessonsAdded = 0
+
     FOR result IN subagentResults:
-      IF result.newComponents.length > 0:
-        # Add new components to LLKB (with deduplication)
-        FOR component IN result.newComponents:
-          IF NOT existsInLLKB(component):
-            addComponentToLLKB(component)
-            LOG: "Added component from {result.journeyId}: {component.id}"
+      IF result.status != "implemented":
+        CONTINUE  # Skip failed/timeout/blocked journeys
 
-      IF result.newLessons.length > 0:
-        FOR lesson IN result.newLessons:
-          IF NOT existsInLLKB(lesson):
-            addLessonToLLKB(lesson)
+      # Merge new components with semantic deduplication
+      FOR newComponent IN result.newComponents:
+        # Check for exact ID match
+        IF newComponent.id IN llkbComponentIds:
+          LOG: "Component {newComponent.id} already exists, skipping"
+          CONTINUE
+
+        # Check for semantic similarity (prevent near-duplicates)
+        existingSimilar = findSimilarComponent(newComponent, llkbSnapshot.components, threshold=0.8)
+        IF existingSimilar:
+          LOG: "Component similar to {existingSimilar.id}, merging usage"
+          existingSimilar.usedInJourneys.push(result.journeyId)
+          CONTINUE
+
+        # Add as new component
+        addComponentToLLKB(newComponent)
+        llkbComponentIds.push(newComponent.id)
+        newComponentsAdded++
+        LOG: "✓ Added component {newComponent.id} from {result.journeyId}"
+
+      # Merge new lessons
+      FOR newLesson IN result.newLessons:
+        IF newLesson.id NOT IN llkbLessonIds:
+          addLessonToLLKB(newLesson)
+          llkbLessonIds.push(newLesson.id)
+          newLessonsAdded++
 
     # ═══════════════════════════════════════════════════════════════
-    # STEP 5: Output batch summary
+    # STEP 6: Output batch summary with error details
     # ═══════════════════════════════════════════════════════════════
     successCount = subagentResults.filter(r => r.status == "implemented").length
     failedCount = subagentResults.filter(r => r.status == "failed").length
+    timeoutCount = subagentResults.filter(r => r.status == "timeout").length
     blockedCount = subagentResults.filter(r => r.status == "blocked").length
 
     OUTPUT:
     ╔════════════════════════════════════════════════════════════════════╗
-    ║  ✅ BATCH {batchIndex + 1} COMPLETE                                ║
+    ║  BATCH {batchIndex + 1} COMPLETE                                   ║
     ╠════════════════════════════════════════════════════════════════════╣
-    ║  Implemented: {successCount}                                       ║
-    ║  Failed: {failedCount}                                             ║
-    ║  Blocked: {blockedCount}                                           ║
+    ║  ✅ Implemented: {successCount}                                    ║
+    ║  ❌ Failed: {failedCount}                                          ║
+    ║  ⏱️  Timeout: {timeoutCount}                                       ║
+    ║  🚫 Blocked: {blockedCount}                                        ║
     ║                                                                    ║
-    ║  LLKB merged: {totalNewComponents} new components                  ║
-    ║                                                                    ║
-    ║  {IF batchIndex < batches.length - 1: "Proceeding to next batch..."}
+    ║  LLKB updates:                                                     ║
+    ║    New components: {newComponentsAdded}                            ║
+    ║    New lessons: {newLessonsAdded}                                  ║
     ╚════════════════════════════════════════════════════════════════════╝
 
-    # Loop to next batch (LLKB now includes updates from this batch)
+    IF failedCount > 0 OR timeoutCount > 0:
+      OUTPUT:
+      ⚠️  ERRORS IN BATCH {batchIndex + 1}:
+      {FOR result IN subagentResults WHERE result.status IN ["failed", "timeout"]:
+        "  - {result.journeyId}: {result.status} - {result.errors.join(', ')}"
+      }
 
-  # After all batches complete
+    # Loop to next batch (LLKB now includes merged updates)
+
+  # ═══════════════════════════════════════════════════════════════
+  # After all batches complete: Regenerate backlog/index ONCE
+  # ═══════════════════════════════════════════════════════════════
+  regenerateBacklogAndIndex()
+
+  totalImplemented = sum(batches.map(b => b.successCount))
+  totalFailed = sum(batches.map(b => b.failedCount + b.timeoutCount))
+  totalBlocked = sum(batches.map(b => b.blockedCount))
+
   OUTPUT:
   ═══════════════════════════════════════════════════════════════════
   🎉 ALL BATCHES COMPLETE
-  Total journeys: {totalJourneys}
-  Implemented: {totalImplemented}
-  Failed: {totalFailed}
-  Blocked: {totalBlocked}
+
+  Total journeys requested: {totalJourneys}
+  ✅ Implemented: {totalImplemented}
+  ❌ Failed/Timeout: {totalFailed}
+  🚫 Blocked: {totalBlocked}
+
+  Backlog and index regenerated.
   ═══════════════════════════════════════════════════════════════════
 
-ELSE IF batchMode == "serial" OR totalJourneys == 1:
-  # Fall through to serial processing (Step 1.2b)
+  # DONE - skip to Step 15 (Print run/debug instructions)
 ```
 
-### 1.2b For Each Journey (Serial Mode)
+### 1.2b For Each Journey (Serial Mode - DEFAULT)
+
+**Serial mode is the DEFAULT and works in ALL environments.**
+
 ```
 IF batchMode == "serial" OR totalJourneys == 1:
   FOR journeyIndex, journeyId IN enumerate(journeyList):
@@ -467,8 +608,9 @@ IF batchMode == "serial" OR totalJourneys == 1:
       JOURNEY {journeyIndex + 1} of {totalJourneys}: {journeyId}
       ═══════════════════════════════════════════════════════════════════
 
-    # Continue with Steps 1.3 through Step 15 for this journey
+    # Continue with Steps 1.3 through Step 14 for this journey
     # Then loop to next journey
+    # Serial mode processes one journey completely before starting the next
 ```
 
 ### 1.3 Load Single Journey
@@ -1863,8 +2005,10 @@ Ask only when necessary:
 - **Flaky env**: do not "fix" with timing. Use explicit completion signals or quarantine later.
 - **AG Grid / Data grids**: Use `@artk/core/grid` helpers instead of raw selectors. Handle virtualization with `scrollToRow()`. For enterprise features (grouping, tree data, master-detail), use the specialized enterprise helpers.
 - **Large datasets in grids**: Use ARIA-based row targeting (`ariaRowIndex`) for virtualized grids that only render visible rows.
-- **Batch execution (subagent mode)**: Default mode. Journeys are processed in parallel batches of 3 using `#runSubagent`. LLKB updates are merged between batches.
-- **Batch execution (serial mode)**: Use `batchMode=serial` when journeys have high interdependency and need sequential LLKB knowledge transfer.
+- **Batch execution (serial mode - DEFAULT)**: Journeys are processed one at a time. Best LLKB knowledge transfer. Works in ALL environments.
+- **Batch execution (subagent mode - OPT-IN)**: Use `batchMode=subagent` for parallel processing. ONLY works in VS Code local sessions. Journeys are processed in batches (configurable via `batchSize`). LLKB updates are merged between batches.
+- **Subagent timeout handling**: If a subagent doesn't complete within `subagentTimeout` (default 5 minutes), it's marked as timeout and the journey is NOT implemented.
+- **Subagent nesting limitation**: Subagents CANNOT spawn other subagents. If using subagent mode, validate/verify gates must run inline within the subagent, not as agent handoffs.
 
 ---
 
@@ -1917,7 +2061,8 @@ import {
 - [ ] `/artk.journey-verify` passed (including stability gate)
 - [ ] Journey updated: tests[] linked, status implemented only when valid+verified
 - [ ] backlog/index regenerated
-- [ ] **Batch complete** (if multiple journeys): all batches processed, LLKB merged
+- [ ] **Batch complete** (serial mode): all journeys processed sequentially
+- [ ] **Batch complete** (subagent mode): all batches processed, LLKB merged, errors handled
 
 ---
 
