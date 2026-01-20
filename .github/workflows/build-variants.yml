@@ -63,17 +63,31 @@ jobs:
 
       - name: Verify build outputs
         run: |
-          # Check all dist directories exist
-          for dir in dist dist-cjs dist-legacy-16 dist-legacy-14; do
+          # Check all dist directories exist with correct entry points
+          # ESM builds produce .js, CJS builds produce .cjs
+
+          # ESM variant
+          if [ ! -d "dist" ]; then
+            echo "ERROR: Missing dist directory"
+            exit 1
+          fi
+          if [ ! -f "dist/index.js" ]; then
+            echo "ERROR: Missing dist/index.js (ESM)"
+            exit 1
+          fi
+          echo "✓ dist exists and contains index.js (ESM)"
+
+          # CJS variants produce .cjs files
+          for dir in dist-cjs dist-legacy-16 dist-legacy-14; do
             if [ ! -d "$dir" ]; then
               echo "ERROR: Missing $dir directory"
               exit 1
             fi
-            if [ ! -f "$dir/index.js" ]; then
-              echo "ERROR: Missing $dir/index.js"
+            if [ ! -f "$dir/index.cjs" ]; then
+              echo "ERROR: Missing $dir/index.cjs (CJS)"
               exit 1
             fi
-            echo "✓ $dir exists and contains index.js"
+            echo "✓ $dir exists and contains index.cjs (CJS)"
           done
         working-directory: core/typescript
 
@@ -220,7 +234,7 @@ jobs:
 
       - name: Verify legacy-16 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-16/index.js'); console.log('Legacy-16 variant loaded successfully');"
+          node -e "const m = require('./dist-legacy-16/index.cjs'); console.log('Legacy-16 variant loaded successfully');"
         working-directory: core/typescript
 
       - name: Restore package.json
@@ -258,7 +272,7 @@ jobs:
 
       - name: Verify legacy-14 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-14/index.js'); console.log('Legacy-14 variant loaded successfully');"
+          node -e "const m = require('./dist-legacy-14/index.cjs'); console.log('Legacy-14 variant loaded successfully');"
         working-directory: core/typescript
 
       - name: Restore package.json
