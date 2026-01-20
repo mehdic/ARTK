@@ -16,10 +16,10 @@
     "strip-esm:cjs": "node scripts/strip-esm-code.js dist-cjs",
     "strip-esm:legacy-16": "node scripts/strip-esm-code.js dist-legacy-16",
     "strip-esm:legacy-14": "node scripts/strip-esm-code.js dist-legacy-14",
-    "copy-templates": "mkdir -p dist/codegen/templates && cp src/codegen/templates/*.ejs dist/codegen/templates/",
-    "copy-templates:cjs": "mkdir -p dist-cjs/codegen/templates && cp src/codegen/templates/*.ejs dist-cjs/codegen/templates/ && echo '{\"type\": \"commonjs\"}' > dist-cjs/package.json",
-    "copy-templates:legacy-16": "mkdir -p dist-legacy-16/codegen/templates && cp src/codegen/templates/*.ejs dist-legacy-16/codegen/templates/ && echo '{\"type\": \"commonjs\"}' > dist-legacy-16/package.json",
-    "copy-templates:legacy-14": "mkdir -p dist-legacy-14/codegen/templates && cp src/codegen/templates/*.ejs dist-legacy-14/codegen/templates/ && echo '{\"type\": \"commonjs\"}' > dist-legacy-14/package.json",
+    "copy-templates": "node scripts/copy-templates.js dist",
+    "copy-templates:cjs": "node scripts/copy-templates.js dist-cjs --cjs",
+    "copy-templates:legacy-16": "node scripts/copy-templates.js dist-legacy-16 --cjs",
+    "copy-templates:legacy-14": "node scripts/copy-templates.js dist-legacy-14 --cjs",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -27,7 +27,7 @@
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist dist-cjs dist-legacy-16 dist-legacy-14",
+    "clean": "node -e \"const fs=require('fs');['dist','dist-cjs','dist-legacy-16','dist-legacy-14'].forEach(d=>{if(fs.existsSync(d))fs.rmSync(d,{recursive:true})})\"",
     "prepublishOnly": "npm run build"
   },
   "bin": {
