@@ -219,7 +219,7 @@ jobs:
 
       - name: Verify legacy-16 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-16/index.js'); console.log('Legacy-16 variant loaded successfully');"
+          node -e "import('./dist-legacy-16/index.js').then(() => console.log('Legacy-16 variant loaded successfully')).catch((err) => { console.error(err); process.exit(1); })"
         working-directory: core/typescript
 
   test-node-14:
@@ -250,7 +250,7 @@ jobs:
 
       - name: Verify legacy-14 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-14/index.js'); console.log('Legacy-14 variant loaded successfully');"
+          node -e "import('./dist-legacy-14/index.js').then(() => console.log('Legacy-14 variant loaded successfully')).catch((err) => { console.error(err); process.exit(1); })"
         working-directory: core/typescript
 
   build-cli:

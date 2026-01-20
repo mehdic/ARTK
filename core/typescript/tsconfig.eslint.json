@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["**/*.ts", "version.json"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-cjs",
+    "dist-legacy-16",
+    "dist-legacy-14"
+  ]
+}
