@@ -102,9 +102,27 @@ jobs:
           done
         working-directory: core/typescript
 
+      - name: Verify ESM variant loads
+        run: |
+          node --input-type=module -e "
+            import('./dist/index.js').then(m => {
+              const count = Object.keys(m).length;
+              console.log('ESM variant loaded successfully, exports:', count);
+              if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+              if (!m.ARTKConfigError) { console.error('ERROR: Missing ARTKConfigError export'); process.exit(1); }
+            }).catch(e => { console.error('ESM load failed:', e); process.exit(1); });
+          "
+        working-directory: core/typescript
+
       - name: Verify modern-cjs variant loads
         run: |
-          node -e "const m = require('./dist-cjs/index.cjs'); console.log('Modern-CJS variant loaded successfully, exports:', Object.keys(m).length);"
+          node -e "
+            const m = require('./dist-cjs/index.cjs');
+            const count = Object.keys(m).length;
+            console.log('Modern-CJS variant loaded successfully, exports:', count);
+            if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+            if (!m.ARTKConfigError) { console.error('ERROR: Missing ARTKConfigError export'); process.exit(1); }
+          "
         working-directory: core/typescript
 
       - name: Upload build artifacts
@@ -250,7 +268,12 @@ jobs:
 
       - name: Verify legacy-16 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-16/index.cjs'); console.log('Legacy-16 variant loaded successfully');"
+          node -e "
+            const m = require('./dist-legacy-16/index.cjs');
+            const count = Object.keys(m).length;
+            console.log('Legacy-16 variant loaded successfully, exports:', count);
+            if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+          "
         working-directory: core/typescript
 
       - name: Restore package.json
@@ -288,7 +311,12 @@ jobs:
 
       - name: Verify legacy-14 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-14/index.cjs'); console.log('Legacy-14 variant loaded successfully');"
+          node -e "
+            const m = require('./dist-legacy-14/index.cjs');
+            const count = Object.keys(m).length;
+            console.log('Legacy-14 variant loaded successfully, exports:', count);
+            if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+          "
         working-directory: core/typescript
 
       - name: Restore package.json
