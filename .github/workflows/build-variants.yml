@@ -114,6 +114,10 @@ jobs:
         run: npm install
         working-directory: core/typescript
 
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+        working-directory: core/typescript
+
       - name: Run unit tests
         run: npm run test:unit
         working-directory: core/typescript
@@ -144,6 +148,10 @@ jobs:
         run: npm install
         working-directory: core/typescript
 
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+        working-directory: core/typescript
+
       - name: Run unit tests
         run: npm run test:unit
         working-directory: core/typescript
@@ -172,6 +180,10 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        working-directory: core/typescript
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
         working-directory: core/typescript
 
       - name: Run unit tests

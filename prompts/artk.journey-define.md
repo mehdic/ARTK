@@ -203,20 +203,87 @@ Ask only what is necessary to create a defined Journey:
 Actor/scope:
 - If missing, infer from discovery and only ask one confirmation question if ambiguity remains.
 
-## Step 5 — Create canonical “defined” Journey structure
+## Step 5 — Create canonical "defined" Journey structure
 Create/update a Journey file using the ARTK Core template structure.
 
-### Frontmatter requirements
+### Frontmatter requirements (AUTOGEN-COMPATIBLE)
+
+**Full frontmatter template:**
+```yaml
+---
+id: JRN-####
+title: "<title>"
+status: defined
+tier: smoke | release | regression
+actor: <role>
+scope: <feature-area>
+tags: ["@JRN-####", "@<tier>", "@scope-<scope>"]
+modules:
+  foundation: []      # REQUIRED: object format with foundation array
+  features: []        # REQUIRED: object format with features array
+links:
+  requirements: []
+  tickets: []
+tests: []
+autogen:
+  enabled: true       # Enable AutoGen CLI for test generation
+  blockedSteps: []    # Steps requiring manual implementation (filled by clarify)
+  machineHints: false # Set to true by journey-clarify after adding hints
+---
+```
+
+**Required fields:**
 - status MUST be `defined`
 - tier MUST be as provided or inferred
-- tests[] MUST be empty (not implemented)
-- modules.* may be empty but should exist
+- tests[] MUST be empty (not implemented yet)
+- modules MUST be an **object** with `foundation` and `features` arrays (for AutoGen compatibility)
+- autogen.enabled SHOULD be `true` unless manual implementation is preferred
+
+**⚠️ CRITICAL: Module Format for AutoGen**
+```yaml
+# ✅ CORRECT - AutoGen compatible
+modules:
+  foundation: [auth, navigation]
+  features: [orders, catalog]
+
+# ❌ WRONG - Breaks AutoGen CLI
+modules: [auth, navigation, orders]
+```
 
 If promoting from proposed:
-- keep existing `modules` hints
+- keep existing `modules` hints (but ensure object format)
 - keep existing `links` hints
 - add missing pieces from the user input
-- add discovery-derived “notes” as Open Questions, not as facts
+- add discovery-derived "notes" as Open Questions, not as facts
+- **validate `modules` format** - convert array to object if needed
+
+### Module Format Conversion (when promoting or normalizing)
+
+**If `modules` is an array, convert to object using this classification:**
+
+```
+FOUNDATION_MODULES = [
+  "auth", "navigation", "selectors", "locators", "data",
+  "api", "assertions", "files", "notifications", "config", "fixtures"
+]
+
+FOR each module in modules[]:
+  IF module in FOUNDATION_MODULES:
+    ADD to modules.foundation[]
+  ELSE:
+    ADD to modules.features[]
+```
+
+**Example conversion:**
+```yaml
+# FROM: modules: [auth, navigation, orders, catalog]
+# TO:
+modules:
+  foundation: [auth, navigation]
+  features: [orders, catalog]
+```
+
+**Note:** Full algorithm details in `/artk.journey-clarify` Step 6.
 
 ### Canonical body sections (managed markers)
 The file MUST contain these sections (with managed markers so later commands can update safely):

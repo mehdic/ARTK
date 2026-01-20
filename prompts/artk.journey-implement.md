@@ -39,18 +39,78 @@ You are running **ARTK Phase 8**.
 
 ARTK plugs into GitHub Copilot to help teams build and maintain **complete automated regression testing suites** for existing applications. Phase 8 turns a Journey contract into real Playwright tests that are stable, traceable, and consistent with the harness.
 
+---
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 MANDATORY PRE-IMPLEMENTATION GATES — DO NOT SKIP                      ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Before writing ANY test code, you MUST complete these gates IN ORDER:    ║
+# ║                                                                           ║
+# ║  GATE 1: Load LLKB Context (Step 2)                                       ║
+# ║    □ Read `.artk/llkb/config.yml`                                         ║
+# ║    □ Read `.artk/llkb/components.json`                                    ║
+# ║    □ Read `.artk/llkb/lessons.json`                                       ║
+# ║    □ Output "LLKB Context Loaded" section showing findings                ║
+# ║                                                                           ║
+# ║  GATE 2: Use AutoGen CLI (Step 3)                                         ║
+# ║    □ Run `npx artk-autogen generate` for each journey                     ║
+# ║    □ Only use manual implementation if AutoGen fails or has blocked steps ║
+# ║                                                                           ║
+# ║  Failure to complete these gates = INVALID implementation                 ║
+# ║                                                                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+---
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🔄 SERIAL EXECUTION POLICY — MULTIPLE JOURNEYS (NON-NEGOTIABLE)          ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  When implementing MULTIPLE journeys (batch execution):                   ║
+# ║                                                                           ║
+# ║  ❌ DO NOT implement journeys in parallel                                 ║
+# ║  ✅ MUST implement journeys SERIALLY, one at a time                       ║
+# ║                                                                           ║
+# ║  Why? LLKB accumulates wisdom between journeys:                           ║
+# ║  - Journey 1 may extract a reusable component                             ║
+# ║  - Journey 2 can then REUSE that component instead of recreating it       ║
+# ║  - Parallel execution loses this knowledge transfer                       ║
+# ║                                                                           ║
+# ║  BATCH EXECUTION ALGORITHM:                                               ║
+# ║                                                                           ║
+# ║  journeys = parseRequestedJourneys(userInput)                             ║
+# ║  FOR i, journey IN enumerate(journeys):                                   ║
+# ║    OUTPUT: "═══ Journey {i+1}/{len(journeys)}: {journey.id} ═══"          ║
+# ║    1. Load LLKB context (may have new components from previous journey)   ║
+# ║    2. Run AutoGen for this journey                                        ║
+# ║    3. Handle blocked steps if any                                         ║
+# ║    4. Update LLKB with any new components/lessons                         ║
+# ║    5. Run validation and verification gates                               ║
+# ║    6. Update journey status                                               ║
+# ║    OUTPUT: "✅ Journey {journey.id} complete. LLKB updated."              ║
+# ║    # Next iteration will see updated LLKB                                 ║
+# ║                                                                           ║
+# ║  If context was compacted: Re-read this section. Serial is NON-NEGOTIABLE.║
+# ║                                                                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+---
+
 This command must:
 1) Convert a Journey (preferably `status: clarified`) into Playwright tests that follow the Phase 7 harness conventions.
-2) Create/extend **feature modules** only when needed (foundation modules are reused).
-3) Run **quality gates**:
+2) **Load LLKB context FIRST** to reuse existing components and apply learned patterns.
+3) **Use AutoGen CLI as the PRIMARY approach** for test generation.
+4) Create/extend **feature modules** only when needed (foundation modules are reused).
+5) Run **quality gates**:
    - `/artk.journey-validate` (static rules + traceability)
    - `/artk.journey-verify` (actually run + stabilize tests)
-4) Only then: update the Journey system of record (status + tests links), update module registry, regenerate backlog/index.
+6) Only then: update the Journey system of record (status + tests links), update module registry, regenerate backlog/index.
 
 ---
 
 ## Research-backed design principles (do not violate)
-These are not “style preferences”. They are how you avoid flaky, unreadable E2E suites:
+These are not "style preferences". They are how you avoid flaky, unreadable E2E suites:
 
 - **Use Playwright locators + auto-wait**. Prefer user-facing attributes and explicit contracts (role/name/label/test id).
 - **Use web-first assertions** that wait and retry; for complex async, use `expect.poll` or `expect.toPass` instead of sleeps.
@@ -71,9 +131,12 @@ These are not “style preferences”. They are how you avoid flaky, unreadable 
 - **Traceability is mandatory**:
   - every test includes `@JRN-####`
   - Journey `tests[]` links to test paths
-- **No “flakiness fixes” using sleeps**. `page.waitForTimeout()` is forbidden except as last resort with justification + TODO.
+- **No "flakiness fixes" using sleeps**. `page.waitForTimeout()` is forbidden except as last resort with justification + TODO.
 - **Respect strict gates** by default (`strictGates=true`):
-  - if selectors/data/env are blocked, do not “pretend-implement” the Journey.
+  - if selectors/data/env are blocked, do not "pretend-implement" the Journey.
+- **LLKB is mandatory**: Load and use LLKB context before ANY code generation.
+- **AutoGen is primary**: Use the AutoGen CLI; manual implementation is a fallback only.
+- **Serial execution for batches**: Multiple journeys must be implemented one at a time, not in parallel.
 - **Status rule (important)**:
   - You may create test code before verification,
   - but you may set Journey `status: implemented` **only after**:
@@ -87,6 +150,7 @@ These are not “style preferences”. They are how you avoid flaky, unreadable 
 User must identify a Journey by:
 - `id=JRN-####` (preferred) OR
 - `file=journeys/.../*.md`
+- **Multiple journeys**: `id=JRN-0001,JRN-0002,JRN-0003` OR `file=journeys/clarified/*.md`
 
 Key args:
 - `mode`: quick | standard | max (default: standard)
@@ -118,6 +182,8 @@ Key args:
    - `<harnessRoot>/modules/foundation/*`
 3) Journey should be `status: clarified` unless `allowNonClarified=true`.
 4) If Journey has blockers and `allowBlocked=false`: STOP and explain remediation (selectors/data/env).
+5) **LLKB context MUST be loaded before any code generation** (Step 2).
+6) **AutoGen CLI must be attempted before manual implementation** (Step 3).
 
 If any prerequisite is missing, print the exact command to run next and stop.
 
@@ -161,14 +227,17 @@ Default naming:
 When executing this command, structure your response like this:
 
 1) **Detected Context**
-2) **Implementation Plan**
-3) **Questions (if needed)**
-4) **Changes Applied**
-5) **Validation + Verification**
-6) **How to Run + Debug**
-7) **Blockers / Follow-ups**
+2) **LLKB Context Loaded** ← MANDATORY: Show components/lessons found
+3) **Implementation Plan**
+4) **Questions (if needed)**
+5) **AutoGen Execution** ← MANDATORY: Show AutoGen CLI output
+6) **Changes Applied** (if manual steps needed)
+7) **LLKB Summary** ← MANDATORY: Components reused/created, lessons applied
+8) **Validation + Verification**
+9) **How to Run + Debug**
+10) **Blockers / Follow-ups**
 
-If `dryRun=true`, output sections 1–3 only.
+If `dryRun=true`, output sections 1–4 only.
 
 ---
 
@@ -179,8 +248,79 @@ If `dryRun=true`, output sections 1–3 only.
 - Determine harness root (`harnessRoot`).
 - Detect TS vs JS from existing config and fixtures.
 - Detect existing module registry and existing tests.
+- **Initialize session state for batch tracking:**
+  ```
+  sessionState = {
+    journeysRequested: parseJourneyList(userInput),
+    journeysCompleted: [],
+    predictiveExtractionCount: 0,
+    startTime: now()
+  }
+  ```
 
-## Step 1 — Load Journey and validate readiness
+## Step 1 — Load Journey(s) and validate readiness
+
+### 1.1 Parse Journey List
+If multiple journeys requested:
+```
+journeyList = parseJourneyList(userInput)  // e.g., ["JRN-0001", "JRN-0002", ...]
+totalJourneys = journeyList.length
+
+# ═══════════════════════════════════════════════════════════════
+# BATCH SIZE LIMITS (prevent context overflow and quality degradation)
+# ═══════════════════════════════════════════════════════════════
+SOFT_LIMIT = 10   # Warning threshold
+HARD_LIMIT = 50   # Maximum allowed
+
+IF totalJourneys > HARD_LIMIT:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ❌ BATCH TOO LARGE: {totalJourneys} journeys exceeds limit of 50  ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  Processing too many journeys in one session:                      ║
+  ║  - Risks context compaction losing serial execution rules          ║
+  ║  - May exceed conversation context limits                          ║
+  ║  - Reduces quality of LLKB integration per journey                 ║
+  ║                                                                    ║
+  ║  Please split into smaller batches of 10-20 journeys each.         ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  STOP
+
+IF totalJourneys > SOFT_LIMIT:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ⚠️  LARGE BATCH: {totalJourneys} journeys (recommended max: 10)   ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  Consider splitting into smaller batches for better quality.       ║
+  ║  Proceeding anyway, but quality may degrade for later journeys.    ║
+  ╚════════════════════════════════════════════════════════════════════╝
+
+IF totalJourneys > 1:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  BATCH EXECUTION: {totalJourneys} journeys detected                ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  Journeys will be implemented SERIALLY (one at a time)             ║
+  ║  This allows LLKB wisdom to accumulate between journeys.           ║
+  ║                                                                    ║
+  ║  Order: {journeyList.join(" → ")}                                  ║
+  ╚════════════════════════════════════════════════════════════════════╝
+```
+
+### 1.2 For Each Journey (Serial Loop)
+```
+FOR journeyIndex, journeyId IN enumerate(journeyList):
+  IF totalJourneys > 1:
+    OUTPUT:
+    ═══════════════════════════════════════════════════════════════════
+    JOURNEY {journeyIndex + 1} of {totalJourneys}: {journeyId}
+    ═══════════════════════════════════════════════════════════════════
+
+  # Continue with Steps 1.3 through Step 15 for this journey
+  # Then loop to next journey
+```
+
+### 1.3 Load Single Journey
 Parse Journey YAML frontmatter (must minimally include):
 - `id`, `title`, `status`, `tier`, `actor`, `scope`
 - `modules.foundation[]`, `modules.feature[]` (best effort)
@@ -197,143 +337,46 @@ If the Journey is not clarified:
 - If `allowNonClarified=false`: stop and instruct `/artk.journey-clarify id=...`
 - If `allowNonClarified=true`: generate a **skeleton implementation** but mark tests skipped until clarification is complete. Do not mark Journey implemented.
 
-## Step 2 — Pull discovery/testability signals (recommended)
-If `useDiscovery=auto` and Phase 4 outputs exist, load:
-- `docs/TESTABILITY.md` and/or `docs/DISCOVERY.md`
-Use them to:
-- confirm selectors strategy availability (roles/test ids)
-- identify known async “risk zones”
-- identify environment constraints
-- map scope/routes to modules
+---
 
-Do not invent facts.
+## Step 2 — Load LLKB Context (MANDATORY — BEFORE ANY CODE GENERATION)
 
-## Step 3 — Strict gates and blocker resolution
-If `strictGates=true`, enforce these gates:
-- **Selector gate**: critical controls must be reliably locatable.
-- **Data gate**: deterministic data setup must be feasible.
-- **Environment gate**: baseURL/env must be reachable.
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 STOP: This step is MANDATORY and cannot be skipped                    ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  You MUST complete this step BEFORE Step 3 (AutoGen) or any manual code.  ║
+# ║  Failure to load LLKB = wasted extraction opportunities and duplicate     ║
+# ║  components that could have been reused.                                  ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
 
-If any gate fails:
-- If `allowBlocked=false`: stop, add a blocker note to the Journey (managed block), and print remediation steps.
-- If `allowBlocked=true`: create skipped tests with clear reasons, but do NOT set Journey implemented.
+### 2.1 Check LLKB Availability
+```
+IF NOT exists(".artk/llkb/"):
+  OUTPUT:
+  ⚠️  LLKB directory not found. Proceeding without LLKB integration.
+      Consider initializing LLKB for better component reuse.
+  SKIP to Step 3
 
-## Step 4 — Determine test plan (single vs split)
-Decide test shape based on `splitStrategy` and `flakyBudget`.
-
-Default:
-- one Journey = one main test unless splitting improves reliability.
-
-Splitting is allowed when:
-- multiple independent outcomes exist, OR
-- long flows have multiple hard boundaries, OR
-- multi-actor workflows require clarity, OR
-- `flakyBudget=low` (be conservative).
-
-## Step 5 — Decide file placement and naming (idempotent)
-- Determine test file path based on strategy.
-- Search existing tests for `@JRN-####`:
-  - If found, update instead of creating a new one.
-- If duplicates exist, pick the most canonical and flag others for cleanup.
-
-## Step 6 — Module plan (foundation + feature)
-### 6.1 Verify foundation modules exist
-Ensure equivalents exist for:
-- auth
-- navigation
-- selectors/locators
-- data/run-id/builders
-
-If missing: stop and instruct `/artk.discover-foundation`.
-
-### 6.2 Feature modules
-Create missing feature modules only when needed.
-Keep modules small and composable. No mega-POMs.
-
-## Step 7 — Implement selector strategy (resilience rules)
-1) Prefer `getByRole` with name.
-2) Else `getByLabel`, `getByPlaceholder`.
-3) Else `byTestId` helper.
-4) CSS/XPath only as last resort with justification and encapsulation.
-
-Never:
-- rely on auto-generated class names
-- use brittle `nth()` without strong reason
-
-## Step 8 — Implement waiting/async strategy (no sleeps)
-- Use Playwright auto-wait.
-- For navigation, assert completion with URL/title/heading.
-- For background jobs: `expect.poll` / `expect.toPass` with bounded timeouts.
-- Avoid `networkidle` unless you know it helps.
-- `page.waitForTimeout()` is forbidden except as last resort with TODO.
-
-## Step 9 — Implement data strategy (setup + cleanup)
-- Prefer API seed helpers if available.
-- Namespace all created data using `runId`.
-- Cleanup if feasible; otherwise ensure namespacing and document.
-
-## Step 9.8 — LLKB Integration: Check for Reusable Components
-
-**Before writing any test code, leverage the LLKB (Lessons Learned Knowledge Base) to discover reusable components and apply learned patterns.**
-
-### LLKB Library Reference (@artk/core/llkb)
-
-**Use the `@artk/core/llkb` library for all LLKB operations:**
-
-```typescript
-import {
-  // File operations (atomic writes, locking)
-  loadJSON, saveJSONAtomic, updateJSONWithLock,
-  // Similarity detection
-  calculateSimilarity, jaccardSimilarity, findSimilarPatterns, isNearDuplicate,
-  // Category inference
-  inferCategory, inferCategoryWithConfidence, isComponentCategory,
-  // Rate limiting
-  isDailyRateLimitReached, isJourneyRateLimitReached,
-  // History logging
-  appendToHistory, countTodayEvents, countPredictiveExtractionsToday,
-  // Types
-  type LLKBConfig, type Lesson, type Component, type HistoryEvent,
-} from '@artk/core/llkb';
+config = loadYAML(".artk/llkb/config.yml")
+IF NOT config.enabled:
+  OUTPUT:
+  ⚠️  LLKB is disabled in config.yml. Proceeding without LLKB integration.
+  SKIP to Step 3
 ```
 
-**Key functions for journey-implement:**
+### 2.2 Load LLKB Data Files
+```
+components = loadJSON(".artk/llkb/components.json") OR { components: [] }
+lessons = loadJSON(".artk/llkb/lessons.json") OR { lessons: [], globalRules: [], appQuirks: [] }
+appProfile = loadJSON(".artk/llkb/app-profile.json") OR {}
+```
 
-| Function | Usage |
-|----------|-------|
-| `calculateSimilarity(code1, code2)` | Compare code patterns (returns 0-1) |
-| `findSimilarPatterns(code, patterns)` | Find matching components for a step |
-| `inferCategory(code)` | Categorize code (navigation, auth, data, etc.) |
-| `isDailyRateLimitReached(config, llkbRoot)` | Check if extraction limit hit |
-| `appendToHistory(event, llkbRoot)` | Log component_used, lesson_applied events |
-| `updateJSONWithLock(path, updater)` | Safe concurrent updates to components.json |
-
-### 9.8.1 Load LLKB Context (Context Injection Algorithm)
-
-Check if `.artk/llkb/` exists and is enabled:
-
-1. Read `.artk/llkb/config.yml` - Check `enabled: true`
-2. If disabled or missing, skip to Step 9.5
-3. Read `.artk/llkb/components.json`
-4. Read `.artk/llkb/lessons.json`
-5. Read `.artk/llkb/patterns/` relevant to Journey scope
-6. Read `.artk/llkb/app-profile.json` for app characteristics
-
-#### Context Injection Algorithm (MANDATORY)
+### 2.3 Filter by Journey Scope (Context Injection Algorithm)
 
 **Filter and prioritize LLKB data for the current journey:**
 
 ```
 FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) -> LLKBContext:
-  config = loadYAML(".artk/llkb/config.yml")
-  IF NOT config.enabled:
-    RETURN { enabled: false }
-
-  # Load raw data
-  components = loadJSON(".artk/llkb/components.json")
-  lessons = loadJSON(".artk/llkb/lessons.json")
-  appProfile = loadJSON(".artk/llkb/app-profile.json")
-
   # ═══════════════════════════════════════════════════════════════
   # STEP 1: Filter by scope (relevance-based)
   # ═══════════════════════════════════════════════════════════════
@@ -368,27 +411,46 @@ FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) ->
   )
 
   # ═══════════════════════════════════════════════════════════════
+  # HELPER: Extract keywords from journey steps for matching
+  # ═══════════════════════════════════════════════════════════════
+  FUNCTION extractKeywords(journeySteps: Step[]) -> string[]:
+    keywords = []
+
+    FOR each step in journeySteps:
+      # Extract action verbs and map to categories
+      IF step.description.includes("verify"): keywords.push("verify", "assertion")
+      IF step.description.includes("navigate"): keywords.push("navigate", "navigation")
+      IF step.description.includes("click"): keywords.push("click", "ui-interaction")
+      IF step.description.includes("fill"): keywords.push("fill", "form", "data")
+      IF step.description.includes("submit"): keywords.push("submit", "form")
+      IF step.description.includes("login"): keywords.push("login", "auth")
+      IF step.description.includes("logout"): keywords.push("logout", "auth")
+      IF step.description.includes("grid"): keywords.push("grid", "table", "data-grid")
+      IF step.description.includes("toast"): keywords.push("toast", "notification")
+      IF step.description.includes("modal"): keywords.push("modal", "dialog")
+      IF step.description.includes("sidebar"): keywords.push("sidebar", "navigation")
+      IF step.description.includes("menu"): keywords.push("menu", "navigation")
+      IF step.description.includes("loading"): keywords.push("loading", "async")
+      IF step.description.includes("wait"): keywords.push("wait", "async")
+
+      # Extract component names (nouns)
+      keywords.push(...extractNouns(step.description))
+
+    RETURN unique(keywords)
+
+  # ═══════════════════════════════════════════════════════════════
   # STEP 3: Prioritize by relevance score
   # ═══════════════════════════════════════════════════════════════
   FUNCTION calculateRelevanceScore(item, journeySteps) -> float:
     score = 0.0
-
-    # Keyword matching (step descriptions vs item context)
     keywords = extractKeywords(journeySteps)
     matchCount = countMatches(keywords, item.usageContext || item.applicableTo)
     score += matchCount * 0.2
-
-    # Confidence bonus
     score += item.metrics.confidence * 0.3
-
-    # Recency bonus (used recently = more relevant)
     daysSinceUsed = daysBetween(now(), item.metrics.lastUsed || item.metrics.lastApplied)
     IF daysSinceUsed < 7: score += 0.2
     ELIF daysSinceUsed < 30: score += 0.1
-
-    # Success rate bonus
     score += (item.metrics.successRate || 0) * 0.2
-
     RETURN min(score, 1.0)
 
   # Score and sort
@@ -403,15 +465,7 @@ FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) ->
   })).sort((a, b) => b.relevanceScore - a.relevanceScore)
 
   # ═══════════════════════════════════════════════════════════════
-  # STEP 4: Pass through all relevant items (no artificial limits)
-  # ═══════════════════════════════════════════════════════════════
-  # All high-confidence, relevance-sorted items are included
-  # The model's context window is the only natural limit
-  finalComponents = scoredComponents
-  finalLessons = scoredLessons
-
-  # ═══════════════════════════════════════════════════════════════
-  # STEP 5: Include global rules and quirks (always)
+  # STEP 4: Include global rules and quirks (always)
   # ═══════════════════════════════════════════════════════════════
   globalRules = lessons.globalRules || []
   appQuirks = lessons.appQuirks.filter(q =>
@@ -421,728 +475,115 @@ FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) ->
 
   RETURN {
     enabled: true,
-    components: finalComponents,
-    lessons: finalLessons,
+    components: scoredComponents,
+    lessons: scoredLessons,
     globalRules: globalRules,
     appQuirks: appQuirks,
     appProfile: appProfile,
     stats: {
       totalComponentsAvailable: components.length,
       totalLessonsAvailable: lessons.lessons.length,
-      componentsInjected: finalComponents.length,
-      lessonsInjected: finalLessons.length,
+      componentsInjected: scoredComponents.length,
+      lessonsInjected: scoredLessons.length,
       quirksInjected: appQuirks.length
     }
   }
 ```
 
-**Keyword extraction for matching:**
-```
-FUNCTION extractKeywords(journeySteps: Step[]) -> string[]:
-  keywords = []
+### 2.4 Output LLKB Context Loaded Section (MANDATORY)
 
-  FOR each step in journeySteps:
-    # Extract action verbs
-    IF step.description.includes("verify"): keywords.push("verify", "assertion")
-    IF step.description.includes("navigate"): keywords.push("navigate", "navigation")
-    IF step.description.includes("click"): keywords.push("click", "ui-interaction")
-    IF step.description.includes("fill"): keywords.push("fill", "form", "data")
-    IF step.description.includes("submit"): keywords.push("submit", "form")
-    IF step.description.includes("login"): keywords.push("login", "auth")
-    IF step.description.includes("grid"): keywords.push("grid", "table", "data-grid")
-    IF step.description.includes("toast"): keywords.push("toast", "notification")
-    IF step.description.includes("modal"): keywords.push("modal", "dialog")
-    IF step.description.includes("sidebar"): keywords.push("sidebar", "navigation")
-
-    # Extract component names
-    keywords.push(...extractNouns(step.description))
-
-  RETURN unique(keywords)
-```
-
-### 9.8.2 Match Journey Steps to Existing Components
-
-For each step in the Journey:
-
-1. **Keyword extraction**: Extract action keywords (verify, navigate, click, fill, submit, etc.)
-2. **Scope matching**: Filter components by Journey scope:
-   - Journey scope: `<scope>` from frontmatter
-   - Component scopes to match: `universal`, `framework:<detected_framework>`, `app-specific`
-3. **Similarity scoring**: Compare step description to component `usageContext`
-4. **Confidence threshold**: If score > 0.7, use component automatically
-
-**Matching Algorithm:**
-```
-keywords = extractKeywords(journeyStep)  // "verify", "navigation", "sidebar", etc.
-
-candidates = components.filter(c =>
-  c.category matches stepType AND
-  (c.scope === 'universal' OR
-   c.scope === `framework:${appProfile.framework}` OR
-   c.scope === 'app-specific') AND
-  c.usageContext.some(ctx => ctx matches keywords)
-)
-
-for each candidate:
-  score = similarity(journeyStep.description, candidate.usageContext)
-  if score > 0.7:
-    USE candidate (import and call)
-    LOG: Component matched - COMP### for step N
-  elif score > 0.4:
-    SUGGEST candidate (show to user in output, let them decide)
-```
-
-**Example match:**
-```
-Journey step: "Verify that the sidebar navigation is visible"
-Component: COMP001 - verifySidebarReady
-  usageContext: ["After page load, before navigation actions", "When testing any page that has sidebar"]
-  category: navigation
-  scope: app-specific
-
-Match score: 0.85 → AUTO-USE
-```
-
-### 9.8.3 Apply Relevant Lessons
-
-For each Journey step, check for applicable lessons:
-
-1. **Filter lessons by scope/selectors/components**:
-   ```
-   relevantLessons = lessons.filter(l =>
-     l.applicableTo.some(pattern => step matches pattern) AND
-     l.confidence > configThreshold AND
-     l.successRate > 0.6
-   )
-   ```
-
-2. **Apply by confidence level**:
-   - **High confidence (> 0.7)**: Auto-apply pattern, add comment
-   - **Medium confidence (0.5-0.7)**: Add comment with suggestion
-   - **Low confidence (< 0.5)**: Skip
-
-3. **Example application**:
-   ```typescript
-   await test.step('Step 5: Click submit button', async () => {
-     // LLKB L015: Use role-based selectors for buttons (confidence: 0.92)
-     await page.getByRole('button', { name: 'Submit' }).click();
-   });
-   ```
-
-### 9.8.4 Predict Reuse for New Patterns (with Rate Limiting)
-
-When writing NEW inline code (no existing component matches):
-
-1. **Analyze the pattern**: Is this a common UI interaction?
-   - Navigation (sidebar, menu, breadcrumb, tabs)
-   - Forms (validation, submission, clearing, field interaction)
-   - Tables/Grids (sorting, filtering, row selection, pagination)
-   - Modals/Dialogs (open, close, confirm, cancel)
-   - Notifications (toast, alert, banner, snackbar)
-   - Loading states (spinners, skeletons, progress bars)
-
-2. **Check other journeys**: Does this pattern appear in other proposed/implemented journeys?
-   - Read `journeys/index.json` for all journeys
-   - Scan journey steps for similar keywords
-   - **If 1+ other journey has similar step** → EXTRACT NOW
-   - **If 0 other journeys but common pattern** → Consider extraction based on:
-     - Pattern type (navigation/forms/grids are high-reuse)
-     - Complexity (> 5 lines of code worth extracting)
-     - Stability (stable selectors, not one-off edge case)
-
-3. **Decision**:
-   - **Likely reusable** → Create module + component entry IMMEDIATELY
-   - **Uncertain** → Write inline, mark as `// LLKB: extraction candidate`
-   - **Unique/one-off** → Write inline, no marking
-
-**Example prediction logic:**
-```
-Step: "Verify the orders grid displays 10 rows"
-Pattern: Table/Grid verification
-Other journeys with "grid": ["JRN-0003", "JRN-0007", "JRN-0012"]
-Decision: EXTRACT NOW → Create verifyGridReady() component
-```
-
-#### 🔴 RATE LIMITING (Prevents Over-Extraction)
-
-**Predictive extraction must be rate-limited to prevent creating too many unused components:**
+**You MUST output this section before proceeding to Step 3:**
 
 ```
-FUNCTION shouldExtractPredictively(pattern: Pattern, config: LLKBConfig) -> ExtractDecision:
-  # ═══════════════════════════════════════════════════════════════
-  # CHECK 1: Is predictive extraction enabled?
-  # ═══════════════════════════════════════════════════════════════
-  IF NOT config.extraction.predictiveExtraction:
-    RETURN { extract: false, reason: "Predictive extraction disabled in config" }
-
-  # ═══════════════════════════════════════════════════════════════
-  # CHECK 2: Session rate limit (max extractions per journey)
-  # ═══════════════════════════════════════════════════════════════
-  MAX_PREDICTIVE_PER_JOURNEY = 3  # Hard cap
-
-  sessionsExtractions = countExtractionsThisJourney()
-  IF sessionsExtractions >= MAX_PREDICTIVE_PER_JOURNEY:
-    RETURN {
-      extract: false,
-      reason: "Session limit reached (" + MAX_PREDICTIVE_PER_JOURNEY + " predictive extractions per journey)",
-      fallback: "Mark as extraction candidate for journey-verify"
-    }
-
-  # ═══════════════════════════════════════════════════════════════
-  # CHECK 3: Daily rate limit (prevent LLKB bloat)
-  # ═══════════════════════════════════════════════════════════════
-  MAX_PREDICTIVE_PER_DAY = 10  # Hard cap
-
-  todayExtractions = countPredictiveExtractionsToday()
-  IF todayExtractions >= MAX_PREDICTIVE_PER_DAY:
-    RETURN {
-      extract: false,
-      reason: "Daily limit reached (" + MAX_PREDICTIVE_PER_DAY + " predictive extractions per day)",
-      fallback: "Mark as extraction candidate, will be reviewed tomorrow"
-    }
-
-  # ═══════════════════════════════════════════════════════════════
-  # CHECK 4: Component count limit (prevent registry bloat)
-  # ═══════════════════════════════════════════════════════════════
-  MAX_TOTAL_COMPONENTS = 100  # Soft cap with warning
-
-  totalComponents = loadJSON(".artk/llkb/components.json").components.length
-  IF totalComponents >= MAX_TOTAL_COMPONENTS:
-    # Still allow, but with warning
-    logWarning("Component count high (" + totalComponents + "). Consider running LLKB prune.")
-
-  # ═══════════════════════════════════════════════════════════════
-  # CHECK 5: Pattern uniqueness (prevent near-duplicates)
-  # ═══════════════════════════════════════════════════════════════
-  existingComponents = loadJSON(".artk/llkb/components.json").components
-
-  FOR each existing in existingComponents:
-    similarity = calculateSimilarity(pattern.normalizedCode, existing.source.originalCode)
-    IF similarity > 0.8:  # 80% similar
-      RETURN {
-        extract: false,
-        reason: "Near-duplicate of existing component " + existing.id,
-        suggestion: "Use existing component: " + existing.name
-      }
-
-  # ═══════════════════════════════════════════════════════════════
-  # CHECK 6: Minimum complexity threshold
-  # ═══════════════════════════════════════════════════════════════
-  MIN_LINES_FOR_EXTRACTION = 3
-
-  IF pattern.lineCount < MIN_LINES_FOR_EXTRACTION:
-    RETURN {
-      extract: false,
-      reason: "Pattern too simple (" + pattern.lineCount + " lines < " + MIN_LINES_FOR_EXTRACTION + " minimum)"
-    }
-
-  # All checks passed - allow extraction
-  RETURN { extract: true }
+╔════════════════════════════════════════════════════════════════════╗
+║  LLKB CONTEXT LOADED                                               ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  📊 Statistics:                                                    ║
+║    Total components available: {stats.totalComponentsAvailable}    ║
+║    Components relevant to this journey: {stats.componentsInjected} ║
+║    Total lessons available: {stats.totalLessonsAvailable}          ║
+║    Lessons relevant to this journey: {stats.lessonsInjected}       ║
+║    App quirks for this scope: {stats.quirksInjected}               ║
+║                                                                    ║
+║  📦 Available Components for Reuse:                                ║
+║    {for each component: "- {id}: {name} ({category}, {confidence}%)"}
+║                                                                    ║
+║  💡 Applicable Lessons:                                            ║
+║    {for each lesson: "- {id}: {title} ({confidence}%)"}            ║
+║                                                                    ║
+║  ⚠️  Known Quirks:                                                 ║
+║    {for each quirk: "- {id}: {description}"}                       ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
 ```
 
-**Rate limit configuration (in config.yml):**
-```yaml
-extraction:
-  predictiveExtraction: true
-  maxPredictivePerJourney: 3    # Max predictive extractions per journey run
-  maxPredictivePerDay: 10       # Max predictive extractions per day
-  minLinesForExtraction: 3      # Minimum code lines to extract
-  similarityThreshold: 0.8      # Near-duplicate detection threshold
+**If LLKB is empty or disabled, output:**
 ```
-
-#### Rate Limit Helper Functions (MANDATORY IMPLEMENTATIONS)
-
-```
-# ═══════════════════════════════════════════════════════════════
-# COUNT DAILY EXTRACTIONS: Query history for today's extractions
-# ═══════════════════════════════════════════════════════════════
-FUNCTION countPredictiveExtractionsToday() -> number:
-  today = formatDate(now(), "YYYY-MM-DD")
-  historyPath = ".artk/llkb/history/" + today + ".jsonl"
-
-  IF NOT exists(historyPath):
-    RETURN 0
-
-  count = 0
-  FOR line in readLines(historyPath):
-    TRY:
-      event = JSON.parse(line)
-      # Count predictive extractions from journey-implement
-      IF event.event == "component_extracted" AND event.prompt == "journey-implement":
-        count += 1
-    CATCH:
-      # Skip malformed lines
-      CONTINUE
-
-  RETURN count
-
-# ═══════════════════════════════════════════════════════════════
-# COUNT SESSION EXTRACTIONS: Track within current journey run
-# ═══════════════════════════════════════════════════════════════
-# Note: This uses session state, not file-based tracking
-FUNCTION countExtractionsThisJourney() -> number:
-  # Session state is initialized at journey start
-  RETURN sessionState.predictiveExtractionCount || 0
-
-FUNCTION incrementSessionExtractionCount():
-  sessionState.predictiveExtractionCount = (sessionState.predictiveExtractionCount || 0) + 1
-
-# Initialize session state at journey-implement start
-sessionState = {
-  journeyId: currentJourney.id,
-  predictiveExtractionCount: 0,
-  startTime: now()
-}
-
-# ═══════════════════════════════════════════════════════════════
-# SIMILARITY CALCULATION: Detect near-duplicate patterns
-# ═══════════════════════════════════════════════════════════════
-FUNCTION calculateSimilarity(codeA: string, codeB: string) -> float:
-  # Normalize both code snippets
-  normA = normalizeCode(codeA)
-  normB = normalizeCode(codeB)
-
-  # Exact match after normalization
-  IF normA == normB:
-    RETURN 1.0
-
-  # Empty check
-  IF normA.length == 0 OR normB.length == 0:
-    RETURN 0.0
-
-  # Jaccard similarity on tokens (word-level)
-  tokensA = new Set(normA.split(/\s+/))
-  tokensB = new Set(normB.split(/\s+/))
-
-  intersection = tokensA.intersection(tokensB)
-  union = tokensA.union(tokensB)
-
-  IF union.size == 0:
-    RETURN 0.0
-
-  jaccardScore = intersection.size / union.size
-
-  # Bonus for same structure (same number of lines, similar length)
-  linesA = codeA.split('\n').length
-  linesB = codeB.split('\n').length
-  lineSimilarity = 1.0 - abs(linesA - linesB) / max(linesA, linesB)
-
-  # Weighted average (Jaccard is primary, structure is secondary)
-  similarity = (jaccardScore * 0.8) + (lineSimilarity * 0.2)
-
-  RETURN round(similarity, 2)
-
-# Helper: Normalize code for comparison (same as journey-verify)
-FUNCTION normalizeCode(code: string) -> string:
-  normalized = code
-  # Remove string literals (replace with <STRING>)
-  normalized = normalized.replace(/'[^']*'/g, '<STRING>')
-  normalized = normalized.replace(/"[^"]*"/g, '<STRING>')
-  # Remove numbers (replace with <NUMBER>)
-  normalized = normalized.replace(/\d+/g, '<NUMBER>')
-  # Remove variable names (replace with <VAR>)
-  normalized = normalized.replace(/const \w+/g, 'const <VAR>')
-  normalized = normalized.replace(/let \w+/g, 'let <VAR>')
-  # Normalize whitespace
-  normalized = normalized.replace(/\s+/g, ' ').trim()
-  RETURN normalized
-```
-
-**When rate limit is hit:**
-- Mark the pattern with `// LLKB: extraction candidate (rate limit)` comment
-- Log to history: `{"event":"extraction_deferred","reason":"rate_limit",...}`
-- journey-verify will re-evaluate during its cross-journey analysis
-
-### 9.8.5 Create Module for Predicted Reuse
-
-When creating a new component:
-
-1. **Determine module location**:
-   - **Universal patterns** (toast, loading, form validation) → Suggest PR to `@artk/core` (note in output)
-   - **Framework patterns** (AG Grid, Angular-specific) → `modules/foundation/<category>/`
-   - **App-specific** → `modules/foundation/<category>/` or `modules/feature/<scope>/`
-
-2. **Generate module file** with clear documentation:
-   ```typescript
-   /**
-    * Verify sidebar navigation is ready
-    *
-    * @component COMP###
-    * @category navigation
-    * @scope app-specific
-    * @extractedFrom JRN-####
-    * @createdBy journey-implement (predictive)
-    *
-    * @example
-    * ```typescript
-    * await verifySidebarReady(page);
-    * ```
-    */
-   export async function verifySidebarReady(
-     page: Page,
-     options: VerifyOptions = {}
-   ): Promise<void> {
-     const { timeout = 10000 } = options;
-
-     // LLKB: Applied L001 - use data-testid for sidebar container
-     const sidebar = page.locator('[data-testid="sidebar-nav"]');
-     await expect(sidebar).toBeVisible({ timeout });
-
-     // LLKB: Applied L015 - verify at least one nav item present
-     const navItems = page.locator('[data-testid^="sidebar-item-"]');
-     await expect(navItems.first()).toBeAttached({ timeout });
-   }
-   ```
-
-3. **Add entry to `components.json`**:
-   ```json
-   {
-     "id": "COMP###",
-     "name": "verifySidebarReady",
-     "category": "navigation",
-     "scope": "app-specific",
-     "description": "Verify sidebar navigation is loaded and interactive",
-     "purpose": "Use after page load, before navigation actions",
-     "module": {
-       "path": "foundation/navigation/nav.ts",
-       "importPath": "@modules/foundation/navigation",
-       "exportName": "verifySidebarReady"
-     },
-     "signature": {
-       "typescript": "verifySidebarReady(page: Page, options?: VerifyOptions): Promise<void>",
-       "params": [
-         { "name": "page", "type": "Page", "required": true },
-         { "name": "options", "type": "VerifyOptions", "required": false }
-       ],
-       "returns": "Promise<void>"
-     },
-     "usageContext": [
-       "After page load, before navigation actions",
-       "After login completes",
-       "When testing any page that has sidebar"
-     ],
-     "usageExample": {
-       "code": "await verifySidebarReady(page);",
-       "fullExample": "..."
-     },
-     "metrics": {
-       "usedInJourneys": ["JRN-####"],
-       "totalUses": 1,
-       "successRate": 1.0,
-       "confidence": 0.7,
-       "createdAt": "<ISO8601>",
-       "lastUsed": "<ISO8601>"
-     },
-     "source": {
-       "extractedFrom": "JRN-####",
-       "extractedBy": "journey-implement",
-       "originalCode": "// Inline code that was extracted"
-     },
-     "relatedComponents": [],
-     "relatedLessons": ["L001", "L015"]
-   }
-   ```
-
-4. **Update `modules/registry.json`**:
-   - Add export entry for the new module
-
-5. **Log to `history/<YYYY-MM-DD>.jsonl`**:
-   ```jsonl
-   {"timestamp":"<ISO8601>","event":"component_created","id":"COMP###","journey":"JRN-####","prompt":"journey-implement","summary":"Predicted reuse for verifySidebarReady, created module"}
-   ```
-
-### 9.8.6 Generate Test Code with LLKB-Enhanced Patterns
-
-For each Journey step:
-
-1. **If component exists** → Import and use:
-   ```typescript
-   import { verifySidebarReady } from '@modules/foundation/navigation';
-
-   await test.step('Step 3: Verify navigation', async () => {
-     // LLKB: Reused COMP001 - verifySidebarReady (confidence: 0.95)
-     await verifySidebarReady(page);
-   });
-   ```
-
-2. **If new component created** → Import and use (same as above)
-
-3. **If inline code** → Write with lesson patterns applied:
-   ```typescript
-   await test.step('Step 5: Custom action', async () => {
-     // LLKB: Applied L001 - use aria selectors for buttons (confidence: 0.92)
-     await page.getByRole('button', { name: 'Submit' }).click();
-
-     // LLKB: Applied L022 - toast timing is 100-800ms, use 5s timeout
-     await expectToast(page, { message: /success/i, timeout: 5000 });
-   });
-   ```
-
-### 9.8.7 Record Usage
-
-After generating all test code:
-
-1. **For each component used**:
-   - Update `components.json`:
-     - Add journey to `usedInJourneys` array
-     - Increment `totalUses`
-     - Update `lastUsed` timestamp
-   - Log to `history/<YYYY-MM-DD>.jsonl`:
-     ```jsonl
-     {"timestamp":"<ISO8601>","event":"component_used","id":"COMP###","journey":"JRN-####","prompt":"journey-implement","summary":"Reused verifySidebarReady in JRN-####"}
-     ```
-
-2. **For each lesson applied**:
-   - Log to `history/<YYYY-MM-DD>.jsonl`:
-     ```jsonl
-     {"timestamp":"<ISO8601>","event":"lesson_applied","id":"L###","journey":"JRN-####","prompt":"journey-implement","success":true}
-     ```
-
-### 9.8.8 Decision Tree Safeguards (Edge Case Handling)
-
-**Handle edge cases that can break the LLKB workflow:**
-
-#### 9.8.8.1 LLKB vs User Disagreement (Override Mechanism)
-
-**When LLKB suggests a pattern but user/test indicates it's wrong:**
-
-```
-FUNCTION handleLLKBConflict(suggestion: Suggestion, userChoice: UserChoice) -> Resolution:
-  config = loadYAML(".artk/llkb/config.yml")
-
-  # ═══════════════════════════════════════════════════════════════
-  # CASE 1: User explicitly overrides LLKB suggestion
-  # ═══════════════════════════════════════════════════════════════
-  IF userChoice.action == "OVERRIDE":
-    IF config.overrides.allowUserOverride:
-      # Log the override for future review
-      appendToHistory({
-        event: "user_override",
-        lessonId: suggestion.lessonId,
-        componentId: suggestion.componentId,
-        userReason: userChoice.reason,
-        journey: currentJourney.id
-      })
-
-      # Track override count for this pattern
-      item = getLessonOrComponent(suggestion.id)
-      item.overrideCount = (item.overrideCount || 0) + 1
-
-      IF item.overrideCount >= config.overrides.flagAfterOverrides:
-        # Flag for human review
-        addToNeedsReview(item, "Multiple user overrides - may be wrong pattern")
-
-      RETURN { action: "USE_USER_CHOICE", reason: "User override accepted" }
-    ELSE:
-      RETURN { action: "WARN", reason: "User overrides disabled in config" }
-
-  # ═══════════════════════════════════════════════════════════════
-  # CASE 2: Test failure indicates LLKB pattern is wrong
-  # ═══════════════════════════════════════════════════════════════
-  IF userChoice.action == "TEST_FAILED":
-    item = getLessonOrComponent(suggestion.id)
-
-    # Decrement success rate
-    item.metrics.successRate = recalculateSuccessRate(item, false)
-    item.metrics.lastFailure = now().toISO8601()
-
-    # Recalculate confidence
-    item.metrics.confidence = calculateConfidence(item)
-
-    IF item.metrics.confidence < 0.4:
-      # Demote to low confidence
-      addToNeedsReview(item, "Confidence dropped below threshold after failure")
-
-    RETURN { action: "LOG_FAILURE", reason: "Pattern failure recorded" }
-
-  # ═══════════════════════════════════════════════════════════════
-  # CASE 3: LLKB and user both have valid but different approaches
-  # ═══════════════════════════════════════════════════════════════
-  IF userChoice.action == "ALTERNATIVE_VALID":
-    # Both are valid - add user's approach as new lesson with lower confidence
-    createLesson({
-      ...userChoice.pattern,
-      source: { discoveredBy: "user-override", journey: currentJourney.id },
-      metrics: { confidence: 0.5, occurrences: 1 },  # Start with medium confidence
-      validation: { autoValidated: false, humanReviewed: true }
-    })
-
-    RETURN {
-      action: "BOTH_VALID",
-      reason: "Added user pattern as alternative. LLKB pattern retained."
-    }
-```
-
-**User notification when override is logged:**
-```
-⚠️  LLKB Override Recorded
-────────────────────────────────────────────────────
-Pattern: L001 - Use role-based selectors for buttons
-Your choice: CSS selector with explicit wait
-Reason: [user provided reason]
-
-This override has been logged. After 3 overrides for this pattern,
-it will be flagged for human review.
-
-To always use your preferred pattern, add to config.yml:
-  overrides:
-    suppressLesson: ["L001"]
-────────────────────────────────────────────────────
-```
-
-#### 9.8.8.2 Circular Component References
-
-**Detect and prevent components that depend on each other:**
-
-```
-FUNCTION detectCircularReferences(componentId: string) -> CircularRefResult:
-  visited = Set()
-  path = []
-
-  FUNCTION dfs(compId: string) -> bool:
-    IF compId in visited:
-      # Found a cycle
-      cycleStart = path.indexOf(compId)
-      cycle = path.slice(cycleStart).concat([compId])
-      RETURN { hasCycle: true, cycle: cycle }
-
-    visited.add(compId)
-    path.push(compId)
-
-    component = getComponent(compId)
-    FOR depId in component.dependencies || []:
-      result = dfs(depId)
-      IF result.hasCycle:
-        RETURN result
-
-    path.pop()
-    RETURN { hasCycle: false }
-
-  RETURN dfs(componentId)
-
-# Usage during component creation
-FUNCTION validateComponentDependencies(newComponent: Component) -> ValidationResult:
-  # Check if adding this component creates a cycle
-  FOR depId in newComponent.dependencies || []:
-    depComponent = getComponent(depId)
-    IF depComponent.dependencies?.includes(newComponent.id):
-      RETURN {
-        valid: false,
-        error: "Circular dependency: " + newComponent.id + " <-> " + depId,
-        suggestion: "Merge these components or refactor shared logic"
-      }
-
-    # Deep check
-    circularCheck = detectCircularReferences(depId)
-    IF circularCheck.hasCycle AND circularCheck.cycle.includes(newComponent.id):
-      RETURN {
-        valid: false,
-        error: "Circular dependency chain detected: " + circularCheck.cycle.join(" -> "),
-        suggestion: "Break cycle by extracting shared logic to new component"
-      }
-
-  RETURN { valid: true }
-```
-
-**When circular reference detected:**
-```
-❌ Circular Component Reference Detected
-────────────────────────────────────────────────────
-COMP015 (verifyGridReady) depends on COMP020 (expectLoadingComplete)
-COMP020 (expectLoadingComplete) depends on COMP015 (verifyGridReady)
-
-This creates a circular dependency that cannot be resolved.
-
-Resolution options:
-1. Merge components: Combine shared logic into single component
-2. Extract common: Create COMP021 for shared logic both depend on
-3. Inline: Remove dependency, duplicate the code (last resort)
-
-Choose an option or modify your implementation.
-────────────────────────────────────────────────────
-```
-
-#### 9.8.8.3 Stale Pattern Detection
-
-**Warn when using patterns that haven't been validated recently:**
-
-```
-FUNCTION checkPatternStaleness(item: Lesson | Component) -> StalenessResult:
-  config = loadYAML(".artk/llkb/config.yml")
-  maxAge = config.retention.maxLessonAge  # default 90 days
-
-  daysSinceLastSuccess = daysBetween(now(), item.metrics.lastSuccess || item.metrics.firstSeen)
-
-  IF daysSinceLastSuccess > maxAge:
-    RETURN {
-      isStale: true,
-      daysSinceSuccess: daysSinceLastSuccess,
-      warning: "Pattern hasn't been validated in " + daysSinceLastSuccess + " days",
-      suggestion: "Use with caution. Consider re-validating or archiving."
-    }
-
-  IF daysSinceLastSuccess > maxAge * 0.7:  # 70% of max age
-    RETURN {
-      isStale: false,
-      warning: "Pattern approaching stale threshold (" + daysSinceLastSuccess + "/" + maxAge + " days)",
-      suggestion: "Consider re-using in a journey to refresh validation"
-    }
-
-  RETURN { isStale: false }
-```
-
-### 9.8.9 Output LLKB Summary
-
-Include in implementation output:
-
-```
-LLKB Integration Summary:
-─────────────────────────────────────────────────────────────────
-Components Reused:         3
-  - COMP001: verifySidebarReady (navigation)
-  - COMP020: expectToast (assertion)
-  - COMP041: verifyGridReady (data grid)
-
-Components Created:        1
-  - COMP042: verifyOrdersGrid (data grid, app-specific)
-
-Lessons Applied:           5
-  - L001: Use role-based selectors (confidence: 0.92)
-  - L015: AG Grid aria selectors (confidence: 0.95)
-  - L022: Toast timing patterns (confidence: 0.88)
-
-Extraction Candidates:     2
-  - Step 7: Breadcrumb verification (seen in 2 other journeys)
-  - Step 9: Status badge check (common pattern)
-─────────────────────────────────────────────────────────────────
+╔════════════════════════════════════════════════════════════════════╗
+║  LLKB CONTEXT LOADED                                               ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Status: {disabled | empty | not initialized}                      ║
+║  Proceeding without LLKB integration.                              ║
+║  New patterns discovered will be candidates for extraction.        ║
+╚════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## Step 9.5 — Generate Tests with AutoGen CLI (Primary Approach)
+## Step 3 — Generate Tests with AutoGen CLI (PRIMARY APPROACH — MANDATORY)
 
-**PREFERRED: Use the `artk-autogen` CLI for deterministic test generation.**
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 STOP: AutoGen is the PRIMARY approach — NOT optional                  ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  You MUST attempt AutoGen BEFORE any manual code generation.              ║
+# ║  Manual implementation (Step 5) is a FALLBACK only.                       ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
 
-The AutoGen CLI generates Playwright tests directly from clarified Journey files.
+### 3.1 Validate Journey Frontmatter for AutoGen
 
-### Running AutoGen
+**AutoGen requires `modules` to be an object with `foundation` and `features` arrays:**
+```yaml
+# REQUIRED format for AutoGen:
+modules:
+  foundation: [auth, navigation]
+  features: [orders, catalog]
+```
+
+**If Journey has wrong format (array instead of object):**
+```
+IF journey.modules is Array:
+  # Fix the format before running AutoGen
+  fixedModules = {
+    foundation: journey.modules.filter(m => isFoundationModule(m)),
+    features: journey.modules.filter(m => !isFoundationModule(m))
+  }
+  # Update journey frontmatter
+  updateJourneyFrontmatter(journey.file, { modules: fixedModules })
+  OUTPUT: "Fixed journey modules format for AutoGen compatibility"
+```
+
+### 3.2 Run AutoGen CLI
 
 From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
 ```bash
-# Generate tests from a single Journey
-npx artk-autogen generate ../journeys/clarified/JRN-0001-user-login.md \
-  -o tests/smoke/ \
-  -m
+# Navigate to harness root
+cd <ARTK_ROOT>/<harnessRoot>
 
-# Generate tests from multiple Journeys
-npx artk-autogen generate "../journeys/clarified/*.md" \
-  -o tests/ \
-  -m
+# Generate tests from the Journey
+npx artk-autogen generate "../journeys/{status}/{journey.file}" \
+  -o tests/{tier}/ \
+  -m \
+  --dry-run  # First do a dry run to check for issues
+```
 
-# Dry run (preview without writing files)
-npx artk-autogen generate ../journeys/clarified/JRN-0001.md \
-  --dry-run
+**If dry-run succeeds:**
+```bash
+# Run actual generation
+npx artk-autogen generate "../journeys/{status}/{journey.file}" \
+  -o tests/{tier}/ \
+  -m
 ```
 
 **CLI Options:**
@@ -1155,7 +596,7 @@ npx artk-autogen generate ../journeys/clarified/JRN-0001.md \
 | `-c, --config <file>` | Custom autogen config file |
 | `-q, --quiet` | Suppress output except errors |
 
-**Example output:**
+**Example CLI output:**
 ```
 Found 1 journey file(s)
 Generated: tests/smoke/jrn-0001__user-login.spec.ts
@@ -1168,14 +609,7 @@ Summary:
   Warnings: 0
 ```
 
-### AutoGen Benefits
-- Deterministic mapping from Journey steps to Playwright primitives
-- Automatic selector priority (role > label > testid > CSS)
-- Machine hint support for explicit locator overrides
-- Blocked step tracking with improvement suggestions
-- Module generation for shared flows
-
-### Alternative: Programmatic API
+### 3.2.1 Programmatic API (for CI/CD Pipelines)
 
 For advanced automation (CI pipelines, custom tooling):
 
@@ -1188,19 +622,49 @@ const result = await generateJourneyTests({
   outputDir: 'artk-e2e/tests/smoke/',
   generateModules: true,
 });
+
+// Result contains:
+// - generatedTests: string[]  (file paths)
+// - generatedModules: string[]  (file paths)
+// - blockedSteps: { step: number, reason: string }[]
+// - warnings: string[]
 ```
 
-## Step 9.6 — Review AutoGen Output and Handle Blocked Steps
+### 3.3 Output AutoGen Results (MANDATORY)
 
-After running AutoGen, evaluate the output:
+**You MUST output the AutoGen execution results:**
 
-### If AutoGen succeeds (no errors, no blocked steps):
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  AUTOGEN EXECUTION                                                 ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  Command: npx artk-autogen generate {journey.file} -o {output} -m  ║
+║                                                                    ║
+║  Result: {SUCCESS | PARTIAL | FAILED}                              ║
+║                                                                    ║
+║  Generated Files:                                                  ║
+║    - tests/{tier}/{JRN-ID}__{slug}.spec.ts                        ║
+║    - modules/feature/{scope}/{module}.page.ts (if -m used)         ║
+║                                                                    ║
+║  Blocked Steps: {count} (see below for resolution)                 ║
+║    {for each blocked: "- Step {n}: {reason}"}                      ║
+║                                                                    ║
+║  Warnings: {count}                                                 ║
+║    {for each warning: "- {description}"}                           ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+### 3.4 Handle AutoGen Results
+
+**If AutoGen succeeds (no errors, no blocked steps):**
 1. Review generated test code for correctness
 2. Verify selector strategies match Journey intent
 3. Confirm acceptance criteria are mapped to assertions
-4. **Skip to Step 10.5** (Pre-Compilation Validation)
+4. **Skip to Step 6** (LLKB Component Matching and Usage Recording)
 
-### If AutoGen reports blocked steps:
+**If AutoGen reports blocked steps:**
 
 **Option A: Add machine hints to Journey (preferred)**
 
@@ -1217,33 +681,135 @@ Then re-run AutoGen:
 npx artk-autogen generate ../journeys/clarified/JRN-0001.md -o tests/smoke/ -m
 ```
 
-**Option B: Manual implementation for blocked steps**
+**Option B: Manual implementation for blocked steps only**
 
 If machine hints can't resolve the issue (complex async, multi-actor, domain logic):
 1. Use AutoGen output as a starting point
-2. Manually implement blocked steps using Step 10 patterns
+2. **Proceed to Step 5** (Manual Implementation) for blocked steps ONLY
 3. Preserve AutoGen structure, tagging, and imports
 4. Document why manual implementation was needed
 
-### If AutoGen fails entirely:
-- Check Journey is `status: clarified`
-- Verify frontmatter is valid YAML
-- Fall back to Step 10 (Manual Implementation)
+**If AutoGen fails entirely:**
 
-## Step 10 — Manual Test Implementation (Fallback)
+**MANDATORY: You MUST output the error before proceeding to manual implementation:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  AUTOGEN FAILED — FALLING BACK TO MANUAL IMPLEMENTATION            ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  Error: {actual error message from AutoGen}                        ║
+║                                                                    ║
+║  Troubleshooting attempted:                                        ║
+║    □ Journey status: {clarified | other}                           ║
+║    □ Frontmatter YAML: {valid | invalid}                           ║
+║    □ Modules format: {object | array (needs fix)}                  ║
+║                                                                    ║
+║  Reason for fallback: {specific reason AutoGen cannot be used}     ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
 
-**Use this step when:**
-- AutoGen cannot map certain steps (blocked)
-- Complex async flows need custom polling logic
-- Multi-actor coordination requires custom setup
-- Domain-specific assertions not covered by AutoGen
-- Journey is not clarified (`allowNonClarified=true`)
+**Then proceed to Step 5** (Manual Implementation) as fallback.
 
-**If AutoGen succeeded with no blocked steps, skip to Step 10.5.**
+**⚠️ LOOPHOLE PREVENTION:** You cannot claim "AutoGen failed" without showing the actual error. The output above is MANDATORY before any manual code generation.
 
 ---
 
-### Manual Test Writing Guidelines
+## Step 4 — Pull discovery/testability signals (recommended)
+If `useDiscovery=auto` and Phase 4 outputs exist, load:
+- `docs/TESTABILITY.md` and/or `docs/DISCOVERY.md`
+Use them to:
+- confirm selectors strategy availability (roles/test ids)
+- identify known async "risk zones"
+- identify environment constraints
+- map scope/routes to modules
+
+Do not invent facts.
+
+---
+
+## Step 5 — Manual Test Implementation (FALLBACK ONLY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  ⚠️  FALLBACK: Only use this step when AutoGen cannot generate tests      ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  Valid reasons to use manual implementation:                              ║
+# ║  - AutoGen failed entirely                                                ║
+# ║  - AutoGen has blocked steps that machine hints can't resolve             ║
+# ║  - Complex async flows need custom polling logic                          ║
+# ║  - Multi-actor coordination requires custom setup                         ║
+# ║  - Domain-specific assertions not covered by AutoGen                      ║
+# ║  - Journey is not clarified (`allowNonClarified=true`)                    ║
+# ║                                                                           ║
+# ║  If AutoGen succeeded with no blocked steps, SKIP this step entirely.     ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+### 5.1 Strict gates and blocker resolution
+If `strictGates=true`, enforce these gates:
+- **Selector gate**: critical controls must be reliably locatable.
+- **Data gate**: deterministic data setup must be feasible.
+- **Environment gate**: baseURL/env must be reachable.
+
+If any gate fails:
+- If `allowBlocked=false`: stop, add a blocker note to the Journey (managed block), and print remediation steps.
+- If `allowBlocked=true`: create skipped tests with clear reasons, but do NOT set Journey implemented.
+
+### 5.2 Determine test plan (single vs split)
+Decide test shape based on `splitStrategy` and `flakyBudget`.
+
+Default:
+- one Journey = one main test unless splitting improves reliability.
+
+Splitting is allowed when:
+- multiple independent outcomes exist, OR
+- long flows have multiple hard boundaries, OR
+- multi-actor workflows require clarity, OR
+- `flakyBudget=low` (be conservative).
+
+### 5.3 Decide file placement and naming (idempotent)
+- Determine test file path based on strategy.
+- Search existing tests for `@JRN-####`:
+  - If found, update instead of creating a new one.
+- If duplicates exist, pick the most canonical and flag others for cleanup.
+
+### 5.4 Module plan (foundation + feature)
+
+#### 5.4.1 Verify foundation modules exist
+Ensure equivalents exist for:
+- auth
+- navigation
+- selectors/locators
+- data/run-id/builders
+
+If missing: stop and instruct `/artk.discover-foundation`.
+
+#### 5.4.2 Feature modules
+Create missing feature modules only when needed.
+Keep modules small and composable. No mega-POMs.
+
+### 5.5 Implement selector strategy (resilience rules)
+1) Prefer `getByRole` with name.
+2) Else `getByLabel`, `getByPlaceholder`.
+3) Else `byTestId` helper.
+4) CSS/XPath only as last resort with justification and encapsulation.
+
+Never:
+- rely on auto-generated class names
+- use brittle `nth()` without strong reason
+
+### 5.6 Implement waiting/async strategy (no sleeps)
+- Use Playwright auto-wait.
+- For navigation, assert completion with URL/title/heading.
+- For background jobs: `expect.poll` / `expect.toPass` with bounded timeouts.
+- Avoid `networkidle` unless you know it helps.
+- `page.waitForTimeout()` is forbidden except as last resort with TODO.
+
+### 5.7 Implement data strategy (setup + cleanup)
+- Prefer API seed helpers if available.
+- Namespace all created data using `runId`.
+- Cleanup if feasible; otherwise ensure namespacing and document.
+
+### 5.8 Manual Test Writing Guidelines
 
 **CRITICAL: Import from ARTK Core Fixtures**
 
@@ -1368,7 +934,591 @@ Assertions mapping:
 - Prefer user-visible assertions.
 - No sleeps - use core assertions for async completion.
 
-## Step 10.5 — Pre-Compilation Validation (MANDATORY)
+---
+
+## Step 6 — LLKB Component Matching and Usage Recording
+
+### 6.1 Match Generated Code to Existing Components
+
+For each step in the generated test code (from AutoGen or manual):
+
+**Component Matching Algorithm with Confidence Thresholds:**
+
+```
+FOR each testStep in generatedTest.steps:
+  keywords = extractKeywords([testStep])
+
+  # Find candidate components
+  candidates = llkbContext.components.filter(c =>
+    c.category matches stepType AND
+    (c.scope === 'universal' OR
+     c.scope === `framework:${appProfile.framework}` OR
+     c.scope === 'app-specific') AND
+    c.usageContext.some(ctx => ctx matches keywords)
+  )
+
+  # Score each candidate
+  FOR each candidate in candidates:
+    score = calculateSimilarity(testStep.description, candidate.usageContext)
+
+    # ═══════════════════════════════════════════════════════════════
+    # CONFIDENCE THRESHOLDS (MANDATORY)
+    # ═══════════════════════════════════════════════════════════════
+    IF score > 0.7:
+      # AUTO-USE: Import and call the component
+      USE candidate
+      recordComponentUsage(candidate, journey.id)
+      LOG: "Component matched - {candidate.id} for step {stepNumber} (score: {score})"
+
+    ELIF score > 0.4:
+      # SUGGEST: Show to user in output, let them decide
+      SUGGEST candidate
+      LOG: "Component suggested - {candidate.id} for step {stepNumber} (score: {score})"
+
+    ELSE:
+      # NO MATCH: Write inline code
+      PASS
+```
+
+**Example Match:**
+```
+Journey step: "Verify that the sidebar navigation is visible"
+
+Component: COMP001 - verifySidebarReady
+  usageContext: ["After page load, before navigation actions", "When testing any page that has sidebar"]
+  category: navigation
+  scope: app-specific
+
+Match score: 0.85 → AUTO-USE
+
+Generated code:
+  import { verifySidebarReady } from '@modules/foundation/navigation';
+  await verifySidebarReady(page);
+```
+
+**Lesson Application with Confidence Levels:**
+
+```
+FOR each lesson in llkbContext.lessons:
+  IF testCode.matches(lesson.applicableTo):
+    confidence = lesson.metrics.confidence
+
+    # ═══════════════════════════════════════════════════════════════
+    # LESSON CONFIDENCE THRESHOLDS
+    # ═══════════════════════════════════════════════════════════════
+    IF confidence > 0.7:
+      # HIGH: Auto-apply pattern, add comment
+      APPLY lesson.pattern
+      ADD COMMENT: "// LLKB {lesson.id}: {lesson.title} (confidence: {confidence})"
+      recordLessonApplication(lesson, journey.id, success=true)
+
+    ELIF confidence >= 0.5:
+      # MEDIUM: Add comment with suggestion only
+      ADD COMMENT: "// LLKB suggests {lesson.id}: {lesson.title} - consider applying"
+      recordLessonApplication(lesson, journey.id, success=null)  # pending validation
+
+    ELSE:
+      # LOW (< 0.5): Skip entirely
+      PASS
+```
+
+### 6.2 Predict Reuse for New Patterns (with Rate Limiting)
+
+When writing NEW inline code (no existing component matches):
+
+1. **Analyze the pattern**: Is this a common UI interaction?
+   - Navigation (sidebar, menu, breadcrumb, tabs)
+   - Forms (validation, submission, clearing, field interaction)
+   - Tables/Grids (sorting, filtering, row selection, pagination)
+   - Modals/Dialogs (open, close, confirm, cancel)
+   - Notifications (toast, alert, banner, snackbar)
+   - Loading states (spinners, skeletons, progress bars)
+
+2. **Check other journeys**: Does this pattern appear in other proposed/implemented journeys?
+   - Read `journeys/index.json` for all journeys
+   - Scan journey steps for similar keywords
+   - **If 1+ other journey has similar step** → Consider extraction
+   - **If 0 other journeys but common pattern** → Mark as candidate
+
+3. **Rate Limiting (MANDATORY)**:
+
+   ```
+   FUNCTION shouldExtractPredictively(pattern, config) -> ExtractDecision:
+     # ═══════════════════════════════════════════════════════════════
+     # CHECK 1: Is predictive extraction enabled?
+     # ═══════════════════════════════════════════════════════════════
+     IF NOT config.extraction.predictiveExtraction:
+       RETURN { extract: false, reason: "Predictive extraction disabled in config" }
+
+     # ═══════════════════════════════════════════════════════════════
+     # CHECK 2: Session rate limit (max extractions per journey)
+     # ═══════════════════════════════════════════════════════════════
+     MAX_PREDICTIVE_PER_JOURNEY = 3  # Hard cap
+
+     IF sessionState.predictiveExtractionCount >= MAX_PREDICTIVE_PER_JOURNEY:
+       RETURN {
+         extract: false,
+         reason: "Session limit reached (" + MAX_PREDICTIVE_PER_JOURNEY + " per journey)",
+         fallback: "Mark as extraction candidate for journey-verify"
+       }
+
+     # ═══════════════════════════════════════════════════════════════
+     # CHECK 3: Daily rate limit (prevent LLKB bloat)
+     # ═══════════════════════════════════════════════════════════════
+     MAX_PREDICTIVE_PER_DAY = 10  # Hard cap
+
+     todayExtractions = countPredictiveExtractionsToday()
+     IF todayExtractions >= MAX_PREDICTIVE_PER_DAY:
+       RETURN {
+         extract: false,
+         reason: "Daily limit reached (" + MAX_PREDICTIVE_PER_DAY + " per day)",
+         fallback: "Mark as extraction candidate, will be reviewed tomorrow"
+       }
+
+     # ═══════════════════════════════════════════════════════════════
+     # CHECK 4: Component count limit (prevent registry bloat)
+     # ═══════════════════════════════════════════════════════════════
+     MAX_TOTAL_COMPONENTS = 100  # Soft cap with warning
+
+     totalComponents = loadJSON(".artk/llkb/components.json").components.length
+     IF totalComponents >= MAX_TOTAL_COMPONENTS:
+       # Still allow, but with warning
+       LOG WARNING: "Component count high (" + totalComponents + "). Consider running LLKB prune."
+
+     # ═══════════════════════════════════════════════════════════════
+     # CHECK 5: Pattern uniqueness (prevent near-duplicates)
+     # ═══════════════════════════════════════════════════════════════
+     existingComponents = loadJSON(".artk/llkb/components.json").components
+
+     FOR each existing in existingComponents:
+       similarity = calculateSimilarity(pattern.normalizedCode, existing.source.originalCode)
+       IF similarity > 0.8:  # 80% similar
+         RETURN {
+           extract: false,
+           reason: "Near-duplicate of existing component " + existing.id,
+           suggestion: "Use existing component: " + existing.name
+         }
+
+     # ═══════════════════════════════════════════════════════════════
+     # CHECK 6: Minimum complexity threshold
+     # ═══════════════════════════════════════════════════════════════
+     MIN_LINES_FOR_EXTRACTION = 3
+
+     IF pattern.lineCount < MIN_LINES_FOR_EXTRACTION:
+       RETURN {
+         extract: false,
+         reason: "Pattern too simple (" + pattern.lineCount + " lines < " + MIN_LINES_FOR_EXTRACTION + " minimum)"
+       }
+
+     # All checks passed - allow extraction
+     RETURN { extract: true }
+   ```
+
+   **Rate limit configuration (in config.yml):**
+   ```yaml
+   extraction:
+     predictiveExtraction: true
+     maxPredictivePerJourney: 3    # Max predictive extractions per journey run
+     maxPredictivePerDay: 10       # Max predictive extractions per day
+     minLinesForExtraction: 3      # Minimum code lines to extract
+     similarityThreshold: 0.8      # Near-duplicate detection threshold
+   ```
+
+   **Rate Limit Helper Functions (MANDATORY IMPLEMENTATIONS):**
+
+   ```
+   # ═══════════════════════════════════════════════════════════════
+   # COUNT DAILY EXTRACTIONS: Query history for today's extractions
+   # ═══════════════════════════════════════════════════════════════
+   FUNCTION countPredictiveExtractionsToday() -> number:
+     today = formatDate(now(), "YYYY-MM-DD")
+     historyPath = ".artk/llkb/history/" + today + ".jsonl"
+
+     IF NOT exists(historyPath):
+       RETURN 0
+
+     count = 0
+     FOR line in readLines(historyPath):
+       TRY:
+         event = JSON.parse(line)
+         # Count predictive extractions from journey-implement
+         IF event.event == "component_extracted" AND event.prompt == "journey-implement":
+           count += 1
+       CATCH:
+         # Skip malformed lines
+         CONTINUE
+
+     RETURN count
+
+   # ═══════════════════════════════════════════════════════════════
+   # SIMILARITY CALCULATION: Detect near-duplicate patterns
+   # ═══════════════════════════════════════════════════════════════
+   FUNCTION calculateSimilarity(codeA: string, codeB: string) -> float:
+     # Normalize both code snippets
+     normA = normalizeCode(codeA)
+     normB = normalizeCode(codeB)
+
+     # Exact match after normalization
+     IF normA == normB:
+       RETURN 1.0
+
+     # Empty check
+     IF normA.length == 0 OR normB.length == 0:
+       RETURN 0.0
+
+     # Jaccard similarity on tokens (word-level)
+     tokensA = new Set(normA.split(/\s+/))
+     tokensB = new Set(normB.split(/\s+/))
+
+     intersection = tokensA.intersection(tokensB)
+     union = tokensA.union(tokensB)
+
+     IF union.size == 0:
+       RETURN 0.0
+
+     jaccardScore = intersection.size / union.size
+
+     # Bonus for same structure (same number of lines, similar length)
+     linesA = codeA.split('\n').length
+     linesB = codeB.split('\n').length
+     lineSimilarity = 1.0 - abs(linesA - linesB) / max(linesA, linesB)
+
+     # Weighted average (Jaccard is primary, structure is secondary)
+     similarity = (jaccardScore * 0.8) + (lineSimilarity * 0.2)
+
+     RETURN round(similarity, 2)
+
+   # ═══════════════════════════════════════════════════════════════
+   # NORMALIZE CODE: Prepare code for similarity comparison
+   # ═══════════════════════════════════════════════════════════════
+   FUNCTION normalizeCode(code: string) -> string:
+     normalized = code
+     # Remove string literals (replace with <STRING>)
+     normalized = normalized.replace(/'[^']*'/g, '<STRING>')
+     normalized = normalized.replace(/"[^"]*"/g, '<STRING>')
+     # Remove numbers (replace with <NUMBER>)
+     normalized = normalized.replace(/\d+/g, '<NUMBER>')
+     # Remove variable names (replace with <VAR>)
+     normalized = normalized.replace(/const \w+/g, 'const <VAR>')
+     normalized = normalized.replace(/let \w+/g, 'let <VAR>')
+     # Normalize whitespace
+     normalized = normalized.replace(/\s+/g, ' ').trim()
+     RETURN normalized
+   ```
+
+   **When rate limit is hit:**
+   - Mark the pattern with `// LLKB: extraction candidate (rate limit)` comment
+   - Log to history: `{"event":"extraction_deferred","reason":"rate_limit",...}`
+   - journey-verify will re-evaluate during its cross-journey analysis
+
+4. **Decision**:
+   - **Likely reusable + passes rate limits** → Extract and create component
+   - **Likely reusable + rate limit hit** → Mark as `// LLKB: extraction candidate`
+   - **Uncertain** → Mark as `// LLKB: extraction candidate`
+   - **Unique/one-off** → Write inline, no marking
+
+### 6.3 Create Component for Extracted Patterns
+
+When creating a new component:
+
+1. **Generate module file** with clear documentation:
+   ```typescript
+   /**
+    * Verify sidebar navigation is ready
+    *
+    * @component COMP###
+    * @category navigation
+    * @scope app-specific
+    * @extractedFrom JRN-####
+    * @createdBy journey-implement (predictive)
+    */
+   export async function verifySidebarReady(
+     page: Page,
+     options: VerifyOptions = {}
+   ): Promise<void> {
+     const { timeout = 10000 } = options;
+     // LLKB: Applied L001 - use data-testid for sidebar container
+     const sidebar = page.locator('[data-testid="sidebar-nav"]');
+     await expect(sidebar).toBeVisible({ timeout });
+   }
+   ```
+
+2. **Add entry to `components.json`**
+
+3. **Log to `history/<YYYY-MM-DD>.jsonl`**:
+   ```jsonl
+   {"timestamp":"<ISO8601>","event":"component_created","id":"COMP###","journey":"JRN-####","prompt":"journey-implement"}
+   ```
+
+4. **Increment session counter**:
+   ```
+   sessionState.predictiveExtractionCount += 1
+   ```
+
+### 6.4 Record All Usage
+
+After generating all test code:
+
+1. **For each component used**:
+   - Update `components.json`:
+     - Add journey to `usedInJourneys` array
+     - Increment `totalUses`
+     - Update `lastUsed` timestamp
+   - Log to `history/<YYYY-MM-DD>.jsonl`:
+     ```jsonl
+     {"timestamp":"<ISO8601>","event":"component_used","id":"COMP###","journey":"JRN-####","prompt":"journey-implement"}
+     ```
+
+2. **For each lesson applied**:
+   - Log to `history/<YYYY-MM-DD>.jsonl`:
+     ```jsonl
+     {"timestamp":"<ISO8601>","event":"lesson_applied","id":"L###","journey":"JRN-####","prompt":"journey-implement","success":true}
+     ```
+
+### 6.5 Decision Tree Safeguards (Edge Case Handling)
+
+**Handle edge cases that can break the LLKB workflow:**
+
+#### 6.5.1 LLKB vs User Disagreement (Override Mechanism)
+
+**When LLKB suggests a pattern but user/test indicates it's wrong:**
+
+```
+FUNCTION handleLLKBConflict(suggestion: Suggestion, userChoice: UserChoice) -> Resolution:
+  config = loadYAML(".artk/llkb/config.yml")
+
+  # ═══════════════════════════════════════════════════════════════
+  # CASE 1: User explicitly overrides LLKB suggestion
+  # ═══════════════════════════════════════════════════════════════
+  IF userChoice.action == "OVERRIDE":
+    IF config.overrides.allowUserOverride:
+      # Log the override for future review
+      appendToHistory({
+        event: "user_override",
+        lessonId: suggestion.lessonId,
+        componentId: suggestion.componentId,
+        userReason: userChoice.reason,
+        journey: currentJourney.id
+      })
+
+      # Track override count for this pattern
+      item = getLessonOrComponent(suggestion.id)
+      item.overrideCount = (item.overrideCount || 0) + 1
+
+      IF item.overrideCount >= config.overrides.flagAfterOverrides:
+        # Flag for human review
+        addToNeedsReview(item, "Multiple user overrides - may be wrong pattern")
+
+      RETURN { action: "USE_USER_CHOICE", reason: "User override accepted" }
+    ELSE:
+      RETURN { action: "WARN", reason: "User overrides disabled in config" }
+
+  # ═══════════════════════════════════════════════════════════════
+  # CASE 2: Test failure indicates LLKB pattern is wrong
+  # ═══════════════════════════════════════════════════════════════
+  IF userChoice.action == "TEST_FAILED":
+    item = getLessonOrComponent(suggestion.id)
+
+    # Decrement success rate
+    item.metrics.successRate = recalculateSuccessRate(item, false)
+    item.metrics.lastFailure = now().toISO8601()
+
+    # Recalculate confidence
+    item.metrics.confidence = calculateConfidence(item)
+
+    IF item.metrics.confidence < 0.4:
+      # Demote to low confidence
+      addToNeedsReview(item, "Confidence dropped below threshold after failure")
+
+    RETURN { action: "LOG_FAILURE", reason: "Pattern failure recorded" }
+
+  # ═══════════════════════════════════════════════════════════════
+  # CASE 3: LLKB and user both have valid but different approaches
+  # ═══════════════════════════════════════════════════════════════
+  IF userChoice.action == "ALTERNATIVE_VALID":
+    # Both are valid - add user's approach as new lesson with lower confidence
+    createLesson({
+      ...userChoice.pattern,
+      source: { discoveredBy: "user-override", journey: currentJourney.id },
+      metrics: { confidence: 0.5, occurrences: 1 },  # Start with medium confidence
+      validation: { autoValidated: false, humanReviewed: true }
+    })
+
+    RETURN {
+      action: "BOTH_VALID",
+      reason: "Added user pattern as alternative. LLKB pattern retained."
+    }
+```
+
+**User notification when override is logged:**
+```
+⚠️  LLKB Override Recorded
+────────────────────────────────────────────────────
+Pattern: L001 - Use role-based selectors for buttons
+Your choice: CSS selector with explicit wait
+Reason: [user provided reason]
+
+This override has been logged. After 3 overrides for this pattern,
+it will be flagged for human review.
+
+To always use your preferred pattern, add to config.yml:
+  overrides:
+    suppressLesson: ["L001"]
+────────────────────────────────────────────────────
+```
+
+#### 6.5.2 Circular Component References
+
+**Detect and prevent components that depend on each other:**
+
+```
+FUNCTION detectCircularReferences(componentId: string) -> CircularRefResult:
+  visited = Set()
+  path = []
+
+  FUNCTION dfs(compId: string) -> bool:
+    IF compId in visited:
+      # Found a cycle
+      cycleStart = path.indexOf(compId)
+      cycle = path.slice(cycleStart).concat([compId])
+      RETURN { hasCycle: true, cycle: cycle }
+
+    visited.add(compId)
+    path.push(compId)
+
+    component = getComponent(compId)
+    FOR depId in component.dependencies || []:
+      result = dfs(depId)
+      IF result.hasCycle:
+        RETURN result
+
+    path.pop()
+    RETURN { hasCycle: false }
+
+  RETURN dfs(componentId)
+
+# Usage during component creation
+FUNCTION validateComponentDependencies(newComponent: Component) -> ValidationResult:
+  # Check if adding this component creates a cycle
+  FOR depId in newComponent.dependencies || []:
+    depComponent = getComponent(depId)
+    IF depComponent.dependencies?.includes(newComponent.id):
+      RETURN {
+        valid: false,
+        error: "Circular dependency: " + newComponent.id + " <-> " + depId,
+        suggestion: "Merge these components or refactor shared logic"
+      }
+
+    # Deep check
+    circularCheck = detectCircularReferences(depId)
+    IF circularCheck.hasCycle AND circularCheck.cycle.includes(newComponent.id):
+      RETURN {
+        valid: false,
+        error: "Circular dependency chain detected: " + circularCheck.cycle.join(" -> "),
+        suggestion: "Break cycle by extracting shared logic to new component"
+      }
+
+  RETURN { valid: true }
+```
+
+**When circular reference detected:**
+```
+❌ Circular Component Reference Detected
+────────────────────────────────────────────────────
+COMP015 (verifyGridReady) depends on COMP020 (expectLoadingComplete)
+COMP020 (expectLoadingComplete) depends on COMP015 (verifyGridReady)
+
+This creates a circular dependency that cannot be resolved.
+
+Resolution options:
+1. Merge components: Combine shared logic into single component
+2. Extract common: Create COMP021 for shared logic both depend on
+3. Inline: Remove dependency, duplicate the code (last resort)
+
+Choose an option or modify your implementation.
+────────────────────────────────────────────────────
+```
+
+#### 6.5.3 Stale Pattern Detection
+
+**Warn when using patterns that haven't been validated recently:**
+
+```
+FUNCTION checkPatternStaleness(item: Lesson | Component) -> StalenessResult:
+  config = loadYAML(".artk/llkb/config.yml")
+  maxAge = config.retention.maxLessonAge  # default 90 days
+
+  daysSinceLastSuccess = daysBetween(now(), item.metrics.lastSuccess || item.metrics.firstSeen)
+
+  IF daysSinceLastSuccess > maxAge:
+    RETURN {
+      isStale: true,
+      daysSinceSuccess: daysSinceLastSuccess,
+      warning: "Pattern hasn't been validated in " + daysSinceLastSuccess + " days",
+      suggestion: "Use with caution. Consider re-validating or archiving."
+    }
+
+  IF daysSinceLastSuccess > maxAge * 0.7:  # 70% of max age
+    RETURN {
+      isStale: false,
+      warning: "Pattern approaching stale threshold (" + daysSinceLastSuccess + "/" + maxAge + " days)",
+      suggestion: "Consider re-using in a journey to refresh validation"
+    }
+
+  RETURN { isStale: false }
+```
+
+**When stale pattern is used:**
+```
+⚠️  STALE PATTERN WARNING
+────────────────────────────────────────────────────
+Pattern: L022 - Toast timing patterns
+Last validated: 95 days ago (threshold: 90 days)
+
+This pattern may be outdated. The application may have changed.
+
+Options:
+1. Use anyway (pattern will be revalidated if tests pass)
+2. Skip pattern and write inline code
+3. Archive pattern (marks as deprecated)
+
+Proceeding with caution...
+────────────────────────────────────────────────────
+```
+
+---
+
+## Step 7 — Output LLKB Summary (MANDATORY)
+
+**You MUST output this section after code generation:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  LLKB INTEGRATION SUMMARY                                          ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  Components Reused: {count}                                        ║
+║    {for each: "- {id}: {name} ({category})"}                       ║
+║                                                                    ║
+║  Components Created: {count}                                       ║
+║    {for each: "- {id}: {name} ({category}, {scope})"}              ║
+║                                                                    ║
+║  Lessons Applied: {count}                                          ║
+║    {for each: "- {id}: {title} (confidence: {confidence}%)"}       ║
+║                                                                    ║
+║  Extraction Candidates: {count}                                    ║
+║    {for each: "- Step {n}: {description} (reason: {reason})"}      ║
+║                                                                    ║
+║  Rate Limits:                                                      ║
+║    Session extractions: {sessionState.predictiveExtractionCount}/3 ║
+║    Daily extractions: {todayCount}/10                              ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## Step 8 — Pre-Compilation Validation (MANDATORY)
 
 **BEFORE proceeding to validation gates, you MUST complete the Pre-Compilation Validation Checklist from `.github/prompts/common/GENERAL_RULES.md`.**
 
@@ -1379,21 +1529,21 @@ Run through each check on ALL generated test files and modules:
 4. **Path Alias Check** — Consistent import patterns
 5. **Syntax Quick Check** — Template literals use backticks, no unclosed brackets
 
-**Only proceed to Step 11 after ALL checks pass.**
+**Only proceed to Step 9 after ALL checks pass.**
 
 ---
 
-## Step 11 — Update Journey draft links (pre-gate)
+## Step 9 — Update Journey draft links (pre-gate)
 Before running gates, you may:
 - add the new test path(s) to Journey `tests[]` (so verify can find them)
-- add a managed “implementation draft” block
+- add a managed "implementation draft" block
 
 Do NOT set `status: implemented` yet.
 
-## Step 12 — Update module registry draft (optional)
+## Step 10 — Update module registry draft (optional)
 If `updateModulesRegistry=true`, update registry with new modules and journeyDependencies.
 
-## Step 13 — Run /artk.journey-validate (static gates)
+## Step 11 — Run /artk.journey-validate (static gates)
 If `postValidate=auto|true`:
 - Execute `/artk.journey-validate id=<JRN-####> harnessRoot=<harnessRoot> mode=<validateMode> strict=true`
 - If it fails:
@@ -1402,7 +1552,7 @@ If `postValidate=auto|true`:
 If you cannot execute commands here:
 - output the exact `/artk.journey-validate ...` invocation as the next step and stop before claiming success.
 
-## Step 14 — Run /artk.journey-verify (run + stabilize)
+## Step 12 — Run /artk.journey-verify (run + stabilize)
 If `postVerify=auto|true`:
 - Execute `/artk.journey-verify id=<JRN-####> harnessRoot=<harnessRoot> mode=<verifyMode> heal=<heal> healAttempts=<healAttempts> repeat=<repeatGate> failOnFlaky=<failOnFlaky>`
 - If it fails:
@@ -1413,7 +1563,7 @@ If verification cannot be executed (environment unreachable):
 - keep Journey status at clarified/defined
 - add a blocker note and print the required next step (run verify in the correct region).
 
-## Step 15 — Finalize Journey as implemented (only after gates pass)
+## Step 13 — Finalize Journey as implemented (only after gates pass)
 If validate and verify both pass:
 - Set Journey `status: implemented`
 - Ensure `tests[]` is non-empty and deduped
@@ -1428,7 +1578,46 @@ If either gate fails:
 - Do NOT set implemented.
 - Keep status clarified/defined and capture reasons.
 
-## Step 16 — Print run/debug instructions
+## Step 14 — Loop to Next Journey (Batch Execution)
+
+**If processing multiple journeys:**
+```
+sessionState.journeysCompleted.push(currentJourney.id)
+newComponentsThisJourney = sessionState.predictiveExtractionCount  # Track before reset
+
+IF journeyIndex < totalJourneys - 1:
+  # ═══════════════════════════════════════════════════════════════
+  # CRITICAL: Reset per-journey counters for next journey
+  # ═══════════════════════════════════════════════════════════════
+  # The predictiveExtractionCount is PER-JOURNEY, not cumulative.
+  # Without this reset, Journey 2+ cannot extract any components
+  # if Journey 1 hit the session limit.
+  sessionState.predictiveExtractionCount = 0
+
+  OUTPUT:
+  ═══════════════════════════════════════════════════════════════════
+  ✅ Journey {currentJourney.id} complete.
+  LLKB updated with {newComponentsThisJourney} new components.
+  Session extraction count reset: 0/{MAX_PREDICTIVE_PER_JOURNEY}
+
+  Proceeding to next journey ({journeyIndex + 2}/{totalJourneys})...
+  ═══════════════════════════════════════════════════════════════════
+
+  # Loop back to Step 1.2 for next journey
+  # LLKB context will now include components created in this journey
+  # Session extraction counter is reset for fresh limit per journey
+ELSE:
+  OUTPUT:
+  ═══════════════════════════════════════════════════════════════════
+  🎉 BATCH EXECUTION COMPLETE
+
+  Journeys implemented: {sessionState.journeysCompleted.length}/{totalJourneys}
+  Total components created: {totalNewComponents}
+  Total components reused: {totalReusedComponents}
+  ═══════════════════════════════════════════════════════════════════
+```
+
+## Step 15 — Print run/debug instructions
 Include:
 - run by tag: `npx playwright test --grep @JRN-####`
 - run by file path
@@ -1437,7 +1626,7 @@ Include:
 
 ---
 
-# Mode-based question policy (don’t be annoying)
+# Mode-based question policy (don't be annoying)
 
 ## QUICK (≤ 3 questions, blockers only)
 - env/baseURL reachable?
@@ -1468,10 +1657,47 @@ Ask only when necessary:
 - **Flaky env**: do not "fix" with timing. Use explicit completion signals or quarantine later.
 - **AG Grid / Data grids**: Use `@artk/core/grid` helpers instead of raw selectors. Handle virtualization with `scrollToRow()`. For enterprise features (grouping, tree data, master-detail), use the specialized enterprise helpers.
 - **Large datasets in grids**: Use ARIA-based row targeting (`ariaRowIndex`) for virtualized grids that only render visible rows.
+- **Batch execution**: When implementing multiple journeys, ALWAYS process serially to accumulate LLKB wisdom.
+
+---
+
+# LLKB Library Reference (@artk/core/llkb)
+
+**Use the `@artk/core/llkb` library for all LLKB operations:**
+
+```typescript
+import {
+  // File operations (atomic writes, locking)
+  loadJSON, saveJSONAtomic, updateJSONWithLock,
+  // Similarity detection
+  calculateSimilarity, jaccardSimilarity, findSimilarPatterns, isNearDuplicate,
+  // Category inference
+  inferCategory, inferCategoryWithConfidence, isComponentCategory,
+  // Rate limiting
+  isDailyRateLimitReached, isJourneyRateLimitReached,
+  // History logging
+  appendToHistory, countTodayEvents, countPredictiveExtractionsToday,
+  // Types
+  type LLKBConfig, type Lesson, type Component, type HistoryEvent,
+} from '@artk/core/llkb';
+```
+
+**Key functions for journey-implement:**
+
+| Function | Usage |
+|----------|-------|
+| `calculateSimilarity(code1, code2)` | Compare code patterns (returns 0-1) |
+| `findSimilarPatterns(code, patterns)` | Find matching components for a step |
+| `inferCategory(code)` | Categorize code (navigation, auth, data, etc.) |
+| `isDailyRateLimitReached(config, llkbRoot)` | Check if extraction limit hit |
+| `appendToHistory(event, llkbRoot)` | Log component_used, lesson_applied events |
+| `updateJSONWithLock(path, updater)` | Safe concurrent updates to components.json |
 
 ---
 
 # Completion checklist (print at end)
+- [ ] **LLKB context loaded** before any code generation
+- [ ] **AutoGen attempted** as primary approach
 - [ ] Test file(s) created/updated with `@JRN-####` and tier tag
 - [ ] `@auth` / `@rbac` tags present when access control is asserted
 - [ ] Tests use harness fixtures and foundation modules
@@ -1479,10 +1705,12 @@ Ask only when necessary:
 - [ ] Web-first assertions used; no timing sleeps
 - [ ] Feature modules created only if needed and kept small
 - [ ] module registry updated (if enabled)
+- [ ] **LLKB usage recorded** (components used/created, lessons applied)
 - [ ] `/artk.journey-validate` passed
 - [ ] `/artk.journey-verify` passed (including stability gate)
 - [ ] Journey updated: tests[] linked, status implemented only when valid+verified
 - [ ] backlog/index regenerated
+- [ ] **Batch complete** (if multiple journeys): all journeys processed serially
 
 ---
 

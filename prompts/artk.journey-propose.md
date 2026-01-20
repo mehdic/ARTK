@@ -426,15 +426,50 @@ For each candidate, compute feasibility: **high/medium/low** from TESTABILITY.md
 
 If feasibility is low and `includeBlocked=false`, exclude. Otherwise include but mark “blocked” with remediation.
 
-## Step 8 — Module impact analysis (dependency hints)
-For each candidate, infer dependencies:
+## Step 8 — Module impact analysis (dependency hints for AutoGen)
+
+**Module dependencies are CRITICAL for AutoGen CLI compatibility.**
+
+For each candidate, infer dependencies and structure them for autogen:
 
 ### Foundation modules (reusable)
-- `auth`, `navigation`, `selectors`, `data`, `api`, `assertions`, `files`, `notifications` (choose what applies)
+
+**FOUNDATION_MODULES (canonical list - keep in sync with journey-clarify):**
+```
+FOUNDATION_MODULES = [
+  "auth",           # Authentication/login flows
+  "navigation",     # Page navigation, sidebar, menus
+  "selectors",      # Shared locator utilities
+  "locators",       # Alias for selectors
+  "data",           # Test data builders/fixtures
+  "api",            # API request helpers
+  "assertions",     # Shared assertion utilities
+  "files",          # File upload/download helpers
+  "notifications",  # Toast/alert handling
+  "config",         # Configuration loading
+  "fixtures"        # Test fixtures
+]
+```
+
+Populate `modules.foundation[]` with applicable modules from this list.
 
 ### Feature modules (domain-specific)
-Infer from feature grouping and routes:
+Populate `modules.features[]` with domain modules:
+- Infer from feature grouping and routes
 - e.g. `users`, `billing`, `approvals`, `inventory`, `reports`, `admin`
+
+**Output format (AUTOGEN-COMPATIBLE):**
+```yaml
+modules:
+  foundation: [auth, navigation]    # Array of foundation modules
+  features: [orders, catalog]       # Array of feature modules
+```
+
+**DO NOT use flat array format:**
+```yaml
+# ❌ WRONG - breaks AutoGen
+modules: [auth, navigation, orders]
+```
 
 Estimate complexity:
 - low / medium / high based on step count, async, data coupling.
@@ -604,8 +639,36 @@ Total: 45/50 journeys proposed
 **For each selected Journey:**
 - Create file in `journeys/proposed/`:
   - `<ID>__<slug>.md` (kebab-case slug, max 60 chars)
-- Frontmatter:
-  - status: proposed, tier, actor, scope, tags, modules, links, tests: []
+- Frontmatter (AUTOGEN-COMPATIBLE FORMAT):
+  ```yaml
+  ---
+  id: JRN-####
+  title: "<title>"
+  status: proposed
+  tier: smoke | release | regression
+  actor: <role>
+  scope: <feature-area>
+  tags: ["@JRN-####", "@<tier>", "@scope-<scope>"]
+  modules:
+    foundation: [auth, navigation]      # REQUIRED: object format, NOT array
+    features: [<feature-modules>]       # REQUIRED: object format, NOT array
+  links:
+    requirements: []
+    tickets: []
+  tests: []
+  autogen:
+    enabled: true                       # Enables AutoGen CLI for this journey
+    blockedSteps: []                    # Steps that need manual implementation (filled by clarify)
+    machineHints: false                 # Set to true by journey-clarify after adding hints
+  ---
+  ```
+
+  **⚠️ CRITICAL: `modules` MUST be an object with `foundation` and `features` arrays.**
+  - ✅ CORRECT: `modules: { foundation: [auth], features: [orders] }`
+  - ❌ WRONG: `modules: [auth, orders]`
+
+  This format is required for AutoGen CLI compatibility in `/artk.journey-implement`.
+
 - Body must include:
   - Intent
   - Acceptance Criteria (Declarative)

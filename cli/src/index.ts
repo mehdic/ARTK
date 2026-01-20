@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     case 'doctor': {
       const options = parseDoctorArgs(commandArgs);
       const result = await doctor(options);
-      printDoctorResults(result);
+      printDoctorResults(result, options.verbose);
       process.exit(result.healthy ? 0 : 1);
       break;
     }

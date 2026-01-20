@@ -8,7 +8,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { VariantId, ArtkContext } from '../utils/variant-types.js';
 import {
-  detectEnvironment,
   detectEnvironmentChange,
   hasExistingInstallation,
   getNodeMajorVersion,
@@ -53,7 +52,7 @@ export interface DoctorResult {
  * Execute the doctor command.
  */
 export async function doctor(options: DoctorOptions): Promise<DoctorResult> {
-  const { targetPath, verbose } = options;
+  const { targetPath } = options;
   const checks: DiagnosticCheck[] = [];
   const recommendations: string[] = [];
 
@@ -263,8 +262,6 @@ export async function doctor(options: DoctorOptions): Promise<DoctorResult> {
 
   // Determine overall health
   const hasFails = checks.some((c) => c.status === 'fail');
-  const hasWarns = checks.some((c) => c.status === 'warn');
-
   return {
     healthy: !hasFails,
     checks,
@@ -277,7 +274,7 @@ export async function doctor(options: DoctorOptions): Promise<DoctorResult> {
 /**
  * Print doctor results.
  */
-export function printDoctorResults(result: DoctorResult): void {
+export function printDoctorResults(result: DoctorResult, verbose = false): void {
   console.log('\nARTK Doctor Report\n');
   console.log('='.repeat(50));
 
@@ -289,7 +286,7 @@ export function printDoctorResults(result: DoctorResult): void {
 
     console.log(`\x1b[${color}m${icon}\x1b[0m ${check.name}: ${check.message}`);
 
-    if (check.details) {
+    if (verbose && check.details) {
       console.log(`  ${check.details}`);
     }
   }

@@ -9,7 +9,6 @@ import * as path from 'path';
 import type { VariantId, ArtkContext, UpgradeRecord } from '../utils/variant-types.js';
 import {
   detectEnvironment,
-  detectEnvironmentChange,
   hasExistingInstallation,
   getNodeMajorVersion,
 } from '../utils/variant-detector.js';
@@ -20,7 +19,7 @@ import {
 import { ArtkContextSchema } from '../utils/variant-schemas.js';
 import { createInstallLogger } from '../utils/install-logger.js';
 import { createLockManager } from '../utils/lock-manager.js';
-import { createBackup, restoreFromBackup, rollback } from '../utils/rollback.js';
+import { createBackup, restoreFromBackup } from '../utils/rollback.js';
 import {
   getArtkVersion,
   validateVariantBuildFiles,
@@ -59,7 +58,7 @@ export interface UpgradeResult {
  * Execute the upgrade command.
  */
 export async function upgrade(options: UpgradeOptions): Promise<UpgradeResult> {
-  const { targetPath, force, skipNpm } = options;
+  const { targetPath, force } = options;
   const warnings: string[] = [];
 
   // Check target exists

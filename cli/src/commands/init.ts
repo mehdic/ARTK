@@ -9,7 +9,6 @@ import * as path from 'path';
 import type {
   VariantId,
   ArtkContext,
-  InstallOptions,
 } from '../utils/variant-types.js';
 import {
   selectVariant,
@@ -19,7 +18,6 @@ import {
 } from '../utils/variant-detector.js';
 import {
   getVariantDefinition,
-  VARIANT_DEFINITIONS,
   getVariantHelpText,
   MIN_NODE_VERSION,
 } from '../utils/variant-definitions.js';
@@ -65,7 +63,7 @@ export interface InitResult {
  * Execute the init command.
  */
 export async function init(options: InitOptions): Promise<InitResult> {
-  const { targetPath, variant, force, skipNpm, skipBrowsers } = options;
+  const { targetPath, variant, force } = options;
   const warnings: string[] = [];
 
   // Validate target path
