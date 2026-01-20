@@ -51,7 +51,7 @@
   },
   "artkVariant": {
     "id": "legacy-14",
-    "nodeRange": ["14", "15", "16", "17", "18"],
+    "nodeRange": ["14", "16", "18"],
     "playwrightVersion": "1.33.x",
     "moduleSystem": "cjs",
     "tsTarget": "ES2020"

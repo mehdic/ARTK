@@ -227,27 +227,27 @@ export function copyVariantFiles(
     const autogenDistDir = getAutogenDistDirectory(variant);
     let autogenDist = path.join(autogenPath, autogenDistDir);
 
-    // Fallback to default dist if variant-specific doesn't exist
+    // Require variant-specific autogen dist to exist (FR-003: matching configurations)
+    // Do NOT fallback to default dist - this would create a variant mismatch
     if (!fs.existsSync(autogenDist)) {
-      autogenDist = path.join(autogenPath, 'dist');
+      return {
+        success: false,
+        error:
+          `Autogen package not found for variant '${variant}'. ` +
+          `Expected at: ${autogenDist}. ` +
+          `Both @artk/core and @artk/core-autogen must use the same variant. ` +
+          `Please build all variants with: npm run build:variants`,
+        copiedFiles,
+      };
     }
 
-    if (fs.existsSync(autogenDist)) {
-      copyDirectoryRecursive(autogenDist, path.join(vendorAutogenPath, 'dist'));
-      copiedFiles += countFiles(autogenDist);
+    copyDirectoryRecursive(autogenDist, path.join(vendorAutogenPath, 'dist'));
+    copiedFiles += countFiles(autogenDist);
 
-      const autogenPackageJson = path.join(autogenPath, 'package.json');
-      if (fs.existsSync(autogenPackageJson)) {
-        fs.copyFileSync(autogenPackageJson, path.join(vendorAutogenPath, 'package.json'));
-        copiedFiles++;
-      }
-    } else {
-      // Warn when autogen is not found
-      warnings.push(
-        `Autogen package not found for variant '${variant}'. ` +
-          `Expected at: ${autogenDist}. ` +
-          `Some code generation features may not be available.`
-      );
+    const autogenPackageJson = path.join(autogenPath, 'package.json');
+    if (fs.existsSync(autogenPackageJson)) {
+      fs.copyFileSync(autogenPackageJson, path.join(vendorAutogenPath, 'package.json'));
+      copiedFiles++;
     }
 
     return {
