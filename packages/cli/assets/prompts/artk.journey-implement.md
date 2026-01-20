@@ -540,7 +540,57 @@ FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) ->
 # ║  Manual implementation (Step 5) is a FALLBACK only.                       ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
-### 3.1 Validate Journey Frontmatter for AutoGen
+### 3.1 Check AutoGen Settings from Frontmatter
+
+**Read the `autogen` section from journey frontmatter:**
+
+```yaml
+# Expected autogen section in journey frontmatter:
+autogen:
+  enabled: true           # true = use AutoGen, false = skip to manual
+  blockedSteps: []        # Steps requiring manual implementation
+  machineHints: true      # true = hints added by journey-clarify
+```
+
+**Decision tree based on autogen settings:**
+
+```
+IF journey.autogen is missing OR journey.autogen.enabled is undefined:
+  # Default to AutoGen enabled (backward compatibility)
+  PROCEED with AutoGen
+
+IF journey.autogen.enabled === false:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  AUTOGEN DISABLED FOR THIS JOURNEY                                  ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║                                                                     ║
+  ║  Journey <ID> has autogen.enabled: false                            ║
+  ║                                                                     ║
+  ║  Skipping AutoGen CLI. Using manual implementation.                 ║
+  ║                                                                     ║
+  ║  Reason: {journey.autogen.disabledReason OR "User preference"}      ║
+  ║                                                                     ║
+  ╚════════════════════════════════════════════════════════════════════╝
+
+  SKIP to Step 5 (Manual Implementation)
+  DO NOT run AutoGen CLI
+
+IF journey.autogen.enabled === true:
+  # Check for blocked steps
+  IF journey.autogen.blockedSteps.length > 0:
+    OUTPUT: "AutoGen will skip steps: {blockedSteps.map(s => s.step).join(', ')}"
+    OUTPUT: "These steps will need manual implementation after AutoGen"
+
+  # Check for machine hints
+  IF journey.autogen.machineHints === false:
+    OUTPUT: "⚠️  Warning: machineHints is false - AutoGen may have lower accuracy"
+    OUTPUT: "Consider running /artk.journey-clarify first to add hints"
+
+  PROCEED with AutoGen (Step 3.2)
+```
+
+### 3.2 Validate Modules Format for AutoGen
 
 **AutoGen requires `modules` to be an object with `foundation` and `features` arrays:**
 ```yaml
@@ -563,7 +613,7 @@ IF journey.modules is Array:
   OUTPUT: "Fixed journey modules format for AutoGen compatibility"
 ```
 
-### 3.2 Run AutoGen CLI
+### 3.3 Run AutoGen CLI
 
 From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
@@ -609,7 +659,7 @@ Summary:
   Warnings: 0
 ```
 
-### 3.2.1 Programmatic API (for CI/CD Pipelines)
+### 3.3.1 Programmatic API (for CI/CD Pipelines)
 
 For advanced automation (CI pipelines, custom tooling):
 
@@ -630,7 +680,7 @@ const result = await generateJourneyTests({
 // - warnings: string[]
 ```
 
-### 3.3 Output AutoGen Results (MANDATORY)
+### 3.4 Output AutoGen Results (MANDATORY)
 
 **You MUST output the AutoGen execution results:**
 
@@ -656,7 +706,7 @@ const result = await generateJourneyTests({
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-### 3.4 Handle AutoGen Results
+### 3.5 Handle AutoGen Results
 
 **If AutoGen succeeds (no errors, no blocked steps):**
 1. Review generated test code for correctness
