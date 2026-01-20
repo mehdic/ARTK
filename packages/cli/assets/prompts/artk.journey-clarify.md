@@ -70,6 +70,10 @@ Optional flags:
 - `strictGates`: `true|false` (default: true)
   - if true, do not set status=clarified if blockers exist (selectors/data/env).
 - `promote=true` to move file to `journeys/clarified/` when status becomes clarified (default: true for staged layout, false for flat).
+- `force`: `true|false` (default: false)
+  - if true, allow re-clarification of already-clarified journeys
+  - resets `autogen.machineHints` to false and re-runs verification
+  - preserves existing clarification content but allows updates
 
 ---
 
@@ -125,8 +129,14 @@ A Journey may be set to `clarified` only if all are true:
 - Async risks are acknowledged with a wait/verification approach.
 - Compliance constraints are documented (artifact retention, PII rules).
 
+**AutoGen readiness criteria (RECOMMENDED):**
+- `modules` is in object format: `{ foundation: [], features: [] }`
+- Machine hints added to key steps (locator hints for AutoGen)
+- `autogen.enabled: true` in frontmatter
+- `autogen.blockedSteps` lists any steps requiring manual implementation
+
 Additionally, if `strictGates=true`, these MUST NOT be blocked:
-- Locator readiness for the Journey’s key screens/actions
+- Locator readiness for the Journey's key screens/actions
 - Data feasibility for setup/cleanup
 - Environment access feasibility
 
@@ -151,6 +161,170 @@ If missing: instruct user to run `/artk.init-playbook` first.
 Validate frontmatter:
 - must include id/title/status/tier/actor/scope
 If required fields missing, fix minimally and ask user to confirm (do not guess silently).
+
+### Status Gate (MANDATORY)
+
+The Journey MUST have `status: defined` to proceed with clarification.
+
+**If status is NOT `defined`, STOP and display the appropriate message:**
+
+- **`proposed`**:
+  ```
+  ⛔ CANNOT CLARIFY: Journey <ID> has status 'proposed'
+
+  Journeys must be 'defined' before clarification.
+
+  Run: /artk.journey-define id=<ID> to define this journey first.
+  ```
+
+- **`clarified`** (without force flag):
+  ```
+  ⚠️  ALREADY CLARIFIED: Journey <ID> has status 'clarified'
+
+  This journey was already clarified. Options:
+  1. Run /artk.journey-implement id=<ID> to implement tests
+  2. Run /artk.journey-clarify id=<ID> force=true to re-clarify
+  ```
+
+- **`clarified`** (with force=true):
+  ```
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  RE-CLARIFICATION MODE                                             ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║                                                                    ║
+  ║  Journey <ID> is being re-clarified (force=true).                  ║
+  ║                                                                    ║
+  ║  Actions:                                                          ║
+  ║  - Reset autogen.machineHints to false                             ║
+  ║  - Re-run machine hints verification                               ║
+  ║  - Preserve existing clarification content                         ║
+  ║  - Update as needed based on new inputs                            ║
+  ║                                                                    ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  ```
+  **Proceed with re-clarification. Always run Machine Hints Verification.**
+
+- **`implemented`**:
+  ```
+  ⚠️  ALREADY IMPLEMENTED: Journey <ID> has status 'implemented'
+
+  This journey has tests. Use /artk.journey-maintain for updates.
+  ```
+
+- **`quarantined` or `deprecated`**:
+  ```
+  ⛔ CANNOT CLARIFY: Journey <ID> has status '<status>'
+
+  Quarantined/deprecated journeys cannot be clarified.
+  Check statusReason in the journey file for details.
+  ```
+
+**Only proceed to Step 2 if `status: defined`.**
+
+## Step 1.5 — Migration for Legacy Journeys (if needed)
+
+**Check for legacy format and migrate if necessary.**
+
+### When encountering a journey without `autogen` section:
+
+If the journey has no `autogen` field in frontmatter:
+
+1. Add the autogen section:
+   ```yaml
+   autogen:
+     enabled: true
+     blockedSteps: []
+     machineHints: false
+   ```
+
+2. Output migration notice:
+   ```
+   ╔════════════════════════════════════════════════════════════════════╗
+   ║  LEGACY JOURNEY MIGRATION                                           ║
+   ╠════════════════════════════════════════════════════════════════════╣
+   ║                                                                     ║
+   ║  Journey <ID> was created before AutoGen support.                   ║
+   ║  Added autogen section with default values.                         ║
+   ║                                                                     ║
+   ║  autogen:                                                           ║
+   ║    enabled: true                                                    ║
+   ║    blockedSteps: []                                                 ║
+   ║    machineHints: false                                              ║
+   ║                                                                     ║
+   ║  Machine hints will be set to true after this clarification.        ║
+   ║                                                                     ║
+   ╚════════════════════════════════════════════════════════════════════╝
+   ```
+
+### When encountering `modules` as array (legacy format):
+
+If modules is a flat array instead of object:
+
+1. Convert using the Module Classification Algorithm (Step 6)
+2. Output conversion notice (see Step 6)
+3. Do NOT change module names, only restructure
+
+**Example migration:**
+```yaml
+# BEFORE (legacy):
+modules: [auth, navigation, orders, catalog]
+
+# AFTER (AutoGen-compatible):
+modules:
+  foundation: [auth, navigation]
+  features: [orders, catalog]
+```
+
+### When encountering invalid `blockedSteps` format:
+
+If blockedSteps is an array of numbers only (legacy format):
+
+```yaml
+# BEFORE (legacy):
+autogen:
+  blockedSteps: [3, 5, 7]
+
+# AFTER (step+reason format):
+autogen:
+  blockedSteps:
+    - step: 3
+      reason: "Requires manual review - migrated from legacy format"
+    - step: 5
+      reason: "Requires manual review - migrated from legacy format"
+    - step: 7
+      reason: "Requires manual review - migrated from legacy format"
+```
+
+Output migration notice:
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  BLOCKEDSTEPS FORMAT MIGRATED                                       ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  blockedSteps was in legacy format (numbers only).                  ║
+║  Converted to step+reason format.                                   ║
+║                                                                     ║
+║  Please update reasons for each blocked step:                       ║
+║  - Step 3: "Requires manual review - migrated from legacy format"   ║
+║  - Step 5: "Requires manual review - migrated from legacy format"   ║
+║  - Step 7: "Requires manual review - migrated from legacy format"   ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Other invalid formats to fix:**
+- `blockedSteps: null` → `blockedSteps: []`
+- `blockedSteps: "3, 5"` (string) → parse and convert to array
+- `autogen: {}` (empty) → add all required fields
+
+### Migration for bulk journeys:
+
+For teams with many legacy journeys, recommend:
+1. Run `/artk.journey-clarify` on each journey individually
+2. Or create a batch migration script using the classification algorithm
+3. Review converted modules before implementing
+
+**Note:** Migration is automatic during clarification - no separate command needed.
 
 ## Step 2 — Pull discovery + testability context (auto)
 If `useDiscovery=true` OR (`auto` and discovery files exist):
@@ -406,12 +580,33 @@ If blockers exist and `strictGates=true`:
 
 ## Step 5 — Ask the smallest smart questionnaire
 
-**IMPORTANT: When asking questions, follow the User Question Standards in `.github/prompts/common/GENERAL_RULES.md`:**
-- Ask ONE question at a time
-- Use numbered options (NOT checkboxes)
-- Show progress (Question X of Y)
-- Provide recommended defaults
-- Wait for user response before asking the next question
+### CRITICAL: One Question At A Time (NON-NEGOTIABLE)
+
+**This rule MUST be followed regardless of context length or conversation state.**
+
+1. **Ask EXACTLY ONE question per message**
+2. **WAIT for user response before asking the next question**
+3. **Show progress**: "Question X of Y"
+4. **Use numbered options (1, 2, 3...)**, NOT checkboxes
+5. **Provide a recommended default** where applicable
+
+**Example format (MUST follow):**
+```
+**Question 1 of 5: Actor Role**
+
+What role/persona will execute this journey?
+
+1. Admin user (recommended - has all permissions)
+2. Standard user
+3. Guest/anonymous
+4. Multiple roles required
+
+Reply with a number (1-4):
+```
+
+**VIOLATION CHECK**: If you find yourself typing "Question 2" or listing multiple questions in the same message, STOP. You are violating this rule.
+
+**Why this matters**: Dumping all questions at once overwhelms users and prevents clarifying follow-up on each answer.
 
 ### Adaptive question set (do not be annoying)
 If discovery already provides an answer, ask for confirmation only if high impact.
@@ -449,14 +644,24 @@ G) Module dependencies
 
 Question budget by mode:
 - minimal: only A+B+C+F
-- medium: A..G (but only ask what’s missing)
+- medium: A..G (but only ask what's missing)
 - max: A..G + variants/edges/flags/observability
+
+### Question Delivery Checkpoint
+
+**Before asking any question, verify:**
+- [ ] You are asking ONLY ONE question
+- [ ] You are showing "Question X of Y" progress
+- [ ] You are using numbered options (not checkboxes)
+- [ ] You will WAIT for user response before continuing
+
+**If context was compacted**: Re-read this section. The one-question-at-a-time rule is NON-NEGOTIABLE.
 
 ## Step 6 — Update Journey file safely (managed markers)
 ### Rules
 - Preserve human-written narrative.
 - Write clarification details inside managed markers.
-- If the Journey lacks markers, append a managed “Clarification Annex” section rather than restructuring.
+- If the Journey lacks markers, append a managed "Clarification Annex" section rather than restructuring.
 
 ### Required managed blocks to add/update
 1) `<!-- ARTK:BEGIN clarification --> ... <!-- ARTK:END clarification -->`
@@ -469,18 +674,434 @@ Must include:
 - Async notes + wait strategy guidance
 - Compliance constraints (artifact/PII policy)
 - Blockers (if any) + remediation
+- **LLKB Context** (from Step 2.5 - known quirks, available components, relevant lessons)
 
 2) `<!-- ARTK:BEGIN deterministic-steps --> ... <!-- ARTK:END deterministic-steps -->`
 Rewrite steps to remove ambiguity:
 - include concrete navigation cues (menu names, page titles)
 - include stable verification points after major transitions
+- **ADD MACHINE HINTS FOR AUTOGEN** (see below)
 
 3) `<!-- ARTK:BEGIN acceptance-criteria --> ... <!-- ARTK:END acceptance-criteria -->`
 Ensure Given/When/Then style where possible.
 
+### AutoGen Opt-Out Handling
+
+**Before adding machine hints, check if AutoGen is disabled:**
+
+```
+IF autogen.enabled === false:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  AUTOGEN DISABLED BY USER                                          ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║                                                                    ║
+  ║  This journey has autogen.enabled: false                           ║
+  ║                                                                    ║
+  ║  Skipping machine hints step (not needed for manual implementation)║
+  ║                                                                    ║
+  ║  Actions taken:                                                    ║
+  ║  - Modules format validated/converted (for consistency)            ║
+  ║  - Machine hints step SKIPPED                                      ║
+  ║  - autogen.machineHints remains false                              ║
+  ║                                                                    ║
+  ║  To enable AutoGen, set autogen.enabled: true and re-run clarify.  ║
+  ║                                                                    ║
+  ╚════════════════════════════════════════════════════════════════════╝
+
+  SKIP Machine Hints section entirely
+  SKIP Machine Hints Verification box
+  SKIP All-Blocked Threshold evaluation
+  CONTINUE with other clarification steps (questions, data strategy, etc.)
+```
+
+**Note:** Even with autogen disabled, modules format is still converted to object format for schema consistency.
+
+### Machine Hints for AutoGen (CRITICAL)
+
+**If autogen.enabled: true (default), proceed with machine hints.**
+
+**AutoGen CLI uses inline locator hints to generate stable selectors automatically.**
+
+Add machine hints to steps using backtick notation:
+```markdown
+## Steps
+
+1. Navigate to the login page
+2. Enter username in the email field `(role=textbox, name=Email)`
+3. Enter password in the password field `(role=textbox, name=Password)`
+4. Click the login button `(role=button, name=Sign In)`
+5. Verify the dashboard loads `(testid=dashboard-container)`
+6. Click the orders menu item `(role=link, name=Orders)`
+7. Verify the orders grid is visible `(testid=orders-grid)`
+8. Click the first order row `(role=row, name=/ORD-/)`
+```
+
+**Machine hint format:**
+- `(role=<role>, name=<name>)` - Playwright getByRole locator
+- `(testid=<id>)` - Playwright getByTestId locator
+- `(label=<text>)` - Playwright getByLabel locator
+- `(placeholder=<text>)` - Playwright getByPlaceholder locator
+- `(text=<text>)` - Playwright getByText locator
+- `(css=<selector>)` - CSS selector (use sparingly, last resort)
+
+**Regex patterns in name:**
+- `(role=button, name=/submit/i)` - Case-insensitive match
+- `(role=row, name=/^ORD-\d+/)` - Starts with pattern
+
+### Machine Hint Validation Rules
+
+**Before accepting a machine hint, validate its syntax:**
+
+1. **role= must be a valid ARIA role:**
+   ```
+   VALID_ROLES = [
+     "button", "link", "textbox", "checkbox", "radio", "combobox", "listbox",
+     "menu", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "tabpanel",
+     "dialog", "alertdialog", "alert", "grid", "gridcell", "row", "rowheader",
+     "columnheader", "cell", "heading", "img", "list", "listitem", "navigation",
+     "main", "form", "search", "banner", "contentinfo", "complementary", "region",
+     "article", "figure", "separator", "slider", "spinbutton", "switch", "table",
+     "tree", "treeitem", "progressbar", "status", "tooltip", "log", "marquee",
+     "timer", "option", "group"
+   ]
+   ```
+
+2. **testid= must not contain spaces:**
+   - ✅ `(testid=orders-grid)` - valid
+   - ✅ `(testid=order_grid_123)` - valid
+   - ❌ `(testid=orders grid)` - INVALID (has space)
+
+3. **Multiple attributes require comma separation:**
+   - ✅ `(role=button, name=Submit)` - valid
+   - ❌ `(role=button name=Submit)` - INVALID (missing comma)
+
+4. **No empty values:**
+   - ❌ `(role=button, name=)` - INVALID (empty name)
+   - ❌ `(testid=)` - INVALID (empty testid)
+
+5. **Regex must be valid JavaScript regex:**
+   - ✅ `(role=row, name=/^ORD-\d+/)` - valid
+   - ✅ `(role=button, name=/submit/i)` - valid (with flags)
+   - ❌ `(role=row, name=/[invalid/)` - INVALID (unclosed bracket)
+
+**If invalid hint detected:**
+```
+⚠️  INVALID HINT DETECTED
+
+Step 5: Click the button `(role=btn, name=Submit)`
+
+Error: "btn" is not a valid ARIA role
+Valid roles include: button, link, textbox, checkbox, etc.
+
+Fix: `(role=button, name=Submit)`
+```
+
+**Steps without hints:**
+- AutoGen will attempt to infer locators from step description
+- If inference fails, step is marked as `blockedSteps` for manual implementation
+- Add hints proactively to reduce blocked steps
+
+### Machine Hints Verification (MANDATORY OUTPUT)
+
+**After adding machine hints, you MUST output this verification box:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  MACHINE HINTS VERIFICATION                                         ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  Total steps: {total}                                               ║
+║  Steps with hints: {withHints}                                      ║
+║  Steps needing hints: {needingHints}                                ║
+║                                                                     ║
+║  Steps requiring attention:                                         ║
+║  {list of step numbers and descriptions without hints}              ║
+║                                                                     ║
+║  Resolution for steps without hints:                                ║
+║  □ Added hint (step becomes auto-implementable)                     ║
+║  □ Added to blockedSteps (step requires manual implementation)      ║
+║                                                                     ║
+║  AutoGen Ready: {YES if all steps have hints or are blocked, NO}    ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Example:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  MACHINE HINTS VERIFICATION                                         ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  Total steps: 8                                                     ║
+║  Steps with hints: 6                                                ║
+║  Steps needing hints: 2                                             ║
+║                                                                     ║
+║  Steps requiring attention:                                         ║
+║  - Step 1: "Navigate to the login page" (no interaction, OK)        ║
+║  - Step 5: "Wait for processing" (async, added to blockedSteps)     ║
+║                                                                     ║
+║  Resolution for steps without hints:                                ║
+║  ☑ Step 1: No hint needed (navigation, no element interaction)      ║
+║  ☑ Step 5: Added to blockedSteps (complex async flow)               ║
+║                                                                     ║
+║  AutoGen Ready: YES                                                 ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**RULE: If a step has no hint AND is not in blockedSteps, you MUST either:**
+1. Add a machine hint to the step, OR
+2. Add the step number to `autogen.blockedSteps` with a reason
+
+**Do NOT set `autogen.machineHints: true` until this verification is complete.**
+
+### All-Blocked Threshold Rule (MANDATORY)
+
+**If most steps are blocked, disable AutoGen automatically.**
+
+```
+BLOCKED_THRESHOLD = 0.80  # 80%
+
+FUNCTION evaluateBlockedThreshold(totalSteps, blockedSteps):
+  blockedCount = blockedSteps.length
+  blockedRatio = blockedCount / totalSteps
+
+  IF blockedRatio > BLOCKED_THRESHOLD:
+    # Most steps need manual implementation - AutoGen adds no value
+    RETURN { disableAutogen: true, reason: ">" + (BLOCKED_THRESHOLD * 100) + "% steps blocked" }
+  ELSE:
+    RETURN { disableAutogen: false }
+```
+
+**When >80% of steps are blocked:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  ⚠️  AUTOGEN DISABLED - Too Many Blocked Steps                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  Total steps: {total}                                               ║
+║  Blocked steps: {blocked} ({percentage}%)                           ║
+║                                                                     ║
+║  Threshold: 80%                                                     ║
+║                                                                     ║
+║  Since most steps require manual implementation, AutoGen has been   ║
+║  automatically disabled for this journey.                           ║
+║                                                                     ║
+║  Setting: autogen.enabled: false                                    ║
+║                                                                     ║
+║  To override, manually set autogen.enabled: true in frontmatter.    ║
+║  AutoGen will generate partial code for non-blocked steps only.     ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Update autogen section when threshold exceeded:**
+```yaml
+autogen:
+  enabled: false           # Disabled - 85% of steps blocked
+  blockedSteps:            # [list of blocked steps]
+    - step: 1
+      reason: "..."
+    # ... (many blocked steps)
+  machineHints: true       # Hints were added, but most steps still blocked
+  disabledReason: "85% of steps (17/20) require manual implementation"
+```
+
+**User can override:**
+- If user explicitly sets `autogen.enabled: true` despite threshold, respect it
+- Output warning: "AutoGen enabled by user override. Partial generation will occur."
+
 ### Update frontmatter
+
+**Validate and fix modules format for AutoGen:**
+
+**Module Classification Algorithm (MANDATORY):**
+```
+FOUNDATION_MODULES = [
+  "auth",           # Authentication/login flows
+  "navigation",     # Page navigation, sidebar, menus
+  "selectors",      # Shared locator utilities
+  "locators",       # Alias for selectors
+  "data",           # Test data builders/fixtures
+  "api",            # API request helpers
+  "assertions",     # Shared assertion utilities
+  "files",          # File upload/download helpers
+  "notifications",  # Toast/alert handling
+  "config",         # Configuration loading
+  "fixtures"        # Test fixtures
+]
+
+FUNCTION classifyModule(moduleName: string) -> "foundation" | "feature":
+  normalizedName = moduleName.toLowerCase().trim()
+  IF normalizedName in FOUNDATION_MODULES:
+    RETURN "foundation"
+  ELSE:
+    RETURN "feature"
+
+FUNCTION convertModulesToObject(modules: string[]) -> { foundation: [], features: [] }:
+  result = { foundation: [], features: [] }
+  FOR each module in modules:
+    category = classifyModule(module)
+    IF category == "foundation":
+      result.foundation.push(module)
+    ELSE:
+      result.features.push(module)
+  RETURN result
+```
+
+**When modules is an array, convert to object:**
+```yaml
+# FROM: modules: [auth, navigation, orders, catalog]
+# TO (using classification algorithm):
+modules:
+  foundation: [auth, navigation]   # Matched FOUNDATION_MODULES
+  features: [orders, catalog]      # Everything else
+```
+
+### Empty Modules Validation (MANDATORY)
+
+**After conversion or when validating existing modules:**
+
+**Validate foundation modules:**
+```
+IF modules.foundation is empty OR modules.foundation.length === 0:
+  OUTPUT WARNING:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ⚠️  WARNING: No Foundation Modules                                 ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║                                                                     ║
+  ║  This journey has no foundation modules defined.                    ║
+  ║                                                                     ║
+  ║  Most journeys need at least:                                       ║
+  ║  - `auth` - if the journey requires login                           ║
+  ║  - `navigation` - if the journey navigates between pages            ║
+  ║                                                                     ║
+  ║  Current modules:                                                   ║
+  ║    foundation: []                                                   ║
+  ║    features: [<features>]                                           ║
+  ║                                                                     ║
+  ║  Suggested action: Add `auth` and/or `navigation` to foundation.    ║
+  ║                                                                     ║
+  ╚════════════════════════════════════════════════════════════════════╝
+
+  ASK USER: "Should I add `auth` and `navigation` to foundation modules?"
+```
+
+**Validate features modules:**
+```
+IF modules.features is empty OR modules.features.length === 0:
+  # This is ACCEPTABLE - journey may use only foundation modules
+  # No warning needed, but note in output
+  NOTE: "Journey uses only foundation modules (no feature modules)"
+```
+
+**Both empty is suspicious:**
+```
+IF modules.foundation.length === 0 AND modules.features.length === 0:
+  OUTPUT ERROR:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ❌ ERROR: No Modules Defined                                       ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║                                                                     ║
+  ║  Journey <ID> has no modules defined at all.                        ║
+  ║                                                                     ║
+  ║  modules:                                                           ║
+  ║    foundation: []                                                   ║
+  ║    features: []                                                     ║
+  ║                                                                     ║
+  ║  This is likely an error. Every journey needs at least one module.  ║
+  ║                                                                     ║
+  ║  Please add appropriate modules before continuing.                  ║
+  ║                                                                     ║
+  ╚════════════════════════════════════════════════════════════════════╝
+
+  STOP and ask user to add modules.
+```
+
+**Output conversion notice (MANDATORY):**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  MODULES FORMAT CONVERTED                                           ║
+╠════════════════════════════════════════════════════════════════════╣
+║  FROM: modules: [auth, navigation, orders, catalog]                 ║
+║  TO:   modules:                                                     ║
+║          foundation: [auth, navigation]                             ║
+║          features: [orders, catalog]                                ║
+║                                                                     ║
+║  Classification based on canonical FOUNDATION_MODULES list.         ║
+║  Review and adjust if incorrect.                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**Update autogen section:**
+```yaml
+autogen:
+  enabled: true
+  blockedSteps: []    # List step numbers that need manual implementation
+  machineHints: true  # Indicates machine hints have been added
+```
+
+### blockedSteps Format Specification (MANDATORY)
+
+**`blockedSteps` MUST use the step+reason format:**
+
+```yaml
+autogen:
+  enabled: true
+  blockedSteps:
+    - step: 3
+      reason: "Complex async polling - requires custom wait logic"
+    - step: 7
+      reason: "Multi-actor flow - needs manual setup"
+    - step: 12
+      reason: "File download verification - browser-specific handling"
+  machineHints: true
+```
+
+**Format rules:**
+- Each entry MUST have `step` (number) and `reason` (string)
+- `step` is the 1-based step number from the procedural steps
+- `reason` should explain WHY the step cannot be auto-generated
+- Empty blockedSteps is valid: `blockedSteps: []`
+
+**Valid reasons include:**
+- "Complex async polling/waiting"
+- "Multi-actor coordination"
+- "File operations (upload/download)"
+- "iFrame interaction"
+- "External service integration"
+- "Complex conditional logic"
+- "Browser-specific behavior"
+- "Dynamic content requiring custom selectors"
+
+**Example with populated blockedSteps:**
+```yaml
+---
+id: JRN-0005
+title: "Order Export and Download"
+status: clarified
+# ... other fields ...
+autogen:
+  enabled: true
+  blockedSteps:
+    - step: 5
+      reason: "File download - requires browser download path handling"
+    - step: 6
+      reason: "File content verification - needs fs module"
+  machineHints: true
+---
+```
+
+**journey-implement will:**
+1. Auto-generate code for steps NOT in blockedSteps
+2. Generate placeholder/TODO comments for blocked steps
+3. Report blocked steps in implementation summary
+
+**Other frontmatter updates:**
 - If ready criteria met AND (if strictGates=true) no blockers: set `status: clarified`.
-- Otherwise keep status and add/update `statusReason` describing what’s missing/blocked.
+- Otherwise keep status and add/update `statusReason` describing what's missing/blocked.
 - Update `updated:` timestamp if present; do not fabricate `created` if missing.
 
 ### Layout-aware move (optional)
@@ -518,6 +1139,13 @@ Maintain a canonical guidance doc with managed markers that includes:
 - [ ] BACKLOG.md regenerated
 - [ ] index.json regenerated
 - [ ] docs/JOURNEY_CLARIFY.md created/updated
+
+**AutoGen Readiness (IMPORTANT):**
+- [ ] `modules` in object format: `{ foundation: [], features: [] }` (fixed if needed)
+- [ ] Machine hints added to key steps using backtick notation
+- [ ] `autogen.enabled: true` set in frontmatter
+- [ ] `autogen.blockedSteps` updated (empty if all steps have hints, or list step numbers)
+- [ ] `autogen.machineHints: true` set in frontmatter
 
 ---
 
