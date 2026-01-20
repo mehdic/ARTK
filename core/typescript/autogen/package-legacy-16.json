@@ -2,21 +2,17 @@
   "name": "@artk/core-autogen",
   "version": "0.1.0",
   "description": "ARTK AutoGen Core - Deterministic test generation engine (Legacy Node 16 variant)",
-  "main": "dist-legacy-16/index.js",
-  "types": "dist-legacy-16/index.d.ts",
+  "main": "dist/index.cjs",
+  "types": "dist/index.d.ts",
   "type": "commonjs",
   "engines": {
     "node": ">=16.0.0"
   },
-  "scripts": {
-    "build": "tsc --project tsconfig.legacy-16.json && npm run copy-templates:legacy-16",
-    "copy-templates:legacy-16": "mkdir -p dist-legacy-16/codegen/templates && cp src/codegen/templates/*.ejs dist-legacy-16/codegen/templates/"
-  },
   "bin": {
-    "artk-autogen": "./dist-legacy-16/cli/index.js"
+    "artk-autogen": "./dist/cli/index.cjs"
   },
   "files": [
-    "dist-legacy-16",
+    "dist",
     "README.md"
   ],
   "keywords": [

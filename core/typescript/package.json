@@ -8,102 +8,102 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "require": "./dist-cjs/index.js",
+      "require": "./dist-cjs/index.cjs",
       "types": "./dist/index.d.ts"
     },
     "./config": {
       "import": "./dist/config/index.js",
-      "require": "./dist-cjs/config/index.js",
+      "require": "./dist-cjs/config/index.cjs",
       "types": "./dist/config/index.d.ts"
     },
     "./auth": {
       "import": "./dist/auth/index.js",
-      "require": "./dist-cjs/auth/index.js",
+      "require": "./dist-cjs/auth/index.cjs",
       "types": "./dist/auth/index.d.ts"
     },
     "./fixtures": {
       "import": "./dist/fixtures/index.js",
-      "require": "./dist-cjs/fixtures/index.js",
+      "require": "./dist-cjs/fixtures/index.cjs",
       "types": "./dist/fixtures/index.d.ts"
     },
     "./locators": {
       "import": "./dist/locators/index.js",
-      "require": "./dist-cjs/locators/index.js",
+      "require": "./dist-cjs/locators/index.cjs",
       "types": "./dist/locators/index.d.ts"
     },
     "./assertions": {
       "import": "./dist/assertions/index.js",
-      "require": "./dist-cjs/assertions/index.js",
+      "require": "./dist-cjs/assertions/index.cjs",
       "types": "./dist/assertions/index.d.ts"
     },
     "./data": {
       "import": "./dist/data/index.js",
-      "require": "./dist-cjs/data/index.js",
+      "require": "./dist-cjs/data/index.cjs",
       "types": "./dist/data/index.d.ts"
     },
     "./reporters": {
       "import": "./dist/reporters/index.js",
-      "require": "./dist-cjs/reporters/index.js",
+      "require": "./dist-cjs/reporters/index.cjs",
       "types": "./dist/reporters/index.d.ts"
     },
     "./harness": {
       "import": "./dist/harness/index.js",
-      "require": "./dist-cjs/harness/index.js",
+      "require": "./dist-cjs/harness/index.cjs",
       "types": "./dist/harness/index.d.ts"
     },
     "./errors": {
       "import": "./dist/errors/index.js",
-      "require": "./dist-cjs/errors/index.js",
+      "require": "./dist-cjs/errors/index.cjs",
       "types": "./dist/errors/index.d.ts"
     },
     "./utils": {
       "import": "./dist/utils/index.js",
-      "require": "./dist-cjs/utils/index.js",
+      "require": "./dist-cjs/utils/index.cjs",
       "types": "./dist/utils/index.d.ts"
     },
     "./detection": {
       "import": "./dist/detection/index.js",
-      "require": "./dist-cjs/detection/index.js",
+      "require": "./dist-cjs/detection/index.cjs",
       "types": "./dist/detection/index.d.ts"
     },
     "./targets": {
       "import": "./dist/targets/index.js",
-      "require": "./dist-cjs/targets/index.js",
+      "require": "./dist-cjs/targets/index.cjs",
       "types": "./dist/targets/index.d.ts"
     },
     "./install": {
       "import": "./dist/install/index.js",
-      "require": "./dist-cjs/install/index.js",
+      "require": "./dist-cjs/install/index.cjs",
       "types": "./dist/install/index.d.ts"
     },
     "./types": {
       "import": "./dist/types/index.js",
-      "require": "./dist-cjs/types/index.js",
+      "require": "./dist-cjs/types/index.cjs",
       "types": "./dist/types/index.d.ts"
     },
     "./schemas": {
       "import": "./dist/schemas/index.js",
-      "require": "./dist-cjs/schemas/index.js",
+      "require": "./dist-cjs/schemas/index.cjs",
       "types": "./dist/schemas/index.d.ts"
     },
     "./compat": {
       "import": "./dist/compat/index.js",
-      "require": "./dist-cjs/compat/index.js",
+      "require": "./dist-cjs/compat/index.cjs",
       "types": "./dist/compat/index.d.ts"
     },
     "./validation": {
       "import": "./dist/validation/index.js",
-      "require": "./dist-cjs/validation/index.js",
+      "require": "./dist-cjs/validation/index.cjs",
       "types": "./dist/validation/index.d.ts"
     },
     "./grid": {
       "import": "./dist/grid/index.js",
-      "require": "./dist-cjs/grid/index.js",
+      "require": "./dist-cjs/grid/index.cjs",
       "types": "./dist/grid/index.d.ts"
     },
     "./llkb": {
       "import": "./dist/llkb/index.js",
-      "require": "./dist-cjs/llkb/index.js",
+      "require": "./dist-cjs/llkb/index.cjs",
       "types": "./dist/llkb/index.d.ts"
     },
     "./templates/*": "./templates/*"
@@ -121,9 +121,9 @@
   ],
   "scripts": {
     "build": "tsup",
-    "build:cjs": "tsup --format cjs --out-dir dist-cjs --no-dts && node scripts/strip-esm-code.cjs dist-cjs",
-    "build:legacy-16": "tsup --format cjs --out-dir dist-legacy-16 --no-dts --target es2021 && node scripts/strip-esm-code.cjs dist-legacy-16",
-    "build:legacy-14": "tsup --format cjs --out-dir dist-legacy-14 --no-dts --target es2020 && node scripts/strip-esm-code.cjs dist-legacy-14",
+    "build:cjs": "tsup --format cjs --out-dir dist-cjs --no-dts && node scripts/strip-esm-code.cjs dist-cjs && node scripts/copy-dts.cjs dist-cjs",
+    "build:legacy-16": "tsup --format cjs --out-dir dist-legacy-16 --no-dts --target es2021 && node scripts/strip-esm-code.cjs dist-legacy-16 && node scripts/copy-dts.cjs dist-legacy-16",
+    "build:legacy-14": "tsup --format cjs --out-dir dist-legacy-14 --no-dts --target es2020 && node scripts/strip-esm-code.cjs dist-legacy-14 && node scripts/copy-dts.cjs dist-legacy-14",
     "build:modern": "npm run build && npm run build:cjs",
     "build:variants": "./scripts/build-variants.sh",
     "build:variants:win": "powershell -ExecutionPolicy Bypass -File ./scripts/build-variants.ps1",

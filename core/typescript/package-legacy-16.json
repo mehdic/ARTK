@@ -3,87 +3,87 @@
   "version": "1.0.0",
   "description": "ARTK Core v1 - Vendorable Playwright infrastructure library (Legacy Node 16 variant)",
   "type": "commonjs",
-  "main": "./dist-legacy-16/index.js",
+  "main": "./dist-legacy-16/index.cjs",
   "types": "./dist-legacy-16/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist-legacy-16/index.js",
+      "require": "./dist-legacy-16/index.cjs",
       "types": "./dist-legacy-16/index.d.ts"
     },
     "./config": {
-      "require": "./dist-legacy-16/config/index.js",
+      "require": "./dist-legacy-16/config/index.cjs",
       "types": "./dist-legacy-16/config/index.d.ts"
     },
     "./auth": {
-      "require": "./dist-legacy-16/auth/index.js",
+      "require": "./dist-legacy-16/auth/index.cjs",
       "types": "./dist-legacy-16/auth/index.d.ts"
     },
     "./fixtures": {
-      "require": "./dist-legacy-16/fixtures/index.js",
+      "require": "./dist-legacy-16/fixtures/index.cjs",
       "types": "./dist-legacy-16/fixtures/index.d.ts"
     },
     "./locators": {
-      "require": "./dist-legacy-16/locators/index.js",
+      "require": "./dist-legacy-16/locators/index.cjs",
       "types": "./dist-legacy-16/locators/index.d.ts"
     },
     "./assertions": {
-      "require": "./dist-legacy-16/assertions/index.js",
+      "require": "./dist-legacy-16/assertions/index.cjs",
       "types": "./dist-legacy-16/assertions/index.d.ts"
     },
     "./data": {
-      "require": "./dist-legacy-16/data/index.js",
+      "require": "./dist-legacy-16/data/index.cjs",
       "types": "./dist-legacy-16/data/index.d.ts"
     },
     "./reporters": {
-      "require": "./dist-legacy-16/reporters/index.js",
+      "require": "./dist-legacy-16/reporters/index.cjs",
       "types": "./dist-legacy-16/reporters/index.d.ts"
     },
     "./harness": {
-      "require": "./dist-legacy-16/harness/index.js",
+      "require": "./dist-legacy-16/harness/index.cjs",
       "types": "./dist-legacy-16/harness/index.d.ts"
     },
     "./errors": {
-      "require": "./dist-legacy-16/errors/index.js",
+      "require": "./dist-legacy-16/errors/index.cjs",
       "types": "./dist-legacy-16/errors/index.d.ts"
     },
     "./utils": {
-      "require": "./dist-legacy-16/utils/index.js",
+      "require": "./dist-legacy-16/utils/index.cjs",
       "types": "./dist-legacy-16/utils/index.d.ts"
     },
     "./detection": {
-      "require": "./dist-legacy-16/detection/index.js",
+      "require": "./dist-legacy-16/detection/index.cjs",
       "types": "./dist-legacy-16/detection/index.d.ts"
     },
     "./targets": {
-      "require": "./dist-legacy-16/targets/index.js",
+      "require": "./dist-legacy-16/targets/index.cjs",
       "types": "./dist-legacy-16/targets/index.d.ts"
     },
     "./install": {
-      "require": "./dist-legacy-16/install/index.js",
+      "require": "./dist-legacy-16/install/index.cjs",
       "types": "./dist-legacy-16/install/index.d.ts"
     },
     "./types": {
-      "require": "./dist-legacy-16/types/index.js",
+      "require": "./dist-legacy-16/types/index.cjs",
       "types": "./dist-legacy-16/types/index.d.ts"
     },
     "./schemas": {
-      "require": "./dist-legacy-16/schemas/index.js",
+      "require": "./dist-legacy-16/schemas/index.cjs",
       "types": "./dist-legacy-16/schemas/index.d.ts"
     },
     "./compat": {
-      "require": "./dist-legacy-16/compat/index.js",
+      "require": "./dist-legacy-16/compat/index.cjs",
       "types": "./dist-legacy-16/compat/index.d.ts"
     },
     "./validation": {
-      "require": "./dist-legacy-16/validation/index.js",
+      "require": "./dist-legacy-16/validation/index.cjs",
       "types": "./dist-legacy-16/validation/index.d.ts"
     },
     "./grid": {
-      "require": "./dist-legacy-16/grid/index.js",
+      "require": "./dist-legacy-16/grid/index.cjs",
       "types": "./dist-legacy-16/grid/index.d.ts"
     },
     "./llkb": {
-      "require": "./dist-legacy-16/llkb/index.js",
+      "require": "./dist-legacy-16/llkb/index.cjs",
       "types": "./dist-legacy-16/llkb/index.d.ts"
     },
     "./templates/*": "./templates/*"
