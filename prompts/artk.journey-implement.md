@@ -1016,6 +1016,52 @@ const result = await generateJourneyTests({
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
+### 3.4.1 Execution Verification (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 PROOF REQUIRED: You must show actual terminal output                  ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Your response MUST include VERBATIM terminal output showing:             ║
+# ║  1. The exact command you ran                                             ║
+# ║  2. The complete output (success OR error messages)                       ║
+# ║  3. Evidence the command was actually executed                            ║
+# ║                                                                           ║
+# ║  INVALID CLAIMS (will be rejected):                                       ║
+# ║  - "AutoGen failed" without showing actual error                          ║
+# ║  - "The vendored package may not work" (speculation)                      ║
+# ║  - "I'll skip to manual" without execution evidence                       ║
+# ║                                                                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**Example of valid execution evidence:**
+
+```
+$ cd artk-e2e
+$ npx artk-autogen generate ../journeys/clarified/JRN-0001__user-login.md -o tests/smoke/ -m
+Found 1 journey file(s)
+Processing: JRN-0001 - User Login and Dashboard Access
+
+Generated:
+  tests/smoke/jrn-0001__user-login-dashboard-access.spec.ts
+
+Summary:
+  Tests: 1
+  Modules: 0
+  Errors: 0
+  Warnings: 0
+```
+
+**Example of valid failure evidence:**
+
+```
+$ npx artk-autogen generate ../journeys/clarified/JRN-0001.md -o tests/smoke/ -m
+Error: Cannot find module '../journeys/clarified/JRN-0001.md'
+    at resolveJourneyPath (/path/to/artk-autogen/dist/cli/index.cjs:123:15)
+```
+
+**If and only if** you show actual error output like the above, you may proceed to manual implementation.
+
 ### 3.5 Handle AutoGen Results
 
 **If AutoGen succeeds (no errors, no blocked steps):**

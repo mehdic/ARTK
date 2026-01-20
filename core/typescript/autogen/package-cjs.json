@@ -2,13 +2,13 @@
   "name": "@artk/core-autogen",
   "version": "0.1.0",
   "description": "ARTK AutoGen Core - Deterministic test generation engine for Playwright E2E tests",
-  "main": "dist-cjs/index.js",
-  "types": "dist-cjs/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "engines": {
     "node": ">=18.0.0"
   },
   "bin": {
-    "artk-autogen": "./dist-cjs/cli/index.js"
+    "artk-autogen": "./dist/cli/index.js"
   },
   "keywords": [
     "artk",

@@ -121,9 +121,9 @@
   ],
   "scripts": {
     "build": "tsup",
-    "build:cjs": "tsc --project tsconfig.cjs.json",
-    "build:legacy-16": "tsc --project tsconfig.legacy-16.json",
-    "build:legacy-14": "tsc --project tsconfig.legacy-14.json",
+    "build:cjs": "tsup --format cjs --out-dir dist-cjs --no-dts && node scripts/strip-esm-code.cjs dist-cjs",
+    "build:legacy-16": "tsup --format cjs --out-dir dist-legacy-16 --no-dts --target es2021 && node scripts/strip-esm-code.cjs dist-legacy-16",
+    "build:legacy-14": "tsup --format cjs --out-dir dist-legacy-14 --no-dts --target es2020 && node scripts/strip-esm-code.cjs dist-legacy-14",
     "build:modern": "npm run build && npm run build:cjs",
     "build:variants": "./scripts/build-variants.sh",
     "build:variants:win": "powershell -ExecutionPolicy Bypass -File ./scripts/build-variants.ps1",
