@@ -173,31 +173,33 @@ After repo scan, determine which mode applies:
 
 **CRITICAL: In Mode C, do NOT re-scaffold. Just validate and report.**
 
-## Determining mode (with semver rules):
+## Determining mode (with version rules):
 
-**Version format:** ARTK uses semantic versioning (`MAJOR.MINOR.PATCH`).
-- Missing `version` field → treat as `"0.0.0"`
-- Current minimum version requiring no upgrade: `"1.0.0"`
+**Version format:** ARTK uses integer versioning (1, 2, 3...).
+- Missing `version` field → treat as `0`
+- Current minimum version requiring no upgrade: `1`
 
-**Semver comparison:** Compare MAJOR first, then MINOR, then PATCH.
-- `"0.9.0"` < `"1.0.0"` → true (needs upgrade)
-- `"1.0.0"` < `"1.0.0"` → false (current)
-- `"1.0.1"` < `"1.0.0"` → false (current)
-- `"2.0.0"` < `"1.0.0"` → false (current)
+**Version comparison:** Simple integer comparison.
+- `0 < 1` → true (needs upgrade)
+- `1 < 1` → false (current)
+- `2 < 1` → false (current)
 
 **Decision logic:**
 ```
-version = artk.config.yml.version ?? "0.0.0"
+version = artk.config.yml.version ?? 0
 coreInstalled = exists(<ARTK_ROOT>/vendor/artk-core/package.json)
 autogenInstalled = exists(<ARTK_ROOT>/vendor/artk-core-autogen/package.json)
 journeyCoreInstalled = exists(<journeyCoreInstallDir>/core.manifest.json)
 
 IF artk.config.yml NOT found:
   → Mode A (Fresh Install)
-ELIF semver(version) < semver("1.0.0") OR NOT coreInstalled OR NOT autogenInstalled:
+ELIF version < 1 OR NOT coreInstalled OR NOT autogenInstalled OR NOT journeyCoreInstalled:
   → Mode B (Upgrade)
+  // Note: All three components (core, autogen, journey-core) are MANDATORY for Mode C
+  // Missing any component triggers upgrade path
 ELSE:
   → Mode C (Re-run/Validation)
+  // Note: Config version is an integer (1, 2, 3...), not semver
 ```
 
 ---
@@ -1037,7 +1039,7 @@ ARTK has two vendored packages (BOTH MANDATORY):
 
 ### 5D) Generate artk.config.yml
 Must include:
-- `version: "1.0.0"` (always use 3-part semver: MAJOR.MINOR.PATCH)
+- `version: 1` (integer, not semver - incremented on breaking changes)
 - `app:` (name, type, description)
 - `environments:` (local, intg, ctlq, prod with baseUrl)
 - `auth:` (provider, roles, storageState)
@@ -1090,7 +1092,7 @@ Add Journey dependencies to `devDependencies`:
 Create `.artk/context.json` in project root:
 ```json
 {
-  "version": "1.0",
+  "version": 1,
   "projectRoot": "<absolute path>",
   "artkRoot": "<absolute path>/artk-e2e",
   "targets": [...],
