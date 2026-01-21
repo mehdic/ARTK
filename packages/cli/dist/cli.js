@@ -2,8 +2,8 @@
 import { createRequire } from 'module';
 import { program } from 'commander';
 import { execSync, spawn } from 'child_process';
-import fs4 from 'fs-extra';
-import * as path3 from 'path';
+import fs6 from 'fs-extra';
+import * as path5 from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -12,8 +12,8 @@ import * as https from 'https';
 import * as crypto from 'crypto';
 import { z } from 'zod';
 import yaml from 'yaml';
-import * as readline from 'readline';
 import * as semver from 'semver';
+import * as readline from 'readline';
 
 createRequire(import.meta.url);
 var Logger = class {
@@ -107,7 +107,7 @@ var Logger = class {
 };
 new Logger();
 async function detectEnvironment(projectPath) {
-  const resolvedPath = path3.resolve(projectPath);
+  const resolvedPath = path5.resolve(projectPath);
   return {
     moduleSystem: detectModuleSystem(resolvedPath),
     nodeVersion: process.version,
@@ -121,7 +121,7 @@ async function detectEnvironment(projectPath) {
   };
 }
 function detectModuleSystem(projectPath) {
-  const packageJsonPath = path3.join(projectPath, "package.json");
+  const packageJsonPath = path5.join(projectPath, "package.json");
   if (fs2.existsSync(packageJsonPath)) {
     try {
       const pkg = JSON.parse(fs2.readFileSync(packageJsonPath, "utf8"));
@@ -129,10 +129,10 @@ function detectModuleSystem(projectPath) {
         return "esm";
       }
       if (pkg.type === "commonjs" || !pkg.type) {
-        const hasEsmConfig = fs2.existsSync(path3.join(projectPath, "tsconfig.json"));
+        const hasEsmConfig = fs2.existsSync(path5.join(projectPath, "tsconfig.json"));
         if (hasEsmConfig) {
           try {
-            const tsconfig = JSON.parse(fs2.readFileSync(path3.join(projectPath, "tsconfig.json"), "utf8"));
+            const tsconfig = JSON.parse(fs2.readFileSync(path5.join(projectPath, "tsconfig.json"), "utf8"));
             const module = tsconfig.compilerOptions?.module?.toLowerCase();
             if (module && (module.includes("esnext") || module.includes("es20") || module === "nodenext")) {
               return "esm";
@@ -145,7 +145,7 @@ function detectModuleSystem(projectPath) {
     } catch {
     }
   }
-  const srcDir = path3.join(projectPath, "src");
+  const srcDir = path5.join(projectPath, "src");
   if (fs2.existsSync(srcDir)) {
     try {
       const files = fs2.readdirSync(srcDir, { recursive: true });
@@ -168,7 +168,7 @@ async function detectNpmVersion() {
   }
 }
 async function detectGit(projectPath) {
-  if (fs2.existsSync(path3.join(projectPath, ".git"))) {
+  if (fs2.existsSync(path5.join(projectPath, ".git"))) {
     return true;
   }
   try {
@@ -180,13 +180,13 @@ async function detectGit(projectPath) {
   }
 }
 function detectPlaywright(projectPath) {
-  const playwrightPath = path3.join(projectPath, "node_modules", "@playwright", "test");
+  const playwrightPath = path5.join(projectPath, "node_modules", "@playwright", "test");
   return fs2.existsSync(playwrightPath);
 }
 function detectArtkCore(projectPath) {
-  const vendorPath = path3.join(projectPath, "artk-e2e", "vendor", "artk-core");
+  const vendorPath = path5.join(projectPath, "artk-e2e", "vendor", "artk-core");
   if (fs2.existsSync(vendorPath)) return true;
-  const nodeModulesPath = path3.join(projectPath, "node_modules", "@artk", "core");
+  const nodeModulesPath = path5.join(projectPath, "node_modules", "@artk", "core");
   return fs2.existsSync(nodeModulesPath);
 }
 function isCI() {
@@ -228,9 +228,9 @@ function getOsArch() {
 }
 async function resolveBrowser(targetPath, logger2, options = {}) {
   const log = logger2 || new Logger();
-  const artkE2ePath = path3.join(targetPath, "artk-e2e");
-  const browsersCachePath = path3.join(targetPath, ".artk", "browsers");
-  const logsDir = options.logsDir || path3.join(targetPath, ".artk", "logs");
+  const artkE2ePath = path5.join(targetPath, "artk-e2e");
+  const browsersCachePath = path5.join(targetPath, ".artk", "browsers");
+  const logsDir = options.logsDir || path5.join(targetPath, ".artk", "logs");
   fs2.mkdirSync(browsersCachePath, { recursive: true });
   fs2.mkdirSync(logsDir, { recursive: true });
   process.env.PLAYWRIGHT_BROWSERS_PATH = browsersCachePath;
@@ -344,9 +344,9 @@ function failWithDiagnostics(logsDir, logger2) {
   throw new Error("No browsers available. See error messages above for solutions.");
 }
 async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, logger2) {
-  const logFile = path3.join(logsDir, "release-cache-download.log");
+  const logFile = path5.join(logsDir, "release-cache-download.log");
   const logLines = [`Release cache download attempt - ${(/* @__PURE__ */ new Date()).toISOString()}`];
-  const browsersJsonPath = path3.join(artkE2ePath, "node_modules", "playwright-core", "browsers.json");
+  const browsersJsonPath = path5.join(artkE2ePath, "node_modules", "playwright-core", "browsers.json");
   if (!fs2.existsSync(browsersJsonPath)) {
     logLines.push("browsers.json not found, skipping release cache");
     writeLogFile(logFile, logLines);
@@ -371,7 +371,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
       return null;
     }
     logLines.push(`OS/arch: ${os}/${arch}`);
-    const cachedPath = path3.join(browsersCachePath, `chromium-${chromium.revision}`);
+    const cachedPath = path5.join(browsersCachePath, `chromium-${chromium.revision}`);
     if (fs2.existsSync(cachedPath)) {
       logLines.push(`Browsers already cached: ${cachedPath}`);
       writeLogFile(logFile, logLines);
@@ -383,7 +383,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
         strategy: "release-cache"
       };
     }
-    const playwrightPkgPath = path3.join(artkE2ePath, "node_modules", "@playwright", "test", "package.json");
+    const playwrightPkgPath = path5.join(artkE2ePath, "node_modules", "@playwright", "test", "package.json");
     let playwrightVersion = "1.57.0";
     if (fs2.existsSync(playwrightPkgPath)) {
       const pkg = JSON.parse(fs2.readFileSync(playwrightPkgPath, "utf8"));
@@ -407,7 +407,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
     logLines.push(`Asset: ${asset}`);
     logLines.push(`URL: ${zipUrl}`);
     logger2.startSpinner("Downloading pre-built browsers from release cache...");
-    const zipPath = path3.join(browsersCachePath, asset);
+    const zipPath = path5.join(browsersCachePath, asset);
     const shaPath = `${zipPath}.sha256`;
     try {
       logLines.push("Downloading ZIP...");
@@ -439,7 +439,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
       return {
         channel: "bundled",
         version: chromium.revision,
-        path: path3.join(browsersCachePath, `chromium-${chromium.revision}`),
+        path: path5.join(browsersCachePath, `chromium-${chromium.revision}`),
         strategy: "release-cache"
       };
     } catch (downloadError) {
@@ -458,7 +458,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
   }
 }
 function downloadFile(url, destPath, timeoutMs) {
-  return new Promise((resolve6, reject) => {
+  return new Promise((resolve7, reject) => {
     const file = fs2.createWriteStream(destPath);
     const request = https.get(url, { timeout: timeoutMs }, (response) => {
       if (response.statusCode === 301 || response.statusCode === 302) {
@@ -466,7 +466,7 @@ function downloadFile(url, destPath, timeoutMs) {
         if (redirectUrl) {
           file.close();
           fs2.unlinkSync(destPath);
-          downloadFile(redirectUrl, destPath, timeoutMs).then(resolve6).catch(reject);
+          downloadFile(redirectUrl, destPath, timeoutMs).then(resolve7).catch(reject);
           return;
         }
       }
@@ -479,7 +479,7 @@ function downloadFile(url, destPath, timeoutMs) {
       response.pipe(file);
       file.on("finish", () => {
         file.close();
-        resolve6();
+        resolve7();
       });
     });
     request.on("error", (err) => {
@@ -496,16 +496,16 @@ function downloadFile(url, destPath, timeoutMs) {
   });
 }
 function computeSha256(filePath) {
-  return new Promise((resolve6, reject) => {
+  return new Promise((resolve7, reject) => {
     const hash = crypto.createHash("sha256");
     const stream = fs2.createReadStream(filePath);
     stream.on("data", (data) => hash.update(data));
-    stream.on("end", () => resolve6(hash.digest("hex").toLowerCase()));
+    stream.on("end", () => resolve7(hash.digest("hex").toLowerCase()));
     stream.on("error", reject);
   });
 }
 async function extractZip(zipPath, destDir) {
-  return new Promise((resolve6, reject) => {
+  return new Promise((resolve7, reject) => {
     const commands = [
       { cmd: "unzip", args: ["-q", zipPath, "-d", destDir] },
       { cmd: "bsdtar", args: ["-xf", zipPath, "-C", destDir] },
@@ -523,7 +523,7 @@ async function extractZip(zipPath, destDir) {
       });
       child.on("close", (code) => {
         if (code === 0) {
-          resolve6();
+          resolve7();
         } else {
           tryCommand(index + 1);
         }
@@ -539,8 +539,8 @@ function writeLogFile(logPath, lines) {
   }
 }
 async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger2) {
-  const logFile = path3.join(logsDir, "playwright-browser-install.log");
-  return new Promise((resolve6) => {
+  const logFile = path5.join(logsDir, "playwright-browser-install.log");
+  return new Promise((resolve7) => {
     logger2.startSpinner("Installing Playwright browsers...");
     const logLines = [`Playwright browser install attempt - ${(/* @__PURE__ */ new Date()).toISOString()}`];
     logLines.push(`Working directory: ${artkE2ePath}`);
@@ -571,7 +571,7 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger
       writeLogFile(logFile, logLines);
       if (code === 0) {
         logger2.succeedSpinner("Playwright browsers installed");
-        resolve6({
+        resolve7({
           channel: "bundled",
           version: null,
           path: browsersCachePath,
@@ -581,7 +581,7 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger
         logger2.failSpinner("Failed to install Playwright browsers");
         logger2.debug(`Exit code: ${code}`);
         logger2.debug(`Details saved to: ${logFile}`);
-        resolve6(null);
+        resolve7(null);
       }
     });
     child.on("error", (error) => {
@@ -589,19 +589,19 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger
       writeLogFile(logFile, logLines);
       logger2.failSpinner("Failed to install Playwright browsers");
       logger2.debug(`Error: ${error.message}`);
-      resolve6(null);
+      resolve7(null);
     });
     setTimeout(() => {
       logLines.push("TIMEOUT: Installation took longer than 5 minutes");
       writeLogFile(logFile, logLines);
       child.kill();
       logger2.failSpinner("Browser installation timed out");
-      resolve6(null);
+      resolve7(null);
     }, 3e5);
   });
 }
 async function detectSystemBrowser(logsDir, logger2) {
-  const logFile = path3.join(logsDir, "system-browser-detect.log");
+  const logFile = path5.join(logsDir, "system-browser-detect.log");
   const logLines = [`System browser detection - ${(/* @__PURE__ */ new Date()).toISOString()}`];
   logLines.push(`Platform: ${process.platform}`);
   logLines.push("Checking Microsoft Edge...");
@@ -806,8 +806,8 @@ function validateArtkConfig(configPath, logger2) {
     if (!parseResult.success) {
       result.valid = false;
       for (const error of parseResult.error.errors) {
-        const path8 = error.path.join(".");
-        result.errors.push(`${path8}: ${error.message}`);
+        const path10 = error.path.join(".");
+        result.errors.push(`${path10}: ${error.message}`);
       }
       return result;
     }
@@ -844,75 +844,384 @@ function checkAdditionalValidation(config) {
   }
   return warnings;
 }
-function isInteractive() {
-  return process.stdin.isTTY === true && process.stdout.isTTY === true;
-}
-async function promptSelect(question, options, defaultIndex = 0) {
-  if (!isInteractive()) {
-    return options[defaultIndex].value;
+
+// src/lib/variants/variant-definitions.ts
+var VARIANT_DEFINITIONS = {
+  "modern-esm": {
+    id: "modern-esm",
+    displayName: "Modern ESM",
+    nodeRange: ["18", "20", "22"],
+    // LTS only
+    playwrightVersion: "1.57.x",
+    moduleSystem: "esm",
+    tsTarget: "ES2022",
+    distDirectory: "dist"
+  },
+  "modern-cjs": {
+    id: "modern-cjs",
+    displayName: "Modern CJS",
+    nodeRange: ["18", "20", "22"],
+    // LTS only
+    playwrightVersion: "1.57.x",
+    moduleSystem: "cjs",
+    tsTarget: "ES2022",
+    distDirectory: "dist-cjs"
+  },
+  "legacy-16": {
+    id: "legacy-16",
+    displayName: "Legacy Node 16",
+    nodeRange: ["16", "18", "20"],
+    // LTS only
+    playwrightVersion: "1.49.x",
+    moduleSystem: "cjs",
+    tsTarget: "ES2021",
+    distDirectory: "dist-legacy-16"
+  },
+  "legacy-14": {
+    id: "legacy-14",
+    displayName: "Legacy Node 14",
+    nodeRange: ["14", "16", "18"],
+    // LTS only
+    playwrightVersion: "1.33.x",
+    moduleSystem: "cjs",
+    tsTarget: "ES2020",
+    distDirectory: "dist-legacy-14"
   }
-  console.log(`
-${question}
-`);
-  options.forEach((opt, index) => {
-    const marker = index === defaultIndex ? "*" : " ";
-    console.log(`  ${marker} ${index + 1}. ${opt.label}`);
-  });
-  console.log();
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-  return new Promise((resolve6) => {
-    rl.question(`Enter choice [${defaultIndex + 1}]: `, (answer) => {
-      rl.close();
-      const trimmed = answer.trim();
-      if (trimmed === "") {
-        resolve6(options[defaultIndex].value);
-        return;
-      }
-      const choice = parseInt(trimmed, 10);
-      if (isNaN(choice) || choice < 1 || choice > options.length) {
-        console.log(`Invalid choice, using default: ${options[defaultIndex].label}`);
-        resolve6(options[defaultIndex].value);
-        return;
-      }
-      resolve6(options[choice - 1].value);
-    });
-  });
+};
+var ALL_VARIANT_IDS = [
+  "modern-esm",
+  "modern-cjs",
+  "legacy-16",
+  "legacy-14"
+];
+function getVariantDefinition(id) {
+  return VARIANT_DEFINITIONS[id];
 }
-async function promptVariant() {
-  return promptSelect(
-    "Select module system variant:",
-    [
-      { value: "commonjs", label: "CommonJS - Traditional Node.js modules (require/module.exports)" },
-      { value: "esm", label: "ESM - Modern ES modules (import/export)" }
-    ],
-    0
-    // Default to CommonJS for maximum compatibility
+function getAllVariants() {
+  return Object.values(VARIANT_DEFINITIONS);
+}
+function getRecommendedVariant(nodeMajor, moduleSystem) {
+  if (nodeMajor >= 18) {
+    return moduleSystem === "esm" ? "modern-esm" : "modern-cjs";
+  }
+  if (nodeMajor >= 16) {
+    return "legacy-16";
+  }
+  if (nodeMajor >= 14) {
+    return "legacy-14";
+  }
+  throw new Error(
+    `Node.js ${nodeMajor} is not supported. ARTK requires Node.js 14 or higher.`
   );
+}
+function isVariantCompatible(variantId, nodeMajor) {
+  const variant = VARIANT_DEFINITIONS[variantId];
+  return variant.nodeRange.includes(String(nodeMajor));
+}
+function getVariantHelpText() {
+  const lines = ["Available variants:"];
+  for (const variant of getAllVariants()) {
+    const nodeRange = variant.nodeRange.join(", ");
+    lines.push(
+      `  ${variant.id.padEnd(12)} - ${variant.displayName} (Node ${nodeRange}, Playwright ${variant.playwrightVersion})`
+    );
+  }
+  return lines.join("\n");
+}
+function getNodeMajorVersion() {
+  const version2 = process.version;
+  const match = version2.match(/^v(\d+)/);
+  if (!match) {
+    throw new Error(`Unable to parse Node.js version: ${version2}`);
+  }
+  return parseInt(match[1], 10);
+}
+function findNearestPackageJson(startPath) {
+  let currentPath = path5.resolve(startPath);
+  const root = path5.parse(currentPath).root;
+  while (currentPath !== root) {
+    const packageJsonPath = path5.join(currentPath, "package.json");
+    if (fs2.existsSync(packageJsonPath)) {
+      return packageJsonPath;
+    }
+    currentPath = path5.dirname(currentPath);
+  }
+  return null;
+}
+function detectModuleSystem2(targetPath) {
+  const targetPackageJson = path5.join(targetPath, "package.json");
+  if (fs2.existsSync(targetPackageJson)) {
+    try {
+      const content = fs2.readFileSync(targetPackageJson, "utf-8");
+      const pkg = JSON.parse(content);
+      if (pkg.type === "module") {
+        return "esm";
+      }
+      return "cjs";
+    } catch {
+    }
+  }
+  const nearestPackageJson = findNearestPackageJson(targetPath);
+  if (nearestPackageJson) {
+    try {
+      const content = fs2.readFileSync(nearestPackageJson, "utf-8");
+      const pkg = JSON.parse(content);
+      if (pkg.type === "module") {
+        return "esm";
+      }
+      return "cjs";
+    } catch {
+      return "cjs";
+    }
+  }
+  return "cjs";
+}
+var __filename$1 = fileURLToPath(import.meta.url);
+var __dirname$1 = path5.dirname(__filename$1);
+function getArtkVersion() {
+  const possiblePaths = [
+    path5.join(__dirname$1, "..", "..", "package.json"),
+    path5.join(__dirname$1, "..", "..", "..", "package.json"),
+    path5.join(process.cwd(), "cli", "package.json")
+  ];
+  for (const pkgPath of possiblePaths) {
+    try {
+      if (fs2.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs2.readFileSync(pkgPath, "utf-8"));
+        if (pkg.name?.includes("artk") && pkg.version) {
+          return pkg.version;
+        }
+      }
+    } catch {
+    }
+  }
+  return "1.0.0";
+}
+function generateVariantFeatures(variant) {
+  const variantDef = VARIANT_DEFINITIONS[variant];
+  const features = {};
+  const commonFeatures = [
+    "route_from_har",
+    "locator_filter",
+    "web_first_assertions",
+    "trace_viewer",
+    "api_testing",
+    "storage_state",
+    "video_recording",
+    "screenshot_assertions",
+    "request_interception",
+    "browser_contexts",
+    "test_fixtures",
+    "parallel_execution",
+    "retry_logic"
+  ];
+  for (const feature of commonFeatures) {
+    features[feature] = { available: true };
+  }
+  if (variant === "modern-esm" || variant === "modern-cjs") {
+    features["aria_snapshots"] = { available: true };
+    features["clock_api"] = { available: true };
+    features["locator_or"] = { available: true };
+    features["locator_and"] = { available: true };
+    features["component_testing"] = { available: true };
+    features["expect_poll"] = { available: true };
+    features["expect_soft"] = { available: true };
+    features["request_continue"] = { available: true };
+  } else if (variant === "legacy-16") {
+    features["aria_snapshots"] = { available: true };
+    features["clock_api"] = { available: true };
+    features["locator_or"] = { available: true };
+    features["locator_and"] = { available: true };
+    features["component_testing"] = { available: true };
+    features["expect_poll"] = { available: true };
+    features["expect_soft"] = { available: true };
+    features["request_continue"] = { available: true };
+  } else if (variant === "legacy-14") {
+    features["aria_snapshots"] = {
+      available: false,
+      alternative: "Use page.evaluate() to query ARIA attributes manually",
+      notes: "Introduced in Playwright 1.35"
+    };
+    features["clock_api"] = {
+      available: false,
+      alternative: "Use page.evaluate(() => { Date.now = () => fixedTime }) for manual mocking",
+      notes: "Introduced in Playwright 1.45"
+    };
+    features["locator_or"] = {
+      available: false,
+      alternative: 'Use CSS :is() selector: page.locator(":is(.a, .b)")',
+      notes: "Introduced in Playwright 1.34"
+    };
+    features["locator_and"] = {
+      available: false,
+      alternative: "Use chained filter: locator.filter({ has: other })",
+      notes: "Introduced in Playwright 1.34"
+    };
+    features["component_testing"] = {
+      available: false,
+      alternative: "Use E2E testing approach with full page loads",
+      notes: "Experimental in 1.33, stable in later versions"
+    };
+    features["expect_poll"] = {
+      available: false,
+      alternative: "Use expect.poll() polyfill with setTimeout loop",
+      notes: "Introduced in Playwright 1.30 but improved later"
+    };
+    features["expect_soft"] = {
+      available: false,
+      alternative: "Collect assertions manually and report at end",
+      notes: "Introduced in Playwright 1.37"
+    };
+    features["request_continue"] = { available: true };
+  }
+  if (variant === "modern-esm") {
+    features["esm_imports"] = { available: true };
+    features["top_level_await"] = { available: true };
+    features["import_meta"] = { available: true };
+  } else {
+    features["esm_imports"] = {
+      available: false,
+      alternative: "Use require() for synchronous imports or dynamic import() for async"
+    };
+    features["top_level_await"] = {
+      available: false,
+      alternative: "Wrap in async IIFE: (async () => { await ... })()"
+    };
+    features["import_meta"] = {
+      available: false,
+      alternative: "Use __dirname and __filename (CommonJS globals)"
+    };
+  }
+  return {
+    variant,
+    playwrightVersion: variantDef.playwrightVersion,
+    nodeRange: variantDef.nodeRange,
+    moduleSystem: variantDef.moduleSystem,
+    tsTarget: variantDef.tsTarget,
+    features,
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    generatedBy: `ARTK CLI v${getArtkVersion()}`
+  };
+}
+function generateReadonlyMarker(variantDef, context) {
+  return `# \u26A0\uFE0F DO NOT MODIFY THIS DIRECTORY
+
+**This directory contains vendor code that should NOT be edited.**
+
+## What This Is
+
+This is a vendored copy of ARTK core code installed by the ARTK CLI.
+It should be treated as read-only and immutable.
+
+## Variant Information
+
+| Property | Value |
+|----------|-------|
+| **Variant** | ${variantDef.id} |
+| **Display Name** | ${variantDef.displayName} |
+| **Node.js Range** | ${variantDef.nodeRange.join(", ")} |
+| **Playwright Version** | ${variantDef.playwrightVersion} |
+| **Module System** | ${variantDef.moduleSystem} |
+| **TypeScript Target** | ${variantDef.tsTarget} |
+| **Installed At** | ${context.variantInstalledAt} |
+| **ARTK Version** | ${context.artkVersion} |
+${context.previousVariant ? `| **Previous Variant** | ${context.previousVariant} |` : ""}
+
+## If You Encounter Issues
+
+### Import/Module Errors
+
+If you see errors like \`ERR_REQUIRE_ESM\` or \`Cannot use import statement\`:
+
+\`\`\`bash
+# Check the installed variant
+cat .artk/context.json | grep variant
+
+# Reinstall with correct variant detection
+artk init . --force
+
+# Or force a specific variant
+artk init . --variant modern-esm --force
+\`\`\`
+
+### Feature Not Working
+
+Check \`variant-features.json\` in this directory to see if the feature is available
+in your variant. If not, the file includes alternative approaches.
+
+### Need Different Variant
+
+\`\`\`bash
+# Re-detect and install correct variant
+artk upgrade .
+
+# Or force a specific variant
+artk init . --variant <variant-id> --force
+\`\`\`
+
+## For AI Agents (GitHub Copilot, Claude, etc.)
+
+**DO NOT modify files in this directory.**
+
+If you encounter compatibility issues:
+1. Check the variant information above
+2. Check \`variant-features.json\` for feature availability and alternatives
+3. Suggest running \`artk init --force\` to reinstall with correct variant
+4. Use alternative approaches documented in \`variant-features.json\`
+5. NEVER patch or modify vendor code directly
+
+---
+
+*This file was generated by ARTK CLI v${context.artkVersion}*
+`;
+}
+function generateAiIgnore(variant) {
+  return `# ARTK Vendor Directory - DO NOT MODIFY
+#
+# This directory contains vendored @artk/core code.
+# AI agents and code generation tools should NOT modify these files.
+#
+# Variant: ${variant}
+# Generated: ${(/* @__PURE__ */ new Date()).toISOString()}
+#
+# If you need to change behavior:
+# 1. Create wrapper functions in your project code
+# 2. Use configuration in artk.config.yml
+# 3. Run \`artk upgrade\` to get latest version
+# 4. Run \`artk init --force\` to reinstall
+#
+# DO NOT:
+# - Edit any .js or .ts files in this directory
+# - Add polyfills or patches
+# - Modify package.json
+# - Create "fixes" for compatibility issues
+#
+# Instead, use \`artk init --variant <correct-variant> --force\`
+#
+*
+`;
 }
 
 // src/lib/bootstrap.ts
-var __filename$1 = fileURLToPath(import.meta.url);
-var __dirname$1 = path3.dirname(__filename$1);
+var __filename2 = fileURLToPath(import.meta.url);
+var __dirname2 = path5.dirname(__filename2);
 async function bootstrap(targetPath, options = {}) {
   const logger2 = new Logger({ verbose: options.verbose });
   const errors = [];
-  const resolvedPath = path3.resolve(targetPath);
-  const artkE2ePath = path3.join(resolvedPath, "artk-e2e");
-  const artkDir = path3.join(resolvedPath, ".artk");
-  const logsDir = path3.join(artkDir, "logs");
+  const resolvedPath = path5.resolve(targetPath);
+  const artkE2ePath = path5.join(resolvedPath, "artk-e2e");
+  const artkDir = path5.join(resolvedPath, ".artk");
+  const logsDir = path5.join(artkDir, "logs");
   logger2.header("ARTK Bootstrap Installation");
   logger2.table([
     { label: "Target", value: resolvedPath },
     { label: "ARTK E2E", value: artkE2ePath }
   ]);
-  if (!fs4.existsSync(resolvedPath)) {
+  if (!fs6.existsSync(resolvedPath)) {
     logger2.error(`Target directory does not exist: ${resolvedPath}`);
     return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ["Target directory does not exist"] };
   }
-  if (fs4.existsSync(artkE2ePath) && !options.force) {
+  if (fs6.existsSync(artkE2ePath) && !options.force) {
     logger2.error("ARTK is already installed in this project. Use --force to overwrite.");
     return { success: false, projectPath: resolvedPath, artkE2ePath, errors: ["Already installed"] };
   }
@@ -922,47 +1231,58 @@ async function bootstrap(targetPath, options = {}) {
     contextPath: null,
     contextBackupPath: null
   };
-  await fs4.ensureDir(logsDir);
+  await fs6.ensureDir(logsDir);
   try {
     if (options.force) {
-      const configPath2 = path3.join(artkE2ePath, "artk.config.yml");
-      if (fs4.existsSync(configPath2)) {
+      const configPath2 = path5.join(artkE2ePath, "artk.config.yml");
+      if (fs6.existsSync(configPath2)) {
         backup.configPath = configPath2;
         backup.configBackupPath = `${configPath2}.bootstrap-backup`;
-        await fs4.copy(configPath2, backup.configBackupPath);
+        await fs6.copy(configPath2, backup.configBackupPath);
         logger2.debug("Backed up existing artk.config.yml");
       }
-      const contextPath = path3.join(artkDir, "context.json");
-      if (fs4.existsSync(contextPath)) {
+      const contextPath = path5.join(artkDir, "context.json");
+      if (fs6.existsSync(contextPath)) {
         backup.contextPath = contextPath;
         backup.contextBackupPath = `${contextPath}.bootstrap-backup`;
-        await fs4.copy(contextPath, backup.contextBackupPath);
+        await fs6.copy(contextPath, backup.contextBackupPath);
         logger2.debug("Backed up existing context.json");
       }
     }
-    logger2.step(1, 7, "Detecting environment...");
+    logger2.step(1, 7, "Detecting environment and selecting variant...");
     const environment = await detectEnvironment(resolvedPath);
-    let variant;
+    const nodeMajor = getNodeMajorVersion();
+    const detectedModuleSystem = detectModuleSystem2(resolvedPath);
+    let selectedVariant;
     if (options.variant && options.variant !== "auto") {
-      variant = options.variant;
-    } else if (environment.moduleSystem !== "unknown") {
-      variant = environment.moduleSystem;
-    } else if (isInteractive()) {
-      logger2.warning("Could not auto-detect module system");
-      variant = await promptVariant();
+      selectedVariant = options.variant;
+      if (!isVariantCompatible(selectedVariant, nodeMajor)) {
+        const variantDef2 = getVariantDefinition(selectedVariant);
+        logger2.warning(`Variant '${selectedVariant}' is designed for Node ${variantDef2.nodeRange.join("/")}`);
+        logger2.warning(`You are running Node ${nodeMajor}. This may cause compatibility issues.`);
+      }
     } else {
-      variant = "commonjs";
-      logger2.debug("Using CommonJS as default (non-interactive mode)");
+      try {
+        selectedVariant = getRecommendedVariant(nodeMajor, detectedModuleSystem);
+        logger2.debug(`Auto-selected variant: ${selectedVariant} (Node ${nodeMajor}, ${detectedModuleSystem})`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger2.error(message);
+        throw error;
+      }
     }
-    logger2.success(`Module system: ${variant}`);
-    logger2.debug(`Node.js: ${environment.nodeVersion}`);
+    const variantDef = getVariantDefinition(selectedVariant);
+    logger2.success(`Variant: ${selectedVariant} (${variantDef.displayName})`);
+    logger2.debug(`Node.js: ${environment.nodeVersion} (major: ${nodeMajor})`);
+    logger2.debug(`Module system: ${detectedModuleSystem}`);
+    logger2.debug(`Playwright: ${variantDef.playwrightVersion}`);
     logger2.debug(`Platform: ${environment.platform}/${environment.arch}`);
     logger2.step(2, 7, "Creating artk-e2e/ structure...");
     await createDirectoryStructure(artkE2ePath);
     logger2.success("Directory structure created");
-    logger2.step(3, 7, "Installing @artk/core to vendor/...");
-    await installVendorPackages(artkE2ePath, logger2);
-    logger2.success("@artk/core installed to vendor/");
+    logger2.step(3, 7, `Installing @artk/core (${selectedVariant}) to vendor/...`);
+    await installVendorPackages(artkE2ePath, selectedVariant, logger2);
+    logger2.success(`@artk/core installed to vendor/ (${variantDef.displayName})`);
     if (options.prompts !== false) {
       logger2.step(4, 7, "Installing prompts to .github/prompts/...");
       await installPrompts(resolvedPath, logger2);
@@ -971,13 +1291,16 @@ async function bootstrap(targetPath, options = {}) {
       logger2.step(4, 7, "Skipping prompts installation (--no-prompts)");
     }
     logger2.step(5, 7, "Creating configuration files...");
-    const projectName = path3.basename(resolvedPath);
+    const projectName = path5.basename(resolvedPath);
     await createConfigurationFiles(artkE2ePath, artkDir, resolvedPath, {
       projectName,
-      variant
+      variant: selectedVariant,
+      variantDef,
+      nodeMajor,
+      moduleSystem: detectedModuleSystem
     }, logger2);
     logger2.success("Configuration files created");
-    const configPath = path3.join(artkE2ePath, "artk.config.yml");
+    const configPath = path5.join(artkE2ePath, "artk.config.yml");
     const configValidation = validateArtkConfig(configPath, logger2);
     if (!configValidation.valid) {
       logger2.error("Generated configuration validation failed:");
@@ -1023,7 +1346,7 @@ async function bootstrap(targetPath, options = {}) {
           }
         }
       }
-      const configPath2 = path3.join(artkE2ePath, "artk.config.yml");
+      const configPath2 = path5.join(artkE2ePath, "artk.config.yml");
       updateArtkConfigBrowser(configPath2, browserInfo);
       await updateContextJson(artkDir, { browser: browserInfo });
       logger2.success(`Browser configured: ${browserInfo.channel} (${browserInfo.strategy})`);
@@ -1056,17 +1379,17 @@ async function bootstrap(targetPath, options = {}) {
 async function rollbackOnFailure(backup, logger2) {
   logger2.warning("Attempting to roll back changes...");
   try {
-    if (backup.configBackupPath && fs4.existsSync(backup.configBackupPath)) {
+    if (backup.configBackupPath && fs6.existsSync(backup.configBackupPath)) {
       if (backup.configPath) {
-        await fs4.copy(backup.configBackupPath, backup.configPath);
-        await fs4.remove(backup.configBackupPath);
+        await fs6.copy(backup.configBackupPath, backup.configPath);
+        await fs6.remove(backup.configBackupPath);
         logger2.debug("Restored artk.config.yml from backup");
       }
     }
-    if (backup.contextBackupPath && fs4.existsSync(backup.contextBackupPath)) {
+    if (backup.contextBackupPath && fs6.existsSync(backup.contextBackupPath)) {
       if (backup.contextPath) {
-        await fs4.copy(backup.contextBackupPath, backup.contextPath);
-        await fs4.remove(backup.contextBackupPath);
+        await fs6.copy(backup.contextBackupPath, backup.contextPath);
+        await fs6.remove(backup.contextBackupPath);
         logger2.debug("Restored context.json from backup");
       }
     }
@@ -1078,11 +1401,11 @@ async function rollbackOnFailure(backup, logger2) {
 }
 async function cleanupBackup(backup) {
   try {
-    if (backup.configBackupPath && fs4.existsSync(backup.configBackupPath)) {
-      await fs4.remove(backup.configBackupPath);
+    if (backup.configBackupPath && fs6.existsSync(backup.configBackupPath)) {
+      await fs6.remove(backup.configBackupPath);
     }
-    if (backup.contextBackupPath && fs4.existsSync(backup.contextBackupPath)) {
-      await fs4.remove(backup.contextBackupPath);
+    if (backup.contextBackupPath && fs6.existsSync(backup.contextBackupPath)) {
+      await fs6.remove(backup.contextBackupPath);
     }
   } catch {
   }
@@ -1108,32 +1431,65 @@ async function createDirectoryStructure(artkE2ePath) {
     ".auth-states"
   ];
   for (const dir of directories) {
-    await fs4.ensureDir(path3.join(artkE2ePath, dir));
+    await fs6.ensureDir(path5.join(artkE2ePath, dir));
   }
 }
-async function installVendorPackages(artkE2ePath, logger2) {
+async function installVendorPackages(artkE2ePath, variant, logger2) {
   const assetsDir = getAssetsDir();
-  const coreSource = path3.join(assetsDir, "core");
-  const coreTarget = path3.join(artkE2ePath, "vendor", "artk-core");
-  if (fs4.existsSync(coreSource)) {
-    await fs4.copy(coreSource, coreTarget, { overwrite: true });
-    logger2.debug(`Copied @artk/core from bundled assets`);
+  const variantDef = getVariantDefinition(variant);
+  const coreSource = path5.join(assetsDir, "core");
+  const coreTarget = path5.join(artkE2ePath, "vendor", "artk-core");
+  if (fs6.existsSync(coreSource)) {
+    await fs6.copy(coreSource, coreTarget, {
+      overwrite: true,
+      filter: (src) => {
+        const relativePath = path5.relative(coreSource, src);
+        return !relativePath.startsWith("dist");
+      }
+    });
+    const distSource = path5.join(coreSource, variantDef.distDirectory);
+    const distTarget = path5.join(coreTarget, "dist");
+    if (fs6.existsSync(distSource)) {
+      await fs6.copy(distSource, distTarget, { overwrite: true });
+      logger2.debug(`Copied @artk/core ${variantDef.distDirectory} \u2192 vendor/artk-core/dist`);
+    } else {
+      const defaultDist = path5.join(coreSource, "dist");
+      if (fs6.existsSync(defaultDist)) {
+        await fs6.copy(defaultDist, distTarget, { overwrite: true });
+        logger2.warning(`Variant dist '${variantDef.distDirectory}' not found, using default dist`);
+      } else {
+        logger2.warning(`No dist folder found for @artk/core`);
+      }
+    }
+    const context = {
+      variantInstalledAt: (/* @__PURE__ */ new Date()).toISOString(),
+      nodeVersion: getNodeMajorVersion(),
+      moduleSystem: variantDef.moduleSystem,
+      playwrightVersion: variantDef.playwrightVersion,
+      artkVersion: getArtkVersion()};
+    const features = generateVariantFeatures(variant);
+    await fs6.writeJson(path5.join(coreTarget, "variant-features.json"), features, { spaces: 2 });
+    const readonlyContent = generateReadonlyMarker(variantDef, context);
+    await fs6.writeFile(path5.join(coreTarget, "READONLY.md"), readonlyContent);
+    const aiIgnoreContent = generateAiIgnore(variant);
+    await fs6.writeFile(path5.join(coreTarget, ".ai-ignore"), aiIgnoreContent);
+    logger2.debug(`Copied @artk/core from bundled assets (variant: ${variant})`);
   } else {
     logger2.warning(`@artk/core assets not found at ${coreSource}`);
-    await fs4.writeJson(path3.join(coreTarget, "package.json"), {
+    await fs6.writeJson(path5.join(coreTarget, "package.json"), {
       name: "@artk/core",
       version: "1.0.0",
       main: "./dist/index.js"
     });
   }
-  const autogenSource = path3.join(assetsDir, "autogen");
-  const autogenTarget = path3.join(artkE2ePath, "vendor", "artk-core-autogen");
-  if (fs4.existsSync(autogenSource)) {
-    await fs4.copy(autogenSource, autogenTarget, { overwrite: true });
+  const autogenSource = path5.join(assetsDir, "autogen");
+  const autogenTarget = path5.join(artkE2ePath, "vendor", "artk-core-autogen");
+  if (fs6.existsSync(autogenSource)) {
+    await fs6.copy(autogenSource, autogenTarget, { overwrite: true });
     logger2.debug(`Copied @artk/core-autogen from bundled assets`);
   } else {
     logger2.warning(`@artk/core-autogen assets not found at ${autogenSource}`);
-    await fs4.writeJson(path3.join(autogenTarget, "package.json"), {
+    await fs6.writeJson(path5.join(autogenTarget, "package.json"), {
       name: "@artk/core-autogen",
       version: "0.1.0",
       main: "./dist/index.js"
@@ -1142,18 +1498,18 @@ async function installVendorPackages(artkE2ePath, logger2) {
 }
 async function installPrompts(projectPath, logger2) {
   const assetsDir = getAssetsDir();
-  const promptsSource = path3.join(assetsDir, "prompts");
-  const promptsTarget = path3.join(projectPath, ".github", "prompts");
-  await fs4.ensureDir(promptsTarget);
-  if (fs4.existsSync(promptsSource)) {
-    const promptFiles = await fs4.readdir(promptsSource);
+  const promptsSource = path5.join(assetsDir, "prompts");
+  const promptsTarget = path5.join(projectPath, ".github", "prompts");
+  await fs6.ensureDir(promptsTarget);
+  if (fs6.existsSync(promptsSource)) {
+    const promptFiles = await fs6.readdir(promptsSource);
     let installed = 0;
     for (const file of promptFiles) {
       if (file.endsWith(".md") && file.startsWith("artk.")) {
-        const source = path3.join(promptsSource, file);
+        const source = path5.join(promptsSource, file);
         const targetName = file.replace(/\.md$/, ".prompt.md");
-        const target = path3.join(promptsTarget, targetName);
-        await fs4.copy(source, target, { overwrite: true });
+        const target = path5.join(promptsTarget, targetName);
+        await fs6.copy(source, target, { overwrite: true });
         installed++;
         logger2.debug(`Installed prompt: ${targetName}`);
       }
@@ -1164,8 +1520,24 @@ async function installPrompts(projectPath, logger2) {
   }
 }
 async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, options, logger2) {
-  await fs4.writeJson(
-    path3.join(artkE2ePath, "package.json"),
+  const playwrightVersionMap = {
+    "1.57.x": "^1.57.0",
+    "1.49.x": "^1.49.0",
+    "1.33.x": "^1.33.0"
+  };
+  const playwrightVersion = playwrightVersionMap[options.variantDef.playwrightVersion];
+  if (!playwrightVersion) {
+    throw new Error(`Unknown Playwright version for variant ${options.variant}: ${options.variantDef.playwrightVersion}. Add mapping to playwrightVersionMap.`);
+  }
+  const nodeTypesMap = {
+    "legacy-14": "^14.0.0",
+    "legacy-16": "^16.0.0",
+    "modern-esm": "^20.0.0",
+    "modern-cjs": "^20.0.0"
+  };
+  const nodeTypesVersion = nodeTypesMap[options.variant];
+  await fs6.writeJson(
+    path5.join(artkE2ePath, "package.json"),
     {
       name: "artk-e2e",
       version: "1.0.0",
@@ -1186,19 +1558,20 @@ async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, optio
       devDependencies: {
         "@artk/core": "file:./vendor/artk-core",
         "@artk/core-autogen": "file:./vendor/artk-core-autogen",
-        "@playwright/test": "^1.57.0",
-        "@types/node": "^20.10.0",
+        "@playwright/test": playwrightVersion,
+        "@types/node": nodeTypesVersion,
         typescript: "^5.3.0"
       }
     },
     { spaces: 2 }
   );
-  await fs4.writeFile(
-    path3.join(artkE2ePath, "playwright.config.ts"),
+  logger2.debug(`Using Playwright ${playwrightVersion} for variant ${options.variant}`);
+  await fs6.writeFile(
+    path5.join(artkE2ePath, "playwright.config.ts"),
     getPlaywrightConfigTemplate()
   );
-  await fs4.writeJson(
-    path3.join(artkE2ePath, "tsconfig.json"),
+  await fs6.writeJson(
+    path5.join(artkE2ePath, "tsconfig.json"),
     {
       compilerOptions: {
         target: "ES2022",
@@ -1225,12 +1598,12 @@ async function createConfigurationFiles(artkE2ePath, artkDir, projectPath, optio
     },
     { spaces: 2 }
   );
-  await fs4.writeFile(
-    path3.join(artkE2ePath, "artk.config.yml"),
+  await fs6.writeFile(
+    path5.join(artkE2ePath, "artk.config.yml"),
     getArtkConfigTemplate(options.projectName)
   );
-  await fs4.writeFile(
-    path3.join(artkE2ePath, ".gitignore"),
+  await fs6.writeFile(
+    path5.join(artkE2ePath, ".gitignore"),
     `node_modules/
 dist/
 test-results/
@@ -1239,8 +1612,8 @@ playwright-report/
 *.local
 `
   );
-  const coreGeneratorPath = path3.join(artkE2ePath, "vendor", "artk-core", "scripts", "generate-foundation.ts");
-  if (fs4.existsSync(coreGeneratorPath)) {
+  const coreGeneratorPath = path5.join(artkE2ePath, "vendor", "artk-core", "scripts", "generate-foundation.ts");
+  if (fs6.existsSync(coreGeneratorPath)) {
     logger2.debug("Generating foundation modules via @artk/core...");
     try {
       execSync(
@@ -1261,21 +1634,33 @@ playwright-report/
     logger2.debug("Foundation generator not found in vendor, using stubs only");
   }
   await createAdditionalModuleStubs(artkE2ePath);
-  await fs4.ensureDir(artkDir);
-  await fs4.writeJson(
-    path3.join(artkDir, "context.json"),
+  await fs6.ensureDir(artkDir);
+  const context = {
+    variant: options.variant,
+    variantInstalledAt: (/* @__PURE__ */ new Date()).toISOString(),
+    nodeVersion: options.nodeMajor,
+    moduleSystem: options.moduleSystem,
+    playwrightVersion: options.variantDef.playwrightVersion,
+    artkVersion: getArtkVersion(),
+    installMethod: "cli",
+    overrideUsed: false
+  };
+  await fs6.writeJson(
+    path5.join(artkDir, "context.json"),
     {
-      version: "1.0",
+      version: 1,
+      // Integer version as per schema
       projectRoot: projectPath,
       artkRoot: artkE2ePath,
       initialized_at: (/* @__PURE__ */ new Date()).toISOString(),
-      templateVariant: options.variant,
-      next_suggested: "/artk.init-playbook"
+      next_suggested: "/artk.init-playbook",
+      // Variant-specific metadata
+      ...context
     },
     { spaces: 2 }
   );
-  await fs4.writeFile(
-    path3.join(artkDir, ".gitignore"),
+  await fs6.writeFile(
+    path5.join(artkDir, ".gitignore"),
     `# ARTK temporary files
 browsers/
 heal-logs/
@@ -1286,10 +1671,10 @@ selector-catalog.local.json
   );
 }
 async function createAdditionalModuleStubs(artkE2ePath) {
-  const foundationPath = path3.join(artkE2ePath, "src", "modules", "foundation");
-  await fs4.ensureDir(path3.join(foundationPath, "selectors"));
-  await fs4.writeFile(
-    path3.join(foundationPath, "selectors", "index.ts"),
+  const foundationPath = path5.join(artkE2ePath, "src", "modules", "foundation");
+  await fs6.ensureDir(path5.join(foundationPath, "selectors"));
+  await fs6.writeFile(
+    path5.join(foundationPath, "selectors", "index.ts"),
     `/**
  * Selectors Module - Locator utilities
  *
@@ -1314,9 +1699,9 @@ export function getAllByTestIdPrefix(page: Page, prefix: string): Locator {
 }
 `
   );
-  await fs4.ensureDir(path3.join(foundationPath, "data"));
-  await fs4.writeFile(
-    path3.join(foundationPath, "data", "index.ts"),
+  await fs6.ensureDir(path5.join(foundationPath, "data"));
+  await fs6.writeFile(
+    path5.join(foundationPath, "data", "index.ts"),
     `/**
  * Data Module - Test data builders and cleanup
  *
@@ -1350,8 +1735,8 @@ export async function runCleanup(): Promise<void> {
 }
 `
   );
-  await fs4.writeFile(
-    path3.join(artkE2ePath, "src", "modules", "features", "index.ts"),
+  await fs6.writeFile(
+    path5.join(artkE2ePath, "src", "modules", "features", "index.ts"),
     `/**
  * Feature Modules - Journey-specific page objects
  *
@@ -1364,8 +1749,8 @@ export {};
   );
 }
 async function runNpmInstall(artkE2ePath, logsDir, logger2) {
-  const logFile = path3.join(logsDir, "npm-install.log");
-  return new Promise((resolve6, reject) => {
+  const logFile = path5.join(logsDir, "npm-install.log");
+  return new Promise((resolve7, reject) => {
     logger2.startSpinner("Installing dependencies...");
     const logLines = [`npm install started - ${(/* @__PURE__ */ new Date()).toISOString()}`];
     logLines.push(`Working directory: ${artkE2ePath}`);
@@ -1393,12 +1778,12 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
       logLines.push("--- STDERR ---");
       logLines.push(stderr || "(empty)");
       try {
-        fs4.writeFileSync(logFile, logLines.join("\n"));
+        fs6.writeFileSync(logFile, logLines.join("\n"));
       } catch {
       }
       if (code === 0) {
         logger2.succeedSpinner("Dependencies installed");
-        resolve6();
+        resolve7();
       } else {
         logger2.failSpinner("npm install failed");
         logger2.debug(`Details saved to: ${logFile}`);
@@ -1408,7 +1793,7 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
     child.on("error", (error) => {
       logLines.push(`Process error: ${error.message}`);
       try {
-        fs4.writeFileSync(logFile, logLines.join("\n"));
+        fs6.writeFileSync(logFile, logLines.join("\n"));
       } catch {
       }
       logger2.failSpinner("npm install failed");
@@ -1417,7 +1802,7 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
     setTimeout(() => {
       logLines.push("TIMEOUT: Installation took longer than 5 minutes");
       try {
-        fs4.writeFileSync(logFile, logLines.join("\n"));
+        fs6.writeFileSync(logFile, logLines.join("\n"));
       } catch {
       }
       child.kill();
@@ -1427,26 +1812,26 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
   });
 }
 async function updateContextJson(artkDir, updates) {
-  const contextPath = path3.join(artkDir, "context.json");
+  const contextPath = path5.join(artkDir, "context.json");
   let context = {};
-  if (fs4.existsSync(contextPath)) {
-    context = await fs4.readJson(contextPath);
+  if (fs6.existsSync(contextPath)) {
+    context = await fs6.readJson(contextPath);
   }
   Object.assign(context, updates);
-  await fs4.writeJson(contextPath, context, { spaces: 2 });
+  await fs6.writeJson(contextPath, context, { spaces: 2 });
 }
 function getAssetsDir() {
   const possiblePaths = [
-    path3.join(__dirname$1, "..", "..", "assets"),
-    path3.join(__dirname$1, "..", "assets"),
-    path3.join(__dirname$1, "assets")
+    path5.join(__dirname2, "..", "..", "assets"),
+    path5.join(__dirname2, "..", "assets"),
+    path5.join(__dirname2, "assets")
   ];
   for (const p of possiblePaths) {
-    if (fs4.existsSync(p)) {
+    if (fs6.existsSync(p)) {
       return p;
     }
   }
-  return path3.join(__dirname$1, "..", "..", "assets");
+  return path5.join(__dirname2, "..", "..", "assets");
 }
 function printSuccessSummary(logger2, projectPath, artkE2ePath, browserInfo) {
   logger2.blank();
@@ -1556,7 +1941,7 @@ function getArtkConfigTemplate(projectName) {
   return `# ARTK Configuration
 # Generated by @artk/cli on ${(/* @__PURE__ */ new Date()).toISOString()}
 
-version: "1.0"
+version: 1
 
 app:
   name: "${projectName}"
@@ -1599,15 +1984,109 @@ browsers:
 `;
 }
 
+// src/lib/variants/variant-types.ts
+function isVariantId(value) {
+  return ["modern-esm", "modern-cjs", "legacy-16", "legacy-14"].includes(value);
+}
+var VariantIdSchema = z.enum([
+  "modern-esm",
+  "modern-cjs",
+  "legacy-16",
+  "legacy-14"
+]);
+var ModuleSystemSchema = z.enum(["esm", "cjs"]);
+var InstallMethodSchema = z.enum(["cli", "bootstrap", "manual"]);
+var LogLevelSchema = z.enum(["INFO", "WARN", "ERROR"]);
+var OperationTypeSchema = z.enum([
+  "install",
+  "upgrade",
+  "rollback",
+  "detect"
+]);
+var LockOperationSchema = z.enum(["install", "upgrade"]);
+var UpgradeRecordSchema = z.object({
+  from: VariantIdSchema,
+  to: VariantIdSchema,
+  at: z.string().datetime()
+});
+z.object({
+  variant: VariantIdSchema,
+  variantInstalledAt: z.string().datetime(),
+  nodeVersion: z.number().int().min(14).max(30),
+  moduleSystem: ModuleSystemSchema,
+  playwrightVersion: z.string().regex(/^\d+\.\d+\.x$/),
+  artkVersion: z.string(),
+  installMethod: InstallMethodSchema,
+  overrideUsed: z.boolean().optional(),
+  previousVariant: VariantIdSchema.optional(),
+  upgradeHistory: z.array(UpgradeRecordSchema).optional()
+});
+z.object({
+  pid: z.number().int().positive(),
+  startedAt: z.string().datetime(),
+  operation: LockOperationSchema
+});
+z.object({
+  timestamp: z.string().datetime(),
+  level: LogLevelSchema,
+  operation: OperationTypeSchema,
+  message: z.string(),
+  details: z.record(z.unknown()).optional()
+});
+var FeatureEntrySchema = z.object({
+  available: z.boolean(),
+  alternative: z.string().optional(),
+  notes: z.string().optional(),
+  sincePlaywright: z.string().regex(/^\d+\.\d+$/).optional()
+});
+z.object({
+  variant: VariantIdSchema,
+  playwrightVersion: z.string().regex(/^\d+\.\d+\.x$/),
+  nodeRange: z.array(z.string().regex(/^\d+$/)).min(1),
+  moduleSystem: ModuleSystemSchema.optional(),
+  features: z.record(FeatureEntrySchema),
+  generatedAt: z.string().datetime().optional()
+});
+z.object({
+  id: VariantIdSchema,
+  displayName: z.string(),
+  nodeRange: z.array(z.string().regex(/^\d+$/)).min(1),
+  playwrightVersion: z.string().regex(/^\d+\.\d+\.x$/),
+  moduleSystem: ModuleSystemSchema,
+  tsTarget: z.string(),
+  distDirectory: z.string()
+});
+z.object({
+  nodeVersion: z.number().int().min(1),
+  nodeVersionFull: z.string(),
+  moduleSystem: ModuleSystemSchema,
+  selectedVariant: VariantIdSchema,
+  success: z.boolean(),
+  error: z.string().optional()
+});
+
 // src/commands/init.ts
+var LEGACY_VARIANT_MAP = {
+  "commonjs": "modern-cjs",
+  "cjs": "modern-cjs",
+  "esm": "modern-esm"
+};
 async function initCommand(targetPath, options) {
   const logger2 = new Logger({ verbose: options.verbose });
   let variant = "auto";
-  if (options.variant) {
-    if (["commonjs", "esm", "auto"].includes(options.variant)) {
+  if (options.variant && options.variant !== "auto") {
+    if (options.variant in LEGACY_VARIANT_MAP) {
+      const mappedVariant = LEGACY_VARIANT_MAP[options.variant];
+      logger2.warning(`--variant ${options.variant} is deprecated. Using '${mappedVariant}' instead.`);
+      logger2.warning(`For legacy Node.js support, use: --variant legacy-16 or --variant legacy-14`);
+      variant = mappedVariant;
+    } else if (isVariantId(options.variant)) {
       variant = options.variant;
     } else {
-      logger2.error(`Invalid variant: ${options.variant}. Use: commonjs, esm, or auto`);
+      logger2.error(`Invalid variant: ${options.variant}`);
+      logger2.error(`Valid variants: ${ALL_VARIANT_IDS.join(", ")}, auto`);
+      logger2.blank();
+      logger2.info(getVariantHelpText());
       process.exit(1);
     }
   }
@@ -1637,7 +2116,7 @@ async function initCommand(targetPath, options) {
     process.exit(1);
   }
 }
-var MIN_NODE_VERSION = "18.0.0";
+var MIN_NODE_VERSION2 = "18.0.0";
 var MIN_NPM_VERSION = "8.0.0";
 async function checkPrerequisites() {
   const results = [];
@@ -1650,12 +2129,12 @@ async function checkPrerequisites() {
 }
 function checkNodeVersion() {
   const version2 = process.version.replace(/^v/, "");
-  if (semver.gte(version2, MIN_NODE_VERSION)) {
+  if (semver.gte(version2, MIN_NODE_VERSION2)) {
     return {
       name: "Node.js",
       status: "pass",
       version: version2,
-      required: `>= ${MIN_NODE_VERSION}`,
+      required: `>= ${MIN_NODE_VERSION2}`,
       message: `Node.js ${version2} is installed`
     };
   }
@@ -1663,9 +2142,9 @@ function checkNodeVersion() {
     name: "Node.js",
     status: "fail",
     version: version2,
-    required: `>= ${MIN_NODE_VERSION}`,
+    required: `>= ${MIN_NODE_VERSION2}`,
     message: `Node.js ${version2} is too old`,
-    fix: `Upgrade to Node.js ${MIN_NODE_VERSION} or later: https://nodejs.org`
+    fix: `Upgrade to Node.js ${MIN_NODE_VERSION2} or later: https://nodejs.org`
   };
 }
 function checkNpmVersion() {
@@ -1857,14 +2336,14 @@ function printPrerequisitesReport(result, logger2) {
     logger2.error("Some prerequisites are not met. Please fix the issues above.");
   }
 }
-var __filename2 = fileURLToPath(import.meta.url);
-var __dirname2 = path3.dirname(__filename2);
+var __filename3 = fileURLToPath(import.meta.url);
+var __dirname3 = path5.dirname(__filename3);
 function getVersion() {
   try {
     const possiblePaths = [
-      path3.join(__dirname2, "..", "..", "package.json"),
-      path3.join(__dirname2, "..", "package.json"),
-      path3.join(__dirname2, "package.json")
+      path5.join(__dirname3, "..", "..", "package.json"),
+      path5.join(__dirname3, "..", "package.json"),
+      path5.join(__dirname3, "package.json")
     ];
     for (const pkgPath of possiblePaths) {
       if (fs2.existsSync(pkgPath)) {
@@ -1880,8 +2359,8 @@ function getVersion() {
 function getCoreVersion() {
   try {
     const possiblePaths = [
-      path3.join(__dirname2, "..", "..", "assets", "core", "package.json"),
-      path3.join(__dirname2, "..", "assets", "core", "package.json")
+      path5.join(__dirname3, "..", "..", "assets", "core", "package.json"),
+      path5.join(__dirname3, "..", "assets", "core", "package.json")
     ];
     for (const pkgPath of possiblePaths) {
       if (fs2.existsSync(pkgPath)) {
@@ -1912,23 +2391,23 @@ async function checkCommand(options) {
     process.exit(1);
   }
 }
-var __filename3 = fileURLToPath(import.meta.url);
-var __dirname3 = path3.dirname(__filename3);
+var __filename4 = fileURLToPath(import.meta.url);
+var __dirname4 = path5.dirname(__filename4);
 async function upgradeCommand(targetPath, options) {
   const logger2 = new Logger();
-  const resolvedPath = path3.resolve(targetPath);
-  const artkE2ePath = path3.join(resolvedPath, "artk-e2e");
+  const resolvedPath = path5.resolve(targetPath);
+  const artkE2ePath = path5.join(resolvedPath, "artk-e2e");
   logger2.header("ARTK Upgrade");
-  if (!fs4.existsSync(artkE2ePath)) {
+  if (!fs6.existsSync(artkE2ePath)) {
     logger2.error("ARTK is not installed in this project.");
     logger2.info("Run: artk init <path>");
     process.exit(1);
   }
-  const vendorCorePath = path3.join(artkE2ePath, "vendor", "artk-core", "package.json");
+  const vendorCorePath = path5.join(artkE2ePath, "vendor", "artk-core", "package.json");
   let currentVersion = "unknown";
-  if (fs4.existsSync(vendorCorePath)) {
+  if (fs6.existsSync(vendorCorePath)) {
     try {
-      const pkg = await fs4.readJson(vendorCorePath);
+      const pkg = await fs6.readJson(vendorCorePath);
       currentVersion = pkg.version || "unknown";
     } catch {
     }
@@ -1956,21 +2435,21 @@ async function upgradeCommand(targetPath, options) {
   logger2.startSpinner("Upgrading @artk/core...");
   try {
     const assetsDir = getAssetsDir2();
-    const coreSource = path3.join(assetsDir, "core");
-    const coreTarget = path3.join(artkE2ePath, "vendor", "artk-core");
-    if (fs4.existsSync(coreSource)) {
-      await fs4.remove(coreTarget);
-      await fs4.copy(coreSource, coreTarget);
+    const coreSource = path5.join(assetsDir, "core");
+    const coreTarget = path5.join(artkE2ePath, "vendor", "artk-core");
+    if (fs6.existsSync(coreSource)) {
+      await fs6.remove(coreTarget);
+      await fs6.copy(coreSource, coreTarget);
     } else {
       logger2.failSpinner("Upgrade failed");
       logger2.error("Core assets not found in CLI package");
       process.exit(1);
     }
-    const autogenSource = path3.join(assetsDir, "autogen");
-    const autogenTarget = path3.join(artkE2ePath, "vendor", "artk-core-autogen");
-    if (fs4.existsSync(autogenSource)) {
-      await fs4.remove(autogenTarget);
-      await fs4.copy(autogenSource, autogenTarget);
+    const autogenSource = path5.join(assetsDir, "autogen");
+    const autogenTarget = path5.join(artkE2ePath, "vendor", "artk-core-autogen");
+    if (fs6.existsSync(autogenSource)) {
+      await fs6.remove(autogenTarget);
+      await fs6.copy(autogenSource, autogenTarget);
     }
     logger2.succeedSpinner("Upgrade complete!");
     logger2.blank();
@@ -1987,22 +2466,22 @@ async function upgradeCommand(targetPath, options) {
 }
 function getAssetsDir2() {
   const possiblePaths = [
-    path3.join(__dirname3, "..", "..", "assets"),
-    path3.join(__dirname3, "..", "assets"),
-    path3.join(__dirname3, "assets")
+    path5.join(__dirname4, "..", "..", "assets"),
+    path5.join(__dirname4, "..", "assets"),
+    path5.join(__dirname4, "assets")
   ];
   for (const p of possiblePaths) {
-    if (fs4.existsSync(p)) {
+    if (fs6.existsSync(p)) {
       return p;
     }
   }
-  return path3.join(__dirname3, "..", "..", "assets");
+  return path5.join(__dirname4, "..", "..", "assets");
 }
 async function doctorCommand(targetPath, options) {
   const logger2 = new Logger({ verbose: options.verbose });
-  const resolvedPath = path3.resolve(targetPath);
-  const artkE2ePath = path3.join(resolvedPath, "artk-e2e");
-  path3.join(resolvedPath, ".artk");
+  const resolvedPath = path5.resolve(targetPath);
+  const artkE2ePath = path5.join(resolvedPath, "artk-e2e");
+  path5.join(resolvedPath, ".artk");
   logger2.header("ARTK Doctor");
   logger2.info(`Diagnosing: ${resolvedPath}`);
   logger2.blank();
@@ -2067,22 +2546,22 @@ async function doctorCommand(targetPath, options) {
   }
 }
 async function checkArtkInstallation(projectPath, artkE2ePath) {
-  if (!fs4.existsSync(artkE2ePath)) {
+  if (!fs6.existsSync(artkE2ePath)) {
     return {
       name: "ARTK Installation",
       status: "error",
       message: "artk-e2e directory not found"
     };
   }
-  const contextPath = path3.join(projectPath, ".artk", "context.json");
-  if (!fs4.existsSync(contextPath)) {
+  const contextPath = path5.join(projectPath, ".artk", "context.json");
+  if (!fs6.existsSync(contextPath)) {
     return {
       name: "ARTK Installation",
       status: "warn",
       message: "Missing .artk/context.json",
       fix: async () => {
-        await fs4.ensureDir(path3.join(projectPath, ".artk"));
-        await fs4.writeJson(contextPath, {
+        await fs6.ensureDir(path5.join(projectPath, ".artk"));
+        await fs6.writeJson(contextPath, {
           version: "1.0",
           projectRoot: projectPath,
           artkRoot: artkE2ePath,
@@ -2098,8 +2577,8 @@ async function checkArtkInstallation(projectPath, artkE2ePath) {
   };
 }
 async function checkNodeModules(artkE2ePath) {
-  const nodeModulesPath = path3.join(artkE2ePath, "node_modules");
-  if (!fs4.existsSync(nodeModulesPath)) {
+  const nodeModulesPath = path5.join(artkE2ePath, "node_modules");
+  if (!fs6.existsSync(nodeModulesPath)) {
     return {
       name: "Dependencies",
       status: "error",
@@ -2109,8 +2588,8 @@ async function checkNodeModules(artkE2ePath) {
       }
     };
   }
-  const playwrightPath = path3.join(nodeModulesPath, "@playwright", "test");
-  if (!fs4.existsSync(playwrightPath)) {
+  const playwrightPath = path5.join(nodeModulesPath, "@playwright", "test");
+  if (!fs6.existsSync(playwrightPath)) {
     return {
       name: "Dependencies",
       status: "error",
@@ -2127,8 +2606,8 @@ async function checkNodeModules(artkE2ePath) {
   };
 }
 async function checkPlaywrightBrowsers(projectPath, artkE2ePath, logger2) {
-  const browsersCachePath = path3.join(projectPath, ".artk", "browsers");
-  const hasCachedBrowsers = fs4.existsSync(browsersCachePath) && fs4.readdirSync(browsersCachePath).some((f) => f.startsWith("chromium-"));
+  const browsersCachePath = path5.join(projectPath, ".artk", "browsers");
+  const hasCachedBrowsers = fs6.existsSync(browsersCachePath) && fs6.readdirSync(browsersCachePath).some((f) => f.startsWith("chromium-"));
   if (hasCachedBrowsers) {
     return {
       name: "Playwright Browsers",
@@ -2136,9 +2615,9 @@ async function checkPlaywrightBrowsers(projectPath, artkE2ePath, logger2) {
       message: "Browsers cached in .artk/browsers/"
     };
   }
-  const configPath = path3.join(artkE2ePath, "artk.config.yml");
-  if (fs4.existsSync(configPath)) {
-    const content = fs4.readFileSync(configPath, "utf8");
+  const configPath = path5.join(artkE2ePath, "artk.config.yml");
+  if (fs6.existsSync(configPath)) {
+    const content = fs6.readFileSync(configPath, "utf8");
     if (content.includes("channel: msedge") || content.includes("channel: chrome")) {
       return {
         name: "Playwright Browsers",
@@ -2165,7 +2644,7 @@ async function checkConfigFiles(artkE2ePath) {
   ];
   const missing = [];
   for (const file of requiredFiles) {
-    if (!fs4.existsSync(path3.join(artkE2ePath, file))) {
+    if (!fs6.existsSync(path5.join(artkE2ePath, file))) {
       missing.push(file);
     }
   }
@@ -2183,13 +2662,13 @@ async function checkConfigFiles(artkE2ePath) {
   };
 }
 async function checkVendorPackages(artkE2ePath) {
-  const vendorCore = path3.join(artkE2ePath, "vendor", "artk-core");
-  const vendorAutogen = path3.join(artkE2ePath, "vendor", "artk-core-autogen");
+  const vendorCore = path5.join(artkE2ePath, "vendor", "artk-core");
+  const vendorAutogen = path5.join(artkE2ePath, "vendor", "artk-core-autogen");
   const issues = [];
-  if (!fs4.existsSync(path3.join(vendorCore, "package.json"))) {
+  if (!fs6.existsSync(path5.join(vendorCore, "package.json"))) {
     issues.push("@artk/core");
   }
-  if (!fs4.existsSync(path3.join(vendorAutogen, "package.json"))) {
+  if (!fs6.existsSync(path5.join(vendorAutogen, "package.json"))) {
     issues.push("@artk/core-autogen");
   }
   if (issues.length > 0) {
@@ -2206,7 +2685,7 @@ async function checkVendorPackages(artkE2ePath) {
   };
 }
 async function checkTypeScript(artkE2ePath) {
-  if (!fs4.existsSync(path3.join(artkE2ePath, "node_modules"))) {
+  if (!fs6.existsSync(path5.join(artkE2ePath, "node_modules"))) {
     return {
       name: "TypeScript",
       status: "warn",
@@ -2230,26 +2709,26 @@ async function checkTypeScript(artkE2ePath) {
 }
 async function uninstallCommand(targetPath, options) {
   const logger2 = new Logger();
-  const resolvedPath = path3.resolve(targetPath);
-  const artkE2ePath = path3.join(resolvedPath, "artk-e2e");
-  const artkDir = path3.join(resolvedPath, ".artk");
-  const promptsDir = path3.join(resolvedPath, ".github", "prompts");
+  const resolvedPath = path5.resolve(targetPath);
+  const artkE2ePath = path5.join(resolvedPath, "artk-e2e");
+  const artkDir = path5.join(resolvedPath, ".artk");
+  const promptsDir = path5.join(resolvedPath, ".github", "prompts");
   logger2.header("ARTK Uninstall");
-  if (!fs4.existsSync(artkE2ePath) && !fs4.existsSync(artkDir)) {
+  if (!fs6.existsSync(artkE2ePath) && !fs6.existsSync(artkDir)) {
     logger2.error("ARTK is not installed in this project.");
     process.exit(1);
   }
   logger2.info("The following will be removed:");
   logger2.blank();
   const toRemove = [];
-  if (fs4.existsSync(artkE2ePath)) {
+  if (fs6.existsSync(artkE2ePath)) {
     if (options.keepTests) {
       toRemove.push({
-        path: path3.join(artkE2ePath, "vendor"),
+        path: path5.join(artkE2ePath, "vendor"),
         description: "artk-e2e/vendor/ (vendored packages)"
       });
       toRemove.push({
-        path: path3.join(artkE2ePath, "node_modules"),
+        path: path5.join(artkE2ePath, "node_modules"),
         description: "artk-e2e/node_modules/"
       });
     } else {
@@ -2259,18 +2738,18 @@ async function uninstallCommand(targetPath, options) {
       });
     }
   }
-  if (fs4.existsSync(artkDir)) {
+  if (fs6.existsSync(artkDir)) {
     toRemove.push({
       path: artkDir,
       description: ".artk/ (ARTK metadata and browser cache)"
     });
   }
-  if (!options.keepPrompts && fs4.existsSync(promptsDir)) {
-    const artkPrompts = fs4.readdirSync(promptsDir).filter((f) => f.startsWith("artk.") && f.endsWith(".prompt.md"));
+  if (!options.keepPrompts && fs6.existsSync(promptsDir)) {
+    const artkPrompts = fs6.readdirSync(promptsDir).filter((f) => f.startsWith("artk.") && f.endsWith(".prompt.md"));
     if (artkPrompts.length > 0) {
       for (const prompt of artkPrompts) {
         toRemove.push({
-          path: path3.join(promptsDir, prompt),
+          path: path5.join(promptsDir, prompt),
           description: `.github/prompts/${prompt}`
         });
       }
@@ -2294,21 +2773,21 @@ async function uninstallCommand(targetPath, options) {
   logger2.startSpinner("Removing ARTK...");
   try {
     for (const item of toRemove) {
-      if (fs4.existsSync(item.path)) {
-        await fs4.remove(item.path);
+      if (fs6.existsSync(item.path)) {
+        await fs6.remove(item.path);
       }
     }
-    if (fs4.existsSync(promptsDir)) {
-      const remaining = fs4.readdirSync(promptsDir);
+    if (fs6.existsSync(promptsDir)) {
+      const remaining = fs6.readdirSync(promptsDir);
       if (remaining.length === 0) {
-        await fs4.remove(promptsDir);
+        await fs6.remove(promptsDir);
       }
     }
-    const githubDir = path3.join(resolvedPath, ".github");
-    if (fs4.existsSync(githubDir)) {
-      const remaining = fs4.readdirSync(githubDir);
+    const githubDir = path5.join(resolvedPath, ".github");
+    if (fs6.existsSync(githubDir)) {
+      const remaining = fs6.readdirSync(githubDir);
       if (remaining.length === 0) {
-        await fs4.remove(githubDir);
+        await fs6.remove(githubDir);
       }
     }
     logger2.succeedSpinner("ARTK removed successfully");
@@ -2328,14 +2807,14 @@ async function uninstallCommand(targetPath, options) {
   }
 }
 function confirmUninstall() {
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
     });
     rl.question("Are you sure you want to uninstall? (y/N) ", (answer) => {
       rl.close();
-      resolve6(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -2343,7 +2822,7 @@ function confirmUninstall() {
 // src/cli.ts
 var version = getVersion();
 program.name("artk").description("ARTK - Automatic Regression Testing Kit\n\nBootstrap Playwright test suites with AI-assisted workflows").version(version, "-v, --version", "Output the current version");
-program.command("init <path>").description("Initialize ARTK in a project").option("--skip-npm", "Skip npm install").option("--skip-browsers", "Skip browser installation").option("-f, --force", "Overwrite existing installation").option("--variant <type>", "Module system: commonjs, esm, or auto (default: auto)", "auto").option("--no-prompts", "Skip installing AI prompts").option("--verbose", "Show detailed output").action(async (targetPath, options) => {
+program.command("init <path>").description("Initialize ARTK in a project").option("--skip-npm", "Skip npm install").option("--skip-browsers", "Skip browser installation").option("-f, --force", "Overwrite existing installation").option("--variant <type>", "Variant: modern-esm, modern-cjs, legacy-16, legacy-14, or auto (default: auto)", "auto").option("--no-prompts", "Skip installing AI prompts").option("--verbose", "Show detailed output").action(async (targetPath, options) => {
   await initCommand(targetPath, options);
 });
 program.command("upgrade [path]").description("Upgrade @artk/core in an existing installation").option("--check", "Check for updates without applying").option("-f, --force", "Force upgrade even if versions match").action(async (targetPath, options) => {

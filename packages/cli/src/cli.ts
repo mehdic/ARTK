@@ -25,7 +25,7 @@ program
   .option('--skip-npm', 'Skip npm install')
   .option('--skip-browsers', 'Skip browser installation')
   .option('-f, --force', 'Overwrite existing installation')
-  .option('--variant <type>', 'Module system: commonjs, esm, or auto (default: auto)', 'auto')
+  .option('--variant <type>', 'Variant: modern-esm, modern-cjs, legacy-16, legacy-14, or auto (default: auto)', 'auto')
   .option('--no-prompts', 'Skip installing AI prompts')
   .option('--verbose', 'Show detailed output')
   .action(async (targetPath: string, options) => {

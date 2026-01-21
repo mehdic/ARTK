@@ -76,6 +76,20 @@ declare function resolveBrowser(targetPath: string, logger?: Logger, options?: {
 }): Promise<BrowserInfo>;
 
 /**
+ * ARTK Multi-Variant Type Definitions
+ *
+ * Core types for the variant system supporting Node.js 14-22 and ESM/CommonJS.
+ */
+/**
+ * Valid variant identifiers.
+ * - modern-esm: Node 18+ with ESM module system
+ * - modern-cjs: Node 18+ with CommonJS module system
+ * - legacy-16: Node 16-17 with CommonJS (Playwright 1.49.x)
+ * - legacy-14: Node 14-15 with CommonJS (Playwright 1.33.x)
+ */
+type VariantId = 'modern-esm' | 'modern-cjs' | 'legacy-16' | 'legacy-14';
+
+/**
  * Bootstrap - Core installation logic
  *
  * This module implements the complete ARTK bootstrap process,
@@ -87,7 +101,7 @@ interface BootstrapOptions {
     skipNpm?: boolean;
     skipBrowsers?: boolean;
     force?: boolean;
-    variant?: 'commonjs' | 'esm' | 'auto';
+    variant?: VariantId | 'auto';
     prompts?: boolean;
     verbose?: boolean;
 }

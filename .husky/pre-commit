@@ -1,11 +1,17 @@
 #!/bin/sh
-# Pre-commit hook: Lint staged files and typecheck
+# Pre-commit hook: Sync CLI, lint staged files, and typecheck
 # @see research/2026-01-15_remaining_issues_remediation_plan.md
+# @see specs/007-critical-fixes/spec.md (CLI sync rationale)
 #
 # Phase 3: Full typecheck enabled (0 source file errors achieved)
 
 # Exit immediately if any command fails
 set -e
+
+# Step 1: Sync CLI variant utilities (cli/ → packages/cli/)
+# This prevents feature divergence between the two CLI directories
+echo "Syncing CLI variants..."
+./scripts/sync-cli-variants.sh
 
 echo "Running lint-staged..."
 npx lint-staged

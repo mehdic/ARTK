@@ -15,6 +15,26 @@ import { detectEnvironment, type EnvironmentInfo } from './environment.js';
 import { resolveBrowser, updateArtkConfigBrowser, type BrowserInfo } from './browser-resolver.js';
 import { validateArtkConfig } from './config-validator.js';
 import { promptVariant, isInteractive } from './prompts.js';
+import {
+  type VariantId,
+  type ArtkContext,
+} from './variants/index.js';
+import {
+  getVariantDefinition,
+  getRecommendedVariant,
+  isVariantCompatible,
+  VARIANT_DEFINITIONS,
+} from './variants/variant-definitions.js';
+import {
+  getNodeMajorVersion,
+  detectModuleSystem,
+} from './variants/variant-detector.js';
+import {
+  getArtkVersion,
+  generateVariantFeatures,
+  generateReadonlyMarker,
+  generateAiIgnore,
+} from './variants/variant-files.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,7 +43,7 @@ export interface BootstrapOptions {
   skipNpm?: boolean;
   skipBrowsers?: boolean;
   force?: boolean;
-  variant?: 'commonjs' | 'esm' | 'auto';
+  variant?: VariantId | 'auto';
   prompts?: boolean;
   verbose?: boolean;
 }
@@ -108,29 +128,42 @@ export async function bootstrap(
       }
     }
 
-    // Step 1: Detect environment
-    logger.step(1, 7, 'Detecting environment...');
+    // Step 1: Detect environment and select variant
+    logger.step(1, 7, 'Detecting environment and selecting variant...');
     const environment = await detectEnvironment(resolvedPath);
-    let variant: 'commonjs' | 'esm';
+    const nodeMajor = getNodeMajorVersion();
+    const detectedModuleSystem = detectModuleSystem(resolvedPath);
+
+    let selectedVariant: VariantId;
 
     if (options.variant && options.variant !== 'auto') {
       // User explicitly specified a variant
-      variant = options.variant;
-    } else if (environment.moduleSystem !== 'unknown') {
-      // Environment detection succeeded
-      variant = environment.moduleSystem;
-    } else if (isInteractive()) {
-      // Interactive mode: prompt user to select variant
-      logger.warning('Could not auto-detect module system');
-      variant = await promptVariant();
+      selectedVariant = options.variant;
+
+      // Warn if variant is incompatible with current Node version
+      if (!isVariantCompatible(selectedVariant, nodeMajor)) {
+        const variantDef = getVariantDefinition(selectedVariant);
+        logger.warning(`Variant '${selectedVariant}' is designed for Node ${variantDef.nodeRange.join('/')}`);
+        logger.warning(`You are running Node ${nodeMajor}. This may cause compatibility issues.`);
+      }
     } else {
-      // Non-interactive: default to CommonJS for compatibility
-      variant = 'commonjs';
-      logger.debug('Using CommonJS as default (non-interactive mode)');
+      // Auto-detect: use Node version + module system
+      try {
+        selectedVariant = getRecommendedVariant(nodeMajor, detectedModuleSystem);
+        logger.debug(`Auto-selected variant: ${selectedVariant} (Node ${nodeMajor}, ${detectedModuleSystem})`);
+      } catch (error) {
+        // Node version too old
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(message);
+        throw error;
+      }
     }
 
-    logger.success(`Module system: ${variant}`);
-    logger.debug(`Node.js: ${environment.nodeVersion}`);
+    const variantDef = getVariantDefinition(selectedVariant);
+    logger.success(`Variant: ${selectedVariant} (${variantDef.displayName})`);
+    logger.debug(`Node.js: ${environment.nodeVersion} (major: ${nodeMajor})`);
+    logger.debug(`Module system: ${detectedModuleSystem}`);
+    logger.debug(`Playwright: ${variantDef.playwrightVersion}`);
     logger.debug(`Platform: ${environment.platform}/${environment.arch}`);
 
     // Step 2: Create directory structure
@@ -139,9 +172,9 @@ export async function bootstrap(
     logger.success('Directory structure created');
 
     // Step 3: Install @artk/core to vendor
-    logger.step(3, 7, 'Installing @artk/core to vendor/...');
-    await installVendorPackages(artkE2ePath, logger);
-    logger.success('@artk/core installed to vendor/');
+    logger.step(3, 7, `Installing @artk/core (${selectedVariant}) to vendor/...`);
+    await installVendorPackages(artkE2ePath, selectedVariant, logger);
+    logger.success(`@artk/core installed to vendor/ (${variantDef.displayName})`);
 
     // Step 4: Install prompts
     if (options.prompts !== false) {
@@ -157,7 +190,10 @@ export async function bootstrap(
     const projectName = path.basename(resolvedPath);
     await createConfigurationFiles(artkE2ePath, artkDir, resolvedPath, {
       projectName,
-      variant,
+      variant: selectedVariant,
+      variantDef,
+      nodeMajor,
+      moduleSystem: detectedModuleSystem,
     }, logger);
     logger.success('Configuration files created');
 
@@ -339,17 +375,69 @@ async function createDirectoryStructure(artkE2ePath: string): Promise<void> {
 /**
  * Install @artk/core and @artk/core-autogen to vendor directory
  */
-async function installVendorPackages(artkE2ePath: string, logger: Logger): Promise<void> {
+async function installVendorPackages(artkE2ePath: string, variant: VariantId, logger: Logger): Promise<void> {
   // Get the assets directory (bundled with CLI)
   const assetsDir = getAssetsDir();
+  const variantDef = getVariantDefinition(variant);
 
-  // Copy @artk/core
+  // Copy @artk/core with variant-specific dist folder
   const coreSource = path.join(assetsDir, 'core');
   const coreTarget = path.join(artkE2ePath, 'vendor', 'artk-core');
 
   if (fs.existsSync(coreSource)) {
-    await fs.copy(coreSource, coreTarget, { overwrite: true });
-    logger.debug(`Copied @artk/core from bundled assets`);
+    // First, copy the base files (package.json, etc.)
+    await fs.copy(coreSource, coreTarget, {
+      overwrite: true,
+      filter: (src) => {
+        // Skip all dist folders initially - we'll copy the right one
+        const relativePath = path.relative(coreSource, src);
+        return !relativePath.startsWith('dist');
+      },
+    });
+
+    // Now copy the correct dist folder based on variant
+    const distSource = path.join(coreSource, variantDef.distDirectory);
+    const distTarget = path.join(coreTarget, 'dist'); // Always install to 'dist' for simplicity
+
+    if (fs.existsSync(distSource)) {
+      await fs.copy(distSource, distTarget, { overwrite: true });
+      logger.debug(`Copied @artk/core ${variantDef.distDirectory} → vendor/artk-core/dist`);
+    } else {
+      // Fallback: try the default dist folder
+      const defaultDist = path.join(coreSource, 'dist');
+      if (fs.existsSync(defaultDist)) {
+        await fs.copy(defaultDist, distTarget, { overwrite: true });
+        logger.warning(`Variant dist '${variantDef.distDirectory}' not found, using default dist`);
+      } else {
+        logger.warning(`No dist folder found for @artk/core`);
+      }
+    }
+
+    // Generate variant-specific files
+    const context: ArtkContext = {
+      variant,
+      variantInstalledAt: new Date().toISOString(),
+      nodeVersion: getNodeMajorVersion(),
+      moduleSystem: variantDef.moduleSystem,
+      playwrightVersion: variantDef.playwrightVersion,
+      artkVersion: getArtkVersion(),
+      installMethod: 'cli',
+      overrideUsed: false,
+    };
+
+    // Write variant-features.json
+    const features = generateVariantFeatures(variant);
+    await fs.writeJson(path.join(coreTarget, 'variant-features.json'), features, { spaces: 2 });
+
+    // Write READONLY.md
+    const readonlyContent = generateReadonlyMarker(variantDef, context);
+    await fs.writeFile(path.join(coreTarget, 'READONLY.md'), readonlyContent);
+
+    // Write .ai-ignore
+    const aiIgnoreContent = generateAiIgnore(variant);
+    await fs.writeFile(path.join(coreTarget, '.ai-ignore'), aiIgnoreContent);
+
+    logger.debug(`Copied @artk/core from bundled assets (variant: ${variant})`);
   } else {
     logger.warning(`@artk/core assets not found at ${coreSource}`);
     // Create minimal package.json for development
@@ -360,7 +448,7 @@ async function installVendorPackages(artkE2ePath: string, logger: Logger): Promi
     });
   }
 
-  // Copy @artk/core-autogen
+  // Copy @artk/core-autogen (same for all variants currently)
   const autogenSource = path.join(assetsDir, 'autogen');
   const autogenTarget = path.join(artkE2ePath, 'vendor', 'artk-core-autogen');
 
@@ -417,9 +505,35 @@ async function createConfigurationFiles(
   artkE2ePath: string,
   artkDir: string,
   projectPath: string,
-  options: { projectName: string; variant: 'commonjs' | 'esm' },
+  options: {
+    projectName: string;
+    variant: VariantId;
+    variantDef: import('./variants/index.js').Variant;
+    nodeMajor: number;
+    moduleSystem: 'esm' | 'cjs';
+  },
   logger: Logger
 ): Promise<void> {
+  // Determine Playwright version based on variant
+  const playwrightVersionMap: Record<string, string> = {
+    '1.57.x': '^1.57.0',
+    '1.49.x': '^1.49.0',
+    '1.33.x': '^1.33.0',
+  };
+  const playwrightVersion = playwrightVersionMap[options.variantDef.playwrightVersion];
+  if (!playwrightVersion) {
+    throw new Error(`Unknown Playwright version for variant ${options.variant}: ${options.variantDef.playwrightVersion}. Add mapping to playwrightVersionMap.`);
+  }
+
+  // Determine @types/node version based on variant's Node.js target
+  const nodeTypesMap: Record<VariantId, string> = {
+    'legacy-14': '^14.0.0',
+    'legacy-16': '^16.0.0',
+    'modern-esm': '^20.0.0',
+    'modern-cjs': '^20.0.0',
+  };
+  const nodeTypesVersion = nodeTypesMap[options.variant];
+
   // package.json
   await fs.writeJson(
     path.join(artkE2ePath, 'package.json'),
@@ -443,13 +557,14 @@ async function createConfigurationFiles(
       devDependencies: {
         '@artk/core': 'file:./vendor/artk-core',
         '@artk/core-autogen': 'file:./vendor/artk-core-autogen',
-        '@playwright/test': '^1.57.0',
-        '@types/node': '^20.10.0',
+        '@playwright/test': playwrightVersion,
+        '@types/node': nodeTypesVersion,
         typescript: '^5.3.0',
       },
     },
     { spaces: 2 }
   );
+  logger.debug(`Using Playwright ${playwrightVersion} for variant ${options.variant}`);
 
   // playwright.config.ts
   await fs.writeFile(
@@ -534,17 +649,29 @@ playwright-report/
   // Create additional module stubs (selectors, data, features)
   await createAdditionalModuleStubs(artkE2ePath);
 
-  // .artk/context.json
+  // .artk/context.json with full variant metadata
   await fs.ensureDir(artkDir);
+  const context: ArtkContext = {
+    variant: options.variant,
+    variantInstalledAt: new Date().toISOString(),
+    nodeVersion: options.nodeMajor,
+    moduleSystem: options.moduleSystem,
+    playwrightVersion: options.variantDef.playwrightVersion,
+    artkVersion: getArtkVersion(),
+    installMethod: 'cli',
+    overrideUsed: false,
+  };
+
   await fs.writeJson(
     path.join(artkDir, 'context.json'),
     {
-      version: '1.0',
+      version: 1, // Integer version as per schema
       projectRoot: projectPath,
       artkRoot: artkE2ePath,
       initialized_at: new Date().toISOString(),
-      templateVariant: options.variant,
       next_suggested: '/artk.init-playbook',
+      // Variant-specific metadata
+      ...context,
     },
     { spaces: 2 }
   );
@@ -898,7 +1025,7 @@ function getArtkConfigTemplate(projectName: string): string {
   return `# ARTK Configuration
 # Generated by @artk/cli on ${new Date().toISOString()}
 
-version: "1.0"
+version: 1
 
 app:
   name: "${projectName}"
