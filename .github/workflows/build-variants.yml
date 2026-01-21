@@ -43,7 +43,9 @@ jobs:
           cache-dependency-path: core/typescript/package.json
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Build all variants
@@ -159,7 +161,9 @@ jobs:
           path: .
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Install Playwright browsers
@@ -193,7 +197,9 @@ jobs:
           path: .
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Install Playwright browsers
@@ -227,7 +233,9 @@ jobs:
           path: .
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Install Playwright browsers
@@ -369,7 +377,9 @@ jobs:
           cache-dependency-path: core/typescript/package.json
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Time full variant build

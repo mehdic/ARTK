@@ -235,12 +235,6 @@ describe('Autogen CJS Build', () => {
         return; // Skip if not built
       }
 
-      // Skip if autogen dependencies aren't installed (ejs, etc.)
-      const autogenNodeModules = join(autogenRoot, 'node_modules');
-      if (!existsSync(autogenNodeModules)) {
-        return; // Skip - autogen dependencies not installed
-      }
-
       try {
         const result = execSync(`node "${cliPath}" --help`, {
           encoding: 'utf-8',
@@ -251,10 +245,6 @@ describe('Autogen CJS Build', () => {
         expect(result).toContain('artk-autogen');
       } catch (error: any) {
         const stderr = error.stderr?.toString() || error.message;
-        // Skip if dependency missing (common in CI where autogen deps aren't installed)
-        if (stderr.includes("Cannot find module")) {
-          return;
-        }
         throw new Error(`CLI --help failed for ${name}: ${stderr}`);
       }
     });
