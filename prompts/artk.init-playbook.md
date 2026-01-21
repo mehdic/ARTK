@@ -1092,7 +1092,7 @@ Add Journey dependencies to `devDependencies`:
 Create `.artk/context.json` in project root:
 ```json
 {
-  "version": "1.0",
+  "version": 1,
   "projectRoot": "<absolute path>",
   "artkRoot": "<absolute path>/artk-e2e",
   "targets": [...],
