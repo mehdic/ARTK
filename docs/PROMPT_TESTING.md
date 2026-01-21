@@ -68,7 +68,7 @@ npm install -D @playwright/test
 
 1. Provide the `/init` prompt to AI assistant
 2. AI should generate:
-   - `artk.config.yml` with `version: "1.0"`
+   - `artk.config.yml` with `version: 1`
    - `.core/` directory with core framework
    - Correct directory structure
    - Documentation referencing core imports
@@ -79,7 +79,7 @@ npm install -D @playwright/test
 [ -d .core/dist ] && echo "✓ Core framework present" || echo "✗ Core framework missing"
 
 # Check config version
-grep 'version: "1.0"' artk.config.yml && echo "✓ Config version correct" || echo "✗ Config version incorrect"
+grep 'version: 1' artk.config.yml && echo "✓ Config version correct" || echo "✗ Config version incorrect"
 
 # Check docs mention core
 grep '@artk/core' docs/PLAYBOOK.md && echo "✓ Docs reference core" || echo "✗ Docs missing core references"

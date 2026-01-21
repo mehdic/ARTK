@@ -1,5 +1,7 @@
 # ARTK Journey Lifecycle & State Machine (v0.1)
 
+**Last Updated:** 2026-01-21
+
 This document defines **all Journey states** in ARTK, what each state means, **what must be true** in that state, and **exactly how** a Journey transitions from one state to another.
 
 If you want a regression system that doesn’t rot, the “state machine” is non-negotiable. Otherwise you get a backlog full of wishful thinking and a test suite full of lies.
@@ -198,7 +200,7 @@ A clarified Journey is specific enough that `/journey-implement` can write tests
 - Journey is demonstrably executable with deterministic results.
 
 **Transitions**
-- clarified → implemented: `/journey-implement` (future phase)
+- clarified → implemented: `/journey-implement`
 - clarified → defined: requirements changed (rework)
 - clarified → deprecated: abandoned/removed
 - clarified → clarified: update details, still ready
@@ -214,7 +216,7 @@ A clarified Journey is specific enough that `/journey-implement` can write tests
   Those links must point to the actual test file(s) or test IDs.
 
 **Typical creator**
-- `/journey-implement` (future phase)
+- `/journey-implement`
 - or manual implementation following ARTK harness conventions
 
 **Expected characteristics**

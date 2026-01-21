@@ -173,7 +173,7 @@ ARTK automatically configures browsers with this fallback chain:
 The main configuration file is `artk-e2e/artk.config.yml`:
 
 ```yaml
-version: "1.0"
+version: 1
 
 app:
   name: "your-project"

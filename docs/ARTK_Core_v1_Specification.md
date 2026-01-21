@@ -214,7 +214,7 @@ When ARTK Core updates:
 ```yaml
 # artk/.core/version.json
 {
-  "version": "1.0.0",
+  "version": 1,
   "updated": "2024-12-29T10:00:00Z",
   "compatibility": {
     "playwright": ">=1.57.0",
