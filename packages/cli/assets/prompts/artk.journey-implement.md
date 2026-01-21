@@ -1062,6 +1062,180 @@ Error: Cannot find module '../journeys/clarified/JRN-0001.md'
 
 **If and only if** you show actual error output like the above, you may proceed to manual implementation.
 
+### 3.4.2 Error Diagnosis and Decision Tree (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  ERROR HANDLING DECISION TREE                                             ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Use this decision tree to handle AutoGen execution errors correctly.     ║
+# ║  NEVER skip directly to manual implementation without following this.     ║
+# ║                                                                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**Error Type 1: Command Not Found**
+
+```
+$ npx artk-autogen generate ...
+npm ERR! could not determine executable to run
+```
+
+**Diagnosis:** AutoGen CLI is not installed or not accessible.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check if vendor directory exists: `ls artk-e2e/vendor/artk-core-autogen/`
+2. If missing: Re-run bootstrap: `./scripts/bootstrap.sh <target-dir>`
+3. If exists but CLI fails: Check bin path: `cat artk-e2e/vendor/artk-core-autogen/package.json | grep bin`
+4. Try direct execution: `node artk-e2e/vendor/artk-core-autogen/dist/cli/index.cjs --help`
+
+**When to fallback:** Only after trying ALL resolution steps above AND showing their output.
+
+---
+
+**Error Type 2: Module Not Found / ESM Error**
+
+```
+Error [ERR_REQUIRE_ESM]: require() of ES Module ... not supported
+```
+OR
+```
+Error: Cannot find module '@artk/core-autogen'
+```
+
+**Diagnosis:** Module system mismatch (ESM vs CJS) or missing dependency.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check package.json for "type": `cat artk-e2e/vendor/artk-core-autogen/package.json | grep type`
+2. If "type": "module" exists but .cjs files are used, package.json variant is wrong
+3. Check if dist folder has correct files: `ls artk-e2e/vendor/artk-core-autogen/dist/cli/`
+4. Verify Node version: `node --version` (must be >=18 for modern variant)
+
+**When to fallback:** Only after confirming this is a build/installation issue that cannot be fixed in session.
+
+---
+
+**Error Type 3: Dependencies Not Installed**
+
+```
+Error: Cannot find module 'yaml'
+```
+OR
+```
+npm WARN exec The following package was not found
+```
+
+**Diagnosis:** npm dependencies not installed in vendor or harness directory.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check node_modules: `ls artk-e2e/node_modules/ | head -10`
+2. If missing: Run `cd artk-e2e && npm install`
+3. Check vendor node_modules: `ls artk-e2e/vendor/artk-core-autogen/node_modules/ | head -10`
+4. If missing: Run `cd artk-e2e/vendor/artk-core-autogen && npm install`
+
+**When to fallback:** Only after npm install completes and still fails.
+
+---
+
+**Error Type 4: Journey File Not Found**
+
+```
+Error: Cannot find module '../journeys/clarified/JRN-0001.md'
+```
+OR
+```
+Error: Journey file not found: ...
+```
+
+**Diagnosis:** Wrong path to journey file.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Verify journey exists: `ls journeys/*/JRN-0001*.md`
+2. Check current directory: `pwd` (should be in harness root)
+3. Try absolute path: `npx artk-autogen generate $(pwd)/../journeys/clarified/JRN-0001.md ...`
+4. Check journey status in frontmatter: might be in different status folder
+
+**When to fallback:** NEVER - this is always a fixable path issue.
+
+---
+
+**Error Type 5: YAML/Frontmatter Parse Error**
+
+```
+YAMLException: bad indentation
+```
+OR
+```
+Error: Invalid journey frontmatter
+```
+
+**Diagnosis:** Journey frontmatter has YAML syntax errors.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Validate YAML: `head -50 journeys/clarified/JRN-0001.md` (check frontmatter)
+2. Common issues: mixed tabs/spaces, missing quotes, incorrect list format
+3. Fix the journey file YAML before retrying AutoGen
+4. Use YAML linter: `npx yaml-lint journeys/clarified/JRN-0001.md`
+
+**When to fallback:** NEVER - this is always a fixable YAML issue.
+
+---
+
+**Error Type 6: Timeout / Network Error**
+
+```
+ETIMEDOUT
+```
+OR
+```
+npm ERR! network request to ... failed
+```
+
+**Diagnosis:** Network issue during npx execution.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Retry the command (network issues are often transient)
+2. Try direct node execution instead of npx: `node artk-e2e/vendor/artk-core-autogen/dist/cli/index.cjs generate ...`
+3. Check if you're behind a proxy: `echo $HTTP_PROXY`
+
+**When to fallback:** Only after 3 retry attempts with direct node execution.
+
+---
+
+**Error Type 7: Permission Denied**
+
+```
+EACCES: permission denied
+```
+OR
+```
+Error: EPERM: operation not permitted
+```
+
+**Diagnosis:** File system permission issue.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check file permissions: `ls -la artk-e2e/tests/`
+2. Check directory ownership: `ls -la artk-e2e/`
+3. Try creating output directory first: `mkdir -p artk-e2e/tests/smoke/`
+
+**When to fallback:** Only if permissions cannot be fixed (rare in development).
+
+---
+
+**DECISION SUMMARY:**
+
+| Error Type | Fixable? | Fallback Allowed? |
+|------------|----------|-------------------|
+| Command Not Found | Yes | After ALL resolution steps tried |
+| ESM/CJS Mismatch | Depends | After confirming build issue |
+| Dependencies Missing | Yes | After npm install |
+| Journey Not Found | Yes | NEVER - fix the path |
+| YAML Parse Error | Yes | NEVER - fix the YAML |
+| Network/Timeout | Often | After 3 retries with direct exec |
+| Permission Denied | Usually | After attempting fixes |
+
+**⚠️ CRITICAL RULE:** You MUST show attempted resolution steps in your output BEFORE claiming "AutoGen failed". Simply showing an error message is NOT sufficient to justify fallback.
+
 ### 3.5 Handle AutoGen Results
 
 **If AutoGen succeeds (no errors, no blocked steps):**
