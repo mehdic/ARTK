@@ -216,7 +216,7 @@ export function hasFailures(summary: VerifySummary): boolean {
 /**
  * Check if verification has flaky tests
  */
-export function hasFlaky(summary: VerifySummary): boolean {
+export function summaryHasFlaky(summary: VerifySummary): boolean {
   return summary.counts.flaky > 0 || summary.stability?.flakyRate !== undefined && summary.stability.flakyRate > 0;
 }
 

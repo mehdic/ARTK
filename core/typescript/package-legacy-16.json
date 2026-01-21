@@ -3,93 +3,93 @@
   "version": "1.0.0",
   "description": "ARTK Core v1 - Vendorable Playwright infrastructure library (Legacy Node 16 variant)",
   "type": "commonjs",
-  "main": "./dist-legacy-16/index.js",
-  "types": "./dist-legacy-16/index.d.ts",
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist-legacy-16/index.js",
-      "types": "./dist-legacy-16/index.d.ts"
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
     },
     "./config": {
-      "require": "./dist-legacy-16/config/index.js",
-      "types": "./dist-legacy-16/config/index.d.ts"
+      "require": "./dist/config/index.cjs",
+      "types": "./dist/config/index.d.ts"
     },
     "./auth": {
-      "require": "./dist-legacy-16/auth/index.js",
-      "types": "./dist-legacy-16/auth/index.d.ts"
+      "require": "./dist/auth/index.cjs",
+      "types": "./dist/auth/index.d.ts"
     },
     "./fixtures": {
-      "require": "./dist-legacy-16/fixtures/index.js",
-      "types": "./dist-legacy-16/fixtures/index.d.ts"
+      "require": "./dist/fixtures/index.cjs",
+      "types": "./dist/fixtures/index.d.ts"
     },
     "./locators": {
-      "require": "./dist-legacy-16/locators/index.js",
-      "types": "./dist-legacy-16/locators/index.d.ts"
+      "require": "./dist/locators/index.cjs",
+      "types": "./dist/locators/index.d.ts"
     },
     "./assertions": {
-      "require": "./dist-legacy-16/assertions/index.js",
-      "types": "./dist-legacy-16/assertions/index.d.ts"
+      "require": "./dist/assertions/index.cjs",
+      "types": "./dist/assertions/index.d.ts"
     },
     "./data": {
-      "require": "./dist-legacy-16/data/index.js",
-      "types": "./dist-legacy-16/data/index.d.ts"
+      "require": "./dist/data/index.cjs",
+      "types": "./dist/data/index.d.ts"
     },
     "./reporters": {
-      "require": "./dist-legacy-16/reporters/index.js",
-      "types": "./dist-legacy-16/reporters/index.d.ts"
+      "require": "./dist/reporters/index.cjs",
+      "types": "./dist/reporters/index.d.ts"
     },
     "./harness": {
-      "require": "./dist-legacy-16/harness/index.js",
-      "types": "./dist-legacy-16/harness/index.d.ts"
+      "require": "./dist/harness/index.cjs",
+      "types": "./dist/harness/index.d.ts"
     },
     "./errors": {
-      "require": "./dist-legacy-16/errors/index.js",
-      "types": "./dist-legacy-16/errors/index.d.ts"
+      "require": "./dist/errors/index.cjs",
+      "types": "./dist/errors/index.d.ts"
     },
     "./utils": {
-      "require": "./dist-legacy-16/utils/index.js",
-      "types": "./dist-legacy-16/utils/index.d.ts"
+      "require": "./dist/utils/index.cjs",
+      "types": "./dist/utils/index.d.ts"
     },
     "./detection": {
-      "require": "./dist-legacy-16/detection/index.js",
-      "types": "./dist-legacy-16/detection/index.d.ts"
+      "require": "./dist/detection/index.cjs",
+      "types": "./dist/detection/index.d.ts"
     },
     "./targets": {
-      "require": "./dist-legacy-16/targets/index.js",
-      "types": "./dist-legacy-16/targets/index.d.ts"
+      "require": "./dist/targets/index.cjs",
+      "types": "./dist/targets/index.d.ts"
     },
     "./install": {
-      "require": "./dist-legacy-16/install/index.js",
-      "types": "./dist-legacy-16/install/index.d.ts"
+      "require": "./dist/install/index.cjs",
+      "types": "./dist/install/index.d.ts"
     },
     "./types": {
-      "require": "./dist-legacy-16/types/index.js",
-      "types": "./dist-legacy-16/types/index.d.ts"
+      "require": "./dist/types/index.cjs",
+      "types": "./dist/types/index.d.ts"
     },
     "./schemas": {
-      "require": "./dist-legacy-16/schemas/index.js",
-      "types": "./dist-legacy-16/schemas/index.d.ts"
+      "require": "./dist/schemas/index.cjs",
+      "types": "./dist/schemas/index.d.ts"
     },
     "./compat": {
-      "require": "./dist-legacy-16/compat/index.js",
-      "types": "./dist-legacy-16/compat/index.d.ts"
+      "require": "./dist/compat/index.cjs",
+      "types": "./dist/compat/index.d.ts"
     },
     "./validation": {
-      "require": "./dist-legacy-16/validation/index.js",
-      "types": "./dist-legacy-16/validation/index.d.ts"
+      "require": "./dist/validation/index.cjs",
+      "types": "./dist/validation/index.d.ts"
     },
     "./grid": {
-      "require": "./dist-legacy-16/grid/index.js",
-      "types": "./dist-legacy-16/grid/index.d.ts"
+      "require": "./dist/grid/index.cjs",
+      "types": "./dist/grid/index.d.ts"
     },
     "./llkb": {
-      "require": "./dist-legacy-16/llkb/index.js",
-      "types": "./dist-legacy-16/llkb/index.d.ts"
+      "require": "./dist/llkb/index.cjs",
+      "types": "./dist/llkb/index.d.ts"
     },
     "./templates/*": "./templates/*"
   },
   "files": [
-    "dist-legacy-16",
+    "dist",
     "templates",
     "version.json",
     "README.md"

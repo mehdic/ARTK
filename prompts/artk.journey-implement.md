@@ -908,6 +908,23 @@ IF journey.modules is Array:
 
 ### 3.3 Run AutoGen CLI
 
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 CRITICAL: YOU MUST ACTUALLY EXECUTE THIS COMMAND                      ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Do NOT assume AutoGen will fail.                                         ║
+# ║  Do NOT skip to manual implementation without trying.                     ║
+# ║  Do NOT make excuses like "vendored package may not work".                ║
+# ║                                                                           ║
+# ║  YOU MUST:                                                                ║
+# ║  1. Actually run `npx artk-autogen generate ...` using Bash/terminal      ║
+# ║  2. Capture the actual output (success OR error)                          ║
+# ║  3. Show the output in your response                                      ║
+# ║  4. ONLY THEN decide if fallback is needed based on REAL results          ║
+# ║                                                                           ║
+# ║  If you skip this step without execution → INVALID implementation         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
 From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
 ```bash
@@ -998,6 +1015,226 @@ const result = await generateJourneyTests({
 ║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
+
+### 3.4.1 Execution Verification (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 PROOF REQUIRED: You must show actual terminal output                  ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Your response MUST include VERBATIM terminal output showing:             ║
+# ║  1. The exact command you ran                                             ║
+# ║  2. The complete output (success OR error messages)                       ║
+# ║  3. Evidence the command was actually executed                            ║
+# ║                                                                           ║
+# ║  INVALID CLAIMS (will be rejected):                                       ║
+# ║  - "AutoGen failed" without showing actual error                          ║
+# ║  - "The vendored package may not work" (speculation)                      ║
+# ║  - "I'll skip to manual" without execution evidence                       ║
+# ║                                                                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**Example of valid execution evidence:**
+
+```
+$ cd artk-e2e
+$ npx artk-autogen generate ../journeys/clarified/JRN-0001__user-login.md -o tests/smoke/ -m
+Found 1 journey file(s)
+Processing: JRN-0001 - User Login and Dashboard Access
+
+Generated:
+  tests/smoke/jrn-0001__user-login-dashboard-access.spec.ts
+
+Summary:
+  Tests: 1
+  Modules: 0
+  Errors: 0
+  Warnings: 0
+```
+
+**Example of valid failure evidence:**
+
+```
+$ npx artk-autogen generate ../journeys/clarified/JRN-0001.md -o tests/smoke/ -m
+Error: Cannot find module '../journeys/clarified/JRN-0001.md'
+    at resolveJourneyPath (/path/to/artk-autogen/dist/cli/index.cjs:123:15)
+```
+
+**If and only if** you show actual error output like the above, you may proceed to manual implementation.
+
+### 3.4.2 Error Diagnosis and Decision Tree (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  ERROR HANDLING DECISION TREE                                             ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Use this decision tree to handle AutoGen execution errors correctly.     ║
+# ║  NEVER skip directly to manual implementation without following this.     ║
+# ║                                                                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**Error Type 1: Command Not Found**
+
+```
+$ npx artk-autogen generate ...
+npm ERR! could not determine executable to run
+```
+
+**Diagnosis:** AutoGen CLI is not installed or not accessible.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check if vendor directory exists: `ls artk-e2e/vendor/artk-core-autogen/`
+2. If missing: Re-run bootstrap: `./scripts/bootstrap.sh <target-dir>`
+3. If exists but CLI fails: Check bin path: `cat artk-e2e/vendor/artk-core-autogen/package.json | grep bin`
+4. Try direct execution: `node artk-e2e/vendor/artk-core-autogen/dist/cli/index.cjs --help`
+
+**When to fallback:** Only after trying ALL resolution steps above AND showing their output.
+
+---
+
+**Error Type 2: Module Not Found / ESM Error**
+
+```
+Error [ERR_REQUIRE_ESM]: require() of ES Module ... not supported
+```
+OR
+```
+Error: Cannot find module '@artk/core-autogen'
+```
+
+**Diagnosis:** Module system mismatch (ESM vs CJS) or missing dependency.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check package.json for "type": `cat artk-e2e/vendor/artk-core-autogen/package.json | grep type`
+2. If "type": "module" exists but .cjs files are used, package.json variant is wrong
+3. Check if dist folder has correct files: `ls artk-e2e/vendor/artk-core-autogen/dist/cli/`
+4. Verify Node version: `node --version` (must be >=18 for modern variant)
+
+**When to fallback:** Only after confirming this is a build/installation issue that cannot be fixed in session.
+
+---
+
+**Error Type 3: Dependencies Not Installed**
+
+```
+Error: Cannot find module 'yaml'
+```
+OR
+```
+npm WARN exec The following package was not found
+```
+
+**Diagnosis:** npm dependencies not installed in vendor or harness directory.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check node_modules: `ls artk-e2e/node_modules/ | head -10`
+2. If missing: Run `cd artk-e2e && npm install`
+3. Check vendor node_modules: `ls artk-e2e/vendor/artk-core-autogen/node_modules/ | head -10`
+4. If missing: Run `cd artk-e2e/vendor/artk-core-autogen && npm install`
+
+**When to fallback:** Only after npm install completes and still fails.
+
+---
+
+**Error Type 4: Journey File Not Found**
+
+```
+Error: Cannot find module '../journeys/clarified/JRN-0001.md'
+```
+OR
+```
+Error: Journey file not found: ...
+```
+
+**Diagnosis:** Wrong path to journey file.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Verify journey exists: `ls journeys/*/JRN-0001*.md`
+2. Check current directory: `pwd` (should be in harness root)
+3. Try absolute path: `npx artk-autogen generate $(pwd)/../journeys/clarified/JRN-0001.md ...`
+4. Check journey status in frontmatter: might be in different status folder
+
+**When to fallback:** NEVER - this is always a fixable path issue.
+
+---
+
+**Error Type 5: YAML/Frontmatter Parse Error**
+
+```
+YAMLException: bad indentation
+```
+OR
+```
+Error: Invalid journey frontmatter
+```
+
+**Diagnosis:** Journey frontmatter has YAML syntax errors.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Validate YAML: `head -50 journeys/clarified/JRN-0001.md` (check frontmatter)
+2. Common issues: mixed tabs/spaces, missing quotes, incorrect list format
+3. Fix the journey file YAML before retrying AutoGen
+4. Use YAML linter: `npx yaml-lint journeys/clarified/JRN-0001.md`
+
+**When to fallback:** NEVER - this is always a fixable YAML issue.
+
+---
+
+**Error Type 6: Timeout / Network Error**
+
+```
+ETIMEDOUT
+```
+OR
+```
+npm ERR! network request to ... failed
+```
+
+**Diagnosis:** Network issue during npx execution.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Retry the command (network issues are often transient)
+2. Try direct node execution instead of npx: `node artk-e2e/vendor/artk-core-autogen/dist/cli/index.cjs generate ...`
+3. Check if you're behind a proxy: `echo $HTTP_PROXY`
+
+**When to fallback:** Only after 3 retry attempts with direct node execution.
+
+---
+
+**Error Type 7: Permission Denied**
+
+```
+EACCES: permission denied
+```
+OR
+```
+Error: EPERM: operation not permitted
+```
+
+**Diagnosis:** File system permission issue.
+
+**Resolution Steps (MANDATORY - try in order):**
+1. Check file permissions: `ls -la artk-e2e/tests/`
+2. Check directory ownership: `ls -la artk-e2e/`
+3. Try creating output directory first: `mkdir -p artk-e2e/tests/smoke/`
+
+**When to fallback:** Only if permissions cannot be fixed (rare in development).
+
+---
+
+**DECISION SUMMARY:**
+
+| Error Type | Fixable? | Fallback Allowed? |
+|------------|----------|-------------------|
+| Command Not Found | Yes | After ALL resolution steps tried |
+| ESM/CJS Mismatch | Depends | After confirming build issue |
+| Dependencies Missing | Yes | After npm install |
+| Journey Not Found | Yes | NEVER - fix the path |
+| YAML Parse Error | Yes | NEVER - fix the YAML |
+| Network/Timeout | Often | After 3 retries with direct exec |
+| Permission Denied | Usually | After attempting fixes |
+
+**⚠️ CRITICAL RULE:** You MUST show attempted resolution steps in your output BEFORE claiming "AutoGen failed". Simply showing an error message is NOT sufficient to justify fallback.
 
 ### 3.5 Handle AutoGen Results
 
@@ -1861,6 +2098,83 @@ Proceeding with caution...
 
 ---
 
+## Step 7.5 — Persist LLKB Updates to Disk (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 CRITICAL: LLKB MUST BE SAVED BEFORE MOVING TO NEXT JOURNEY            ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  After each journey implementation, you MUST write LLKB updates to disk.  ║
+# ║  This ensures the next journey benefits from lessons learned.             ║
+# ║                                                                           ║
+# ║  DO NOT proceed to Step 8 or the next journey without saving LLKB.        ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**Required LLKB file updates (write to disk NOW):**
+
+1. **Update `components.json`** if any components were created or used:
+   ```
+   # Read current file
+   components = loadJSON("<ARTK_ROOT>/.artk/llkb/components.json")
+
+   # Add new components created during this journey
+   FOR each newComponent:
+     components.components.push(newComponent)
+
+   # Update usage stats for reused components
+   FOR each usedComponent:
+     component = findById(usedComponent.id)
+     component.usedInJourneys.push(currentJourney.id)
+     component.totalUses += 1
+     component.lastUsed = now().toISO8601()
+
+   # Write back to disk
+   writeJSON("<ARTK_ROOT>/.artk/llkb/components.json", components)
+   ```
+
+2. **Append to history log** (creates file if missing):
+   ```
+   historyPath = "<ARTK_ROOT>/.artk/llkb/history/{YYYY-MM-DD}.jsonl"
+
+   FOR each event (component_created, component_used, lesson_applied):
+     appendLine(historyPath, JSON.stringify({
+       timestamp: now().toISO8601(),
+       event: eventType,
+       id: itemId,
+       journey: currentJourney.id,
+       prompt: "journey-implement"
+     }))
+   ```
+
+3. **Update `lessons.json`** if lessons were applied:
+   ```
+   lessons = loadJSON("<ARTK_ROOT>/.artk/llkb/lessons.json")
+
+   FOR each lessonApplied:
+     lesson = findById(lessonApplied.id)
+     lesson.metrics.successRate = recalculateSuccessRate(lesson)
+     lesson.metrics.lastApplied = now().toISO8601()
+
+   writeJSON("<ARTK_ROOT>/.artk/llkb/lessons.json", lessons)
+   ```
+
+**Verification checklist (before proceeding):**
+- [ ] `components.json` written to disk (check file modification time)
+- [ ] `history/{YYYY-MM-DD}.jsonl` updated with events
+- [ ] `lessons.json` updated if lessons were applied
+- [ ] LLKB Summary output includes accurate counts
+
+**If LLKB files don't exist:** Create them with initial structure:
+```json
+// components.json
+{ "version": "1.0", "components": [] }
+
+// lessons.json
+{ "version": "1.0", "lessons": [] }
+```
+
+---
+
 ## Step 8 — Pre-Compilation Validation (MANDATORY)
 
 **BEFORE proceeding to validation gates, you MUST complete the Pre-Compilation Validation Checklist from `.github/prompts/common/GENERAL_RULES.md`.**
@@ -1927,9 +2241,29 @@ If either gate fails:
 
 **For SUBAGENT mode, batch looping is handled in Step 1.2 where subagent results are merged.**
 
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 PREREQUISITE: Verify LLKB was persisted (Step 7.5)                    ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  BEFORE looping to the next journey, confirm:                             ║
+# ║  ✓ components.json was updated and written to disk                        ║
+# ║  ✓ history/{YYYY-MM-DD}.jsonl was appended with events                    ║
+# ║  ✓ lessons.json was updated if lessons were applied                       ║
+# ║                                                                           ║
+# ║  If LLKB was NOT persisted, go back to Step 7.5 and complete it.          ║
+# ║  The next journey MUST see the updated LLKB to benefit from it.           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
 **If processing multiple journeys in SERIAL mode:**
 ```
 IF batchMode == "serial":
+  # ═══════════════════════════════════════════════════════════════
+  # VERIFY: LLKB was persisted before proceeding
+  # ═══════════════════════════════════════════════════════════════
+  IF NOT llkbWasPersistedThisJourney:
+    ERROR: "LLKB not persisted. Go back to Step 7.5."
+    STOP
+
   sessionState.journeysCompleted.push(currentJourney.id)
   newComponentsThisJourney = sessionState.predictiveExtractionCount  # Track before reset
 
@@ -1945,7 +2279,8 @@ IF batchMode == "serial":
     OUTPUT:
     ═══════════════════════════════════════════════════════════════════
     ✅ Journey {currentJourney.id} complete.
-    LLKB updated with {newComponentsThisJourney} new components.
+    LLKB persisted: components.json, lessons.json, history/{date}.jsonl
+    Components created this journey: {newComponentsThisJourney}
     Session extraction count reset: 0/{MAX_PREDICTIVE_PER_JOURNEY}
 
     Proceeding to next journey ({journeyIndex + 2}/{totalJourneys})...

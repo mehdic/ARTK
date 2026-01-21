@@ -1,15 +1,54 @@
 /**
  * Template Resolver - Resolves template paths with local override support
  * FR-034: Check local override → bundled
+ *
+ * IMPORTANT: This module uses a dual-strategy approach for ESM/CJS compatibility:
+ * - In CJS: Uses __dirname (injected by Node.js module wrapper)
+ * - In ESM: Uses import.meta.url (only available in ESM)
+ *
+ * The TypeScript source uses import.meta.url, which works for ESM builds.
+ * For CJS builds, the __ESM_ONLY__ blocks are stripped by post-build script.
  */
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import type { TemplateVariant, TemplateResolutionResult } from '../../templates/shared/types/index.js';
 
-// ESM-compatible __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+/**
+ * Get the directory where this module file is located.
+ * Works in both ESM and CJS environments.
+ *
+ * In CJS: __dirname is injected by Node.js module wrapper
+ * In ESM: Uses import.meta.url (ESM-only block stripped from CJS builds)
+ */
+function getModuleDir(): string {
+  // In CJS, __dirname is injected by Node.js module wrapper
+  // @ts-ignore - __dirname exists in CJS runtime
+  if (typeof __dirname === 'string' && __dirname.length > 0) {
+    // @ts-ignore
+    return __dirname;
+  }
+
+  // In ESM, use import.meta.url directly
+  // For CJS builds, this block is removed by post-build script
+  // __ESM_ONLY_START__
+  try {
+    // @ts-ignore - Valid in ESM, removed from CJS by post-build
+    const metaUrl: string | undefined = import.meta.url;
+    if (metaUrl) {
+      return path.dirname(fileURLToPath(metaUrl));
+    }
+  } catch {
+    // import.meta not available
+  }
+  // __ESM_ONLY_END__
+
+  // Fallback: use process.cwd()
+  return process.cwd();
+}
+
+// Get module directory using dual-mode approach
+const __moduleDirname = getModuleDir();
 
 /**
  * Resolve template path with fallback hierarchy
@@ -37,7 +76,7 @@ export function resolveTemplate(
   }
 
   // 2. Fall back to bundled template
-  const bundledPath = path.join(__dirname, '../../templates', variant, moduleName);
+  const bundledPath = path.join(__moduleDirname, '../../templates', variant, moduleName);
   if (fs.existsSync(bundledPath)) {
     return {
       templatePath: bundledPath,
@@ -85,7 +124,7 @@ export function validateTemplate(templatePath: string): boolean {
  * Get all available templates for a variant
  */
 export function listTemplates(variant: TemplateVariant): string[] {
-  const templatesDir = path.join(__dirname, '../../templates', variant);
+  const templatesDir = path.join(__moduleDirname, '../../templates', variant);
   const modules: string[] = [];
 
   if (fs.existsSync(templatesDir)) {

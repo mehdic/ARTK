@@ -43,7 +43,9 @@ jobs:
           cache-dependency-path: core/typescript/package.json
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Build all variants
@@ -63,18 +65,66 @@ jobs:
 
       - name: Verify build outputs
         run: |
-          # Check all dist directories exist
-          for dir in dist dist-cjs dist-legacy-16 dist-legacy-14; do
+          # Check all dist directories exist with correct entry points
+          # ESM builds produce .js, CJS builds produce .cjs
+
+          # ESM variant
+          if [ ! -d "dist" ]; then
+            echo "ERROR: Missing dist directory"
+            exit 1
+          fi
+          if [ ! -f "dist/index.js" ]; then
+            echo "ERROR: Missing dist/index.js (ESM)"
+            exit 1
+          fi
+          echo "✓ dist exists and contains index.js (ESM)"
+
+          # CJS variants produce .cjs files
+          for dir in dist-cjs dist-legacy-16 dist-legacy-14; do
             if [ ! -d "$dir" ]; then
               echo "ERROR: Missing $dir directory"
               exit 1
             fi
-            if [ ! -f "$dir/index.js" ]; then
-              echo "ERROR: Missing $dir/index.js"
+            if [ ! -f "$dir/index.cjs" ]; then
+              echo "ERROR: Missing $dir/index.cjs (CJS)"
               exit 1
             fi
-            echo "✓ $dir exists and contains index.js"
+            echo "✓ $dir exists and contains index.cjs (CJS)"
           done
+
+          # Verify type declarations exist for all variants
+          echo ""
+          echo "Checking type declarations..."
+          for dir in dist dist-cjs dist-legacy-16 dist-legacy-14; do
+            if [ ! -f "$dir/index.d.ts" ]; then
+              echo "ERROR: Missing $dir/index.d.ts (types)"
+              exit 1
+            fi
+            echo "✓ $dir/index.d.ts exists"
+          done
+        working-directory: core/typescript
+
+      - name: Verify ESM variant loads
+        run: |
+          node --input-type=module -e "
+            import('./dist/index.js').then(m => {
+              const count = Object.keys(m).length;
+              console.log('ESM variant loaded successfully, exports:', count);
+              if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+              if (!m.ARTKConfigError) { console.error('ERROR: Missing ARTKConfigError export'); process.exit(1); }
+            }).catch(e => { console.error('ESM load failed:', e); process.exit(1); });
+          "
+        working-directory: core/typescript
+
+      - name: Verify modern-cjs variant loads
+        run: |
+          node -e "
+            const m = require('./dist-cjs/index.cjs');
+            const count = Object.keys(m).length;
+            console.log('Modern-CJS variant loaded successfully, exports:', count);
+            if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+            if (!m.ARTKConfigError) { console.error('ERROR: Missing ARTKConfigError export'); process.exit(1); }
+          "
         working-directory: core/typescript
 
       - name: Upload build artifacts
@@ -108,10 +158,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artk-core-variants
-          path: core/typescript
+          path: .
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Install Playwright browsers
@@ -142,10 +194,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artk-core-variants
-          path: core/typescript
+          path: .
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Install Playwright browsers
@@ -176,10 +230,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artk-core-variants
-          path: core/typescript
+          path: .
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Install Playwright browsers
@@ -208,7 +264,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artk-core-variants
-          path: core/typescript
+          path: .
 
       - name: Install dependencies (legacy)
         run: |
@@ -220,7 +276,12 @@ jobs:
 
       - name: Verify legacy-16 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-16/index.js'); console.log('Legacy-16 variant loaded successfully');"
+          node -e "
+            const m = require('./dist-legacy-16/index.cjs');
+            const count = Object.keys(m).length;
+            console.log('Legacy-16 variant loaded successfully, exports:', count);
+            if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+          "
         working-directory: core/typescript
 
       - name: Restore package.json
@@ -246,7 +307,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artk-core-variants
-          path: core/typescript
+          path: .
 
       - name: Install dependencies (legacy)
         run: |
@@ -258,7 +319,12 @@ jobs:
 
       - name: Verify legacy-14 variant loads
         run: |
-          node -e "const m = require('./dist-legacy-14/index.js'); console.log('Legacy-14 variant loaded successfully');"
+          node -e "
+            const m = require('./dist-legacy-14/index.cjs');
+            const count = Object.keys(m).length;
+            console.log('Legacy-14 variant loaded successfully, exports:', count);
+            if (count === 0) { console.error('ERROR: No exports found'); process.exit(1); }
+          "
         working-directory: core/typescript
 
       - name: Restore package.json
@@ -311,7 +377,9 @@ jobs:
           cache-dependency-path: core/typescript/package.json
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          cd autogen && npm install
         working-directory: core/typescript
 
       - name: Time full variant build

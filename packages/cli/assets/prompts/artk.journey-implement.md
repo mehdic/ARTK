@@ -908,6 +908,23 @@ IF journey.modules is Array:
 
 ### 3.3 Run AutoGen CLI
 
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 CRITICAL: YOU MUST ACTUALLY EXECUTE THIS COMMAND                      ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Do NOT assume AutoGen will fail.                                         ║
+# ║  Do NOT skip to manual implementation without trying.                     ║
+# ║  Do NOT make excuses like "vendored package may not work".                ║
+# ║                                                                           ║
+# ║  YOU MUST:                                                                ║
+# ║  1. Actually run `npx artk-autogen generate ...` using Bash/terminal      ║
+# ║  2. Capture the actual output (success OR error)                          ║
+# ║  3. Show the output in your response                                      ║
+# ║  4. ONLY THEN decide if fallback is needed based on REAL results          ║
+# ║                                                                           ║
+# ║  If you skip this step without execution → INVALID implementation         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
 From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
 ```bash
@@ -998,6 +1015,52 @@ const result = await generateJourneyTests({
 ║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
+
+### 3.4.1 Execution Verification (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 PROOF REQUIRED: You must show actual terminal output                  ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  Your response MUST include VERBATIM terminal output showing:             ║
+# ║  1. The exact command you ran                                             ║
+# ║  2. The complete output (success OR error messages)                       ║
+# ║  3. Evidence the command was actually executed                            ║
+# ║                                                                           ║
+# ║  INVALID CLAIMS (will be rejected):                                       ║
+# ║  - "AutoGen failed" without showing actual error                          ║
+# ║  - "The vendored package may not work" (speculation)                      ║
+# ║  - "I'll skip to manual" without execution evidence                       ║
+# ║                                                                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**Example of valid execution evidence:**
+
+```
+$ cd artk-e2e
+$ npx artk-autogen generate ../journeys/clarified/JRN-0001__user-login.md -o tests/smoke/ -m
+Found 1 journey file(s)
+Processing: JRN-0001 - User Login and Dashboard Access
+
+Generated:
+  tests/smoke/jrn-0001__user-login-dashboard-access.spec.ts
+
+Summary:
+  Tests: 1
+  Modules: 0
+  Errors: 0
+  Warnings: 0
+```
+
+**Example of valid failure evidence:**
+
+```
+$ npx artk-autogen generate ../journeys/clarified/JRN-0001.md -o tests/smoke/ -m
+Error: Cannot find module '../journeys/clarified/JRN-0001.md'
+    at resolveJourneyPath (/path/to/artk-autogen/dist/cli/index.cjs:123:15)
+```
+
+**If and only if** you show actual error output like the above, you may proceed to manual implementation.
 
 ### 3.5 Handle AutoGen Results
 
@@ -1861,6 +1924,83 @@ Proceeding with caution...
 
 ---
 
+## Step 7.5 — Persist LLKB Updates to Disk (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 CRITICAL: LLKB MUST BE SAVED BEFORE MOVING TO NEXT JOURNEY            ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  After each journey implementation, you MUST write LLKB updates to disk.  ║
+# ║  This ensures the next journey benefits from lessons learned.             ║
+# ║                                                                           ║
+# ║  DO NOT proceed to Step 8 or the next journey without saving LLKB.        ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**Required LLKB file updates (write to disk NOW):**
+
+1. **Update `components.json`** if any components were created or used:
+   ```
+   # Read current file
+   components = loadJSON("<ARTK_ROOT>/.artk/llkb/components.json")
+
+   # Add new components created during this journey
+   FOR each newComponent:
+     components.components.push(newComponent)
+
+   # Update usage stats for reused components
+   FOR each usedComponent:
+     component = findById(usedComponent.id)
+     component.usedInJourneys.push(currentJourney.id)
+     component.totalUses += 1
+     component.lastUsed = now().toISO8601()
+
+   # Write back to disk
+   writeJSON("<ARTK_ROOT>/.artk/llkb/components.json", components)
+   ```
+
+2. **Append to history log** (creates file if missing):
+   ```
+   historyPath = "<ARTK_ROOT>/.artk/llkb/history/{YYYY-MM-DD}.jsonl"
+
+   FOR each event (component_created, component_used, lesson_applied):
+     appendLine(historyPath, JSON.stringify({
+       timestamp: now().toISO8601(),
+       event: eventType,
+       id: itemId,
+       journey: currentJourney.id,
+       prompt: "journey-implement"
+     }))
+   ```
+
+3. **Update `lessons.json`** if lessons were applied:
+   ```
+   lessons = loadJSON("<ARTK_ROOT>/.artk/llkb/lessons.json")
+
+   FOR each lessonApplied:
+     lesson = findById(lessonApplied.id)
+     lesson.metrics.successRate = recalculateSuccessRate(lesson)
+     lesson.metrics.lastApplied = now().toISO8601()
+
+   writeJSON("<ARTK_ROOT>/.artk/llkb/lessons.json", lessons)
+   ```
+
+**Verification checklist (before proceeding):**
+- [ ] `components.json` written to disk (check file modification time)
+- [ ] `history/{YYYY-MM-DD}.jsonl` updated with events
+- [ ] `lessons.json` updated if lessons were applied
+- [ ] LLKB Summary output includes accurate counts
+
+**If LLKB files don't exist:** Create them with initial structure:
+```json
+// components.json
+{ "version": "1.0", "components": [] }
+
+// lessons.json
+{ "version": "1.0", "lessons": [] }
+```
+
+---
+
 ## Step 8 — Pre-Compilation Validation (MANDATORY)
 
 **BEFORE proceeding to validation gates, you MUST complete the Pre-Compilation Validation Checklist from `.github/prompts/common/GENERAL_RULES.md`.**
@@ -1927,9 +2067,29 @@ If either gate fails:
 
 **For SUBAGENT mode, batch looping is handled in Step 1.2 where subagent results are merged.**
 
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 PREREQUISITE: Verify LLKB was persisted (Step 7.5)                    ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║                                                                           ║
+# ║  BEFORE looping to the next journey, confirm:                             ║
+# ║  ✓ components.json was updated and written to disk                        ║
+# ║  ✓ history/{YYYY-MM-DD}.jsonl was appended with events                    ║
+# ║  ✓ lessons.json was updated if lessons were applied                       ║
+# ║                                                                           ║
+# ║  If LLKB was NOT persisted, go back to Step 7.5 and complete it.          ║
+# ║  The next journey MUST see the updated LLKB to benefit from it.           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
 **If processing multiple journeys in SERIAL mode:**
 ```
 IF batchMode == "serial":
+  # ═══════════════════════════════════════════════════════════════
+  # VERIFY: LLKB was persisted before proceeding
+  # ═══════════════════════════════════════════════════════════════
+  IF NOT llkbWasPersistedThisJourney:
+    ERROR: "LLKB not persisted. Go back to Step 7.5."
+    STOP
+
   sessionState.journeysCompleted.push(currentJourney.id)
   newComponentsThisJourney = sessionState.predictiveExtractionCount  # Track before reset
 
@@ -1945,7 +2105,8 @@ IF batchMode == "serial":
     OUTPUT:
     ═══════════════════════════════════════════════════════════════════
     ✅ Journey {currentJourney.id} complete.
-    LLKB updated with {newComponentsThisJourney} new components.
+    LLKB persisted: components.json, lessons.json, history/{date}.jsonl
+    Components created this journey: {newComponentsThisJourney}
     Session extraction count reset: 0/{MAX_PREDICTIVE_PER_JOURNEY}
 
     Proceeding to next journey ({journeyIndex + 2}/{totalJourneys})...
