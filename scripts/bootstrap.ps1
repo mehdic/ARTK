@@ -683,6 +683,24 @@ try {
     exit 1
 }
 
+# Guard: Prevent running bootstrap inside an existing artk-e2e folder
+$TargetFolderName = Split-Path $TargetProject -Leaf
+if ($TargetFolderName -eq "artk-e2e") {
+    Write-Host ""
+    Write-Host "ERROR: You are inside an artk-e2e folder!" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Current path: $TargetProject" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Running bootstrap here would create a nested artk-e2e/artk-e2e/ structure." -ForegroundColor Yellow
+    Write-Host "  Please run bootstrap from the PARENT project folder instead:" -ForegroundColor Yellow
+    Write-Host ""
+    $ParentPath = Split-Path $TargetProject -Parent
+    Write-Host "  cd `"$ParentPath`"" -ForegroundColor Cyan
+    Write-Host "  .\path\to\bootstrap.ps1 -TargetPath ." -ForegroundColor Cyan
+    Write-Host ""
+    exit 1
+}
+
 $ArtkE2e = Join-Path $TargetProject "artk-e2e"
 
 Write-Host "==========================================" -ForegroundColor Green
@@ -1413,8 +1431,19 @@ if (-not $SkipNpm) {
 
         $exitCode = 1
         try {
-            $proc = Start-Process -FilePath "npm" -ArgumentList @("install", "--legacy-peer-deps") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $npmLogOut -RedirectStandardError $npmLogErr
-            $exitCode = $proc.ExitCode
+            # Detect if npm is a PowerShell script (e.g., nvm4w) vs executable/cmd
+            $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+            if ($npmCmd -and $npmCmd.Path -match '\.ps1$') {
+                # npm is a PowerShell script (nvm4w), use direct invocation with output capture
+                Write-Host "  (detected nvm4w/PowerShell npm)" -ForegroundColor DarkGray
+                $output = & npm install --legacy-peer-deps 2>&1
+                $exitCode = $LASTEXITCODE
+                $output | Out-File -FilePath $npmLogOut -Encoding utf8
+            } else {
+                # Standard npm.cmd or npm.exe, use Start-Process for proper output redirection
+                $proc = Start-Process -FilePath "npm" -ArgumentList @("install", "--legacy-peer-deps") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $npmLogOut -RedirectStandardError $npmLogErr
+                $exitCode = $proc.ExitCode
+            }
         } catch {
             $exitCode = 1
             "Start-Process failed: $($_.Exception.Message)" | Set-Content -Path $npmLogErr
