@@ -158,6 +158,15 @@ jobs:
           name: artk-core-variants
           path: .
 
+      - name: Debug - List downloaded artifacts
+        run: |
+          echo "=== Checking artifact paths ==="
+          ls -la core/typescript/ | head -20
+          echo "=== Checking dist directory ==="
+          ls -la core/typescript/dist/ | head -10 || echo "dist not found"
+          echo "=== Checking dist-cjs directory ==="
+          ls -la core/typescript/dist-cjs/ | head -10 || echo "dist-cjs not found"
+
       - name: Install dependencies
         run: npm install
         working-directory: core/typescript
@@ -192,6 +201,15 @@ jobs:
           name: artk-core-variants
           path: .
 
+      - name: Debug - List downloaded artifacts
+        run: |
+          echo "=== Checking artifact paths ==="
+          ls -la core/typescript/ | head -20
+          echo "=== Checking dist directory ==="
+          ls -la core/typescript/dist/ | head -10 || echo "dist not found"
+          echo "=== Checking dist-cjs directory ==="
+          ls -la core/typescript/dist-cjs/ | head -10 || echo "dist-cjs not found"
+
       - name: Install dependencies
         run: npm install
         working-directory: core/typescript
@@ -225,6 +243,15 @@ jobs:
         with:
           name: artk-core-variants
           path: .
+
+      - name: Debug - List downloaded artifacts
+        run: |
+          echo "=== Checking artifact paths ==="
+          ls -la core/typescript/ | head -20
+          echo "=== Checking dist directory ==="
+          ls -la core/typescript/dist/ | head -10 || echo "dist not found"
+          echo "=== Checking dist-cjs directory ==="
+          ls -la core/typescript/dist-cjs/ | head -10 || echo "dist-cjs not found"
 
       - name: Install dependencies
         run: npm install
