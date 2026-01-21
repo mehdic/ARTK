@@ -256,7 +256,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artk-core-variants
-          path: core/typescript
+          path: .
 
       - name: Install dependencies (legacy)
         run: |
@@ -299,7 +299,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artk-core-variants
-          path: core/typescript
+          path: .
 
       - name: Install dependencies (legacy)
         run: |
