@@ -239,15 +239,23 @@ function main() {
   const cfg = normalizeConfig(loadYamlIfExists(configPath));
   const idRegex = buildIdRegex(cfg);
 
+  // Use relative patterns with cwd for cross-platform compatibility
+  // Absolute paths with ** can fail on Windows due to drive letter handling
   const patterns = [
-    path.join(journeysDir, '**/*.md').split(path.sep).join('/'),
-    `!${path.join(journeysDir, 'templates/**').split(path.sep).join('/')}`,
-    `!${path.join(journeysDir, 'schema/**').split(path.sep).join('/')}`,
-    `!${path.join(journeysDir, 'BACKLOG.md').split(path.sep).join('/')}`,
-    `!${path.join(journeysDir, 'README.md').split(path.sep).join('/')}`,
+    '**/*.md',
+    '!templates/**',
+    '!schema/**',
+    '!BACKLOG.md',
+    '!README.md',
   ];
 
-  const files = fg.sync(patterns, { dot: false, onlyFiles: true, unique: true });
+  const files = fg.sync(patterns, {
+    cwd: journeysDir,
+    dot: false,
+    onlyFiles: true,
+    unique: true,
+    absolute: true  // Return absolute paths for downstream processing
+  });
   const schema = JSON.parse(readText(schemaPath));
 
   const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
