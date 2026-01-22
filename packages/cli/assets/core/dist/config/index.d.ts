@@ -2681,6 +2681,11 @@ declare const JourneysConfigSchema: z.ZodObject<{
  * - Provider-specific configuration must be present
  */
 declare const ARTKConfigSchema: z.ZodEffects<z.ZodObject<{
+    /**
+     * Configuration schema version (integer, not semver).
+     * Increment when making breaking changes to schema.
+     * Example: 1, 2, 3 (NOT "1.0.0")
+     */
     version: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     app: z.ZodObject<{
         name: z.ZodString;

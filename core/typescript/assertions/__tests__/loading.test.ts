@@ -318,9 +318,10 @@ describe('Loading State Assertions', () => {
             loader.style.display = 'block';
             container.appendChild(loader);
 
+            // Use 500ms to avoid race condition (150ms was too tight)
             setTimeout(() => {
               loader.remove();
-            }, 150);
+            }, 500);
           });
         }
       });
