@@ -39,7 +39,7 @@ You are running **ARTK Phase 5**.
 ARTK is a standardized kit that plugs into GitHub Copilot (repository instructions + prompt files + structured artifacts) to help teams build and continuously maintain **complete automated regression testing suites** for existing applications. These suites cover end-to-end **Journeys**, detect regressions early, and keep behavior stable across releases.
 
 This command generates a **high-signal proposed Journey backlog** with **module dependency hints**, using:
-- outputs from `/artk.discover-foundation` (Phase 4), plus
+- outputs from `/artk.discover-foundation`, plus
 - **change risk signals** (code churn / hotspots), and
 - **incident/bug history signals** (ticket references, postmortems, changelog “fixes”)
 
@@ -60,7 +60,7 @@ The objective is simple: propose the Journeys most likely to catch regressions *
 # Expected inputs (best-effort)
 Prefer these sources, in this order:
 
-## A) Discovery (Phase 4)
+## A) Discovery outputs (from /artk.discover-foundation)
 Machine outputs if present:
 - `docs/discovery/summary.json`
 - `docs/discovery/routes.json`
@@ -210,8 +210,8 @@ Example: 5 candidates found, all meet smoke criteria
 
 ## 1) Detected context (short)
 - ARTK_ROOT and repo type (monorepo vs single-app)
-- Whether Journey system is installed (Phase 3) and where Core lives
-- Whether Discovery outputs exist (Phase 4)
+- Whether Journey system is installed (from /artk.init-playbook) and where Core lives
+- Whether Discovery outputs exist (from /artk.discover-foundation)
 - Whether git/change signals are available (and method used)
 - Whether incident sources are available (and where)
 - Existing Journey counts by status/tier (from `journeys/index.json` if present)

@@ -1,6 +1,6 @@
 ---
 name: artk.journey-validate
-description: "Phase 8.4: Validate Journey implementation quality (static gates). Checks traceability, schema, tags, module registry, and Playwright best-practice violations (ESLint plugin when available, fallback greps otherwise). Produces a validation report."
+description: "Phase 9: Validate Journey implementation quality (static gates). Checks traceability, schema, tags, module registry, and Playwright best-practice violations (ESLint plugin when available, fallback greps otherwise). Produces a validation report."
 argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|reports/validation/<id>.md dryRun=true|false"
 agent: agent
 handoffs:
@@ -33,9 +33,9 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /journey-validate — Quality Gates for a Journey Implementation (Phase 8.4)
+# ARTK /journey-validate — Quality Gates for a Journey Implementation (Phase 9)
 
-You are running **ARTK Phase 8.4**.
+You are running **ARTK Phase 9**.
 
 The goal is simple: make sure the Journey implementation is **real**, **traceable**, and **doesn’t violate the rules that keep E2E suites from turning into a dumpster fire**.
 

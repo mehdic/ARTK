@@ -1,6 +1,6 @@
 ---
 name: artk.journey-implement
-description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the Phase 7 harness. Includes post-implementation quality gates: /artk.journey-validate (static) and /artk.journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
+description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the foundation harness. Includes post-implementation quality gates: /artk.journey-validate (static) and /artk.journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
 argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false batchMode=serial|subagent batchSize=2|3|4|5 subagentTimeout=60000-600000"
 agent: agent
 tools: ['edit', 'search', 'runSubagent']
@@ -94,7 +94,7 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 ---
 
 This command must:
-1) Convert a Journey (preferably `status: clarified`) into Playwright tests that follow the Phase 7 harness conventions.
+1) Convert a Journey (preferably `status: clarified`) into Playwright tests that follow the foundation harness conventions.
 2) **Load LLKB context FIRST** to reuse existing components and apply learned patterns.
 3) **Use AutoGen CLI as the PRIMARY approach** for test generation.
 4) Create/extend **feature modules** only when needed (foundation modules are reused).
@@ -122,7 +122,7 @@ These are not "style preferences". They are how you avoid flaky, unreadable E2E 
 
 # Non‑Negotiables
 - **No secrets**: never embed passwords/tokens. Ask for provisioning process only.
-- **No hardcoded URLs**: always rely on Phase 7 env/config loader + baseURL.
+- **No hardcoded URLs**: always rely on foundation env/config loader + baseURL.
 - **Idempotent**: reruns should update managed blocks and avoid duplicates.
 - **Traceability is mandatory**:
   - every test includes `@JRN-####`
@@ -179,7 +179,7 @@ Key args:
 
 # Preconditions (must validate before writing code)
 1) ARTK Journey system exists (`journeys/`, config, backlog/index).
-2) Phase 7 harness exists:
+2) Foundation harness exists:
    - `<ARTK_ROOT>/<harnessRoot>/playwright.config.*`
    - `<harnessRoot>/fixtures/test.*` (or equivalent base test)
    - `<harnessRoot>/modules/foundation/*`
@@ -1296,7 +1296,7 @@ If machine hints can't resolve the issue (complex async, multi-actor, domain log
 ---
 
 ## Step 4 — Pull discovery/testability signals (recommended)
-If `useDiscovery=auto` and Phase 4 outputs exist, load:
+If `useDiscovery=auto` and discovery outputs exist (from /artk.discover-foundation), load:
 - `docs/TESTABILITY.md` and/or `docs/DISCOVERY.md`
 Use them to:
 - confirm selectors strategy availability (roles/test ids)
@@ -2305,7 +2305,7 @@ Include:
 - run by tag: `npx playwright test --grep @JRN-####`
 - run by file path
 - debug: `--ui`, `--headed`
-- where to find report and traces (per Phase 7)
+- where to find report and traces (per foundation config)
 
 ---
 

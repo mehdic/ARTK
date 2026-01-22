@@ -32,9 +32,9 @@ handoffs:
     prompt: "id=JRN-####"
 ---
 
-# ARTK /journey-clarify — Clarification to Execution-Ready Detail (Phase 6)
+# ARTK /journey-clarify — Clarification to Execution-Ready Detail (Phase 7)
 
-You are running **ARTK Phase 6**.
+You are running **ARTK Phase 7**.
 
 A clarified Journey must be specific enough that `/artk.journey-implement` (later phase) can implement Playwright tests **without guessing** about:
 - actor/account assumptions
@@ -328,7 +328,7 @@ For teams with many legacy journeys, recommend:
 
 ## Step 2 — Pull discovery + testability context (auto)
 If `useDiscovery=true` OR (`auto` and discovery files exist):
-Use Phase 4 outputs to prefill and to reduce questions:
+Use discovery outputs (from /artk.discover-foundation) to prefill and reduce questions:
 - `docs/TESTABILITY.md` (selectors/data/async/env risks)
 - `docs/DISCOVERY.md` and/or `docs/discovery/*.json` (routes/features/auth entry points/risk list)
 

@@ -75,7 +75,7 @@ Optional (ask only if missing/unclear):
 ---
 
 # Discovery-aware behavior (new)
-If `useDiscovery=auto` (default) and Phase 4 outputs exist, you MUST use them to:
+If `useDiscovery=auto` (default) and discovery outputs exist (from /artk.discover-foundation), you MUST use them to:
 - infer plausible `actor` roles and `scope`/feature area
 - infer relevant routes/pages that match the Journey
 - infer baseline auth entry points (login/SSO) for context
