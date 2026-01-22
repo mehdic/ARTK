@@ -1184,6 +1184,16 @@ function generateAiIgnore(variant) {
 // src/lib/bootstrap.ts
 var __filename2 = fileURLToPath(import.meta.url);
 var __dirname2 = path5.dirname(__filename2);
+var BOOTSTRAP_TEMPLATES_PATH = path5.resolve(__dirname2, "..", "assets", "bootstrap-templates");
+function readBundledTemplate(templateName) {
+  const templatePath = path5.join(BOOTSTRAP_TEMPLATES_PATH, templateName);
+  if (fs6.existsSync(templatePath)) {
+    const content = fs6.readFileSync(templatePath, "utf8");
+    const lines = content.split("\n");
+    return lines.slice(10).join("\n");
+  }
+  return null;
+}
 async function bootstrap(targetPath, options = {}) {
   const logger2 = new Logger({ verbose: options.verbose });
   const errors = [];
@@ -1613,6 +1623,7 @@ playwright-report/
     logger2.debug("Foundation generator not found in vendor, using stubs only");
   }
   await createAdditionalModuleStubs(artkE2ePath);
+  await copyFoundationValidationSpec(artkE2ePath, logger2);
   await fs6.ensureDir(artkDir);
   const context = {
     variant: options.variant,
@@ -1726,6 +1737,37 @@ export async function runCleanup(): Promise<void> {
 export {};
 `
   );
+}
+async function copyFoundationValidationSpec(artkE2ePath, logger2) {
+  const validationSpecDest = path5.join(artkE2ePath, "tests", "foundation", "foundation.validation.spec.ts");
+  await fs6.ensureDir(path5.dirname(validationSpecDest));
+  const bundledTemplate = readBundledTemplate("foundation.validation.spec.ts");
+  if (bundledTemplate) {
+    await fs6.writeFile(validationSpecDest, bundledTemplate);
+    logger2.debug("Created foundation validation tests from template");
+    return;
+  }
+  await fs6.writeFile(
+    validationSpecDest,
+    `import { test, expect } from '@playwright/test';
+
+test.describe('ARTK Foundation Validation', () => {
+  test('baseURL is configured', async ({ baseURL }) => {
+    expect(baseURL).toBeTruthy();
+    expect(baseURL).toMatch(/^https?:\\/\\//);
+  });
+
+  test('baseURL is not a placeholder', async ({ baseURL }) => {
+    expect(baseURL).not.toContain('\${');
+  });
+
+  test('Playwright is correctly installed', async ({ browserName }) => {
+    expect(browserName).toBeTruthy();
+  });
+});
+`
+  );
+  logger2.debug("Created foundation validation tests (fallback)");
 }
 async function runNpmInstall(artkE2ePath, logsDir, logger2) {
   const logFile = path5.join(logsDir, "npm-install.log");
@@ -1846,34 +1888,56 @@ function printSuccessSummary(logger2, projectPath, artkE2ePath, browserInfo) {
   logger2.list(["cd artk-e2e && npm test"]);
 }
 function getPlaywrightConfigTemplate() {
-  return `/**
- * Playwright Configuration for ARTK E2E Tests
- *
- * Note: Uses inline config loading to avoid ESM/CommonJS resolution issues
- * with vendored @artk/core packages.
- */
-import { defineConfig, devices } from '@playwright/test';
+  const bundledTemplate = readBundledTemplate("playwright.config.template.ts");
+  if (bundledTemplate) {
+    return bundledTemplate;
+  }
+  return `import { defineConfig, devices } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Load ARTK config from artk.config.yml
 function loadArtkConfig(): Record<string, any> {
   const configPath = path.join(__dirname, 'artk.config.yml');
   if (!fs.existsSync(configPath)) {
-    console.warn(\`ARTK config not found: \${configPath}, using defaults\`);
+    console.warn('[ARTK] Config not found, using defaults');
     return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
   }
+  try {
+    const yaml = require('yaml');
+    return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (e: any) {
+    console.error(\`[ARTK] Failed to parse artk.config.yml: \${e.message}\`);
+    return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
+  }
+}
 
-  const yaml = require('yaml');
-  return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+const _missingEnvVars: string[] = [];
+
+function resolveEnvVars(value: string): string {
+  if (typeof value !== 'string') return String(value);
+  return value.replace(
+    /\\$\\{([A-Z_][A-Z0-9_]*)(:-([^}]*))?\\}/gi,
+    (match, varName, _hasDefault, defaultValue) => {
+      const envValue = process.env[varName];
+      if (envValue !== undefined && envValue !== '') return envValue;
+      if (defaultValue !== undefined) return defaultValue;
+      _missingEnvVars.push(varName);
+      return '';
+    }
+  );
 }
 
 const artkConfig = loadArtkConfig();
 const env = process.env.ARTK_ENV || 'local';
-const baseURL = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const rawBaseUrl = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const baseURL = resolveEnvVars(rawBaseUrl);
 const browserChannel = artkConfig.browsers?.channel;
 
-// Build browser use config
+if (_missingEnvVars.length > 0) {
+  const unique = [...new Set(_missingEnvVars)];
+  console.warn(\`[ARTK] Missing env vars (no defaults): \${unique.join(', ')}\`);
+}
+
 const browserUse: Record<string, any> = { ...devices['Desktop Chrome'] };
 if (browserChannel && browserChannel !== 'bundled') {
   browserUse.channel = browserChannel;
@@ -1887,31 +1951,15 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html', { open: 'never' }]],
   timeout: artkConfig.settings?.timeout || 30000,
-
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-
   projects: [
-    // Auth setup project - runs first to create storage states
-    {
-      name: 'setup',
-      testMatch: /.*\\.setup\\.ts/,
-    },
-    // Main browser project with auth dependency
-    {
-      name: 'chromium',
-      use: browserUse,
-      dependencies: ['setup'],
-    },
-    // Validation project - no auth needed
-    {
-      name: 'validation',
-      testMatch: /foundation\\.validation\\.spec\\.ts/,
-      use: browserUse,
-    },
+    { name: 'setup', testMatch: /.*\\.setup\\.ts/ },
+    { name: 'chromium', use: browserUse, dependencies: ['setup'] },
+    { name: 'validation', testMatch: /foundation\\.validation\\.spec\\.ts/, use: { ...browserUse, baseURL } },
   ],
 });
 `;

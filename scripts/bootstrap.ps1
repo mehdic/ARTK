@@ -870,6 +870,36 @@ Write-Host "[2/7] Creating artk-e2e/ structure..." -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
 
+# Copy foundation validation spec from template
+$ValidationSpecTemplate = Join-Path $ArtkRepo "templates\bootstrap\foundation.validation.spec.ts"
+$ValidationSpecDest = Join-Path $ArtkE2e "tests\foundation\foundation.validation.spec.ts"
+if (Test-Path $ValidationSpecTemplate) {
+    Copy-Item -Path $ValidationSpecTemplate -Destination $ValidationSpecDest -Force
+    Write-Host "  Created foundation validation tests" -ForegroundColor Cyan
+} else {
+    # Create minimal validation spec if template not found
+    $MinimalValidationSpec = @"
+import { test, expect } from '@playwright/test';
+
+test.describe('ARTK Foundation Validation', () => {
+  test('baseURL is configured', async ({ baseURL }) => {
+    expect(baseURL).toBeTruthy();
+    expect(baseURL).toMatch(/^https?:\/\//);
+  });
+
+  test('baseURL is not a placeholder', async ({ baseURL }) => {
+    expect(baseURL).not.toContain('\`$\{');
+  });
+
+  test('Playwright is correctly installed', async ({ browserName }) => {
+    expect(browserName).toBeTruthy();
+  });
+});
+"@
+    Set-Content -Path $ValidationSpecDest -Value $MinimalValidationSpec
+    Write-Host "  Created foundation validation tests (fallback)" -ForegroundColor Cyan
+}
+
 # Step 3: Copy @artk/core to vendor (using variant-specific dist)
 Write-Host "[3/7] Installing @artk/core ($SelectedVariant) to vendor/..." -ForegroundColor Yellow
 $VendorTarget = Join-Path $ArtkE2e "vendor\artk-core"
@@ -1039,7 +1069,7 @@ Write-Host "[5/7] Creating configuration files..." -ForegroundColor Yellow
 # Detect project name from target directory
 $ProjectName = Split-Path -Leaf $TargetProject
 
-# package.json
+# package.json - synchronized with bash/CLI templates
 $PackageJson = @"
 {
   "name": "artk-e2e",
@@ -1049,50 +1079,86 @@ $PackageJson = @"
     "test": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
     "test:release": "playwright test --grep @release",
+    "test:regression": "playwright test --grep @regression",
+    "test:validation": "playwright test --project=validation",
     "test:ui": "playwright test --ui",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4"
   },
   "devDependencies": {
     "@artk/core": "file:./vendor/artk-core",
     "@artk/core-autogen": "file:./vendor/artk-core-autogen",
     "@playwright/test": "^1.57.0",
+    "@types/node": "^20.10.0",
     "typescript": "^5.3.0"
-  },
-  "dependencies": {
-    "yaml": "^2.3.0"
   }
 }
 "@
 Set-Content -Path (Join-Path $ArtkE2e "package.json") -Value $PackageJson
 
-# playwright.config.ts - Uses inline config loading to avoid @artk/core subpath import issues
-$PlaywrightConfig = @"
-/**
- * Playwright Configuration for ARTK E2E Tests
- *
- * Note: Uses inline config loading for reliability with vendored @artk/core.
- * The file: dependency resolution doesn't always honor package.json exports.
- */
+# playwright.config.ts - Read from shared template or use inline fallback
+# Template source: templates/bootstrap/playwright.config.template.ts
+$PlaywrightTemplatePath = Join-Path $ArtkRepo "templates\bootstrap\playwright.config.template.ts"
+if (Test-Path $PlaywrightTemplatePath) {
+    $PlaywrightConfig = Get-Content -Path $PlaywrightTemplatePath -Raw
+    # Remove the template header comment (first 10 lines are documentation)
+    $PlaywrightConfig = ($PlaywrightConfig -split "`n" | Select-Object -Skip 10) -join "`n"
+} else {
+    # Fallback: inline template (synchronized with bash/CLI)
+    $PlaywrightConfig = @"
 import { defineConfig, devices } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Load ARTK config inline (avoids @artk/core subpath import issues with file: deps)
 function loadArtkConfig(): Record<string, any> {
   const configPath = path.join(__dirname, 'artk.config.yml');
   if (!fs.existsSync(configPath)) {
-    console.warn('ARTK config not found: ' + configPath + ', using defaults');
+    console.warn('[ARTK] Config not found, using defaults');
     return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
   }
-  const yaml = require('yaml');
-  return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+  try {
+    const yaml = require('yaml');
+    return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (e: any) {
+    console.error('[ARTK] Failed to parse artk.config.yml: ' + e.message);
+    return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
+  }
+}
+
+const _missingEnvVars: string[] = [];
+
+function resolveEnvVars(value: string): string {
+  if (typeof value !== 'string') return String(value);
+  return value.replace(
+    /\`$\{([A-Z_][A-Z0-9_]*)(:-([^}]*))?\}/gi,
+    (match, varName, _hasDefault, defaultValue) => {
+      const envValue = process.env[varName];
+      if (envValue !== undefined && envValue !== '') return envValue;
+      if (defaultValue !== undefined) return defaultValue;
+      _missingEnvVars.push(varName);
+      return '';
+    }
+  );
 }
 
 const artkConfig = loadArtkConfig();
 const env = process.env.ARTK_ENV || 'local';
-const envConfig = artkConfig.environments?.[env] || artkConfig.environments?.local || {};
-const baseURL = envConfig.baseUrl || 'http://localhost:3000';
-const browserChannel = artkConfig.browsers?.channel || undefined;
+const rawBaseUrl = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const baseURL = resolveEnvVars(rawBaseUrl);
+const browserChannel = artkConfig.browsers?.channel;
+
+if (_missingEnvVars.length > 0) {
+  const unique = [...new Set(_missingEnvVars)];
+  console.warn('[ARTK] Missing env vars (no defaults): ' + unique.join(', '));
+}
+
+const browserUse: Record<string, any> = { ...devices['Desktop Chrome'] };
+if (browserChannel && browserChannel !== 'bundled') {
+  browserUse.channel = browserChannel;
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -1100,33 +1166,21 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
-
+  reporter: [['html', { open: 'never' }]],
+  timeout: artkConfig.settings?.timeout || 30000,
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    ...(browserChannel && browserChannel !== 'bundled' ? { channel: browserChannel } : {}),
   },
-
   projects: [
-    {
-      name: 'setup',
-      testMatch: /.*\.setup\.ts/,
-    },
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'validation',
-      testMatch: /foundation\.validation\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'] },
-    },
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+    { name: 'chromium', use: browserUse, dependencies: ['setup'] },
+    { name: 'validation', testMatch: /foundation\.validation\.spec\.ts/, use: { ...browserUse, baseURL } },
   ],
 });
 "@
+}
 Set-Content -Path (Join-Path $ArtkE2e "playwright.config.ts") -Value $PlaywrightConfig
 
 # tsconfig.json - Use CommonJS for Playwright compatibility

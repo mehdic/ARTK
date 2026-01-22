@@ -783,6 +783,11 @@ var JourneysConfigSchema = z.object({
   backlog: JourneyBacklogConfigSchema.default(DEFAULT_JOURNEYS.backlog)
 });
 var ARTKConfigSchema = z.object({
+  /**
+   * Configuration schema version (integer, not semver).
+   * Increment when making breaking changes to schema.
+   * Example: 1, 2, 3 (NOT "1.0.0")
+   */
   version: z.number().int().min(1).optional().default(SUPPORTED_CONFIG_VERSION),
   app: AppConfigSchema,
   environments: EnvironmentsSchema.default({}),

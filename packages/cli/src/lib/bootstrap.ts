@@ -39,6 +39,24 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Path to bundled bootstrap templates (copied during build)
+const BOOTSTRAP_TEMPLATES_PATH = path.resolve(__dirname, '..', 'assets', 'bootstrap-templates');
+
+/**
+ * Read a bundled template file
+ * @returns Template content or null if not found
+ */
+function readBundledTemplate(templateName: string): string | null {
+  const templatePath = path.join(BOOTSTRAP_TEMPLATES_PATH, templateName);
+  if (fs.existsSync(templatePath)) {
+    const content = fs.readFileSync(templatePath, 'utf8');
+    // Skip header comment (first 10 lines are documentation)
+    const lines = content.split('\n');
+    return lines.slice(10).join('\n');
+  }
+  return null;
+}
+
 export interface BootstrapOptions {
   skipNpm?: boolean;
   skipBrowsers?: boolean;
@@ -649,6 +667,9 @@ playwright-report/
   // Create additional module stubs (selectors, data, features)
   await createAdditionalModuleStubs(artkE2ePath);
 
+  // Copy foundation validation spec from bundled template
+  await copyFoundationValidationSpec(artkE2ePath, logger);
+
   // .artk/context.json with full variant metadata
   await fs.ensureDir(artkDir);
   const context: ArtkContext = {
@@ -776,6 +797,47 @@ export async function runCleanup(): Promise<void> {
 export {};
 `
   );
+}
+
+/**
+ * Copy foundation validation spec from bundled template
+ */
+async function copyFoundationValidationSpec(artkE2ePath: string, logger: Logger): Promise<void> {
+  const validationSpecDest = path.join(artkE2ePath, 'tests', 'foundation', 'foundation.validation.spec.ts');
+
+  // Ensure directory exists
+  await fs.ensureDir(path.dirname(validationSpecDest));
+
+  // Try to read from bundled template
+  const bundledTemplate = readBundledTemplate('foundation.validation.spec.ts');
+  if (bundledTemplate) {
+    await fs.writeFile(validationSpecDest, bundledTemplate);
+    logger.debug('Created foundation validation tests from template');
+    return;
+  }
+
+  // Fallback: create minimal validation spec
+  await fs.writeFile(
+    validationSpecDest,
+    `import { test, expect } from '@playwright/test';
+
+test.describe('ARTK Foundation Validation', () => {
+  test('baseURL is configured', async ({ baseURL }) => {
+    expect(baseURL).toBeTruthy();
+    expect(baseURL).toMatch(/^https?:\\/\\//);
+  });
+
+  test('baseURL is not a placeholder', async ({ baseURL }) => {
+    expect(baseURL).not.toContain('\${');
+  });
+
+  test('Playwright is correctly installed', async ({ browserName }) => {
+    expect(browserName).toBeTruthy();
+  });
+});
+`
+  );
+  logger.debug('Created foundation validation tests (fallback)');
 }
 
 /**
@@ -945,36 +1007,62 @@ function printSuccessSummary(
 
 /**
  * Playwright config template
+ * Reads from bundled template or falls back to inline version
  */
 function getPlaywrightConfigTemplate(): string {
-  return `/**
- * Playwright Configuration for ARTK E2E Tests
- *
- * Note: Uses inline config loading to avoid ESM/CommonJS resolution issues
- * with vendored @artk/core packages.
- */
-import { defineConfig, devices } from '@playwright/test';
+  // Try to read from bundled template first
+  const bundledTemplate = readBundledTemplate('playwright.config.template.ts');
+  if (bundledTemplate) {
+    return bundledTemplate;
+  }
+
+  // Fallback: inline template (synchronized with PowerShell/Bash)
+  return `import { defineConfig, devices } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Load ARTK config from artk.config.yml
 function loadArtkConfig(): Record<string, any> {
   const configPath = path.join(__dirname, 'artk.config.yml');
   if (!fs.existsSync(configPath)) {
-    console.warn(\`ARTK config not found: \${configPath}, using defaults\`);
+    console.warn('[ARTK] Config not found, using defaults');
     return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
   }
+  try {
+    const yaml = require('yaml');
+    return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (e: any) {
+    console.error(\`[ARTK] Failed to parse artk.config.yml: \${e.message}\`);
+    return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
+  }
+}
 
-  const yaml = require('yaml');
-  return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+const _missingEnvVars: string[] = [];
+
+function resolveEnvVars(value: string): string {
+  if (typeof value !== 'string') return String(value);
+  return value.replace(
+    /\\$\\{([A-Z_][A-Z0-9_]*)(:-([^}]*))?\\}/gi,
+    (match, varName, _hasDefault, defaultValue) => {
+      const envValue = process.env[varName];
+      if (envValue !== undefined && envValue !== '') return envValue;
+      if (defaultValue !== undefined) return defaultValue;
+      _missingEnvVars.push(varName);
+      return '';
+    }
+  );
 }
 
 const artkConfig = loadArtkConfig();
 const env = process.env.ARTK_ENV || 'local';
-const baseURL = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const rawBaseUrl = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const baseURL = resolveEnvVars(rawBaseUrl);
 const browserChannel = artkConfig.browsers?.channel;
 
-// Build browser use config
+if (_missingEnvVars.length > 0) {
+  const unique = [...new Set(_missingEnvVars)];
+  console.warn(\`[ARTK] Missing env vars (no defaults): \${unique.join(', ')}\`);
+}
+
 const browserUse: Record<string, any> = { ...devices['Desktop Chrome'] };
 if (browserChannel && browserChannel !== 'bundled') {
   browserUse.channel = browserChannel;
@@ -988,31 +1076,15 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html', { open: 'never' }]],
   timeout: artkConfig.settings?.timeout || 30000,
-
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-
   projects: [
-    // Auth setup project - runs first to create storage states
-    {
-      name: 'setup',
-      testMatch: /.*\\.setup\\.ts/,
-    },
-    // Main browser project with auth dependency
-    {
-      name: 'chromium',
-      use: browserUse,
-      dependencies: ['setup'],
-    },
-    // Validation project - no auth needed
-    {
-      name: 'validation',
-      testMatch: /foundation\\.validation\\.spec\\.ts/,
-      use: browserUse,
-    },
+    { name: 'setup', testMatch: /.*\\.setup\\.ts/ },
+    { name: 'chromium', use: browserUse, dependencies: ['setup'] },
+    { name: 'validation', testMatch: /foundation\\.validation\\.spec\\.ts/, use: { ...browserUse, baseURL } },
   ],
 });
 `;

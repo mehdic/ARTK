@@ -187,6 +187,7 @@ describe('Toast Assertions', () => {
       await page.setContent('<div id="container"></div>');
 
       // Trigger toast that auto-dismisses
+      // Use 500ms to avoid race condition - 100ms was too tight and caused flaky failures
       await page.evaluate(() => {
         const container = document.getElementById('container');
         if (container) {
@@ -195,10 +196,10 @@ describe('Toast Assertions', () => {
           toast.innerHTML = '<div class="toast-message">Auto-dismiss toast</div>';
           container.appendChild(toast);
 
-          // Remove after 100ms
+          // Remove after 500ms (enough time for waitForToastDismiss to find it)
           setTimeout(() => {
             toast.remove();
-          }, 100);
+          }, 500);
         }
       });
 
@@ -211,6 +212,7 @@ describe('Toast Assertions', () => {
     it('should verify toast type before waiting for dismiss', async () => {
       await page.setContent('<div id="container"></div>');
 
+      // Use 500ms to avoid race condition
       await page.evaluate(() => {
         const container = document.getElementById('container');
         if (container) {
@@ -220,9 +222,10 @@ describe('Toast Assertions', () => {
           toast.innerHTML = '<div class="toast-message">Success toast</div>';
           container.appendChild(toast);
 
+          // Remove after 500ms (enough time for waitForToastDismiss to find it)
           setTimeout(() => {
             toast.remove();
-          }, 100);
+          }, 500);
         }
       });
 

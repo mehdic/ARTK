@@ -152,18 +152,36 @@ async function bundleAssets(): Promise<void> {
   copyFile(path.join(AUTOGEN_SOURCE, 'package.json'), path.join(AUTOGEN_TARGET, 'package.json'));
   console.log('   - package.json');
 
-  // 4. Calculate sizes
-  console.log('\n4. Asset sizes:');
+  // 4. Bundle bootstrap templates
+  console.log('\n4. Bundling bootstrap templates...');
+  const BOOTSTRAP_TEMPLATES_SOURCE = path.join(REPO_ROOT, 'templates', 'bootstrap');
+  const BOOTSTRAP_TEMPLATES_TARGET = path.join(ASSETS_DIR, 'bootstrap-templates');
+
+  if (fs.existsSync(BOOTSTRAP_TEMPLATES_SOURCE)) {
+    copyDir(BOOTSTRAP_TEMPLATES_SOURCE, BOOTSTRAP_TEMPLATES_TARGET);
+    const templateFiles = fs.readdirSync(BOOTSTRAP_TEMPLATES_SOURCE).filter(f => f.endsWith('.ts'));
+    for (const file of templateFiles) {
+      console.log(`   - ${file}`);
+    }
+    console.log(`   Bundled ${templateFiles.length} template files`);
+  } else {
+    console.warn(`   Bootstrap templates not found: ${BOOTSTRAP_TEMPLATES_SOURCE}`);
+  }
+
+  // 5. Calculate sizes
+  console.log('\n5. Asset sizes:');
   const sizes = {
     prompts: getDirSize(PROMPTS_TARGET),
     core: getDirSize(CORE_TARGET),
     autogen: getDirSize(AUTOGEN_TARGET),
+    bootstrap: getDirSize(BOOTSTRAP_TEMPLATES_TARGET),
   };
 
-  console.log(`   - prompts/: ${formatSize(sizes.prompts)}`);
-  console.log(`   - core/:    ${formatSize(sizes.core)}`);
-  console.log(`   - autogen/: ${formatSize(sizes.autogen)}`);
-  console.log(`   - Total:    ${formatSize(sizes.prompts + sizes.core + sizes.autogen)}`);
+  console.log(`   - prompts/:   ${formatSize(sizes.prompts)}`);
+  console.log(`   - core/:      ${formatSize(sizes.core)}`);
+  console.log(`   - autogen/:   ${formatSize(sizes.autogen)}`);
+  console.log(`   - bootstrap/: ${formatSize(sizes.bootstrap)}`);
+  console.log(`   - Total:      ${formatSize(sizes.prompts + sizes.core + sizes.autogen + sizes.bootstrap)}`);
 
   console.log('\nAsset bundling complete!');
 }

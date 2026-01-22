@@ -1,1 +1,0 @@
-{"version":3,"file":"config-error.d.ts","sourceRoot":"","sources":["../../errors/config-error.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;GAcG;AACH,qBAAa,eAAgB,SAAQ,KAAK;IACxC;;OAEG;IACH,SAAgB,KAAK,EAAE,MAAM,CAAC;IAE9B;;OAEG;IACH,SAAgB,UAAU,CAAC,EAAE,MAAM,CAAC;gBAExB,OAAO,EAAE,MAAM,EAAE,KAAK,EAAE,MAAM,EAAE,UAAU,CAAC,EAAE,MAAM;IAY/D;;OAEG;IACa,QAAQ,IAAI,MAAM;CAOnC"}

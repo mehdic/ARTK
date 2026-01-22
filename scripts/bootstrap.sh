@@ -720,6 +720,34 @@ mkdir -p "$ARTK_E2E"/src/modules/features
 mkdir -p "$ARTK_E2E"/config
 mkdir -p "$ARTK_E2E"/tests/{setup,foundation,smoke,release,regression,journeys}
 
+# Copy foundation validation spec from template
+VALIDATION_SPEC_TEMPLATE="$ARTK_REPO/templates/bootstrap/foundation.validation.spec.ts"
+if [ -f "$VALIDATION_SPEC_TEMPLATE" ]; then
+    cp "$VALIDATION_SPEC_TEMPLATE" "$ARTK_E2E/tests/foundation/foundation.validation.spec.ts"
+    echo -e "${CYAN}  ✓ Created foundation validation tests${NC}"
+else
+    # Create minimal validation spec if template not found
+    cat > "$ARTK_E2E/tests/foundation/foundation.validation.spec.ts" << 'VALIDATIONSPEC'
+import { test, expect } from '@playwright/test';
+
+test.describe('ARTK Foundation Validation', () => {
+  test('baseURL is configured', async ({ baseURL }) => {
+    expect(baseURL).toBeTruthy();
+    expect(baseURL).toMatch(/^https?:\/\//);
+  });
+
+  test('baseURL is not a placeholder', async ({ baseURL }) => {
+    expect(baseURL).not.toContain('${');
+  });
+
+  test('Playwright is correctly installed', async ({ browserName }) => {
+    expect(browserName).toBeTruthy();
+  });
+});
+VALIDATIONSPEC
+    echo -e "${CYAN}  ✓ Created foundation validation tests (fallback)${NC}"
+fi
+
 # Create foundation index stub
 cat > "$ARTK_E2E/src/modules/foundation/index.ts" << 'FOUNDATIONINDEX'
 /**
@@ -1076,37 +1104,61 @@ cat > "$ARTK_E2E/package.json" << 'PKGJSON'
 }
 PKGJSON
 
-# playwright.config.ts - Uses inline config for reliability with vendored packages
-cat > "$ARTK_E2E/playwright.config.ts" << 'PWCONFIG'
-/**
- * Playwright Configuration for ARTK E2E Tests
- *
- * Note: Uses inline config loading to avoid ESM/CommonJS resolution issues
- * with vendored @artk/core packages.
- */
+# playwright.config.ts - Read from shared template or use inline fallback
+# Template source: templates/bootstrap/playwright.config.template.ts
+PLAYWRIGHT_TEMPLATE="$ARTK_REPO/templates/bootstrap/playwright.config.template.ts"
+if [ -f "$PLAYWRIGHT_TEMPLATE" ]; then
+    # Copy template, skipping first 10 lines (documentation header)
+    tail -n +11 "$PLAYWRIGHT_TEMPLATE" > "$ARTK_E2E/playwright.config.ts"
+else
+    # Fallback: inline template (synchronized with PowerShell/CLI)
+    cat > "$ARTK_E2E/playwright.config.ts" << 'PWCONFIG'
 import { defineConfig, devices } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Load ARTK config from artk.config.yml
 function loadArtkConfig(): Record<string, any> {
   const configPath = path.join(__dirname, 'artk.config.yml');
   if (!fs.existsSync(configPath)) {
-    console.warn(`ARTK config not found: ${configPath}, using defaults`);
+    console.warn('[ARTK] Config not found, using defaults');
     return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
   }
+  try {
+    const yaml = require('yaml');
+    return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (e: any) {
+    console.error(`[ARTK] Failed to parse artk.config.yml: ${e.message}`);
+    return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
+  }
+}
 
-  // Use dynamic require for yaml to avoid ESM issues
-  const yaml = require('yaml');
-  return yaml.parse(fs.readFileSync(configPath, 'utf8'));
+const _missingEnvVars: string[] = [];
+
+function resolveEnvVars(value: string): string {
+  if (typeof value !== 'string') return String(value);
+  return value.replace(
+    /\$\{([A-Z_][A-Z0-9_]*)(:-([^}]*))?\}/gi,
+    (match, varName, _hasDefault, defaultValue) => {
+      const envValue = process.env[varName];
+      if (envValue !== undefined && envValue !== '') return envValue;
+      if (defaultValue !== undefined) return defaultValue;
+      _missingEnvVars.push(varName);
+      return '';
+    }
+  );
 }
 
 const artkConfig = loadArtkConfig();
 const env = process.env.ARTK_ENV || 'local';
-const baseURL = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const rawBaseUrl = artkConfig.environments?.[env]?.baseUrl || 'http://localhost:3000';
+const baseURL = resolveEnvVars(rawBaseUrl);
 const browserChannel = artkConfig.browsers?.channel;
 
-// Build browser use config
+if (_missingEnvVars.length > 0) {
+  const unique = [...new Set(_missingEnvVars)];
+  console.warn(`[ARTK] Missing env vars (no defaults): ${unique.join(', ')}`);
+}
+
 const browserUse: Record<string, any> = { ...devices['Desktop Chrome'] };
 if (browserChannel && browserChannel !== 'bundled') {
   browserUse.channel = browserChannel;
@@ -1120,34 +1172,19 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html', { open: 'never' }]],
   timeout: artkConfig.settings?.timeout || 30000,
-
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-
   projects: [
-    // Auth setup project - runs first to create storage states
-    {
-      name: 'setup',
-      testMatch: /.*\.setup\.ts/,
-    },
-    // Main browser project with auth dependency
-    {
-      name: 'chromium',
-      use: browserUse,
-      dependencies: ['setup'],
-    },
-    // Validation project - no auth needed
-    {
-      name: 'validation',
-      testMatch: /foundation\.validation\.spec\.ts/,
-      use: browserUse,
-    },
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+    { name: 'chromium', use: browserUse, dependencies: ['setup'] },
+    { name: 'validation', testMatch: /foundation\.validation\.spec\.ts/, use: { ...browserUse, baseURL } },
   ],
 });
 PWCONFIG
+fi
 
 # tsconfig.json - Use CommonJS for Playwright compatibility
 cat > "$ARTK_E2E/tsconfig.json" << 'TSCONFIG'
