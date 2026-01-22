@@ -82,6 +82,7 @@ This command does THREE things in one (ALL MANDATORY):
 5. **No CI/CD yet.** Do not add/modify pipelines. Only scaffold code/docs/config.
 6. **No secrets.** Never request or write credentials. Capture only *where* secrets live and *how* auth works.
 7. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
+8. **Final output is mandatory.** Before ending, MUST display the "Next Commands" box from the MANDATORY section verbatim. Do not summarize or paraphrase.
 
 ## Inputs (parse from arguments if provided)
 
@@ -1835,6 +1836,9 @@ If anything is ambiguous, ask in the single grouped questionnaire and proceed on
 **This prompt is idempotent** - safe to run multiple times. It will detect existing installations and act appropriately (Mode A/B/C).
 
 ---
+
+### Final Output (MANDATORY)
+- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
 
 # MANDATORY: Final Output Section
 

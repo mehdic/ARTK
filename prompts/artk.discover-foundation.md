@@ -57,6 +57,7 @@ By combining these, discovery findings directly inform foundation build decision
 7. **No hardcoded URLs.** Base URL and env must come from the config loader.
 8. **Local-first defaults.** Retries should be low locally; CI can raise them later.
 9. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
+10. **Final output is mandatory.** Before ending, MUST display the "Next Commands" box from the MANDATORY section verbatim. Do not summarize or paraphrase.
 
 ---
 
@@ -1708,6 +1709,10 @@ Next steps:
 - [ ] All validation tests pass
 - [ ] @artk/core integration verified
 - [ ] Validation summary output
+
+### Final Output (MANDATORY)
+- [ ] Data-Testid Warning displayed (if applicable)
+- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
 
 ---
 

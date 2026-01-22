@@ -90,6 +90,8 @@ If inputs are missing, infer them from a repo scan.
    - If repo already uses `data-cy` / `data-test-id`, prefer that over introducing a new attribute.
    - If Playwright config uses a custom `testIdAttribute`, align to it.
 
+6) **Final output is mandatory.** Before ending, MUST display the "Next Commands" box from the MANDATORY section verbatim. Do not summarize or paraphrase.
+
 ---
 
 ## Phase 0 - Repo scan (no questions yet)
@@ -359,6 +361,9 @@ You must produce:
 - [ ] next commands for remaining work
 
 ---
+
+### Final Output (MANDATORY)
+- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
 
 ## MANDATORY: Final Output Section
 

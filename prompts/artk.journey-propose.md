@@ -851,6 +851,9 @@ Provide one reply template.
 
 ---
 
+### Final Output (MANDATORY)
+- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
+
 # MANDATORY: Final Output Section
 
 **You MUST display this section at the end of your output, exactly as formatted.**
