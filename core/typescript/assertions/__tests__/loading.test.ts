@@ -180,6 +180,10 @@ describe('Loading State Assertions', () => {
       await page.setContent('<div id="container"></div>');
 
       // Add loading indicator that will be removed
+      // TIMING NOTE: Use 1000ms minimum for transient elements in tests.
+      // Shorter values (100-200ms) cause race conditions where the element
+      // may be removed before Playwright's assertion can detect it,
+      // especially under CI load or slow VMs.
       await page.evaluate(() => {
         const container = document.getElementById('container');
         if (container) {
@@ -188,10 +192,9 @@ describe('Loading State Assertions', () => {
           loader.textContent = 'Loading...';
           container.appendChild(loader);
 
-          // Remove after 100ms
           setTimeout(() => {
             loader.remove();
-          }, 100);
+          }, 1000);
         }
       });
 
@@ -213,6 +216,7 @@ describe('Loading State Assertions', () => {
     it('should work with custom selectors', async () => {
       await page.setContent('<div id="container"></div>');
 
+      // See TIMING NOTE above - 1000ms prevents race conditions
       await page.evaluate(() => {
         const container = document.getElementById('container');
         if (container) {
@@ -222,13 +226,13 @@ describe('Loading State Assertions', () => {
 
           setTimeout(() => {
             loader.remove();
-          }, 100);
+          }, 1000);
         }
       });
 
       await waitForLoadingComplete(page, {
         selectors: ['.custom-spinner'],
-        timeout: 2000,
+        timeout: 3000,
       });
 
       await expectNotLoading(page, { selectors: ['.custom-spinner'] });
@@ -237,6 +241,7 @@ describe('Loading State Assertions', () => {
     it('should wait for all loading indicators to disappear', async () => {
       await page.setContent('<div id="container"></div>');
 
+      // See TIMING NOTE above - stagger removal but keep both >= 1000ms
       await page.evaluate(() => {
         const container = document.getElementById('container');
         if (container) {
@@ -248,13 +253,13 @@ describe('Loading State Assertions', () => {
           loader2.className = 'spinner';
           container.appendChild(loader2);
 
-          // Remove at different times
-          setTimeout(() => loader1.remove(), 100);
-          setTimeout(() => loader2.remove(), 200);
+          // Remove at different times (staggered to test multi-loader behavior)
+          setTimeout(() => loader1.remove(), 1000);
+          setTimeout(() => loader2.remove(), 1200);
         }
       });
 
-      await waitForLoadingComplete(page, { timeout: 3000 });
+      await waitForLoadingComplete(page, { timeout: 5000 });
 
       await expectNotLoading(page);
     });
@@ -318,10 +323,10 @@ describe('Loading State Assertions', () => {
             loader.style.display = 'block';
             container.appendChild(loader);
 
-            // Use 500ms to avoid race condition (150ms was too tight)
+            // See TIMING NOTE in waitForLoadingComplete tests - 1000ms prevents race conditions
             setTimeout(() => {
               loader.remove();
-            }, 500);
+            }, 1000);
           });
         }
       });

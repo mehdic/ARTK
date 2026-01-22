@@ -183,11 +183,15 @@ describe('Toast Assertions', () => {
   });
 
   describe('waitForToastDismiss', () => {
+    // TIMING NOTE: Use 1000ms minimum for transient elements in tests.
+    // Shorter values (100-200ms) cause race conditions where the element
+    // may be removed before Playwright's assertion can detect it,
+    // especially under CI load or slow VMs. The assertion timeout should
+    // always exceed the element's lifetime by at least 1000ms buffer.
+
     it('should wait for toast to appear and then disappear', async () => {
       await page.setContent('<div id="container"></div>');
 
-      // Trigger toast that auto-dismisses
-      // Use 500ms to avoid race condition - 100ms was too tight and caused flaky failures
       await page.evaluate(() => {
         const container = document.getElementById('container');
         if (container) {
@@ -196,14 +200,13 @@ describe('Toast Assertions', () => {
           toast.innerHTML = '<div class="toast-message">Auto-dismiss toast</div>';
           container.appendChild(toast);
 
-          // Remove after 500ms (enough time for waitForToastDismiss to find it)
           setTimeout(() => {
             toast.remove();
-          }, 500);
+          }, 1000);
         }
       });
 
-      await waitForToastDismiss(page, 'Auto-dismiss toast', { timeout: 2000 });
+      await waitForToastDismiss(page, 'Auto-dismiss toast', { timeout: 3000 });
 
       // Toast should be gone
       await expectNoToast(page);
@@ -212,7 +215,6 @@ describe('Toast Assertions', () => {
     it('should verify toast type before waiting for dismiss', async () => {
       await page.setContent('<div id="container"></div>');
 
-      // Use 500ms to avoid race condition
       await page.evaluate(() => {
         const container = document.getElementById('container');
         if (container) {
@@ -222,16 +224,15 @@ describe('Toast Assertions', () => {
           toast.innerHTML = '<div class="toast-message">Success toast</div>';
           container.appendChild(toast);
 
-          // Remove after 500ms (enough time for waitForToastDismiss to find it)
           setTimeout(() => {
             toast.remove();
-          }, 500);
+          }, 1000);
         }
       });
 
       await waitForToastDismiss(page, 'Success toast', {
         type: 'success',
-        timeout: 2000,
+        timeout: 3000,
       });
 
       await expectNoToast(page);
