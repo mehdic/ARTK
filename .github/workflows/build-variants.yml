@@ -50,6 +50,8 @@ jobs:
 
       - name: Build all variants
         run: |
+          export NODE_OPTIONS="--max-old-space-size=6144"
+
           echo "Building modern-esm..."
           npm run build
 
@@ -62,8 +64,6 @@ jobs:
           echo "Building legacy-14..."
           npm run build:legacy-14
         working-directory: core/typescript
-        env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Verify build outputs
         run: |
@@ -386,6 +386,8 @@ jobs:
 
       - name: Time full variant build
         run: |
+          export NODE_OPTIONS="--max-old-space-size=6144"
+
           START=$(date +%s)
 
           npm run build
@@ -404,5 +406,3 @@ jobs:
             echo "✓ Build within 5-minute target"
           fi
         working-directory: core/typescript
-        env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
