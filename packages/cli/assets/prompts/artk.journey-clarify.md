@@ -331,6 +331,7 @@ If `useDiscovery=true` OR (`auto` and discovery files exist):
 Use discovery outputs (from /artk.discover-foundation) to prefill and reduce questions:
 - `docs/TESTABILITY.md` (selectors/data/async/env risks)
 - `docs/DISCOVERY.md` and/or `docs/discovery/*.json` (routes/features/auth entry points/risk list)
+- `reports/discovery/apis.json` (test data setup patterns - CRITICAL for data strategy)
 
 Extract into a short internal summary (to be written into the Journey clarification block):
 - likely auth entry points for this scope
@@ -339,6 +340,164 @@ Extract into a short internal summary (to be written into the Journey clarificat
 - async "flake zones" mentioned for this area
 
 If discovery is unavailable, proceed but ask slightly more questions.
+
+## Step 2.1 — Load Test Data Setup Patterns (NEW)
+
+**Goal:** Auto-fill data strategy from `apis.json` to reduce/eliminate data setup questions.
+
+### A) Check for apis.json
+
+```
+Look for: reports/discovery/apis.json
+If not found: Skip to Step 2.5 (will ask data questions later)
+If found: Parse and extract relevant entities for this journey
+```
+
+### B) Identify Journey's Required Entities
+
+From the journey's procedural steps, identify entities that need to be created:
+- "Create a new request" → needs Request entity
+- "View an HR movement" → needs HRMovement entity (pre-existing)
+- "Edit a product template" → needs ProductTemplate entity
+
+### C) Match Entities to Discovered Patterns
+
+For each required entity, check `apis.json.entities[]`:
+
+```
+IF entity.operations.create.available == true:
+  → Use API-first: method + path + requiredFields
+  → Note cleanup: entity.operations.delete if available
+
+ELSE IF entity.uiForms[] has action="create":
+  → Use UI-first: route + fields + submitSelector
+  → Note: Slower but works when no API
+
+ELSE IF testFactories[] has matching entity:
+  → Use factory: file + method
+  → Note: Preferred if exists (already tested)
+
+ELSE:
+  → Mark as "manual discovery needed"
+  → DO NOT ask user for Swagger (try on-demand scan first)
+```
+
+### D) Auto-Fill Data Strategy Block
+
+**If all entities found in apis.json:**
+```yaml
+# Auto-generated from discovery - no user questions needed
+dataStrategy:
+  approach: api-first  # Based on apis.json availability
+  entities:
+    - name: Request
+      create:
+        method: POST
+        path: /api/requests
+        requiredFields: [title, categoryId, description]
+        examplePayload:
+          title: "E2E Test Request {{timestamp}}"
+          categoryId: "{{lookup:Category.id}}"
+          description: "Auto-generated for {{journey.id}}"
+      cleanup:
+        method: DELETE
+        path: /api/requests/{{id}}
+      uiAlternative:  # Fallback if API fails
+        route: /requests/new
+        fields: [title, category, description]
+  creationOrder: [Category, Request]  # Based on dependencies
+  cleanupStrategy: delete-after-test
+```
+
+**If some entities missing from apis.json:**
+```yaml
+dataStrategy:
+  approach: mixed
+  entities:
+    - name: Request
+      create: { ... }  # From apis.json
+    - name: CustomWidget
+      create: DISCOVERY_NEEDED  # Will trigger focused question
+  missingEntities: [CustomWidget]
+```
+
+### E) Display Confirmation (Not Questions)
+
+**Instead of asking:**
+```
+"What backend API endpoints exist for creating test entities?"
+```
+
+**Show confirmation:**
+```
+## Data Setup Patterns (from discovery)
+
+| Entity | Create Method | Cleanup | Source |
+|--------|--------------|---------|--------|
+| Request | POST /api/requests | DELETE /api/requests/{id} | openapi |
+| HRMovement | POST /api/hr-movements | DELETE /api/hr-movements/{id} | openapi |
+| Category | - (use existing) | - | read-only |
+
+**Strategy:** API-first with DELETE cleanup after each test.
+
+✓ Using discovered patterns. Adjust if needed: [Y/adjust/scan-more]
+```
+
+### F) Fallback: On-Demand Scanning
+
+If entity not in apis.json, try scanning BEFORE asking user:
+
+1. **Try controller scan:**
+   ```
+   Search: src/**/controller/**/*{EntityName}*.java
+   Search: src/**/api/**/*{entityName}*.ts
+   Look for: POST endpoint with entity name
+   ```
+
+2. **Try UI form scan:**
+   ```
+   Search: src/**/pages/**/{entity}/new.*
+   Search: src/**/components/**/{Entity}Form.*
+   Look for: form with submit handler
+   ```
+
+3. **Only ask user if scan fails:**
+   ```
+   Could not discover create method for: CustomWidget
+
+   How should test data be created for this entity?
+   1) Point me to the API endpoint or controller
+   2) Point me to the UI form
+   3) There's a test factory I should use
+   4) It's a read-only entity (use existing data)
+   ```
+
+### G) Edge Cases
+
+| Scenario | Handling |
+|----------|----------|
+| No apis.json exists | Proceed to Step 5, ask focused data questions |
+| apis.json empty (no entities) | Same as above |
+| Entity has no create operation | Mark as read-only, note in clarification |
+| Entity has no delete operation | Use soft-delete or filter by test prefix |
+| Entity needs parent first | Add to creationOrder, note dependency |
+| Auth required for API | Note: use apiContext from storage state |
+| GraphQL instead of REST | Use mutation name from graphqlOperation field |
+| Multi-tenant API | Include tenant context from multiTenant field |
+
+### H) Output to Clarification Block
+
+Add to journey's clarification section:
+```markdown
+<!-- ARTK:BEGIN data-strategy -->
+**Data Setup (auto-discovered):**
+- Approach: API-first
+- Entities: Request (POST /api/requests), Category (existing)
+- Cleanup: DELETE after test
+- Auth: Uses apiContext from storage state
+- Source: reports/discovery/apis.json
+<!-- ARTK:END data-strategy -->
+```
 
 ## Step 2.5 — Surface LLKB Knowledge (Read-Only)
 
@@ -623,6 +782,8 @@ B) Environment assumptions
 - Base URL(s)? Any regional access constraints?
 
 C) Data strategy and cleanup
+**SKIP IF: Step 2.1 auto-filled data strategy from `apis.json`**
+- Only ask if `apis.json` missing OR entity not found in discovery
 - Can we create needed data via UI, API, seed scripts, fixtures?
 - Cleanup expectation?
 
@@ -643,9 +804,11 @@ G) Module dependencies
 - Align names with existing module structure if present.
 
 Question budget by mode:
-- minimal: only A+B+C+F
-- medium: A..G (but only ask what's missing)
+- minimal: only A+B+C+F (skip C if auto-filled from apis.json)
+- medium: A..G (but only ask what's missing, skip C if auto-filled)
 - max: A..G + variants/edges/flags/observability
+
+**Data Strategy Skip Rule:** If Step 2.1 auto-filled data strategy from `apis.json`, SKIP question C entirely. Show confirmation instead of asking.
 
 ### Question Delivery Checkpoint
 

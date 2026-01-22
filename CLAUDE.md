@@ -439,6 +439,19 @@ When the user asks to "ultrathink" about a topic, create a research document:
 3. **Purpose:** Capture architectural decisions, analysis, and strategic thinking for future reference
 4. **Naming:** Use lowercase with underscores for the topic slug (e.g., `generalization_analysis`, `auth_patterns`, `cli_design`)
 
+## Multi-AI Tools (Octo)
+
+When using octo skills (`/octo:review`, `/octo:brainstorm`, `/octo:debate`, etc.):
+
+1. **Always confirm participants:** After running any octo skill, explicitly state which AI models participated in the session. Example:
+   ```
+   Participants: Claude (primary), Gemini (reviewer), Codex (challenger)
+   ```
+
+2. **Document consensus/disagreements:** If multiple AIs participated, note where they agreed and disagreed.
+
+3. **Include confidence levels:** Report the collective confidence from the multi-AI session.
+
 ## Installing Playwright Browsers on Restricted Networks
 
 **Problem:** Company networks often block Playwright browser downloads but allow npm and Docker.

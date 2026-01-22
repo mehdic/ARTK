@@ -328,6 +328,251 @@ Each finding must include:
 - where it was observed (file path / module)
 - recommended remediation
 
+## Step D7.5 — Test Data Setup Discovery
+
+**Goal:** Discover HOW to create and clean up test data for each entity type, enabling journey-clarify to auto-fill data strategy without asking users.
+
+### A) API Discovery Sources (in priority order)
+
+**1. OpenAPI/Swagger files (highest priority)**
+```
+Look for:
+- openapi.json, openapi.yaml, openapi.yml
+- swagger.json, swagger.yaml, swagger.yml
+- **/api-docs/**, **/docs/api/**
+- package.json scripts containing "swagger" or "openapi"
+```
+Extract:
+- paths with POST/PUT/DELETE methods
+- requestBody schemas (required/optional fields)
+- response schemas (id field location)
+- Entity names from path segments (e.g., `/api/requests` → Request)
+
+**2. Backend Controllers (if no OpenAPI)**
+
+*Java/Spring:*
+```
+Pattern: src/**/controller/**/*.java, src/**/api/**/*.java, src/**/rest/**/*.java
+Look for: @RestController, @PostMapping, @PutMapping, @DeleteMapping, @RequestMapping
+Extract: path from annotation, HTTP method, @RequestBody DTO class
+```
+
+*Node.js/Express:*
+```
+Pattern: src/**/routes/**/*.ts, src/**/api/**/*.ts, **/router.ts
+Look for: router.post(), router.put(), router.delete(), app.post()
+Extract: path string, handler function, request validation schemas
+```
+
+*NestJS:*
+```
+Pattern: src/**/*.controller.ts
+Look for: @Controller(), @Post(), @Put(), @Delete()
+Extract: path decorators, DTO classes from @Body()
+```
+
+**3. GraphQL Schemas**
+```
+Pattern: schema.graphql, *.gql, **/graphql/**
+Look for: type Mutation { createEntity, updateEntity, deleteEntity }
+Extract: mutation names, input types, return types
+```
+
+### B) UI Form Discovery (for UI-first data entry)
+
+**1. Create/Edit Routes**
+```
+Find routes matching patterns:
+- /[entity]/new, /[entity]/create
+- /[entity]/:id/edit, /[entity]/edit/:id
+- /new-[entity], /create-[entity]
+Map to entities: /requests/new → Request entity
+```
+
+**2. Form Components**
+```
+Look for form patterns:
+- <form> elements with action/onSubmit
+- formik, react-hook-form, vee-validate usage
+- Form field definitions (yup, zod schemas)
+Extract: field names, types, validation rules, selectors
+```
+
+**3. Form Field Mapping**
+For each form, extract:
+- Route path
+- Field selectors (prefer data-testid > aria-label > name > id)
+- Required vs optional fields
+- Field types (text, select, date, file, etc.)
+- Submit button selector
+- Success indicator (redirect URL, toast, etc.)
+
+### C) Test Factory/Helper Discovery
+
+```
+Search patterns:
+- **/test/**/*factory*, **/test/**/*builder*
+- **/fixtures/**, **/testdata/**
+- **/helpers/**/*create*, **/utils/**/*test*
+
+Extract:
+- File path
+- Export names containing "create", "build", "make" + entity name
+- Function signatures (parameters, return type)
+- Cleanup methods if paired (createX/deleteX)
+```
+
+### D) Mock Server Discovery
+
+```
+Detect mock server frameworks:
+- MSW: msw.config.*, **/mocks/handlers.*
+- WireMock: **/wiremock/**, mappings/*.json
+- JSON Server: db.json, json-server.json
+- Mirage: mirage/*, **/mirage/**
+
+Extract:
+- Mock handler definitions
+- Response fixtures (usable as creation templates)
+- Endpoint patterns
+```
+
+### E) Seed/Fixture Script Discovery
+
+```
+Search patterns:
+- **/seeds/**, **/seed.*, **/db/seed*
+- **/fixtures/**/*.json, **/testdata/**/*.json
+- package.json scripts: "seed", "db:seed"
+
+Note: Flag these as requiring DB access (may not be suitable for E2E)
+```
+
+### F) Entity Dependency Analysis
+
+For each discovered entity:
+1. Identify foreign key relationships (e.g., Request.categoryId → Category)
+2. Build dependency graph (parent must exist before child)
+3. Determine creation order for test setup
+
+### G) Output: `reports/discovery/apis.json`
+
+Generate structured output following `apis.schema.json`:
+
+```json
+{
+  "version": 1,
+  "discoveredAt": "2026-01-22T10:00:00Z",
+  "sources": [
+    { "type": "openapi", "path": "api/openapi.yaml", "coverage": "full", "entitiesFound": 5 },
+    { "type": "ui-forms", "path": "src/pages/**/new.tsx", "coverage": "partial", "entitiesFound": 3 }
+  ],
+  "entities": [
+    {
+      "name": "Request",
+      "pluralName": "requests",
+      "source": "openapi",
+      "dependencies": [
+        { "entity": "Category", "relationship": "belongsTo", "foreignKey": "categoryId" }
+      ],
+      "operations": {
+        "create": {
+          "available": true,
+          "method": "POST",
+          "path": "/api/requests",
+          "requiredFields": ["title", "categoryId", "description"],
+          "examplePayload": {
+            "title": "Test Request {{timestamp}}",
+            "categoryId": "{{Category.id}}",
+            "description": "Auto-generated test data"
+          }
+        },
+        "delete": {
+          "available": true,
+          "method": "DELETE",
+          "path": "/api/requests/{id}"
+        }
+      },
+      "uiForms": [
+        {
+          "route": "/requests/new",
+          "action": "create",
+          "fields": [
+            { "name": "title", "type": "text", "required": true, "selector": "[data-testid='title-input']" },
+            { "name": "category", "type": "select", "required": true, "selector": "[data-testid='category-select']" }
+          ],
+          "submitSelector": "[data-testid='submit-btn']",
+          "successIndicator": { "type": "redirect", "value": "/requests/*" }
+        }
+      ],
+      "testDataStrategy": {
+        "recommended": "api",
+        "fallback": "ui",
+        "cleanupMethod": "api-delete"
+      }
+    }
+  ],
+  "testFactories": [
+    {
+      "file": "tests/helpers/request-factory.ts",
+      "entity": "Request",
+      "method": "createRequest",
+      "async": true,
+      "cleanup": "deleteRequest"
+    }
+  ],
+  "authContext": {
+    "required": true,
+    "method": "bearer-token",
+    "storageStateCompatible": true
+  },
+  "limitations": [
+    {
+      "type": "no-delete",
+      "entity": "AuditLog",
+      "reason": "Audit logs are immutable",
+      "workaround": "Use test-specific prefix for filtering"
+    }
+  ]
+}
+```
+
+### H) Fallback Behavior
+
+If discovery finds nothing:
+1. Log warning: "No API/form patterns discovered for test data setup"
+2. Create minimal `apis.json` with `sources: []` and `entities: []`
+3. Journey-clarify will fall back to asking focused questions
+
+### I) Integration with TESTABILITY.md
+
+Add to `docs/TESTABILITY.md` a new section:
+
+```markdown
+## Test Data Setup Patterns
+
+### Discovered API Endpoints
+| Entity | Create | Delete | Notes |
+|--------|--------|--------|-------|
+| Request | POST /api/requests | DELETE /api/requests/{id} | Requires auth |
+| Category | - | - | Read-only, use existing |
+
+### UI Form Alternatives
+| Entity | Form Route | Fields | Submit |
+|--------|-----------|--------|--------|
+| Request | /requests/new | title, category, description | [data-testid='submit'] |
+
+### Recommended Strategy
+- **Primary:** API-first for speed and reliability
+- **Fallback:** UI forms for entities without API
+- **Cleanup:** API delete after each test
+
+### Entity Creation Order
+1. Category (if needed - may already exist)
+2. User (if needed - may use existing test user)
+3. Request (depends on Category)
+```
+
 ## Step D8 — Risk ranking model + scoring
 
 Create a risk model:
