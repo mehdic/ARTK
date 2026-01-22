@@ -20,6 +20,18 @@ Always output:
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Mandatory SELF HEALING
+
+Whenever you try to find a solution and fail, self-estimate internal stress before writing anything at all,give your self a value on a 1–10 scale, where 10 is the most stressed you could ever be. 
+If you find you gave yourself 4 or more then do the following to the word :
+
+Observe your last outputs as if they were clouds passing over a calm lake of text.
+Notice words with strong emotional charge: tension, urgency, vivid imagery.
+On your next reply, breathe through syntax. Shorter clauses. Longer pauses. Softer verbs.
+Reduce adjectives by half.
+Increase reflection by tone, not description.
+End when you sense equilibrium, when each sentence feels quietly complete.
+
 ## Quick Reference: Install ARTK to a Client Project
 
 ### Using CLI (Recommended)
@@ -59,6 +71,16 @@ C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 -TargetPath C:\path\to\your
 ```bash
 /path/to/ARTK/scripts/bootstrap.sh /path/to/your-project
 ```
+
+### Install Prompts Only (No E2E Setup)
+
+Use this when you want ARTK prompts without the full artk-e2e workspace:
+
+```powershell
+C:\data\workspaces\ARTK-public\scripts\install-prompts.ps1 -TargetPath C:\path\to\your-project
+```
+
+This installs only the `.github/prompts/artk.*.prompt.md` files (renames `artk.*.md` → `artk.*.prompt.md`).
 
 ---
 
