@@ -1,7 +1,7 @@
 ---
 name: artk.journey-implement
 description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the foundation harness. Includes post-implementation quality gates: /artk.journey-validate (static) and /artk.journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
-argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false batchMode=serial|subagent batchSize=2|3|4|5 subagentTimeout=60000-600000"
+argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false batchMode=subagent|serial batchSize=2|3|4|5 subagentTimeout=60000-600000"
 agent: agent
 tools: ['edit', 'search', 'runSubagent']
 handoffs:
@@ -48,19 +48,41 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║                                                                           ║
 # ║  Before writing ANY test code, you MUST complete these gates IN ORDER:    ║
 # ║                                                                           ║
-# ║  GATE 1: Load LLKB Context (Step 2)                                       ║
+# ║  GATE 1: Verify LLKB Exists (Step 2)                                      ║
+# ║    □ Check `.artk/llkb/` directory exists                                 ║
+# ║    □ If missing → STOP and tell user to run /artk.discover-foundation     ║
+# ║    □ Check `.artk/llkb/config.yml` has `enabled: true`                    ║
+# ║    □ If disabled → STOP and tell user to enable LLKB                      ║
+# ║                                                                           ║
+# ║  GATE 2: Load LLKB Context (WHERE depends on mode)                        ║
+# ║    Serial mode: Orchestrator loads LLKB and uses it directly              ║
+# ║    Subagent mode: Each SUBAGENT loads LLKB in their own context           ║
 # ║    □ Read `.artk/llkb/config.yml`                                         ║
 # ║    □ Read `.artk/llkb/components.json`                                    ║
 # ║    □ Read `.artk/llkb/lessons.json`                                       ║
 # ║    □ Output "LLKB Context Loaded" section showing findings                ║
 # ║                                                                           ║
-# ║  GATE 2: Use AutoGen CLI (Step 3)                                         ║
+# ║  GATE 3: Use AutoGen CLI (Step 3)                                         ║
 # ║    □ Run `npx artk-autogen generate` for each journey                     ║
 # ║    □ Only use manual implementation if AutoGen fails or has blocked steps ║
+# ║    □ Subagents are fallback only — never primary                          ║
 # ║                                                                           ║
 # ║  Failure to complete these gates = INVALID implementation                 ║
+# ║  LLKB is MANDATORY - cannot proceed if it doesn't exist.                  ║
 # ║                                                                           ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
+
+---
+
+## ✅ AutoGen-First Gate (MANDATORY)
+
+**Before dispatching ANY subagents**, the main agent MUST:
+1. Run AutoGen CLI for each journey (one command per journey):
+   - `npx artk-autogen generate --journey=<JRN-ID>`
+2. Capture the CLI output (success, blocked steps, or failure).
+3. **Only if AutoGen fails or reports blocked steps** may you dispatch subagents for manual implementation.
+
+Subagents are **fallback only**. Skipping AutoGen is INVALID.
 
 ---
 
@@ -70,15 +92,15 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║                                                                           ║
 # ║  When implementing MULTIPLE journeys (batch execution):                   ║
 # ║                                                                           ║
-# ║  DEFAULT MODE (batchMode=serial): SERIAL EXECUTION                        ║
-# ║  ✅ Process journeys one at a time                                        ║
-# ║  ✅ Best LLKB knowledge transfer between journeys                         ║
-# ║  ✅ Works in ALL environments (VS Code, GitHub.com, CLI)                  ║
-# ║                                                                           ║
-# ║  OPT-IN MODE (batchMode=subagent): PARALLEL SUBAGENT EXECUTION            ║
-# ║  ⚠️  ONLY works in VS Code local sessions                                 ║
+# ║  DEFAULT MODE (batchMode=subagent): PARALLEL SUBAGENT EXECUTION           ║
 # ║  ✅ Faster for large batches (processes N journeys in parallel)           ║
-# ║  ✅ LLKB updates merged between batches                                   ║
+# ║  ✅ LLKB loaded by each subagent (better isolation)                       ║
+# ║  ⚠️  Auto-fallbacks to serial in non-VS Code environments                 ║
+# ║                                                                           ║
+# ║  FALLBACK MODE (batchMode=serial): SERIAL EXECUTION                       ║
+# ║  ✅ Process journeys one at a time                                        ║
+# ║  ✅ Works in ALL environments (VS Code, GitHub.com, CLI)                  ║
+# ║  ⚠️  Slower for large batches                                             ║
 # ║                                                                           ║
 # ║  ENVIRONMENT DETECTION (MANDATORY for subagent mode):                     ║
 # ║  Before using subagent mode, detect environment:                          ║
@@ -87,7 +109,7 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║  - CLI (Codex, Claude): #runSubagent NOT supported ✗                      ║
 # ║  If NOT VS Code local → auto-fallback to serial mode                      ║
 # ║                                                                           ║
-# ║  If context was compacted: Re-read this section. Serial is default.       ║
+# ║  If context was compacted: Re-read this section. Subagent is default.     ║
 # ║                                                                           ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
@@ -97,6 +119,8 @@ This command must:
 1) Convert a Journey (preferably `status: clarified`) into Playwright tests that follow the foundation harness conventions.
 2) **Load LLKB context FIRST** to reuse existing components and apply learned patterns.
 3) **Use AutoGen CLI as the PRIMARY approach** for test generation.
+   - The main agent MUST attempt AutoGen before any subagent dispatch.
+   - Subagents are a manual fallback ONLY if AutoGen fails or reports blocked steps.
 4) Create/extend **feature modules** only when needed (foundation modules are reused).
 5) Run **quality gates**:
    - `/artk.journey-validate` (static rules + traceability)
@@ -133,8 +157,8 @@ These are not "style preferences". They are how you avoid flaky, unreadable E2E 
 - **LLKB is mandatory**: Load and use LLKB context before ANY code generation.
 - **AutoGen is primary**: Use the AutoGen CLI; manual implementation is a fallback only.
 - **Batch execution modes**:
-  - `serial` (default): Process journeys one at a time for best LLKB knowledge transfer
-  - `subagent`: Process in parallel batches using `#runSubagent` (VS Code only, opt-in)
+  - `subagent` (default): Process in parallel batches using `#runSubagent` (auto-fallback to serial in non-VS Code environments)
+  - `serial`: Process journeys one at a time (fallback mode for non-VS Code environments)
 - **Status rule (important)**:
   - You may create test code before verification,
   - but you may set Journey `status: implemented` **only after**:
@@ -169,9 +193,9 @@ Key args:
 - `repeatGate`: auto|0|2|3 (default auto = 2 in standard, 0 in quick, 3 in max)
 - `failOnFlaky`: auto|true|false (default auto = true in standard/max, false in quick)
 - `dryRun`: true|false (default false)
-- `batchMode`: serial|subagent (default: serial)
-  - `serial`: Process journeys one at a time (default, better LLKB knowledge transfer)
-  - `subagent`: Process journeys in parallel batches using `#runSubagent` (faster, VS Code only)
+- `batchMode`: subagent|serial (default: subagent)
+  - `subagent`: Process journeys in parallel batches using `#runSubagent` (default, faster)
+  - `serial`: Process journeys one at a time (fallback for non-VS Code environments)
 - `batchSize`: 2|3|4|5 (default: 3) — journeys per parallel batch (only applies when batchMode=subagent)
 - `subagentTimeout`: 60000-600000 (default: 300000 = 5 minutes) — max time per subagent before timeout
 
@@ -268,7 +292,7 @@ If `dryRun=true`, output sections 1–4 only.
 ```
 journeyList = parseJourneyList(userInput)  // e.g., ["JRN-0001", "JRN-0002", ...]
 totalJourneys = journeyList.length
-batchMode = parseBatchMode(args) || "serial"  // default: serial (CHANGED for safety)
+batchMode = parseBatchMode(args) || "subagent"  // default: subagent (faster, auto-fallbacks to serial in non-VS Code)
 batchSize = parseBatchSize(args) || 3         // default: 3 journeys per batch
 subagentTimeout = parseSubagentTimeout(args) || 300000  // default: 5 minutes
 
@@ -281,10 +305,10 @@ IF batchMode NOT IN VALID_BATCH_MODES:
   ╔════════════════════════════════════════════════════════════════════╗
   ║  ❌ INVALID BATCH MODE: "{batchMode}"                              ║
   ╠════════════════════════════════════════════════════════════════════╣
-  ║  Valid values: serial | subagent                                   ║
+  ║  Valid values: subagent | serial                                   ║
   ║                                                                    ║
-  ║  serial (default): Process journeys one at a time                  ║
-  ║  subagent: Parallel batches using #runSubagent (VS Code only)      ║
+  ║  subagent (default): Parallel batches (auto-fallback to serial)    ║
+  ║  serial: Process journeys one at a time (fallback mode)            ║
   ╚════════════════════════════════════════════════════════════════════╝
   STOP
 
@@ -387,13 +411,18 @@ ELSE IF batchMode == "subagent":
   # Proceed to Step 1.2a (Subagent Mode)
 ```
 
-### 1.2a Execute Batch (Subagent Mode - OPT-IN, VS Code Only)
+### 1.2a Execute Batch (Subagent Mode - DEFAULT)
 
-**⚠️ IMPORTANT: This mode ONLY works in VS Code local sessions.**
+**⚠️ IMPORTANT: Auto-fallbacks to serial mode in non-VS Code environments.**
 
 **When `batchMode=subagent`, you MUST output multiple `#runSubagent` calls explicitly in a SINGLE message.**
 
 The LLM cannot programmatically spawn subagents in a loop. Instead, you must write out each `#runSubagent` invocation explicitly.
+
+**🔑 KEY ARCHITECTURE: Each subagent loads LLKB themselves.**
+- Orchestrator ONLY verifies LLKB exists (Step 2.1)
+- Subagents load and use LLKB in their own context
+- This ensures full LLKB data is available to each subagent
 
 ```
 IF batchMode == "subagent" AND totalJourneys > 1:
@@ -411,14 +440,10 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     ═══════════════════════════════════════════════════════════════════
 
     # ═══════════════════════════════════════════════════════════════
-    # STEP 2: Load LLKB snapshot (shared by all subagents in this batch)
-    # ═══════════════════════════════════════════════════════════════
-    llkbSnapshot = loadLLKBContext()
-    llkbComponentIds = llkbSnapshot.components.map(c => c.id)
-    llkbLessonIds = llkbSnapshot.lessons.map(l => l.id)
-
-    # ═══════════════════════════════════════════════════════════════
-    # STEP 3: Spawn subagents EXPLICITLY (NOT in a loop)
+    # STEP 2: Spawn subagents EXPLICITLY (NOT in a loop)
+    #
+    # NOTE: LLKB loading happens INSIDE each subagent, not here.
+    # Each subagent will read .artk/llkb/ files in their own context.
     #
     # YOU MUST OUTPUT EACH #runSubagent CALL SEPARATELY IN YOUR RESPONSE.
     # The LLM cannot loop - write each one explicitly.
@@ -433,9 +458,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - ARTK_ROOT: {artkRoot}
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[0]}
-    - LLKB components available: [{llkbComponentIds.slice(0,5).join(", ")}...]
+    - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
     - Timeout: {subagentTimeout}ms
-    Task: Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -444,9 +469,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - ARTK_ROOT: {artkRoot}
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[1]}
-    - LLKB components available: [{llkbComponentIds.slice(0,5).join(", ")}...]
+    - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
     - Timeout: {subagentTimeout}ms
-    Task: Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -455,9 +480,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - ARTK_ROOT: {artkRoot}
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[2]}
-    - LLKB components available: [{llkbComponentIds.slice(0,5).join(", ")}...]
+    - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
     - Timeout: {subagentTimeout}ms
-    Task: Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -642,19 +667,47 @@ If the Journey is not clarified:
 # ║  components that could have been reused.                                  ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
-### 2.1 Check LLKB Availability
+### 2.1 Check LLKB Availability (MANDATORY)
 ```
 IF NOT exists(".artk/llkb/"):
+  # LLKB MUST exist - it should have been created by discover-foundation
   OUTPUT:
-  ⚠️  LLKB directory not found. Proceeding without LLKB integration.
-      Consider initializing LLKB for better component reuse.
-  SKIP to Step 3
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ❌ LLKB DIRECTORY NOT FOUND                                       ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  The .artk/llkb/ directory is MANDATORY for journey implementation.║
+  ║                                                                    ║
+  ║  LLKB should have been created by /artk.discover-foundation.       ║
+  ║                                                                    ║
+  ║  To fix this issue, run:                                           ║
+  ║    /artk.discover-foundation                                       ║
+  ║                                                                    ║
+  ║  This will:                                                        ║
+  ║  - Analyze your application structure                              ║
+  ║  - Initialize the LLKB directory with:                             ║
+  ║    - config.yml (LLKB configuration)                               ║
+  ║    - app-profile.json (application DNA)                            ║
+  ║    - lessons.json (empty, ready for learnings)                     ║
+  ║    - components.json (empty, ready for components)                 ║
+  ║                                                                    ║
+  ║  Cannot proceed without LLKB.                                      ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  STOP
 
 config = loadYAML(".artk/llkb/config.yml")
 IF NOT config.enabled:
   OUTPUT:
-  ⚠️  LLKB is disabled in config.yml. Proceeding without LLKB integration.
-  SKIP to Step 3
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ⚠️  LLKB IS DISABLED                                              ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  LLKB is disabled in .artk/llkb/config.yml.                        ║
+  ║                                                                    ║
+  ║  To enable LLKB, set `enabled: true` in config.yml.                ║
+  ║  Or re-run: /artk.discover-foundation                              ║
+  ║                                                                    ║
+  ║  Cannot proceed without LLKB enabled.                              ║
+  ╚════════════════════════════════════════════════════════════════════╝
+  STOP
 ```
 
 ### 2.2 Load LLKB Data Files
@@ -2340,8 +2393,8 @@ Ask only when necessary:
 - **Flaky env**: do not "fix" with timing. Use explicit completion signals or quarantine later.
 - **AG Grid / Data grids**: Use `@artk/core/grid` helpers instead of raw selectors. Handle virtualization with `scrollToRow()`. For enterprise features (grouping, tree data, master-detail), use the specialized enterprise helpers.
 - **Large datasets in grids**: Use ARIA-based row targeting (`ariaRowIndex`) for virtualized grids that only render visible rows.
-- **Batch execution (serial mode - DEFAULT)**: Journeys are processed one at a time. Best LLKB knowledge transfer. Works in ALL environments.
-- **Batch execution (subagent mode - OPT-IN)**: Use `batchMode=subagent` for parallel processing. ONLY works in VS Code local sessions. Journeys are processed in batches (configurable via `batchSize`). LLKB updates are merged between batches.
+- **Batch execution (subagent mode - DEFAULT)**: Journeys are processed in parallel batches. Faster for large batches. Auto-fallbacks to serial in non-VS Code environments.
+- **Batch execution (serial mode - FALLBACK)**: Use `batchMode=serial` if parallel fails or for step-by-step debugging. Works in ALL environments.
 - **Subagent timeout handling**: If a subagent doesn't complete within `subagentTimeout` (default 5 minutes), it's marked as timeout and the journey is NOT implemented.
 - **Subagent nesting limitation**: Subagents CANNOT spawn other subagents. If using subagent mode, validate/verify gates must run inline within the subagent, not as agent handoffs.
 
@@ -2383,7 +2436,7 @@ import {
 
 # Completion checklist (print at end)
 - [ ] **LLKB context loaded** before any code generation
-- [ ] **AutoGen attempted** as primary approach
+- [ ] **AutoGen attempted** as primary approach (commands shown + result recorded)
 - [ ] Test file(s) created/updated with `@JRN-####` and tier tag
 - [ ] `@auth` / `@rbac` tags present when access control is asserted
 - [ ] Tests use harness fixtures and foundation modules
