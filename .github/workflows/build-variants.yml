@@ -62,6 +62,8 @@ jobs:
           echo "Building legacy-14..."
           npm run build:legacy-14
         working-directory: core/typescript
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Verify build outputs
         run: |
@@ -402,3 +404,5 @@ jobs:
             echo "✓ Build within 5-minute target"
           fi
         working-directory: core/typescript
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
