@@ -1081,7 +1081,7 @@ import * as path from 'path';
 function loadArtkConfig(): Record<string, any> {
   const configPath = path.join(__dirname, 'artk.config.yml');
   if (!fs.existsSync(configPath)) {
-    console.warn(`ARTK config not found: `+"`"+`configPath`+"`"+`, using defaults`);
+    console.warn('ARTK config not found: ' + configPath + ', using defaults');
     return { environments: { local: { baseUrl: 'http://localhost:3000' } } };
   }
   const yaml = require('yaml');
