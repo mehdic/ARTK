@@ -238,3 +238,52 @@ ARTK/
 │   └── autogen/                # @artk/core-autogen source
 └── docs/                       # Specifications
 ```
+
+## FAQ
+
+### npm can't download packages behind my corporate proxy
+
+**Problem:** `npm install` fails with 403 Forbidden errors when downloading packages, even though JFrog authentication is configured correctly.
+
+**Root cause:** Your corporate proxy may block S3 URLs. JFrog Artifactory stores package tarballs on AWS S3 and redirects downloads there. If your proxy blocks "Cloud Infrastructure" or S3 domains, the redirect fails.
+
+**Solution:** Use your company's internal Artifactory domain (which bypasses the proxy) instead of the external JFrog domain.
+
+**Check your proxy bypass list:**
+```powershell
+# Windows
+netsh winhttp show proxy
+```
+
+Look for domains like `*.xxxxx.io` or `*.xxxxx.com` in the exception list.
+
+**Fix your npm configuration:**
+
+```powershell
+# 1. Backup current config
+copy $env:USERPROFILE\.npmrc $env:USERPROFILE\.npmrc.backup
+
+# 2. Switch to internal Artifactory domain (bypasses proxy)
+# Use: artifactory.xxxxx.io (internal) instead of xxxxx.jfrog.io (external)
+npm config set registry https://artifactory.xxxxx.io/artifactory/api/npm/npm/
+
+# 3. Remove explicit proxy settings (let system handle it)
+npm config delete proxy
+npm config delete https-proxy
+
+# 4. Test
+npm pack @ts-morph/common@0.25.0
+```
+
+**Key insight:** Internal domains like `artifactory.xxxxx.io` typically match proxy bypass rules (`*.xxxxx.io`), so traffic goes direct. External domains like `xxxxx.jfrog.io` go through the proxy, where S3 redirects may be blocked.
+
+**If you still have issues:**
+```powershell
+# Check for lingering proxy settings
+npm config list
+echo "HTTP_PROXY: $env:HTTP_PROXY"
+echo "HTTPS_PROXY: $env:HTTPS_PROXY"
+
+# View your .npmrc directly
+Get-Content $env:USERPROFILE\.npmrc
+```
