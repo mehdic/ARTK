@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { parse, stringify } from 'yaml';
+import 'url';
 import { createHash } from 'crypto';
 
 // src/journey/schema.ts

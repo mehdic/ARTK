@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { stringify, parse } from 'yaml';
+import { pathToFileURL, fileURLToPath } from 'url';
 import fg2 from 'fast-glob';
 import { randomBytes, createHash } from 'crypto';
-import { fileURLToPath } from 'url';
 import ejs from 'ejs';
 import 'ts-morph';
 import { execSync } from 'child_process';
@@ -341,7 +341,7 @@ var init_serialize = __esm({
   "src/ir/serialize.ts"() {
   }
 });
-var SelectorStrategySchema, PathsSchema, EslintSeveritySchema, EslintRulesSchema, SelectorPolicySchema, ValidationSchema, HealSchema, RegenerationStrategySchema, AutogenConfigSchema;
+var SelectorStrategySchema, PathsSchema, EslintSeveritySchema, EslintRulesSchema, SelectorPolicySchema, ValidationSchema, HealSchema, RegenerationStrategySchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, AutogenConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     SelectorStrategySchema = z.enum([
@@ -390,13 +390,25 @@ var init_schema = __esm({
       skipPatterns: z.array(z.string()).default([])
     });
     RegenerationStrategySchema = z.enum(["ast", "blocks"]).default("ast");
+    LLKBIntegrationLevelSchema = z.enum(["minimal", "enhance", "aggressive"]).default("enhance");
+    LLKBIntegrationSchema = z.object({
+      /** Enable LLKB integration */
+      enabled: z.boolean().default(false),
+      /** Path to LLKB-generated config file */
+      configPath: z.string().optional(),
+      /** Path to LLKB-generated glossary file */
+      glossaryPath: z.string().optional(),
+      /** Integration level */
+      level: LLKBIntegrationLevelSchema
+    }).default({});
     AutogenConfigSchema = z.object({
       version: z.literal(1).default(1),
       paths: PathsSchema.default({}),
       selectorPolicy: SelectorPolicySchema.default({}),
       validation: ValidationSchema.default({}),
       heal: HealSchema.default({}),
-      regenerationStrategy: RegenerationStrategySchema
+      regenerationStrategy: RegenerationStrategySchema,
+      llkb: LLKBIntegrationSchema
     });
   }
 });
@@ -450,6 +462,103 @@ ${issues}`,
   }
   return result.data;
 }
+function getDefaultConfig() {
+  return AutogenConfigSchema.parse({});
+}
+function loadSingleConfig(configPath) {
+  const resolvedPath = resolve(process.cwd(), configPath);
+  if (!existsSync(resolvedPath)) {
+    throw new ConfigLoadError(`Config file not found: ${resolvedPath}`);
+  }
+  let rawContent;
+  try {
+    rawContent = readFileSync(resolvedPath, "utf-8");
+  } catch (err2) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err2);
+  }
+  let parsed;
+  try {
+    parsed = parse(rawContent);
+  } catch (err2) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err2);
+  }
+  const result = AutogenConfigSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    throw new ConfigLoadError(
+      `Invalid config in ${resolvedPath}:
+${issues}`,
+      result.error
+    );
+  }
+  return result.data;
+}
+function deepMerge(base, override) {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const overrideValue = override[key];
+    if (overrideValue !== void 0) {
+      result[key] = overrideValue;
+    }
+  }
+  return result;
+}
+function mergeConfigs(configs) {
+  if (configs.length === 0) {
+    return getDefaultConfig();
+  }
+  return configs.reduce((merged, config, index) => {
+    if (index === 0) {
+      return config;
+    }
+    return {
+      ...merged,
+      version: config.version ?? merged.version,
+      regenerationStrategy: config.regenerationStrategy ?? merged.regenerationStrategy,
+      paths: deepMerge(merged.paths, config.paths),
+      selectorPolicy: {
+        ...merged.selectorPolicy,
+        ...config.selectorPolicy,
+        // Merge arrays additively for forbiddenPatterns
+        forbiddenPatterns: [
+          .../* @__PURE__ */ new Set([
+            ...merged.selectorPolicy?.forbiddenPatterns ?? [],
+            ...config.selectorPolicy?.forbiddenPatterns ?? []
+          ])
+        ],
+        // Priority is overwritten if provided, not merged
+        priority: config.selectorPolicy?.priority?.length ? config.selectorPolicy.priority : merged.selectorPolicy?.priority
+      },
+      validation: {
+        ...merged.validation,
+        ...config.validation,
+        eslintRules: {
+          ...merged.validation?.eslintRules,
+          ...config.validation?.eslintRules
+        },
+        customRules: [
+          .../* @__PURE__ */ new Set([
+            ...merged.validation?.customRules ?? [],
+            ...config.validation?.customRules ?? []
+          ])
+        ]
+      },
+      heal: deepMerge(merged.heal, config.heal),
+      llkb: deepMerge(merged.llkb, config.llkb)
+    };
+  });
+}
+function loadConfigs(configPaths) {
+  const existingPaths = configPaths.filter((p) => {
+    const resolved = resolve(process.cwd(), p);
+    return existsSync(resolved);
+  });
+  if (existingPaths.length === 0) {
+    return getDefaultConfig();
+  }
+  const configs = existingPaths.map((p) => loadSingleConfig(p));
+  return mergeConfigs(configs);
+}
 var CONFIG_PATHS, ConfigLoadError;
 var init_loader = __esm({
   "src/config/loader.ts"() {
@@ -465,6 +574,9 @@ var init_loader = __esm({
         super(message);
         this.cause = cause;
         this.name = "ConfigLoadError";
+        if (cause !== void 0) {
+          this.cause = cause;
+        }
       }
     };
   }
@@ -1300,7 +1412,68 @@ function normalizeStepText(text) {
   }
   return parts.join(" ");
 }
-var GlossaryEntrySchema, LabelAliasSchema, ModuleMethodMappingSchema, defaultGlossary, glossaryCache, synonymMap;
+async function loadExtendedGlossary(glossaryPath) {
+  try {
+    const resolvedPath = resolve(glossaryPath);
+    if (!existsSync(resolvedPath)) {
+      return {
+        loaded: false,
+        entryCount: 0,
+        exportedAt: null,
+        error: `Glossary file not found: ${resolvedPath}`
+      };
+    }
+    const fileUrl = pathToFileURL(resolvedPath).href;
+    const module = await import(fileUrl);
+    if (module.llkbGlossary instanceof Map) {
+      const glossaryMap = module.llkbGlossary;
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    if (module.llkbGlossary && typeof module.llkbGlossary === "object") {
+      const glossaryMap = new Map(
+        Object.entries(module.llkbGlossary)
+      );
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
+    };
+  } catch (err2) {
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: `Failed to load glossary: ${err2 instanceof Error ? err2.message : String(err2)}`
+    };
+  }
+}
+function getGlossaryStats() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return {
+    coreEntries: glossaryCache.moduleMethods?.length ?? 0,
+    extendedEntries: extendedGlossary?.size ?? 0,
+    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+    extendedMeta: extendedGlossaryMeta
+  };
+}
+var GlossaryEntrySchema, LabelAliasSchema, ModuleMethodMappingSchema, defaultGlossary, glossaryCache, synonymMap, extendedGlossary, extendedGlossaryMeta;
 var init_glossary = __esm({
   "src/mapping/glossary.ts"() {
     GlossaryEntrySchema = z.object({
@@ -1437,6 +1610,8 @@ var init_glossary = __esm({
     };
     glossaryCache = null;
     synonymMap = null;
+    extendedGlossary = null;
+    extendedGlossaryMeta = null;
   }
 });
 
@@ -6508,7 +6683,11 @@ async function runGenerate(args) {
       config: { type: "string", short: "c" },
       "dry-run": { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
-      help: { type: "boolean", short: "h", default: false }
+      help: { type: "boolean", short: "h", default: false },
+      // LLKB integration options
+      "llkb-config": { type: "string" },
+      "llkb-glossary": { type: "string" },
+      "no-llkb": { type: "boolean", default: false }
     },
     allowPositionals: true
   });
@@ -6524,6 +6703,32 @@ async function runGenerate(args) {
   const outputDir = values.output || "./tests/generated";
   const dryRun = values["dry-run"];
   const quiet = values.quiet;
+  const configPaths = [];
+  if (values.config) {
+    configPaths.push(values.config);
+  }
+  if (values["llkb-config"] && !values["no-llkb"]) {
+    configPaths.push(values["llkb-config"]);
+  }
+  const configPath = values.config;
+  if (configPaths.length > 1) {
+    loadConfigs(configPaths);
+    if (!quiet) {
+      console.log(`Loaded ${configPaths.length} config file(s)`);
+    }
+  }
+  if (values["llkb-glossary"] && !values["no-llkb"]) {
+    const glossaryResult = await loadExtendedGlossary(values["llkb-glossary"]);
+    if (glossaryResult.loaded) {
+      if (!quiet) {
+        console.log(
+          `Loaded LLKB glossary: ${glossaryResult.entryCount} entries` + (glossaryResult.exportedAt ? ` (exported: ${glossaryResult.exportedAt})` : "")
+        );
+      }
+    } else if (!quiet) {
+      console.warn(`Warning: Failed to load LLKB glossary: ${glossaryResult.error}`);
+    }
+  }
   const journeyFiles = await fg2(positionals, {
     absolute: true
   });
@@ -6533,14 +6738,18 @@ async function runGenerate(args) {
   }
   if (!quiet) {
     console.log(`Found ${journeyFiles.length} journey file(s)`);
+    const stats = getGlossaryStats();
+    if (stats.extendedEntries > 0) {
+      console.log(`LLKB glossary active: ${stats.extendedEntries} extended entries`);
+    }
   }
   const options = {
     journeys: journeyFiles,
     isFilePaths: true,
     generateModules: values.modules
   };
-  if (values.config) {
-    options.config = values.config;
+  if (configPath) {
+    options.config = configPath;
   }
   const result = await generateJourneyTests(options);
   if (result.errors.length > 0) {
@@ -6602,6 +6811,8 @@ var USAGE;
 var init_generate = __esm({
   "src/cli/generate.ts"() {
     init_index();
+    init_loader();
+    init_glossary();
     USAGE = `
 Usage: artk-autogen generate [options] <journey-files...>
 
@@ -6611,17 +6822,23 @@ Arguments:
   journey-files    Journey file paths or glob patterns
 
 Options:
-  -o, --output <dir>     Output directory for generated files (default: ./tests/generated)
-  -m, --modules          Also generate module files
-  -c, --config <file>    Path to autogen config file
-  --dry-run              Preview generation without writing files
-  -q, --quiet            Suppress output except errors
-  -h, --help             Show this help message
+  -o, --output <dir>       Output directory for generated files (default: ./tests/generated)
+  -m, --modules            Also generate module files
+  -c, --config <file>      Path to autogen config file
+  --dry-run                Preview generation without writing files
+  -q, --quiet              Suppress output except errors
+  -h, --help               Show this help message
+
+LLKB Integration Options:
+  --llkb-config <file>     Path to LLKB-generated config file
+  --llkb-glossary <file>   Path to LLKB-generated glossary file
+  --no-llkb                Disable LLKB integration even if config enables it
 
 Examples:
   artk-autogen generate journeys/login.md
   artk-autogen generate "journeys/*.md" -o tests/e2e -m
   artk-autogen generate journeys/*.md --dry-run
+  artk-autogen generate journeys/*.md --llkb-config autogen-llkb.config.yml --llkb-glossary llkb-glossary.ts
 `;
   }
 });

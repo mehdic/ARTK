@@ -328,6 +328,58 @@ declare function getLabelAliases(): LabelAlias[];
  * Get all module method mappings
  */
 declare function getModuleMethods(): ModuleMethodMapping[];
+/**
+ * Extended glossary metadata from LLKB export
+ */
+interface ExtendedGlossaryMeta {
+    exportedAt: string;
+    entryCount: number;
+    minConfidence?: number;
+    sourceComponents?: string[];
+    sourceLessons?: string[];
+}
+/**
+ * Load extended glossary from LLKB export file
+ * @param glossaryPath - Path to the LLKB-generated glossary TypeScript file
+ * @returns Loading result with entry count and metadata
+ */
+declare function loadExtendedGlossary(glossaryPath: string): Promise<{
+    loaded: boolean;
+    entryCount: number;
+    exportedAt: string | null;
+    error?: string;
+}>;
+/**
+ * Clear extended glossary (for testing)
+ */
+declare function clearExtendedGlossary(): void;
+/**
+ * Lookup a term in both core glossary and extended LLKB glossary
+ * Core glossary takes precedence for exact matches (LLKB only extends, never overrides)
+ * @param term - Term to look up
+ * @returns IR primitive if found, undefined otherwise
+ */
+declare function lookupGlossary(term: string): IRPrimitive | undefined;
+/**
+ * Lookup a term in core glossary only (for priority enforcement)
+ * Used when LLKB should NOT override core mappings
+ * @param term - Term to look up
+ * @returns IR primitive if found, undefined otherwise
+ */
+declare function lookupCoreGlossary(term: string): IRPrimitive | undefined;
+/**
+ * Get glossary statistics
+ */
+declare function getGlossaryStats(): {
+    coreEntries: number;
+    extendedEntries: number;
+    extendedExportedAt: string | null;
+    extendedMeta: ExtendedGlossaryMeta | null;
+};
+/**
+ * Check if extended glossary is loaded
+ */
+declare function hasExtendedGlossary(): boolean;
 
 /**
  * Step Mapper - Convert step text to IR primitives
@@ -404,4 +456,4 @@ declare function getMappingStats(mappings: StepMappingResult[]): {
  */
 declare function suggestImprovements(blockedSteps: StepMappingResult[]): string[];
 
-export { type ACMappingResult, type Glossary, type GlossaryEntry, type LabelAlias, type ModuleMethodMapping, type PatternMatch, type StepMapperOptions, type StepMappingResult, type StepPattern, allPatterns, authPatterns, checkPatterns, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, initGlossary, isSynonymOf, loadGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns };
+export { type ACMappingResult, type ExtendedGlossaryMeta, type Glossary, type GlossaryEntry, type LabelAlias, type ModuleMethodMapping, type PatternMatch, type StepMapperOptions, type StepMappingResult, type StepPattern, allPatterns, authPatterns, checkPatterns, clearExtendedGlossary, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getGlossaryStats, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, hasExtendedGlossary, initGlossary, isSynonymOf, loadExtendedGlossary, loadGlossary, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns };
