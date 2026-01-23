@@ -1,6 +1,6 @@
 import * as fs from 'fs';
-import { existsSync, readFileSync } from 'fs';
-import * as path7 from 'path';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
+import * as path9 from 'path';
 import { join } from 'path';
 
 // llkb/normalize.ts
@@ -373,7 +373,7 @@ function generateRandomId() {
 async function saveJSONAtomic(filePath, data) {
   const tempPath = `${filePath}.tmp.${generateRandomId()}`;
   try {
-    const dir = path7.dirname(filePath);
+    const dir = path9.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -397,7 +397,7 @@ async function saveJSONAtomic(filePath, data) {
 function saveJSONAtomicSync(filePath, data) {
   const tempPath = `${filePath}.tmp.${generateRandomId()}`;
   try {
-    const dir = path7.dirname(filePath);
+    const dir = path9.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -543,11 +543,11 @@ function sleep(ms) {
 }
 var DEFAULT_LLKB_ROOT = ".artk/llkb";
 function getHistoryDir(llkbRoot = DEFAULT_LLKB_ROOT) {
-  return path7.join(llkbRoot, "history");
+  return path9.join(llkbRoot, "history");
 }
 function getHistoryFilePath(date = /* @__PURE__ */ new Date(), llkbRoot = DEFAULT_LLKB_ROOT) {
   const dateStr = formatDate(date);
-  return path7.join(getHistoryDir(llkbRoot), `${dateStr}.jsonl`);
+  return path9.join(getHistoryDir(llkbRoot), `${dateStr}.jsonl`);
 }
 function formatDate(date) {
   const year = date.getFullYear();
@@ -625,7 +625,7 @@ function getHistoryFilesInRange(startDate, endDate, llkbRoot = DEFAULT_LLKB_ROOT
     if (match?.[1]) {
       const fileDate = new Date(match[1]);
       if (fileDate >= startDate && fileDate <= endDate) {
-        results.push(path7.join(historyDir, file));
+        results.push(path9.join(historyDir, file));
       }
     }
   }
@@ -646,7 +646,7 @@ function cleanupOldHistoryFiles(retentionDays = 365, llkbRoot = DEFAULT_LLKB_ROO
     if (match?.[1]) {
       const fileDate = new Date(match[1]);
       if (fileDate < cutoffDate) {
-        const filePath = path7.join(historyDir, file);
+        const filePath = path9.join(historyDir, file);
         fs.unlinkSync(filePath);
         deleted.push(filePath);
       }
@@ -684,9 +684,9 @@ var ALL_SCOPES = [
 ];
 function updateAnalytics(llkbRoot = DEFAULT_LLKB_ROOT2) {
   try {
-    const lessonsPath = path7.join(llkbRoot, "lessons.json");
-    const componentsPath = path7.join(llkbRoot, "components.json");
-    const analyticsPath = path7.join(llkbRoot, "analytics.json");
+    const lessonsPath = path9.join(llkbRoot, "lessons.json");
+    const componentsPath = path9.join(llkbRoot, "components.json");
+    const analyticsPath = path9.join(llkbRoot, "analytics.json");
     const lessons = loadJSON(lessonsPath);
     const components = loadJSON(componentsPath);
     let analytics = loadJSON(analyticsPath);
@@ -871,7 +871,7 @@ function calculateNeedsReview(lessons, components) {
   };
 }
 function getAnalyticsSummary(llkbRoot = DEFAULT_LLKB_ROOT2) {
-  const analyticsPath = path7.join(llkbRoot, "analytics.json");
+  const analyticsPath = path9.join(llkbRoot, "analytics.json");
   const analytics = loadJSON(analyticsPath);
   if (!analytics) {
     return "Analytics not available";
@@ -890,359 +890,6 @@ function getAnalyticsSummary(llkbRoot = DEFAULT_LLKB_ROOT2) {
     `  Avg Reuses/Component: ${c.avgReusesPerComponent}`,
     `Items Needing Review: ${analytics.needsReview.lowConfidenceLessons.length + analytics.needsReview.lowUsageComponents.length + analytics.needsReview.decliningSuccessRate.length}`
   ].join("\n");
-}
-var DEFAULT_LLKB_ROOT3 = ".artk/llkb";
-function runHealthCheck(llkbRoot = DEFAULT_LLKB_ROOT3) {
-  const checks = [];
-  let hasError = false;
-  let hasWarning = false;
-  if (fs.existsSync(llkbRoot)) {
-    checks.push({
-      name: "Directory exists",
-      status: "pass",
-      message: `LLKB directory found at ${llkbRoot}`
-    });
-  } else {
-    checks.push({
-      name: "Directory exists",
-      status: "fail",
-      message: `LLKB directory not found at ${llkbRoot}`
-    });
-    hasError = true;
-  }
-  const configPath = path7.join(llkbRoot, "config.yml");
-  if (fs.existsSync(configPath)) {
-    checks.push({
-      name: "Config file",
-      status: "pass",
-      message: "config.yml found"
-    });
-  } else {
-    checks.push({
-      name: "Config file",
-      status: "warn",
-      message: "config.yml not found - using defaults"
-    });
-    hasWarning = true;
-  }
-  const lessonsPath = path7.join(llkbRoot, "lessons.json");
-  const lessonsCheck = checkJSONFile(lessonsPath, "lessons.json");
-  checks.push(lessonsCheck);
-  if (lessonsCheck.status === "fail") hasError = true;
-  if (lessonsCheck.status === "warn") hasWarning = true;
-  const componentsPath = path7.join(llkbRoot, "components.json");
-  const componentsCheck = checkJSONFile(componentsPath, "components.json");
-  checks.push(componentsCheck);
-  if (componentsCheck.status === "fail") hasError = true;
-  if (componentsCheck.status === "warn") hasWarning = true;
-  const analyticsPath = path7.join(llkbRoot, "analytics.json");
-  const analyticsCheck = checkJSONFile(analyticsPath, "analytics.json");
-  checks.push(analyticsCheck);
-  if (analyticsCheck.status === "fail") hasError = true;
-  if (analyticsCheck.status === "warn") hasWarning = true;
-  const historyDir = getHistoryDir(llkbRoot);
-  if (fs.existsSync(historyDir)) {
-    const historyFiles = fs.readdirSync(historyDir).filter((f) => f.endsWith(".jsonl"));
-    checks.push({
-      name: "History directory",
-      status: "pass",
-      message: `History directory found with ${historyFiles.length} files`
-    });
-  } else {
-    checks.push({
-      name: "History directory",
-      status: "warn",
-      message: "History directory not found - will be created on first event"
-    });
-    hasWarning = true;
-  }
-  if (lessonsCheck.status === "pass") {
-    try {
-      const lessons = loadJSON(lessonsPath);
-      if (lessons) {
-        const lowConfidence = lessons.lessons.filter(
-          (l) => !l.archived && needsConfidenceReview(l)
-        );
-        const declining = lessons.lessons.filter(
-          (l) => !l.archived && detectDecliningConfidence(l)
-        );
-        if (lowConfidence.length > 0 || declining.length > 0) {
-          checks.push({
-            name: "Lesson health",
-            status: "warn",
-            message: `${lowConfidence.length} low confidence, ${declining.length} declining`,
-            details: [
-              ...lowConfidence.map((l) => `Low confidence: ${l.id} (${l.metrics.confidence})`),
-              ...declining.map((l) => `Declining: ${l.id}`)
-            ].join(", ")
-          });
-          hasWarning = true;
-        } else {
-          checks.push({
-            name: "Lesson health",
-            status: "pass",
-            message: "All lessons healthy"
-          });
-        }
-      }
-    } catch {
-    }
-  }
-  let status;
-  let summary;
-  if (hasError) {
-    status = "error";
-    summary = `LLKB has errors: ${checks.filter((c) => c.status === "fail").length} failed checks`;
-  } else if (hasWarning) {
-    status = "warning";
-    summary = `LLKB has warnings: ${checks.filter((c) => c.status === "warn").length} warnings`;
-  } else {
-    status = "healthy";
-    summary = "LLKB is healthy";
-  }
-  return { status, checks, summary };
-}
-function checkJSONFile(filePath, fileName) {
-  if (!fs.existsSync(filePath)) {
-    return {
-      name: fileName,
-      status: "warn",
-      message: `${fileName} not found`
-    };
-  }
-  try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    JSON.parse(content);
-    return {
-      name: fileName,
-      status: "pass",
-      message: `${fileName} is valid JSON`
-    };
-  } catch (error) {
-    return {
-      name: fileName,
-      status: "fail",
-      message: `${fileName} is invalid JSON`,
-      details: error instanceof Error ? error.message : String(error)
-    };
-  }
-}
-function getStats(llkbRoot = DEFAULT_LLKB_ROOT3) {
-  const lessonsPath = path7.join(llkbRoot, "lessons.json");
-  const componentsPath = path7.join(llkbRoot, "components.json");
-  const historyDir = getHistoryDir(llkbRoot);
-  const lessons = loadJSON(lessonsPath);
-  const activeLessons = lessons?.lessons.filter((l) => !l.archived) ?? [];
-  const archivedLessons = lessons?.archived ?? [];
-  let avgConfidence = 0;
-  let avgSuccessRate = 0;
-  let needsReview = 0;
-  if (activeLessons.length > 0) {
-    avgConfidence = Math.round(
-      activeLessons.reduce((acc, l) => acc + l.metrics.confidence, 0) / activeLessons.length * 100
-    ) / 100;
-    avgSuccessRate = Math.round(
-      activeLessons.reduce((acc, l) => acc + l.metrics.successRate, 0) / activeLessons.length * 100
-    ) / 100;
-    needsReview = activeLessons.filter(
-      (l) => needsConfidenceReview(l) || detectDecliningConfidence(l)
-    ).length;
-  }
-  const components = loadJSON(componentsPath);
-  const activeComponents = components?.components.filter((c) => !c.archived) ?? [];
-  const archivedComponents = components?.components.filter((c) => c.archived) ?? [];
-  let totalReuses = 0;
-  let avgReusesPerComponent = 0;
-  if (activeComponents.length > 0) {
-    totalReuses = activeComponents.reduce((acc, c) => acc + (c.metrics.totalUses ?? 0), 0);
-    avgReusesPerComponent = Math.round(totalReuses / activeComponents.length * 100) / 100;
-  }
-  let todayEvents = 0;
-  let historyFiles = 0;
-  let oldestFile = null;
-  let newestFile = null;
-  if (fs.existsSync(historyDir)) {
-    const files = fs.readdirSync(historyDir).filter((f) => f.endsWith(".jsonl")).sort();
-    historyFiles = files.length;
-    if (files.length > 0) {
-      oldestFile = files[0] ?? null;
-      newestFile = files[files.length - 1] ?? null;
-    }
-    todayEvents = readTodayHistory(llkbRoot).length;
-  }
-  return {
-    lessons: {
-      total: (lessons?.lessons.length ?? 0) + archivedLessons.length,
-      active: activeLessons.length,
-      archived: archivedLessons.length,
-      avgConfidence,
-      avgSuccessRate,
-      needsReview
-    },
-    components: {
-      total: components?.components.length ?? 0,
-      active: activeComponents.length,
-      archived: archivedComponents.length,
-      totalReuses,
-      avgReusesPerComponent
-    },
-    history: {
-      todayEvents,
-      historyFiles,
-      oldestFile,
-      newestFile
-    }
-  };
-}
-function prune(options = {}) {
-  const {
-    llkbRoot = DEFAULT_LLKB_ROOT3,
-    historyRetentionDays = 365,
-    archiveInactiveLessons = false,
-    archiveInactiveComponents = false,
-    inactiveDays = 180
-  } = options;
-  const result = {
-    historyFilesDeleted: 0,
-    deletedFiles: [],
-    archivedLessons: 0,
-    archivedComponents: 0,
-    errors: []
-  };
-  try {
-    const deletedFiles = cleanupOldHistoryFiles(historyRetentionDays, llkbRoot);
-    result.historyFilesDeleted = deletedFiles.length;
-    result.deletedFiles = deletedFiles;
-  } catch (error) {
-    result.errors.push(
-      `Failed to clean history files: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-  if (archiveInactiveLessons) {
-    try {
-      const archivedCount = archiveInactiveItems(
-        path7.join(llkbRoot, "lessons.json"),
-        "lessons",
-        inactiveDays
-      );
-      result.archivedLessons = archivedCount;
-    } catch (error) {
-      result.errors.push(
-        `Failed to archive lessons: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
-  if (archiveInactiveComponents) {
-    try {
-      const archivedCount = archiveInactiveItems(
-        path7.join(llkbRoot, "components.json"),
-        "components",
-        inactiveDays
-      );
-      result.archivedComponents = archivedCount;
-    } catch (error) {
-      result.errors.push(
-        `Failed to archive components: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
-  try {
-    updateAnalytics(llkbRoot);
-  } catch (error) {
-    result.errors.push(
-      `Failed to update analytics: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-  return result;
-}
-function archiveInactiveItems(filePath, itemsKey, inactiveDays) {
-  if (!fs.existsSync(filePath)) {
-    return 0;
-  }
-  const content = fs.readFileSync(filePath, "utf-8");
-  const data = JSON.parse(content);
-  const items = data[itemsKey];
-  if (!Array.isArray(items)) {
-    return 0;
-  }
-  const now = /* @__PURE__ */ new Date();
-  const cutoffDate = /* @__PURE__ */ new Date();
-  cutoffDate.setDate(now.getDate() - inactiveDays);
-  let archivedCount = 0;
-  for (const item of items) {
-    if (item.archived) continue;
-    const lastUsedStr = item.metrics.lastSuccess ?? item.metrics.lastUsed;
-    if (!lastUsedStr) continue;
-    const lastUsed = new Date(lastUsedStr);
-    if (lastUsed < cutoffDate) {
-      item.archived = true;
-      archivedCount++;
-    }
-  }
-  if (archivedCount > 0) {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
-  }
-  return archivedCount;
-}
-function formatHealthCheck(result) {
-  const lines = [];
-  const statusIcon = result.status === "healthy" ? "\u2713" : result.status === "warning" ? "\u26A0" : "\u2717";
-  lines.push(`${statusIcon} LLKB Health Check: ${result.status.toUpperCase()}`);
-  lines.push("\u2500".repeat(50));
-  for (const check of result.checks) {
-    const icon = check.status === "pass" ? "\u2713" : check.status === "warn" ? "\u26A0" : "\u2717";
-    lines.push(`${icon} ${check.name}: ${check.message}`);
-    if (check.details) {
-      lines.push(`  ${check.details}`);
-    }
-  }
-  lines.push("\u2500".repeat(50));
-  lines.push(result.summary);
-  return lines.join("\n");
-}
-function formatStats(stats) {
-  const lines = [];
-  lines.push("LLKB Statistics");
-  lines.push("\u2500".repeat(50));
-  lines.push("");
-  lines.push("Lessons:");
-  lines.push(`  Total: ${stats.lessons.total} (${stats.lessons.active} active, ${stats.lessons.archived} archived)`);
-  lines.push(`  Avg Confidence: ${stats.lessons.avgConfidence}`);
-  lines.push(`  Avg Success Rate: ${stats.lessons.avgSuccessRate}`);
-  lines.push(`  Needs Review: ${stats.lessons.needsReview}`);
-  lines.push("");
-  lines.push("Components:");
-  lines.push(`  Total: ${stats.components.total} (${stats.components.active} active, ${stats.components.archived} archived)`);
-  lines.push(`  Total Reuses: ${stats.components.totalReuses}`);
-  lines.push(`  Avg Reuses/Component: ${stats.components.avgReusesPerComponent}`);
-  lines.push("");
-  lines.push("History:");
-  lines.push(`  Today's Events: ${stats.history.todayEvents}`);
-  lines.push(`  History Files: ${stats.history.historyFiles}`);
-  if (stats.history.oldestFile) {
-    lines.push(`  Date Range: ${stats.history.oldestFile} to ${stats.history.newestFile}`);
-  }
-  return lines.join("\n");
-}
-function formatPruneResult(result) {
-  const lines = [];
-  lines.push("LLKB Prune Results");
-  lines.push("\u2500".repeat(50));
-  lines.push(`History files deleted: ${result.historyFilesDeleted}`);
-  if (result.archivedLessons > 0) {
-    lines.push(`Lessons archived: ${result.archivedLessons}`);
-  }
-  if (result.archivedComponents > 0) {
-    lines.push(`Components archived: ${result.archivedComponents}`);
-  }
-  if (result.errors.length > 0) {
-    lines.push("");
-    lines.push("Errors:");
-    for (const error of result.errors) {
-      lines.push(`  \u2717 ${error}`);
-    }
-  }
-  return lines.join("\n");
 }
 var DEFAULT_LLKB_CONFIG = {
   version: "1.0.0",
@@ -1486,6 +1133,1626 @@ function loadLLKBData(llkbRoot = ".artk/llkb") {
 }
 function llkbExists(llkbRoot = ".artk/llkb") {
   return existsSync(llkbRoot) && existsSync(join(llkbRoot, "config.yml"));
+}
+
+// llkb/constants.ts
+var CONFIDENCE = {
+  DEFAULT_WEIGHT: 0.5};
+var TIMEOUTS = {
+  SHORT_MS: 300,
+  MEDIUM_MS: 1e3,
+  LONG_MS: 2e3
+};
+var TABLE = {
+  COLUMN_WIDTH: 50
+};
+var TIME = {
+  MS_PER_SECOND: 1e3,
+  SECONDS_PER_MINUTE: 60,
+  MINUTES_PER_HOUR: 60,
+  HOURS_PER_DAY: 24
+};
+var LIMITS = {
+  MAX_RECENT_ITEMS: 5,
+  DEFAULT_RETENTION_DAYS: 30
+};
+var PERCENTAGES = {
+  FULL: 100
+};
+
+// llkb/adapter-transforms.ts
+function categoryToPrimitiveType(category) {
+  switch (category) {
+    case "navigation":
+      return "navigate";
+    case "timing":
+      return "wait";
+    case "assertion":
+      return "assert";
+    case "selector":
+    case "ui-interaction":
+      return "click";
+    default:
+      return "callModule";
+  }
+}
+function inferModuleFromCategory(category) {
+  switch (category) {
+    case "selector":
+      return "selectors";
+    case "timing":
+      return "timing";
+    case "auth":
+      return "auth";
+    case "data":
+      return "data";
+    case "assertion":
+      return "assertions";
+    case "navigation":
+      return "navigation";
+    case "ui-interaction":
+      return "ui";
+    default:
+      return "helpers";
+  }
+}
+function triggerToRegex(trigger) {
+  if (!trigger || trigger.trim().length === 0) {
+    return null;
+  }
+  let pattern = trigger.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\bthe\\b/gi, "(?:the\\s+)?").replace(/\\ba\\b/gi, "(?:a\\s+)?").replace(/\\ban\\b/gi, "(?:an\\s+)?");
+  pattern = pattern.replace(/\s+/g, "\\s+");
+  pattern = `(?i)${pattern}`;
+  return pattern;
+}
+function componentNameToTrigger(name) {
+  const words = name.replace(/([A-Z])/g, " $1").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().trim().split(/\s+/);
+  const pattern = words.map((word) => {
+    if (word === "ag" || word === "aggrid") {
+      return "(?:ag-?)?grid";
+    }
+    return word;
+  }).join("\\s+");
+  return `(?:${pattern})`;
+}
+function generateNameVariations(name) {
+  const variations = [];
+  const words = name.replace(/([A-Z])/g, " $1").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().trim();
+  variations.push(words);
+  variations.push(`the ${words}`);
+  if (words.includes("grid")) {
+    variations.push(words.replace("grid", "ag-grid"));
+    variations.push(words.replace("grid", "ag grid"));
+  }
+  if (words.includes("wait for")) {
+    const afterWaitFor = words.replace("wait for ", "").replace(" to load", "");
+    variations.push(`${afterWaitFor} loads`);
+    variations.push(`${afterWaitFor} is loaded`);
+  }
+  return [...new Set(variations)];
+}
+function lessonToPattern(lesson) {
+  const patternCategories = ["selector", "timing", "navigation", "ui-interaction"];
+  if (!patternCategories.includes(lesson.category)) {
+    return null;
+  }
+  if (lesson.metrics.confidence < CONFIDENCE.DEFAULT_WEIGHT) {
+    return null;
+  }
+  const regex = triggerToRegex(lesson.trigger);
+  if (!regex) {
+    return null;
+  }
+  const source = {
+    lessonId: lesson.id,
+    confidence: lesson.metrics.confidence,
+    occurrences: lesson.metrics.occurrences
+  };
+  return {
+    name: `llkb-${lesson.id.toLowerCase()}`,
+    regex,
+    primitiveType: categoryToPrimitiveType(lesson.category),
+    source
+  };
+}
+function lessonToSelectorOverride(lesson) {
+  if (lesson.category !== "selector") {
+    return null;
+  }
+  const pattern = lesson.pattern;
+  const testIdMatch = pattern.match(/data-testid[=:]\s*["']?([^"'\s]+)["']?/i);
+  const roleMatch = pattern.match(/role[=:]\s*["']?([^"'\s]+)["']?/i);
+  const labelMatch = pattern.match(/aria-label[=:]\s*["']?([^"'\s]+)["']?/i);
+  let strategy = "testid";
+  let value = "";
+  if (testIdMatch?.[1]) {
+    strategy = "testid";
+    value = testIdMatch[1];
+  } else if (roleMatch?.[1]) {
+    strategy = "role";
+    value = roleMatch[1];
+  } else if (labelMatch?.[1]) {
+    strategy = "label";
+    value = labelMatch[1];
+  } else {
+    return null;
+  }
+  const source = {
+    lessonId: lesson.id,
+    confidence: lesson.metrics.confidence,
+    occurrences: lesson.metrics.occurrences
+  };
+  return {
+    pattern: lesson.trigger,
+    override: {
+      strategy,
+      value
+    },
+    source
+  };
+}
+function lessonToTimingHint(lesson) {
+  if (lesson.category !== "timing") {
+    return null;
+  }
+  const pattern = lesson.pattern;
+  const waitMatch = pattern.match(/wait\s*(?:for\s*)?\s*(\d+)\s*(?:ms|milliseconds?)?/i);
+  const timeoutMatch = pattern.match(/timeout\s*(?:of\s*)?\s*(\d+)\s*(?:ms|milliseconds?)?/i);
+  const delayMatch = pattern.match(/delay\s*(?:of\s*)?\s*(\d+)\s*(?:ms|milliseconds?)?/i);
+  let waitMs = 0;
+  if (waitMatch?.[1]) {
+    waitMs = parseInt(waitMatch[1], 10);
+  } else if (timeoutMatch?.[1]) {
+    waitMs = parseInt(timeoutMatch[1], 10);
+  } else if (delayMatch?.[1]) {
+    waitMs = parseInt(delayMatch[1], 10);
+  }
+  if (waitMs === 0) {
+    if (pattern.toLowerCase().includes("animation")) {
+      waitMs = TIMEOUTS.SHORT_MS;
+    } else if (pattern.toLowerCase().includes("load")) {
+      waitMs = TIMEOUTS.MEDIUM_MS;
+    } else if (pattern.toLowerCase().includes("network")) {
+      waitMs = TIMEOUTS.LONG_MS;
+    } else {
+      return null;
+    }
+  }
+  const source = {
+    lessonId: lesson.id,
+    confidence: lesson.metrics.confidence,
+    occurrences: lesson.metrics.occurrences
+  };
+  return {
+    trigger: lesson.trigger,
+    waitMs,
+    source
+  };
+}
+function componentToModule(component) {
+  const trigger = componentNameToTrigger(component.name);
+  return {
+    name: component.name,
+    trigger,
+    componentId: component.id,
+    importPath: component.filePath,
+    confidence: component.metrics.successRate
+  };
+}
+function componentToGlossaryEntries(component) {
+  const entries = [];
+  const variations = generateNameVariations(component.name);
+  const moduleName = inferModuleFromCategory(component.category);
+  const primitive = {
+    type: "callModule",
+    module: moduleName,
+    method: component.name
+  };
+  for (const phrase of variations) {
+    entries.push({
+      phrase,
+      primitive,
+      sourceId: component.id,
+      confidence: component.metrics.successRate
+    });
+  }
+  return entries;
+}
+function lessonToGlossaryEntries(lesson) {
+  const glossaryCategories = ["navigation", "ui-interaction", "assertion"];
+  if (!glossaryCategories.includes(lesson.category)) {
+    return [];
+  }
+  const primitive = {
+    type: categoryToPrimitiveType(lesson.category)
+  };
+  const phrase = lesson.trigger.toLowerCase().trim();
+  if (!phrase) {
+    return [];
+  }
+  return [
+    {
+      phrase,
+      primitive,
+      sourceId: lesson.id,
+      confidence: lesson.metrics.confidence
+    }
+  ];
+}
+
+// llkb/adapter.ts
+var DEFAULT_MIN_CONFIDENCE = 0.7;
+var DEFAULT_LLKB_ROOT3 = ".artk/llkb";
+var LLKB_VERSION = "1.0.0";
+async function exportForAutogen(config) {
+  const {
+    llkbRoot = DEFAULT_LLKB_ROOT3,
+    outputDir,
+    minConfidence = DEFAULT_MIN_CONFIDENCE,
+    includeCategories,
+    includeScopes,
+    generateGlossary = true,
+    generateConfig = true,
+    configFormat = "yaml"
+  } = config;
+  const warnings = [];
+  const exportedAt = (/* @__PURE__ */ new Date()).toISOString();
+  if (!llkbExists(llkbRoot)) {
+    return {
+      configPath: null,
+      glossaryPath: null,
+      stats: createEmptyStats(),
+      warnings: [`LLKB not found at ${llkbRoot}. Run /artk.discover-foundation first.`],
+      exportedAt
+    };
+  }
+  const llkbConfig = loadLLKBConfig(llkbRoot);
+  if (!llkbConfig.enabled) {
+    return {
+      configPath: null,
+      glossaryPath: null,
+      stats: createEmptyStats(),
+      warnings: ["LLKB is disabled in config.yml. Enable it to export."],
+      exportedAt
+    };
+  }
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
+  }
+  const lessons = loadLessons(llkbRoot, {
+    category: includeCategories,
+    scope: includeScopes,
+    minConfidence,
+    includeArchived: false
+  });
+  const components = loadComponents(llkbRoot, {
+    category: includeCategories,
+    scope: includeScopes,
+    minConfidence,
+    includeArchived: false
+  });
+  const allLessons = loadLessons(llkbRoot, { includeArchived: false });
+  const allComponents = loadComponents(llkbRoot, { includeArchived: false });
+  const lessonsSkipped = allLessons.length - lessons.length;
+  const componentsSkipped = allComponents.length - components.length;
+  const patterns = [];
+  const selectorOverrides = [];
+  const timingHints = [];
+  for (const lesson of lessons) {
+    const pattern = lessonToPattern(lesson);
+    if (pattern) {
+      patterns.push(pattern);
+    }
+    const selector = lessonToSelectorOverride(lesson);
+    if (selector) {
+      selectorOverrides.push(selector);
+    }
+    const timing = lessonToTimingHint(lesson);
+    if (timing) {
+      timingHints.push(timing);
+    }
+  }
+  const modules = [];
+  const glossaryEntries = [];
+  const sourceComponents = [];
+  const sourceLessons = [];
+  for (const component of components) {
+    const moduleMapping = componentToModule(component);
+    modules.push(moduleMapping);
+    sourceComponents.push(component.id);
+    if (generateGlossary) {
+      const entries = componentToGlossaryEntries(component);
+      glossaryEntries.push(...entries);
+    }
+  }
+  if (generateGlossary) {
+    for (const lesson of lessons) {
+      const entries = lessonToGlossaryEntries(lesson);
+      if (entries.length > 0) {
+        glossaryEntries.push(...entries);
+        sourceLessons.push(lesson.id);
+      }
+    }
+  }
+  const stats = {
+    patternsExported: patterns.length,
+    selectorsExported: selectorOverrides.length,
+    timingHintsExported: timingHints.length,
+    modulesExported: modules.length,
+    glossaryEntriesExported: glossaryEntries.length,
+    lessonsSkipped,
+    componentsSkipped
+  };
+  let configPath = null;
+  if (generateConfig) {
+    const autogenConfig = {
+      version: 1,
+      exportedAt,
+      llkbVersion: LLKB_VERSION,
+      minConfidence,
+      additionalPatterns: patterns,
+      selectorOverrides,
+      timingHints,
+      modules
+    };
+    const filename = configFormat === "yaml" ? "autogen-llkb.config.yml" : "autogen-llkb.config.json";
+    configPath = join(outputDir, filename);
+    if (configFormat === "yaml") {
+      writeFileSync(configPath, generateYAML(autogenConfig), "utf-8");
+    } else {
+      writeFileSync(configPath, JSON.stringify(autogenConfig, null, 2), "utf-8");
+    }
+  }
+  let glossaryPath = null;
+  if (generateGlossary && glossaryEntries.length > 0) {
+    const glossaryMeta = {
+      exportedAt,
+      minConfidence,
+      entryCount: glossaryEntries.length,
+      sourceComponents: [...new Set(sourceComponents)],
+      sourceLessons: [...new Set(sourceLessons)]
+    };
+    glossaryPath = join(outputDir, "llkb-glossary.ts");
+    writeFileSync(glossaryPath, generateGlossaryFile(glossaryEntries, glossaryMeta), "utf-8");
+  }
+  if (stats.patternsExported === 0 && stats.modulesExported === 0) {
+    warnings.push("No patterns or modules were exported. Consider lowering minConfidence.");
+  }
+  return {
+    configPath,
+    glossaryPath,
+    stats,
+    warnings,
+    exportedAt
+  };
+}
+function createEmptyStats() {
+  return {
+    patternsExported: 0,
+    selectorsExported: 0,
+    timingHintsExported: 0,
+    modulesExported: 0,
+    glossaryEntriesExported: 0,
+    lessonsSkipped: 0,
+    componentsSkipped: 0
+  };
+}
+function generateYAML(config) {
+  const lines = [
+    "# Generated by LLKB Adapter - DO NOT EDIT MANUALLY",
+    "# Regenerate with: npx artk-llkb export --for-autogen",
+    "",
+    `version: ${config.version}`,
+    `exportedAt: "${config.exportedAt}"`,
+    `llkbVersion: "${config.llkbVersion}"`,
+    `minConfidence: ${config.minConfidence}`,
+    "",
+    "# Additional patterns from LLKB lessons",
+    "additionalPatterns:"
+  ];
+  for (const pattern of config.additionalPatterns) {
+    lines.push(`  - name: "${pattern.name}"`);
+    lines.push(`    regex: "${escapeYAMLString(pattern.regex)}"`);
+    lines.push(`    primitiveType: "${pattern.primitiveType}"`);
+    if (pattern.module) {
+      lines.push(`    module: "${pattern.module}"`);
+    }
+    if (pattern.method) {
+      lines.push(`    method: "${pattern.method}"`);
+    }
+    if (pattern.argMapping && pattern.argMapping.length > 0) {
+      lines.push(`    argMapping: [${pattern.argMapping.map((a) => `"${a}"`).join(", ")}]`);
+    }
+    lines.push("    source:");
+    lines.push(`      lessonId: "${pattern.source.lessonId}"`);
+    lines.push(`      confidence: ${pattern.source.confidence}`);
+    lines.push(`      occurrences: ${pattern.source.occurrences}`);
+  }
+  lines.push("");
+  lines.push("# Selector overrides from LLKB lessons");
+  lines.push("selectorOverrides:");
+  for (const selector of config.selectorOverrides) {
+    lines.push(`  - pattern: "${escapeYAMLString(selector.pattern)}"`);
+    lines.push("    override:");
+    lines.push(`      strategy: "${selector.override.strategy}"`);
+    lines.push(`      value: "${escapeYAMLString(selector.override.value)}"`);
+    lines.push("    source:");
+    lines.push(`      lessonId: "${selector.source.lessonId}"`);
+    lines.push(`      confidence: ${selector.source.confidence}`);
+  }
+  lines.push("");
+  lines.push("# Timing hints from lessons");
+  lines.push("timingHints:");
+  for (const hint of config.timingHints) {
+    lines.push(`  - trigger: "${escapeYAMLString(hint.trigger)}"`);
+    lines.push(`    waitMs: ${hint.waitMs}`);
+    lines.push("    source:");
+    lines.push(`      lessonId: "${hint.source.lessonId}"`);
+    lines.push(`      confidence: ${hint.source.confidence}`);
+  }
+  lines.push("");
+  lines.push("# Module mappings from components");
+  lines.push("modules:");
+  for (const mod of config.modules) {
+    lines.push(`  - name: "${mod.name}"`);
+    lines.push(`    trigger: "${escapeYAMLString(mod.trigger)}"`);
+    lines.push(`    componentId: "${mod.componentId}"`);
+    lines.push(`    importPath: "${mod.importPath}"`);
+    lines.push(`    confidence: ${mod.confidence}`);
+  }
+  return lines.join("\n") + "\n";
+}
+function escapeYAMLString(str) {
+  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+function generateGlossaryFile(entries, meta) {
+  const lines = [
+    "/**",
+    " * LLKB-Generated Glossary Extension",
+    ` * Generated: ${meta.exportedAt}`,
+    " * Source: .artk/llkb/",
+    ` * Min Confidence: ${meta.minConfidence}`,
+    " *",
+    " * DO NOT EDIT - Regenerate with: npx artk-llkb export --for-autogen",
+    " */",
+    "",
+    "export interface IRPrimitive {",
+    "  type: 'callModule' | 'click' | 'fill' | 'navigate' | 'wait' | 'assert';",
+    "  module?: string;",
+    "  method?: string;",
+    "  params?: Record<string, unknown>;",
+    "}",
+    "",
+    "export const llkbGlossary = new Map<string, IRPrimitive>(["
+  ];
+  const entriesBySource = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    const source = entry.sourceId;
+    if (!entriesBySource.has(source)) {
+      entriesBySource.set(source, []);
+    }
+    entriesBySource.get(source)?.push(entry);
+  }
+  for (const [sourceId, sourceEntries] of entriesBySource) {
+    const confidence = sourceEntries[0]?.confidence ?? 0;
+    lines.push(`  // From ${sourceId} (confidence: ${confidence.toFixed(2)})`);
+    for (const entry of sourceEntries) {
+      const primitiveStr = JSON.stringify(entry.primitive);
+      lines.push(`  ["${escapeJSString(entry.phrase)}", ${primitiveStr}],`);
+    }
+    lines.push("");
+  }
+  lines.push("]);");
+  lines.push("");
+  lines.push("export const llkbGlossaryMeta = {");
+  lines.push(`  exportedAt: "${meta.exportedAt}",`);
+  lines.push(`  minConfidence: ${meta.minConfidence},`);
+  lines.push(`  entryCount: ${meta.entryCount},`);
+  lines.push(`  sourceComponents: ${JSON.stringify(meta.sourceComponents)},`);
+  lines.push(`  sourceLessons: ${JSON.stringify(meta.sourceLessons)},`);
+  lines.push("};");
+  lines.push("");
+  return lines.join("\n");
+}
+function escapeJSString(str) {
+  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+function formatExportResult(result) {
+  const lines = [];
+  lines.push("LLKB Export for AutoGen");
+  lines.push("========================");
+  lines.push(`Exported patterns: ${result.stats.patternsExported}`);
+  lines.push(`Exported selector overrides: ${result.stats.selectorsExported}`);
+  lines.push(`Exported timing hints: ${result.stats.timingHintsExported}`);
+  lines.push(`Exported modules: ${result.stats.modulesExported}`);
+  lines.push(`Generated glossary entries: ${result.stats.glossaryEntriesExported}`);
+  lines.push("");
+  if (result.stats.lessonsSkipped > 0 || result.stats.componentsSkipped > 0) {
+    lines.push("Skipped (low confidence):");
+    lines.push(`  Lessons: ${result.stats.lessonsSkipped}`);
+    lines.push(`  Components: ${result.stats.componentsSkipped}`);
+    lines.push("");
+  }
+  lines.push("Output files:");
+  if (result.configPath) {
+    lines.push(`  - ${result.configPath}`);
+  }
+  if (result.glossaryPath) {
+    lines.push(`  - ${result.glossaryPath}`);
+  }
+  if (result.warnings.length > 0) {
+    lines.push("");
+    lines.push("Warnings:");
+    for (const warning of result.warnings) {
+      lines.push(`  ! ${warning}`);
+    }
+  }
+  lines.push("");
+  lines.push(`Export completed at: ${result.exportedAt}`);
+  return lines.join("\n");
+}
+function calculateNewSuccessRate(currentSuccessRate, currentOccurrences, newSuccess) {
+  const totalSuccesses = currentSuccessRate * currentOccurrences;
+  const newSuccesses = newSuccess ? totalSuccesses + 1 : totalSuccesses;
+  const newOccurrences = currentOccurrences + 1;
+  return Math.round(newSuccesses / newOccurrences * PERCENTAGES.FULL) / PERCENTAGES.FULL;
+}
+function findMatchingLesson(lessons, selectorValue, stepText) {
+  const exactMatch = lessons.find(
+    (l) => !l.archived && l.pattern.includes(selectorValue)
+  );
+  if (exactMatch) {
+    return exactMatch;
+  }
+  const triggerMatch = lessons.find(
+    (l) => !l.archived && l.trigger.toLowerCase().includes(stepText.toLowerCase())
+  );
+  return triggerMatch;
+}
+function recordPatternLearned(input) {
+  const llkbRoot = input.llkbRoot ?? DEFAULT_LLKB_ROOT;
+  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  try {
+    let matchedLessonId;
+    let updatedMetrics;
+    const updateResult = updateJSONWithLockSync(
+      lessonsPath,
+      (data) => {
+        const existingLesson = findMatchingLesson(
+          data.lessons,
+          input.selectorUsed.value,
+          input.stepText
+        );
+        if (existingLesson) {
+          matchedLessonId = existingLesson.id;
+          existingLesson.metrics.occurrences++;
+          existingLesson.metrics.lastApplied = (/* @__PURE__ */ new Date()).toISOString();
+          if (input.success) {
+            existingLesson.metrics.lastSuccess = (/* @__PURE__ */ new Date()).toISOString();
+          }
+          existingLesson.metrics.successRate = calculateNewSuccessRate(
+            existingLesson.metrics.successRate,
+            existingLesson.metrics.occurrences - 1,
+            input.success
+          );
+          existingLesson.metrics.confidence = calculateConfidence(existingLesson);
+          if (!existingLesson.journeyIds.includes(input.journeyId)) {
+            existingLesson.journeyIds.push(input.journeyId);
+          }
+          updatedMetrics = {
+            confidence: existingLesson.metrics.confidence,
+            successRate: existingLesson.metrics.successRate,
+            occurrences: existingLesson.metrics.occurrences
+          };
+        }
+        data.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
+        return data;
+      }
+    );
+    if (matchedLessonId) {
+      appendToHistory(
+        {
+          event: "lesson_applied",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          journeyId: input.journeyId,
+          prompt: input.prompt,
+          lessonId: matchedLessonId,
+          success: input.success,
+          context: input.stepText
+        },
+        llkbRoot
+      );
+    }
+    return {
+      success: updateResult.success,
+      error: updateResult.error,
+      metrics: updatedMetrics,
+      entityId: matchedLessonId
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LLKB] Failed to record pattern learned: ${message}`);
+    return {
+      success: false,
+      error: message
+    };
+  }
+}
+function recordComponentUsed(input) {
+  const llkbRoot = input.llkbRoot ?? DEFAULT_LLKB_ROOT;
+  const componentsPath = path9.join(llkbRoot, "components.json");
+  try {
+    let foundComponent = false;
+    let updatedMetrics;
+    const updateResult = updateJSONWithLockSync(
+      componentsPath,
+      (data) => {
+        const component = data.components.find((c) => c.id === input.componentId);
+        if (component && !component.archived) {
+          foundComponent = true;
+          component.metrics.totalUses++;
+          component.metrics.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+          component.metrics.successRate = calculateNewSuccessRate(
+            component.metrics.successRate,
+            component.metrics.totalUses - 1,
+            input.success
+          );
+          updatedMetrics = {
+            totalUses: component.metrics.totalUses,
+            successRate: component.metrics.successRate
+          };
+        }
+        data.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
+        return data;
+      }
+    );
+    appendToHistory(
+      {
+        event: "component_used",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        journeyId: input.journeyId,
+        prompt: input.prompt,
+        componentId: input.componentId,
+        success: input.success
+      },
+      llkbRoot
+    );
+    if (!foundComponent) {
+      return {
+        success: false,
+        error: `Component not found: ${input.componentId}`
+      };
+    }
+    return {
+      success: updateResult.success,
+      error: updateResult.error,
+      metrics: updatedMetrics,
+      entityId: input.componentId
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LLKB] Failed to record component used: ${message}`);
+    return {
+      success: false,
+      error: message
+    };
+  }
+}
+function recordLessonApplied(input) {
+  const llkbRoot = input.llkbRoot ?? DEFAULT_LLKB_ROOT;
+  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  try {
+    let foundLesson = false;
+    let updatedMetrics;
+    const updateResult = updateJSONWithLockSync(
+      lessonsPath,
+      (data) => {
+        const lesson = data.lessons.find((l) => l.id === input.lessonId);
+        if (lesson && !lesson.archived) {
+          foundLesson = true;
+          lesson.metrics.occurrences++;
+          lesson.metrics.lastApplied = (/* @__PURE__ */ new Date()).toISOString();
+          if (input.success) {
+            lesson.metrics.lastSuccess = (/* @__PURE__ */ new Date()).toISOString();
+          }
+          lesson.metrics.successRate = calculateNewSuccessRate(
+            lesson.metrics.successRate,
+            lesson.metrics.occurrences - 1,
+            input.success
+          );
+          lesson.metrics.confidence = calculateConfidence(lesson);
+          if (!lesson.journeyIds.includes(input.journeyId)) {
+            lesson.journeyIds.push(input.journeyId);
+          }
+          updatedMetrics = {
+            confidence: lesson.metrics.confidence,
+            successRate: lesson.metrics.successRate,
+            occurrences: lesson.metrics.occurrences
+          };
+        }
+        data.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
+        return data;
+      }
+    );
+    appendToHistory(
+      {
+        event: "lesson_applied",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        journeyId: input.journeyId,
+        prompt: input.prompt,
+        lessonId: input.lessonId,
+        success: input.success,
+        context: input.context
+      },
+      llkbRoot
+    );
+    if (!foundLesson) {
+      return {
+        success: false,
+        error: `Lesson not found: ${input.lessonId}`
+      };
+    }
+    return {
+      success: updateResult.success,
+      error: updateResult.error,
+      metrics: updatedMetrics,
+      entityId: input.lessonId
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LLKB] Failed to record lesson applied: ${message}`);
+    return {
+      success: false,
+      error: message
+    };
+  }
+}
+function recordLearning(args) {
+  const baseInput = {
+    journeyId: args.journeyId,
+    testFile: args.testFile ?? "unknown",
+    prompt: args.prompt ?? "journey-verify",
+    llkbRoot: args.llkbRoot
+  };
+  switch (args.type) {
+    case "pattern":
+      return recordPatternLearned({
+        ...baseInput,
+        stepText: args.stepText ?? args.context ?? "",
+        selectorUsed: {
+          strategy: args.selectorStrategy ?? "unknown",
+          value: args.selectorValue ?? ""
+        },
+        success: args.success
+      });
+    case "component":
+      if (!args.id) {
+        return {
+          success: false,
+          error: "Component ID is required for component learning"
+        };
+      }
+      return recordComponentUsed({
+        ...baseInput,
+        componentId: args.id,
+        success: args.success
+      });
+    case "lesson":
+      if (!args.id) {
+        return {
+          success: false,
+          error: "Lesson ID is required for lesson learning"
+        };
+      }
+      return recordLessonApplied({
+        ...baseInput,
+        lessonId: args.id,
+        success: args.success,
+        context: args.context
+      });
+    default:
+      return {
+        success: false,
+        error: `Unknown learning type: ${args.type}`
+      };
+  }
+}
+function formatLearningResult(result) {
+  const lines = [];
+  if (result.success) {
+    lines.push("Learning recorded successfully");
+    if (result.entityId) {
+      lines.push(`  Entity: ${result.entityId}`);
+    }
+    if (result.metrics) {
+      lines.push("  Updated metrics:");
+      if (result.metrics.confidence !== void 0) {
+        lines.push(`    - Confidence: ${result.metrics.confidence}`);
+      }
+      if (result.metrics.successRate !== void 0) {
+        lines.push(`    - Success Rate: ${result.metrics.successRate}`);
+      }
+      if (result.metrics.occurrences !== void 0) {
+        lines.push(`    - Occurrences: ${result.metrics.occurrences}`);
+      }
+      if (result.metrics.totalUses !== void 0) {
+        lines.push(`    - Total Uses: ${result.metrics.totalUses}`);
+      }
+    }
+  } else {
+    lines.push("Learning recording failed");
+    if (result.error) {
+      lines.push(`  Error: ${result.error}`);
+    }
+  }
+  return lines.join("\n");
+}
+var DEFAULT_LLKB_ROOT4 = ".artk/llkb";
+function extractLlkbVersionFromTest(testContent) {
+  const match = testContent.match(/@llkb-version\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)/);
+  return match ? match[1] ?? null : null;
+}
+function extractLlkbEntriesFromTest(testContent) {
+  const match = testContent.match(/@llkb-entries\s+(\d+)/);
+  return match ? parseInt(match[1] ?? "0", 10) : null;
+}
+function updateTestLlkbVersion(testContent, newVersion, entryCount) {
+  let result = testContent;
+  const versionRegex = /(@llkb-version\s+)\S+/;
+  if (versionRegex.test(result)) {
+    result = result.replace(versionRegex, `$1${newVersion}`);
+  } else {
+    const timestampRegex = /(@timestamp\s+\S+)/;
+    if (timestampRegex.test(result)) {
+      result = result.replace(timestampRegex, `$1
+ * @llkb-version ${newVersion}`);
+    }
+  }
+  if (entryCount !== void 0) {
+    const entriesRegex = /(@llkb-entries\s+)\d+/;
+    if (entriesRegex.test(result)) {
+      result = result.replace(entriesRegex, `$1${entryCount}`);
+    } else {
+      const llkbVersionRegex = /(@llkb-version\s+\S+)/;
+      if (llkbVersionRegex.test(result)) {
+        result = result.replace(llkbVersionRegex, `$1
+ * @llkb-entries ${entryCount}`);
+      }
+    }
+  }
+  return result;
+}
+function getCurrentLlkbVersion(llkbRoot = DEFAULT_LLKB_ROOT4) {
+  const analyticsPath = path9.join(llkbRoot, "analytics.json");
+  try {
+    const analytics = loadJSON(analyticsPath);
+    if (analytics?.lastUpdated) {
+      return analytics.lastUpdated;
+    }
+  } catch {
+  }
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function countNewEntriesSince(sinceTimestamp, type, llkbRoot = DEFAULT_LLKB_ROOT4) {
+  if (!sinceTimestamp) {
+    return 0;
+  }
+  const sinceDate = new Date(sinceTimestamp);
+  if (type === "lessons") {
+    const lessonsPath = path9.join(llkbRoot, "lessons.json");
+    try {
+      const lessons = loadJSON(lessonsPath);
+      if (!lessons?.lessons) return 0;
+      return lessons.lessons.filter((lesson) => {
+        const firstSeen = lesson.metrics.firstSeen;
+        if (!firstSeen) return false;
+        return new Date(firstSeen) > sinceDate;
+      }).length;
+    } catch {
+      return 0;
+    }
+  } else {
+    const componentsPath = path9.join(llkbRoot, "components.json");
+    try {
+      const components = loadJSON(componentsPath);
+      if (!components?.components) return 0;
+      return components.components.filter((component) => {
+        const extractedAt = component.source?.extractedAt;
+        if (!extractedAt) return false;
+        return new Date(extractedAt) > sinceDate;
+      }).length;
+    } catch {
+      return 0;
+    }
+  }
+}
+function compareVersions(testFilePath, llkbRoot = DEFAULT_LLKB_ROOT4) {
+  const testContent = fs.readFileSync(testFilePath, "utf-8");
+  const testLlkbVersion = extractLlkbVersionFromTest(testContent);
+  const currentLlkbVersion = getCurrentLlkbVersion(llkbRoot);
+  const isOutdated = !testLlkbVersion || new Date(testLlkbVersion) < new Date(currentLlkbVersion);
+  const daysSinceUpdate = testLlkbVersion ? Math.floor((Date.now() - new Date(testLlkbVersion).getTime()) / (TIME.MS_PER_SECOND * TIME.SECONDS_PER_MINUTE * TIME.MINUTES_PER_HOUR * TIME.HOURS_PER_DAY)) : Infinity;
+  const newPatternsAvailable = countNewEntriesSince(testLlkbVersion, "lessons", llkbRoot);
+  const newComponentsAvailable = countNewEntriesSince(testLlkbVersion, "components", llkbRoot);
+  let recommendation = "skip";
+  if (isOutdated && (newPatternsAvailable > LIMITS.MAX_RECENT_ITEMS || newComponentsAvailable > 2)) {
+    recommendation = "update";
+  } else if (isOutdated && daysSinceUpdate > LIMITS.DEFAULT_RETENTION_DAYS) {
+    recommendation = "review";
+  } else if (newPatternsAvailable > 0 || newComponentsAvailable > 0) {
+    recommendation = "review";
+  }
+  return {
+    testLlkbVersion,
+    currentLlkbVersion,
+    isOutdated,
+    daysSinceUpdate,
+    newPatternsAvailable,
+    newComponentsAvailable,
+    recommendation
+  };
+}
+function checkUpdates(testsDir, llkbRoot = DEFAULT_LLKB_ROOT4, pattern = "*.spec.ts") {
+  const result = {
+    outdated: [],
+    upToDate: [],
+    errors: [],
+    summary: {
+      total: 0,
+      outdated: 0,
+      upToDate: 0,
+      errors: 0,
+      recommendation: ""
+    }
+  };
+  if (!fs.existsSync(testsDir)) {
+    return result;
+  }
+  const testFiles = findTestFiles(testsDir, pattern);
+  result.summary.total = testFiles.length;
+  for (const testFile of testFiles) {
+    try {
+      const comparison = compareVersions(testFile, llkbRoot);
+      if (comparison.isOutdated) {
+        result.outdated.push({ testFile, comparison });
+        result.summary.outdated++;
+      } else {
+        result.upToDate.push({ testFile, comparison });
+        result.summary.upToDate++;
+      }
+    } catch (error) {
+      result.errors.push({
+        testFile,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      result.summary.errors++;
+    }
+  }
+  if (result.summary.outdated === 0) {
+    result.summary.recommendation = "All tests are up to date";
+  } else if (result.summary.outdated === 1) {
+    result.summary.recommendation = "1 test should be updated";
+  } else {
+    result.summary.recommendation = `${result.summary.outdated} tests should be updated`;
+  }
+  return result;
+}
+function findTestFiles(dir, pattern) {
+  const files = [];
+  const patternRegex = globToRegex(pattern);
+  function walkDir(currentDir) {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path9.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (!entry.name.startsWith(".") && entry.name !== "node_modules") {
+          walkDir(fullPath);
+        }
+      } else if (entry.isFile() && patternRegex.test(entry.name)) {
+        files.push(fullPath);
+      }
+    }
+  }
+  walkDir(dir);
+  return files;
+}
+function globToRegex(pattern) {
+  const escaped = pattern.replace(/\./g, "\\.").replace(/\*/g, ".*").replace(/\?/g, ".");
+  return new RegExp(`^${escaped}$`);
+}
+function formatVersionComparison(testFile, comparison) {
+  const status = comparison.isOutdated ? "!" : "\u2713";
+  const llkbVer = comparison.testLlkbVersion ? comparison.testLlkbVersion.split("T")[0] : "none";
+  const currentVer = comparison.currentLlkbVersion.split("T")[0];
+  let info = `${status} ${path9.basename(testFile)}`;
+  info += ` (LLKB: ${llkbVer}, current: ${currentVer}`;
+  if (comparison.newPatternsAvailable > 0 || comparison.newComponentsAvailable > 0) {
+    const parts = [];
+    if (comparison.newPatternsAvailable > 0) {
+      parts.push(`+${comparison.newPatternsAvailable} patterns`);
+    }
+    if (comparison.newComponentsAvailable > 0) {
+      parts.push(`+${comparison.newComponentsAvailable} components`);
+    }
+    info += `, ${parts.join(", ")}`;
+  }
+  info += ")";
+  return info;
+}
+function formatUpdateCheckResult(result) {
+  const lines = [];
+  lines.push("LLKB Version Check");
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  lines.push("");
+  if (result.outdated.length > 0) {
+    lines.push("Tests needing LLKB update:");
+    for (const { testFile, comparison } of result.outdated) {
+      lines.push(`  ${formatVersionComparison(testFile, comparison)}`);
+    }
+    lines.push("");
+  }
+  if (result.upToDate.length > 0 && result.outdated.length === 0) {
+    lines.push("All tests are up to date");
+    lines.push("");
+  } else if (result.upToDate.length > 0) {
+    lines.push(`Up to date: ${result.upToDate.length} tests`);
+    lines.push("");
+  }
+  if (result.errors.length > 0) {
+    lines.push("Errors:");
+    for (const { testFile, error } of result.errors) {
+      lines.push(`  \u2717 ${path9.basename(testFile)}: ${error}`);
+    }
+    lines.push("");
+  }
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  lines.push(`Total: ${result.summary.total} tests`);
+  lines.push(result.summary.recommendation);
+  return lines.join("\n");
+}
+
+// llkb/cli.ts
+var DEFAULT_LLKB_ROOT5 = ".artk/llkb";
+function runHealthCheck(llkbRoot = DEFAULT_LLKB_ROOT5) {
+  const checks = [];
+  let hasError = false;
+  let hasWarning = false;
+  if (fs.existsSync(llkbRoot)) {
+    checks.push({
+      name: "Directory exists",
+      status: "pass",
+      message: `LLKB directory found at ${llkbRoot}`
+    });
+  } else {
+    checks.push({
+      name: "Directory exists",
+      status: "fail",
+      message: `LLKB directory not found at ${llkbRoot}`
+    });
+    hasError = true;
+  }
+  const configPath = path9.join(llkbRoot, "config.yml");
+  if (fs.existsSync(configPath)) {
+    checks.push({
+      name: "Config file",
+      status: "pass",
+      message: "config.yml found"
+    });
+  } else {
+    checks.push({
+      name: "Config file",
+      status: "warn",
+      message: "config.yml not found - using defaults"
+    });
+    hasWarning = true;
+  }
+  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  const lessonsCheck = checkJSONFile(lessonsPath, "lessons.json");
+  checks.push(lessonsCheck);
+  if (lessonsCheck.status === "fail") hasError = true;
+  if (lessonsCheck.status === "warn") hasWarning = true;
+  const componentsPath = path9.join(llkbRoot, "components.json");
+  const componentsCheck = checkJSONFile(componentsPath, "components.json");
+  checks.push(componentsCheck);
+  if (componentsCheck.status === "fail") hasError = true;
+  if (componentsCheck.status === "warn") hasWarning = true;
+  const analyticsPath = path9.join(llkbRoot, "analytics.json");
+  const analyticsCheck = checkJSONFile(analyticsPath, "analytics.json");
+  checks.push(analyticsCheck);
+  if (analyticsCheck.status === "fail") hasError = true;
+  if (analyticsCheck.status === "warn") hasWarning = true;
+  const historyDir = getHistoryDir(llkbRoot);
+  if (fs.existsSync(historyDir)) {
+    const historyFiles = fs.readdirSync(historyDir).filter((f) => f.endsWith(".jsonl"));
+    checks.push({
+      name: "History directory",
+      status: "pass",
+      message: `History directory found with ${historyFiles.length} files`
+    });
+  } else {
+    checks.push({
+      name: "History directory",
+      status: "warn",
+      message: "History directory not found - will be created on first event"
+    });
+    hasWarning = true;
+  }
+  if (lessonsCheck.status === "pass") {
+    try {
+      const lessons = loadJSON(lessonsPath);
+      if (lessons) {
+        const lowConfidence = lessons.lessons.filter(
+          (l) => !l.archived && needsConfidenceReview(l)
+        );
+        const declining = lessons.lessons.filter(
+          (l) => !l.archived && detectDecliningConfidence(l)
+        );
+        if (lowConfidence.length > 0 || declining.length > 0) {
+          checks.push({
+            name: "Lesson health",
+            status: "warn",
+            message: `${lowConfidence.length} low confidence, ${declining.length} declining`,
+            details: [
+              ...lowConfidence.map((l) => `Low confidence: ${l.id} (${l.metrics.confidence})`),
+              ...declining.map((l) => `Declining: ${l.id}`)
+            ].join(", ")
+          });
+          hasWarning = true;
+        } else {
+          checks.push({
+            name: "Lesson health",
+            status: "pass",
+            message: "All lessons healthy"
+          });
+        }
+      }
+    } catch {
+    }
+  }
+  let status;
+  let summary;
+  if (hasError) {
+    status = "error";
+    summary = `LLKB has errors: ${checks.filter((c) => c.status === "fail").length} failed checks`;
+  } else if (hasWarning) {
+    status = "warning";
+    summary = `LLKB has warnings: ${checks.filter((c) => c.status === "warn").length} warnings`;
+  } else {
+    status = "healthy";
+    summary = "LLKB is healthy";
+  }
+  return { status, checks, summary };
+}
+function checkJSONFile(filePath, fileName) {
+  if (!fs.existsSync(filePath)) {
+    return {
+      name: fileName,
+      status: "warn",
+      message: `${fileName} not found`
+    };
+  }
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    JSON.parse(content);
+    return {
+      name: fileName,
+      status: "pass",
+      message: `${fileName} is valid JSON`
+    };
+  } catch (error) {
+    return {
+      name: fileName,
+      status: "fail",
+      message: `${fileName} is invalid JSON`,
+      details: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+function getStats(llkbRoot = DEFAULT_LLKB_ROOT5) {
+  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  const componentsPath = path9.join(llkbRoot, "components.json");
+  const historyDir = getHistoryDir(llkbRoot);
+  const lessons = loadJSON(lessonsPath);
+  const activeLessons = lessons?.lessons.filter((l) => !l.archived) ?? [];
+  const archivedLessons = lessons?.archived ?? [];
+  let avgConfidence = 0;
+  let avgSuccessRate = 0;
+  let needsReview = 0;
+  if (activeLessons.length > 0) {
+    avgConfidence = Math.round(
+      activeLessons.reduce((acc, l) => acc + l.metrics.confidence, 0) / activeLessons.length * PERCENTAGES.FULL
+    ) / PERCENTAGES.FULL;
+    avgSuccessRate = Math.round(
+      activeLessons.reduce((acc, l) => acc + l.metrics.successRate, 0) / activeLessons.length * PERCENTAGES.FULL
+    ) / PERCENTAGES.FULL;
+    needsReview = activeLessons.filter(
+      (l) => needsConfidenceReview(l) || detectDecliningConfidence(l)
+    ).length;
+  }
+  const components = loadJSON(componentsPath);
+  const activeComponents = components?.components.filter((c) => !c.archived) ?? [];
+  const archivedComponents = components?.components.filter((c) => c.archived) ?? [];
+  let totalReuses = 0;
+  let avgReusesPerComponent = 0;
+  if (activeComponents.length > 0) {
+    totalReuses = activeComponents.reduce((acc, c) => acc + (c.metrics.totalUses ?? 0), 0);
+    avgReusesPerComponent = Math.round(totalReuses / activeComponents.length * 100) / 100;
+  }
+  let todayEvents = 0;
+  let historyFiles = 0;
+  let oldestFile = null;
+  let newestFile = null;
+  if (fs.existsSync(historyDir)) {
+    const files = fs.readdirSync(historyDir).filter((f) => f.endsWith(".jsonl")).sort();
+    historyFiles = files.length;
+    if (files.length > 0) {
+      oldestFile = files[0] ?? null;
+      newestFile = files[files.length - 1] ?? null;
+    }
+    todayEvents = readTodayHistory(llkbRoot).length;
+  }
+  return {
+    lessons: {
+      total: (lessons?.lessons.length ?? 0) + archivedLessons.length,
+      active: activeLessons.length,
+      archived: archivedLessons.length,
+      avgConfidence,
+      avgSuccessRate,
+      needsReview
+    },
+    components: {
+      total: components?.components.length ?? 0,
+      active: activeComponents.length,
+      archived: archivedComponents.length,
+      totalReuses,
+      avgReusesPerComponent
+    },
+    history: {
+      todayEvents,
+      historyFiles,
+      oldestFile,
+      newestFile
+    }
+  };
+}
+function prune(options = {}) {
+  const {
+    llkbRoot = DEFAULT_LLKB_ROOT5,
+    historyRetentionDays = 365,
+    archiveInactiveLessons = false,
+    archiveInactiveComponents = false,
+    inactiveDays = 180
+  } = options;
+  const result = {
+    historyFilesDeleted: 0,
+    deletedFiles: [],
+    archivedLessons: 0,
+    archivedComponents: 0,
+    errors: []
+  };
+  try {
+    const deletedFiles = cleanupOldHistoryFiles(historyRetentionDays, llkbRoot);
+    result.historyFilesDeleted = deletedFiles.length;
+    result.deletedFiles = deletedFiles;
+  } catch (error) {
+    result.errors.push(
+      `Failed to clean history files: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  if (archiveInactiveLessons) {
+    try {
+      const archivedCount = archiveInactiveItems(
+        path9.join(llkbRoot, "lessons.json"),
+        "lessons",
+        inactiveDays
+      );
+      result.archivedLessons = archivedCount;
+    } catch (error) {
+      result.errors.push(
+        `Failed to archive lessons: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+  if (archiveInactiveComponents) {
+    try {
+      const archivedCount = archiveInactiveItems(
+        path9.join(llkbRoot, "components.json"),
+        "components",
+        inactiveDays
+      );
+      result.archivedComponents = archivedCount;
+    } catch (error) {
+      result.errors.push(
+        `Failed to archive components: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+  try {
+    updateAnalytics(llkbRoot);
+  } catch (error) {
+    result.errors.push(
+      `Failed to update analytics: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  return result;
+}
+function archiveInactiveItems(filePath, itemsKey, inactiveDays) {
+  if (!fs.existsSync(filePath)) {
+    return 0;
+  }
+  const content = fs.readFileSync(filePath, "utf-8");
+  const data = JSON.parse(content);
+  const items = data[itemsKey];
+  if (!Array.isArray(items)) {
+    return 0;
+  }
+  const now = /* @__PURE__ */ new Date();
+  const cutoffDate = /* @__PURE__ */ new Date();
+  cutoffDate.setDate(now.getDate() - inactiveDays);
+  let archivedCount = 0;
+  for (const item of items) {
+    if (item.archived) continue;
+    const lastUsedStr = item.metrics.lastSuccess ?? item.metrics.lastUsed;
+    if (!lastUsedStr) continue;
+    const lastUsed = new Date(lastUsedStr);
+    if (lastUsed < cutoffDate) {
+      item.archived = true;
+      archivedCount++;
+    }
+  }
+  if (archivedCount > 0) {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  }
+  return archivedCount;
+}
+function formatHealthCheck(result) {
+  const lines = [];
+  const statusIcon = result.status === "healthy" ? "\u2713" : result.status === "warning" ? "\u26A0" : "\u2717";
+  lines.push(`${statusIcon} LLKB Health Check: ${result.status.toUpperCase()}`);
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  for (const check of result.checks) {
+    const icon = check.status === "pass" ? "\u2713" : check.status === "warn" ? "\u26A0" : "\u2717";
+    lines.push(`${icon} ${check.name}: ${check.message}`);
+    if (check.details) {
+      lines.push(`  ${check.details}`);
+    }
+  }
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  lines.push(result.summary);
+  return lines.join("\n");
+}
+function formatStats(stats) {
+  const lines = [];
+  lines.push("LLKB Statistics");
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  lines.push("");
+  lines.push("Lessons:");
+  lines.push(`  Total: ${stats.lessons.total} (${stats.lessons.active} active, ${stats.lessons.archived} archived)`);
+  lines.push(`  Avg Confidence: ${stats.lessons.avgConfidence}`);
+  lines.push(`  Avg Success Rate: ${stats.lessons.avgSuccessRate}`);
+  lines.push(`  Needs Review: ${stats.lessons.needsReview}`);
+  lines.push("");
+  lines.push("Components:");
+  lines.push(`  Total: ${stats.components.total} (${stats.components.active} active, ${stats.components.archived} archived)`);
+  lines.push(`  Total Reuses: ${stats.components.totalReuses}`);
+  lines.push(`  Avg Reuses/Component: ${stats.components.avgReusesPerComponent}`);
+  lines.push("");
+  lines.push("History:");
+  lines.push(`  Today's Events: ${stats.history.todayEvents}`);
+  lines.push(`  History Files: ${stats.history.historyFiles}`);
+  if (stats.history.oldestFile) {
+    lines.push(`  Date Range: ${stats.history.oldestFile} to ${stats.history.newestFile}`);
+  }
+  return lines.join("\n");
+}
+function formatPruneResult(result) {
+  const lines = [];
+  lines.push("LLKB Prune Results");
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  lines.push(`History files deleted: ${result.historyFilesDeleted}`);
+  if (result.archivedLessons > 0) {
+    lines.push(`Lessons archived: ${result.archivedLessons}`);
+  }
+  if (result.archivedComponents > 0) {
+    lines.push(`Components archived: ${result.archivedComponents}`);
+  }
+  if (result.errors.length > 0) {
+    lines.push("");
+    lines.push("Errors:");
+    for (const error of result.errors) {
+      lines.push(`  \u2717 ${error}`);
+    }
+  }
+  return lines.join("\n");
+}
+async function runExportForAutogen(options) {
+  const config = {
+    llkbRoot: options.llkbRoot,
+    outputDir: options.outputDir,
+    minConfidence: options.minConfidence,
+    includeCategories: options.includeCategories,
+    includeScopes: options.includeScopes,
+    generateGlossary: options.generateGlossary,
+    generateConfig: options.generateConfig,
+    configFormat: options.configFormat
+  };
+  return exportForAutogen(config);
+}
+function formatExportResultForConsole(result) {
+  return formatExportResult(result);
+}
+function runLearnCommand(options) {
+  return recordLearning({
+    type: options.type,
+    journeyId: options.journeyId,
+    testFile: options.testFile,
+    prompt: options.prompt,
+    id: options.id,
+    success: options.success,
+    context: options.context,
+    stepText: options.context,
+    selectorStrategy: options.selectorStrategy,
+    selectorValue: options.selectorValue,
+    llkbRoot: options.llkbRoot
+  });
+}
+function formatLearnResult(result) {
+  return formatLearningResult(result);
+}
+function runCheckUpdates(options) {
+  return checkUpdates(
+    options.testsDir,
+    options.llkbRoot || DEFAULT_LLKB_ROOT5,
+    options.pattern || "*.spec.ts"
+  );
+}
+function formatCheckUpdatesResult(result) {
+  return formatUpdateCheckResult(result);
+}
+function runUpdateTest(options) {
+  const { testPath, llkbRoot = DEFAULT_LLKB_ROOT5, dryRun = false } = options;
+  try {
+    const content = fs.readFileSync(testPath, "utf-8");
+    const previousVersion = extractLlkbVersionFromTest(content);
+    const newVersion = getCurrentLlkbVersion(llkbRoot);
+    if (previousVersion && previousVersion === newVersion) {
+      return {
+        success: true,
+        testPath,
+        previousVersion,
+        newVersion,
+        modified: false,
+        dryRun
+      };
+    }
+    const updatedContent = updateTestLlkbVersion(content, newVersion);
+    const modified = content !== updatedContent;
+    if (!dryRun && modified) {
+      fs.writeFileSync(testPath, updatedContent, "utf-8");
+    }
+    return {
+      success: true,
+      testPath,
+      previousVersion,
+      newVersion,
+      modified,
+      dryRun
+    };
+  } catch (error) {
+    return {
+      success: false,
+      testPath,
+      previousVersion: null,
+      newVersion: getCurrentLlkbVersion(llkbRoot),
+      modified: false,
+      error: error instanceof Error ? error.message : String(error),
+      dryRun
+    };
+  }
+}
+function formatUpdateTestResult(result) {
+  const lines = [];
+  const filename = path9.basename(result.testPath);
+  if (!result.success) {
+    lines.push(`\u2717 ${filename}: ${result.error}`);
+    return lines.join("\n");
+  }
+  if (!result.modified) {
+    lines.push(`\u2713 ${filename}: Already up to date`);
+    return lines.join("\n");
+  }
+  const action = result.dryRun ? "Would update" : "Updated";
+  const prevVer = result.previousVersion?.split("T")[0] || "none";
+  const newVer = result.newVersion.split("T")[0] ?? "unknown";
+  lines.push(`\u2713 ${filename}: ${action} LLKB version ${prevVer} \u2192 ${newVer}`);
+  if (result.dryRun) {
+    lines.push("  (dry run - no changes written)");
+  }
+  return lines.join("\n");
+}
+function runUpdateTests(options) {
+  const {
+    testsDir,
+    llkbRoot = DEFAULT_LLKB_ROOT5,
+    pattern = "*.spec.ts",
+    dryRun = false
+  } = options;
+  const result = {
+    updated: [],
+    skipped: [],
+    failed: [],
+    summary: {
+      total: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0
+    }
+  };
+  const checkResult = checkUpdates(testsDir, llkbRoot, pattern);
+  result.summary.total = checkResult.summary.total;
+  for (const { testFile } of checkResult.outdated) {
+    const updateResult = runUpdateTest({
+      testPath: testFile,
+      llkbRoot,
+      dryRun
+    });
+    if (updateResult.success) {
+      if (updateResult.modified) {
+        result.updated.push(updateResult);
+        result.summary.updated++;
+      } else {
+        result.skipped.push({
+          testPath: testFile,
+          reason: "No changes needed after header update attempt"
+        });
+        result.summary.skipped++;
+      }
+    } else {
+      result.failed.push({
+        testPath: testFile,
+        error: updateResult.error || "Unknown error"
+      });
+      result.summary.failed++;
+    }
+  }
+  for (const { testFile } of checkResult.upToDate) {
+    result.skipped.push({
+      testPath: testFile,
+      reason: "Already up to date"
+    });
+    result.summary.skipped++;
+  }
+  for (const { testFile, error } of checkResult.errors) {
+    result.failed.push({ testPath: testFile, error });
+    result.summary.failed++;
+  }
+  return result;
+}
+function formatUpdateTestsResult(result) {
+  const lines = [];
+  lines.push("LLKB Batch Update Results");
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  lines.push("");
+  if (result.updated.length > 0) {
+    lines.push("Updated:");
+    for (const update of result.updated) {
+      lines.push(`  ${formatUpdateTestResult(update)}`);
+    }
+    lines.push("");
+  }
+  if (result.failed.length > 0) {
+    lines.push("Failed:");
+    for (const { testPath, error } of result.failed) {
+      lines.push(`  \u2717 ${path9.basename(testPath)}: ${error}`);
+    }
+    lines.push("");
+  }
+  lines.push("\u2500".repeat(TABLE.COLUMN_WIDTH));
+  lines.push(`Total: ${result.summary.total} tests`);
+  lines.push(`  Updated: ${result.summary.updated}`);
+  lines.push(`  Skipped: ${result.summary.skipped}`);
+  lines.push(`  Failed: ${result.summary.failed}`);
+  return lines.join("\n");
 }
 
 // llkb/context.ts
@@ -1773,8 +3040,8 @@ function formatContextForPrompt(context, journey) {
       if (!byPath[importPath]) byPath[importPath] = [];
       byPath[importPath].push(comp.name);
     }
-    for (const [path8, names] of Object.entries(byPath)) {
-      lines.push(`import { ${names.join(", ")} } from './${path8}';`);
+    for (const [path10, names] of Object.entries(byPath)) {
+      lines.push(`import { ${names.join(", ")} } from './${path10}';`);
     }
     lines.push("```");
     lines.push("");
@@ -2137,7 +3404,7 @@ var DEFAULT_EXCLUDE_DIRS = ["node_modules", "dist", "build", ".git", "coverage"]
 var TEST_STEP_REGEX = /(?:await\s+)?test\.step\s*\(\s*(['"`])(.+?)\1\s*,\s*async\s*\([^)]*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/g;
 var JOURNEY_ID_REGEX = /(?:JRN|jrn)[-_]?(\d+)/i;
 function extractJourneyId(filePath, content) {
-  const fileMatch = path7.basename(filePath).match(JOURNEY_ID_REGEX);
+  const fileMatch = path9.basename(filePath).match(JOURNEY_ID_REGEX);
   if (fileMatch && fileMatch[1]) {
     return `JRN-${fileMatch[1].padStart(4, "0")}`;
   }
@@ -2145,8 +3412,8 @@ function extractJourneyId(filePath, content) {
   if (contentMatch && contentMatch[1]) {
     return `JRN-${contentMatch[1].padStart(4, "0")}`;
   }
-  const basename3 = path7.basename(filePath, path7.extname(filePath));
-  return `JRN-${basename3.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 20)}`;
+  const basename5 = path9.basename(filePath, path9.extname(filePath));
+  return `JRN-${basename5.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 20)}`;
 }
 function parseTestSteps(filePath, content) {
   const steps = [];
@@ -2175,20 +3442,20 @@ function parseTestSteps(filePath, content) {
   }
   return steps;
 }
-function findTestFiles(dir, extensions, excludeDirs) {
+function findTestFiles2(dir, extensions, excludeDirs) {
   const files = [];
   if (!fs.existsSync(dir)) {
     return files;
   }
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    const fullPath = path7.join(dir, entry.name);
+    const fullPath = path9.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!excludeDirs.includes(entry.name)) {
-        files.push(...findTestFiles(fullPath, extensions, excludeDirs));
+        files.push(...findTestFiles2(fullPath, extensions, excludeDirs));
       }
     } else if (entry.isFile()) {
-      const ext = path7.extname(entry.name);
+      const ext = path9.extname(entry.name);
       if (extensions.includes(ext)) {
         if (entry.name.includes(".spec.") || entry.name.includes(".test.") || entry.name.includes(".e2e.")) {
           files.push(fullPath);
@@ -2296,7 +3563,7 @@ function detectDuplicatesAcrossFiles(testDir, options = {}) {
     extensions = DEFAULT_EXTENSIONS,
     excludeDirs = DEFAULT_EXCLUDE_DIRS
   } = options;
-  const testFiles = findTestFiles(testDir, extensions, excludeDirs);
+  const testFiles = findTestFiles2(testDir, extensions, excludeDirs);
   const allSteps = [];
   for (const file of testFiles) {
     try {
@@ -2384,7 +3651,7 @@ function findUnusedComponentOpportunities(testDir, components, options = {}) {
     extensions = DEFAULT_EXTENSIONS,
     excludeDirs = DEFAULT_EXCLUDE_DIRS
   } = options;
-  const testFiles = findTestFiles(testDir, extensions, excludeDirs);
+  const testFiles = findTestFiles2(testDir, extensions, excludeDirs);
   const opportunities = /* @__PURE__ */ new Map();
   for (const component of components) {
     if (!component.archived) {
@@ -2430,7 +3697,7 @@ function findUnusedComponentOpportunities(testDir, components, options = {}) {
 var REGISTRY_FILENAME = "registry.json";
 var DEFAULT_MODULES_DIR = "src/modules";
 function getRegistryPath(harnessRoot) {
-  return path7.join(harnessRoot, DEFAULT_MODULES_DIR, REGISTRY_FILENAME);
+  return path9.join(harnessRoot, DEFAULT_MODULES_DIR, REGISTRY_FILENAME);
 }
 function createEmptyRegistry() {
   return {
@@ -2453,7 +3720,7 @@ function loadRegistry(harnessRoot) {
 async function saveRegistry(harnessRoot, registry) {
   const registryPath = getRegistryPath(harnessRoot);
   registry.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
-  const dir = path7.dirname(registryPath);
+  const dir = path9.dirname(registryPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -2686,7 +3953,7 @@ function parseVersion(version) {
     full: `${major}.${minor}.${patch}`
   };
 }
-function compareVersions(a, b) {
+function compareVersions2(a, b) {
   const va = parseVersion(a);
   const vb = parseVersion(b);
   if (va.major !== vb.major) return va.major < vb.major ? -1 : 1;
@@ -2695,10 +3962,10 @@ function compareVersions(a, b) {
   return 0;
 }
 function isVersionSupported(version) {
-  return compareVersions(version, MIN_SUPPORTED_VERSION) >= 0;
+  return compareVersions2(version, MIN_SUPPORTED_VERSION) >= 0;
 }
 function needsMigration(version) {
-  return compareVersions(version, CURRENT_VERSION) < 0;
+  return compareVersions2(version, CURRENT_VERSION) < 0;
 }
 var migrations = /* @__PURE__ */ new Map();
 migrations.set("0.x->1.0.0", async (data, _llkbRoot) => {
@@ -2760,11 +4027,11 @@ migrations.set("0.x->1.0.0", async (data, _llkbRoot) => {
 function getMigrationPath(fromVersion, toVersion) {
   const from = parseVersion(fromVersion);
   const to = parseVersion(toVersion);
-  const path8 = [];
+  const path10 = [];
   if (from.major === 0 && to.major >= 1) {
-    path8.push("0.x->1.0.0");
+    path10.push("0.x->1.0.0");
   }
-  return path8;
+  return path10;
 }
 async function applyMigration(data, migrationKey, llkbRoot) {
   const migrationFn = migrations.get(migrationKey);
@@ -2825,11 +4092,11 @@ async function migrateLLKB(llkbRoot) {
     toVersion: CURRENT_VERSION
   };
   const files = [
-    path7.join(llkbRoot, "lessons.json"),
-    path7.join(llkbRoot, "components.json"),
-    path7.join(llkbRoot, "analytics.json")
+    path9.join(llkbRoot, "lessons.json"),
+    path9.join(llkbRoot, "components.json"),
+    path9.join(llkbRoot, "analytics.json")
   ];
-  const lessonsPath = path7.join(llkbRoot, "lessons.json");
+  const lessonsPath = path9.join(llkbRoot, "lessons.json");
   if (fs.existsSync(lessonsPath)) {
     const lessonsData = loadJSON(lessonsPath);
     result.fromVersion = lessonsData?.version || "0.0.0";
@@ -2848,12 +4115,12 @@ async function migrateLLKB(llkbRoot) {
         result.errors.push(`${file}: ${migrationResult.error}`);
       }
     }
-    result.warnings.push(...migrationResult.warnings.map((w) => `${path7.basename(file)}: ${w}`));
+    result.warnings.push(...migrationResult.warnings.map((w) => `${path9.basename(file)}: ${w}`));
   }
   return result;
 }
 function checkMigrationNeeded(llkbRoot) {
-  const lessonsPath = path7.join(llkbRoot, "lessons.json");
+  const lessonsPath = path9.join(llkbRoot, "lessons.json");
   if (!fs.existsSync(lessonsPath)) {
     return {
       needsMigration: false,
@@ -2874,9 +4141,9 @@ function checkMigrationNeeded(llkbRoot) {
 async function initializeLLKB(llkbRoot) {
   try {
     ensureDir(llkbRoot);
-    ensureDir(path7.join(llkbRoot, "patterns"));
-    ensureDir(path7.join(llkbRoot, "history"));
-    const configPath = path7.join(llkbRoot, "config.yml");
+    ensureDir(path9.join(llkbRoot, "patterns"));
+    ensureDir(path9.join(llkbRoot, "history"));
+    const configPath = path9.join(llkbRoot, "config.yml");
     if (!fs.existsSync(configPath)) {
       const defaultConfig = `# LLKB Configuration
 version: "1.0.0"
@@ -2914,7 +4181,7 @@ overrides:
 `;
       fs.writeFileSync(configPath, defaultConfig, "utf-8");
     }
-    const lessonsPath = path7.join(llkbRoot, "lessons.json");
+    const lessonsPath = path9.join(llkbRoot, "lessons.json");
     if (!fs.existsSync(lessonsPath)) {
       const defaultLessons = {
         version: CURRENT_VERSION,
@@ -2926,7 +4193,7 @@ overrides:
       };
       await saveJSONAtomic(lessonsPath, defaultLessons);
     }
-    const componentsPath = path7.join(llkbRoot, "components.json");
+    const componentsPath = path9.join(llkbRoot, "components.json");
     if (!fs.existsSync(componentsPath)) {
       const defaultComponents = {
         version: CURRENT_VERSION,
@@ -2952,14 +4219,14 @@ overrides:
       };
       await saveJSONAtomic(componentsPath, defaultComponents);
     }
-    const analyticsPath = path7.join(llkbRoot, "analytics.json");
+    const analyticsPath = path9.join(llkbRoot, "analytics.json");
     if (!fs.existsSync(analyticsPath)) {
       const defaultAnalytics = createEmptyAnalytics();
       await saveJSONAtomic(analyticsPath, defaultAnalytics);
     }
     const patternFiles = ["selectors.json", "timing.json", "assertions.json", "auth.json", "data.json"];
     for (const patternFile of patternFiles) {
-      const patternPath = path7.join(llkbRoot, "patterns", patternFile);
+      const patternPath = path9.join(llkbRoot, "patterns", patternFile);
       if (!fs.existsSync(patternPath)) {
         await saveJSONAtomic(patternPath, {
           version: CURRENT_VERSION,
@@ -2989,7 +4256,7 @@ function validateLLKBInstallation(llkbRoot) {
     "analytics.json"
   ];
   for (const file of requiredFiles) {
-    const filePath = path7.join(llkbRoot, file);
+    const filePath = path9.join(llkbRoot, file);
     if (!fs.existsSync(filePath)) {
       result.missingFiles.push(file);
       result.valid = false;
@@ -3008,7 +4275,7 @@ function validateLLKBInstallation(llkbRoot) {
       }
     }
   }
-  const patternsDir = path7.join(llkbRoot, "patterns");
+  const patternsDir = path9.join(llkbRoot, "patterns");
   if (!fs.existsSync(patternsDir)) {
     result.missingFiles.push("patterns/");
     result.valid = false;
@@ -3435,6 +4702,6 @@ async function exportToFile(llkbRoot, outputPath, options) {
   fs.writeFileSync(outputPath, content, "utf-8");
 }
 
-export { CONFIDENCE_HISTORY_RETENTION_DAYS, CURRENT_VERSION, DEFAULT_LLKB_ROOT, LOCK_MAX_WAIT_MS, LOCK_RETRY_INTERVAL_MS, MAX_CONFIDENCE_HISTORY_ENTRIES, MIN_SUPPORTED_VERSION, STALE_LOCK_THRESHOLD_MS, addComponentToRegistry, appendToHistory, calculateConfidence, calculateSimilarity, checkMigrationNeeded, cleanupOldHistoryFiles, compareVersions, countJourneyExtractionsToday, countLines, countPredictiveExtractionsToday, countTodayEvents, createEmptyAnalytics, createEmptyRegistry, daysBetween, detectDecliningConfidence, detectDuplicatesAcrossFiles, detectDuplicatesInFile, ensureDir, exportLLKB, exportToFile, extractKeywords, extractStepKeywords, findComponents, findExtractionCandidates, findLessonsByPattern, findModulesByCategory, findNearDuplicates, findSimilarPatterns, findUnusedComponentOpportunities, formatContextForPrompt, formatDate, formatHealthCheck, formatPruneResult, formatStats, generateReport, getAllCategories, getAnalyticsSummary, getComponentCategories, getComponentsForJourney, getConfidenceTrend, getHistoryDir, getHistoryFilePath, getHistoryFilesInRange, getImportPath, getLessonsForJourney, getModuleForComponent, getRelevantContext, getRelevantScopes, getStats, hashCode, inferCategory, inferCategoryWithConfidence, initializeLLKB, isComponentCategory, isDailyRateLimitReached, isJourneyRateLimitReached, isLLKBEnabled, isNearDuplicate, isVersionSupported, jaccardSimilarity, lineCountSimilarity, listModules, llkbExists, loadAppProfile, loadComponents, loadJSON, loadLLKBConfig, loadLLKBData, loadLessons, loadPatterns, loadRegistry, matchStepsToComponents, migrateLLKB, needsConfidenceReview, needsMigration, normalizeCode, parseVersion, prune, readHistoryFile, readTodayHistory, removeComponentFromRegistry, runHealthCheck, saveJSONAtomic, saveJSONAtomicSync, saveRegistry, search, shouldExtractAsComponent, syncRegistryWithComponents, tokenize, updateAnalytics, updateAnalyticsWithData, updateComponentInRegistry, updateConfidenceHistory, updateJSONWithLock, updateJSONWithLockSync, validateLLKBInstallation, validateRegistryConsistency };
+export { CONFIDENCE_HISTORY_RETENTION_DAYS, CURRENT_VERSION, DEFAULT_LLKB_ROOT, LOCK_MAX_WAIT_MS, LOCK_RETRY_INTERVAL_MS, MAX_CONFIDENCE_HISTORY_ENTRIES, MIN_SUPPORTED_VERSION, STALE_LOCK_THRESHOLD_MS, addComponentToRegistry, appendToHistory, calculateConfidence, calculateSimilarity, checkMigrationNeeded, checkUpdates, cleanupOldHistoryFiles, compareVersions as compareTestVersion, compareVersions as compareTestVersions, compareVersions2 as compareVersions, componentNameToTrigger, componentToGlossaryEntries, componentToModule, countJourneyExtractionsToday, countLines, countNewEntriesSince, countPredictiveExtractionsToday, countTodayEvents, createEmptyAnalytics, createEmptyRegistry, daysBetween, detectDecliningConfidence, detectDuplicatesAcrossFiles, detectDuplicatesInFile, ensureDir, exportForAutogen, exportLLKB, exportToFile, extractKeywords, extractLlkbEntriesFromTest, extractLlkbVersionFromTest, extractStepKeywords, extractLlkbVersionFromTest as extractVersionFromTest, findComponents, findExtractionCandidates, findLessonsByPattern, findModulesByCategory, findNearDuplicates, findSimilarPatterns, findUnusedComponentOpportunities, formatCheckUpdatesResult, formatVersionComparison as formatComparison, formatContextForPrompt, formatDate, formatExportResult, formatExportResultForConsole, formatHealthCheck, formatLearnResult, formatLearningResult, formatPruneResult, formatStats, formatUpdateCheckResult, formatUpdateTestResult, formatUpdateTestsResult, formatVersionComparison, generateNameVariations, generateReport, getAllCategories, getAnalyticsSummary, getComponentCategories, getComponentsForJourney, getConfidenceTrend, getCurrentLlkbVersion, getHistoryDir, getHistoryFilePath, getHistoryFilesInRange, getImportPath, getLessonsForJourney, getCurrentLlkbVersion as getLlkbVersion, getModuleForComponent, getRelevantContext, getRelevantScopes, getStats, hashCode, inferCategory, inferCategoryWithConfidence, initializeLLKB, isComponentCategory, isDailyRateLimitReached, isJourneyRateLimitReached, isLLKBEnabled, isNearDuplicate, isVersionSupported, jaccardSimilarity, lessonToGlossaryEntries, lessonToPattern, lessonToSelectorOverride, lessonToTimingHint, lineCountSimilarity, listModules, llkbExists, loadAppProfile, loadComponents, loadJSON, loadLLKBConfig, loadLLKBData, loadLessons, loadPatterns, loadRegistry, matchStepsToComponents, migrateLLKB, needsConfidenceReview, needsMigration, normalizeCode, parseVersion, prune, readHistoryFile, readTodayHistory, recordComponentUsed, recordLearning, recordLessonApplied, recordPatternLearned, removeComponentFromRegistry, runCheckUpdates, runExportForAutogen, runHealthCheck, runLearnCommand, runUpdateTest, runUpdateTests, saveJSONAtomic, saveJSONAtomicSync, saveRegistry, search, shouldExtractAsComponent, syncRegistryWithComponents, tokenize, triggerToRegex, updateAnalytics, updateAnalyticsWithData, updateComponentInRegistry, updateConfidenceHistory, updateJSONWithLock, updateJSONWithLockSync, updateTestLlkbVersion, updateTestLlkbVersion as updateVersionInTest, validateLLKBInstallation, validateRegistryConsistency };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

@@ -497,3 +497,87 @@ export function formatUpdateCheckResult(result: UpdateCheckResult): string {
 
   return lines.join('\n');
 }
+
+/**
+ * Result of atomic test update with version check
+ */
+export interface UpdateTestResult {
+  /** Whether the update succeeded */
+  success: boolean;
+
+  /** Version mismatch detected (LLKB updated since check) */
+  versionMismatch?: boolean;
+
+  /** Error message if failed */
+  error?: string;
+
+  /** New version written to test file */
+  newVersion?: string;
+}
+
+/**
+ * Update test file with atomic version check to prevent race conditions
+ *
+ * This function checks the LLKB version at write time to ensure LLKB hasn't
+ * been updated between the initial check and the actual test update.
+ *
+ * @param testPath - Path to test file to update
+ * @param expectedLlkbVersion - Expected LLKB version from initial check
+ * @param llkbRoot - LLKB root directory
+ * @returns Update result with success/mismatch status
+ *
+ * @example
+ * ```typescript
+ * // Initial check
+ * const comparison = compareVersions('tests/login.spec.ts');
+ * const expectedVersion = comparison.currentLlkbVersion;
+ *
+ * // Perform update with atomic version check
+ * const result = updateTestWithVersionCheck(
+ *   'tests/login.spec.ts',
+ *   expectedVersion,
+ *   '.artk/llkb'
+ * );
+ *
+ * if (!result.success && result.versionMismatch) {
+ *   console.log('LLKB was updated during operation, retry needed');
+ * }
+ * ```
+ */
+export function updateTestWithVersionCheck(
+  testPath: string,
+  expectedLlkbVersion: string,
+  llkbRoot: string = DEFAULT_LLKB_ROOT
+): UpdateTestResult {
+  try {
+    // Atomic version check at write time
+    const currentVersion = getCurrentLlkbVersion(llkbRoot);
+
+    if (currentVersion !== expectedLlkbVersion) {
+      return {
+        success: false,
+        versionMismatch: true,
+        error: `LLKB version changed: expected ${expectedLlkbVersion}, current ${currentVersion}`,
+      };
+    }
+
+    // Read test file
+    const testContent = fs.readFileSync(testPath, 'utf-8');
+
+    // Update version in test content
+    const updatedContent = updateTestLlkbVersion(testContent, currentVersion);
+
+    // Write updated content
+    fs.writeFileSync(testPath, updatedContent, 'utf-8');
+
+    return {
+      success: true,
+      newVersion: currentVersion,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

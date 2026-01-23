@@ -544,9 +544,10 @@ export function recordLearning(args: {
       });
 
     default:
+      // Exhaustive check - should never reach here if all types are handled
       return {
         success: false,
-        error: `Unknown learning type: ${String(args.type)}`,
+        error: `Unknown learning type: ${args.type as string}`,
       };
   }
 }
