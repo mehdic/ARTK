@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
@@ -607,7 +608,7 @@ function loadGlossary(glossaryPath) {
       return defaultGlossary;
     }
     return mergeGlossaries(defaultGlossary, result.data);
-  } catch (err) {
+  } catch {
     console.warn(`Failed to load glossary from ${resolvedPath}, using defaults`);
     return defaultGlossary;
   }
@@ -766,6 +767,131 @@ function getModuleMethods() {
     initGlossary();
   }
   return glossaryCache.moduleMethods ?? [];
+}
+var extendedGlossary = null;
+var extendedGlossaryMeta = null;
+async function loadExtendedGlossary(glossaryPath) {
+  try {
+    const resolvedPath = resolve(glossaryPath);
+    if (!existsSync(resolvedPath)) {
+      return {
+        loaded: false,
+        entryCount: 0,
+        exportedAt: null,
+        error: `Glossary file not found: ${resolvedPath}`
+      };
+    }
+    const fileUrl = pathToFileURL(resolvedPath).href;
+    const module = await import(fileUrl);
+    if (module.llkbGlossary instanceof Map) {
+      const glossaryMap = module.llkbGlossary;
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    if (module.llkbGlossary && typeof module.llkbGlossary === "object") {
+      const glossaryMap = new Map(
+        Object.entries(module.llkbGlossary)
+      );
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
+    };
+  } catch (err) {
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: `Failed to load glossary: ${err instanceof Error ? err.message : String(err)}`
+    };
+  }
+}
+function clearExtendedGlossary() {
+  extendedGlossary = null;
+  extendedGlossaryMeta = null;
+}
+function isExactCoreMatch(term) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedTerm = term.toLowerCase().trim();
+  for (const mapping of glossaryCache.moduleMethods ?? []) {
+    if (mapping.phrase.toLowerCase() === normalizedTerm) {
+      return true;
+    }
+  }
+  return false;
+}
+function lookupGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  if (isExactCoreMatch(normalizedTerm)) {
+    const coreMapping2 = findModuleMethod(normalizedTerm);
+    if (coreMapping2) {
+      return {
+        type: "callModule",
+        module: coreMapping2.module,
+        method: coreMapping2.method,
+        args: coreMapping2.params ? [coreMapping2.params] : void 0
+      };
+    }
+  }
+  if (extendedGlossary) {
+    const extendedMatch = extendedGlossary.get(normalizedTerm);
+    if (extendedMatch) {
+      return extendedMatch;
+    }
+  }
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function lookupCoreGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function getGlossaryStats() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return {
+    coreEntries: glossaryCache.moduleMethods?.length ?? 0,
+    extendedEntries: extendedGlossary?.size ?? 0,
+    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+    extendedMeta: extendedGlossaryMeta
+  };
+}
+function hasExtendedGlossary() {
+  return extendedGlossary !== null && extendedGlossary.size > 0;
 }
 
 // src/journey/hintPatterns.ts
@@ -1209,6 +1335,6 @@ function suggestImprovements(blockedSteps) {
   return suggestions;
 }
 
-export { allPatterns, authPatterns, checkPatterns, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, initGlossary, isSynonymOf, loadGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns };
+export { allPatterns, authPatterns, checkPatterns, clearExtendedGlossary, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getGlossaryStats, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, hasExtendedGlossary, initGlossary, isSynonymOf, loadExtendedGlossary, loadGlossary, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

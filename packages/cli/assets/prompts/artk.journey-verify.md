@@ -1292,18 +1292,130 @@ FUNCTION updateAnalytics(lessons: LessonsFile, components: ComponentsFile):
   saveJSONAtomic(".artk/llkb/analytics.json", analytics)
 ```
 
-### 17.6 Log Everything (History Event Logging)
+### 17.6 Learning Loop Integration (LLKB Learning API)
+
+**Use the `@artk/core/llkb` learning API to record test outcomes back to LLKB for continuous improvement.**
+
+```typescript
+import {
+  recordPatternLearned,
+  recordComponentUsed,
+  recordLessonApplied,
+  recordLearning,
+  formatLearningResult,
+} from '@artk/core/llkb';
+```
+
+#### 17.6.1 Record Pattern Learned (After Selector Success/Failure)
+
+When a selector pattern is validated during test execution:
+
+```typescript
+// After test step passes with a specific selector
+const result = recordPatternLearned({
+  journeyId: 'JRN-0001',
+  testFile: 'tests/smoke/jrn-0001__user-login.spec.ts',
+  prompt: 'journey-verify',
+  stepText: 'Click the Save button',
+  selectorUsed: {
+    strategy: 'testid',
+    value: 'btn-save',
+  },
+  success: true,
+});
+
+console.log(formatLearningResult(result));
+// Learning recorded successfully
+//   Entity: L015 (if matched existing lesson)
+//   Updated metrics:
+//     - Confidence: 0.85
+//     - Success Rate: 0.92
+//     - Occurrences: 15
+```
+
+#### 17.6.2 Record Component Used (After Module Reuse)
+
+When a reusable component is applied during test generation:
+
+```typescript
+// After using an extracted component
+const result = recordComponentUsed({
+  journeyId: 'JRN-0001',
+  testFile: 'tests/smoke/jrn-0001__user-login.spec.ts',
+  prompt: 'journey-verify',
+  componentId: 'COMP012',
+  success: true,
+});
+
+console.log(formatLearningResult(result));
+// Learning recorded successfully
+//   Entity: COMP012
+//   Updated metrics:
+//     - Total Uses: 24
+//     - Success Rate: 0.96
+```
+
+#### 17.6.3 Record Lesson Applied (After Fix Applied)
+
+When a lesson from LLKB is explicitly applied during healing:
+
+```typescript
+// After applying a lesson fix during healing loop
+const result = recordLessonApplied({
+  journeyId: 'JRN-0001',
+  testFile: 'tests/smoke/jrn-0001__user-login.spec.ts',
+  prompt: 'journey-verify',
+  lessonId: 'L042',
+  success: true,
+  context: 'Applied AG Grid wait pattern to fix timing issue',
+});
+
+console.log(formatLearningResult(result));
+```
+
+#### 17.6.4 CLI Integration
+
+The learning API is also available via CLI:
+
+```bash
+# Record component usage
+npx artk-llkb learn --type component --id COMP012 --journey JRN-0001 --success
+
+# Record lesson application
+npx artk-llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "grid edit fix"
+
+# Record pattern learned
+npx artk-llkb learn --type pattern --journey JRN-0001 --step "Click Save" \
+  --selector-strategy testid --selector-value btn-save --success
+```
+
+#### 17.6.5 When to Call Learning Functions
+
+| Event | Function | When |
+|-------|----------|------|
+| Test step passes | `recordPatternLearned` | After each successful locator interaction |
+| Component imported and used | `recordComponentUsed` | When test uses `@artk/core` component |
+| Healing fix applied | `recordLessonApplied` | After applying lesson from LLKB |
+| Test passes after fix | `recordPatternLearned` | Validates the fix worked |
+
+**The learning loop enables continuous improvement by:**
+- Increasing confidence of successful patterns
+- Tracking component usage for extraction prioritization
+- Validating lessons with real test outcomes
+- Detecting declining patterns that need review
+
+### 17.7 Log Everything (History Event Logging)
 
 **MANDATORY: All LLKB operations must be logged to history files for audit trail and analytics.**
 
-#### 17.6.1 History File Location and Format
+#### 17.7.1 History File Location and Format
 
 History files are append-only JSONL (JSON Lines) format:
 - **Location**: `.artk/llkb/history/YYYY-MM-DD.jsonl`
 - **Naming**: Based on current date (e.g., `2026-01-16.jsonl`)
 - **Format**: One JSON object per line, no trailing commas
 
-#### 17.6.2 Event Types and Schemas
+#### 17.7.2 Event Types and Schemas
 
 **Event Schema (all events):**
 ```json
@@ -1330,7 +1442,7 @@ History files are append-only JSONL (JSON Lines) format:
 | `metrics_updated` | Analytics recalculated | summary |
 | `config_changed` | LLKB config modified | changes |
 
-#### 17.6.3 Implementation (Pseudocode)
+#### 17.7.3 Implementation (Pseudocode)
 
 ```
 FUNCTION appendToHistory(event: HistoryEvent) -> HistoryResult:
@@ -1373,7 +1485,7 @@ IF NOT result.success:
   output("⚠️ History logging failed: " + result.error + " (non-blocking)")
 ```
 
-#### 17.6.4 Required Logging Points
+#### 17.7.4 Required Logging Points
 
 **After each LLKB operation, append to history:**
 
@@ -1407,7 +1519,7 @@ IF NOT result.success:
    {"timestamp":"2026-01-16T10:35:00Z","event":"metrics_updated","id":"analytics","journey":"JRN-0005","prompt":"journey-verify","summary":"Updated stats: 43 lessons, 26 components, 0.83 avg confidence"}
    ```
 
-#### 17.6.5 History Query Examples
+#### 17.7.5 History Query Examples
 
 **Find all lessons created for a journey:**
 ```bash
@@ -1424,7 +1536,7 @@ cat .artk/llkb/history/2026-01-*.jsonl | jq -r '.event' | sort | uniq -c
 grep '"event":"lesson_applied"' .artk/llkb/history/*.jsonl | grep '"success":false'
 ```
 
-### 17.7 Output LLKB Learning Summary
+### 17.8 Output LLKB Learning Summary
 
 Include in verification output:
 

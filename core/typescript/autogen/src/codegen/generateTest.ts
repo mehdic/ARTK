@@ -2,7 +2,8 @@
  * Test Generator - Generate Playwright test files from IR
  * @see research/2026-01-02_autogen-refined-plan.md Section 12
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import ejs from 'ejs';
 import type { IRJourney, IRPrimitive, ValueSpec } from '../ir/types.js';
 import { toPlaywrightLocator } from '../selectors/priority.js';
@@ -47,6 +48,10 @@ export interface GenerateTestOptions {
   journeyPath?: string;
   /** Output path for the generated test file (for journey update) */
   outputPath?: string;
+  /** LLKB root directory for version tracking (default: .artk/llkb) */
+  llkbRoot?: string;
+  /** Whether to include LLKB version in generated test header (default: true if LLKB exists) */
+  includeLlkbVersion?: boolean;
 }
 
 /**
@@ -277,13 +282,48 @@ function collectImports(journey: IRJourney): ImportStatement[] {
 }
 
 /**
+ * Get LLKB version and entry count if LLKB exists
+ */
+function getLlkbInfo(llkbRoot: string): { llkbVersion: string | null; llkbEntries: number | null } {
+  const analyticsPath = join(llkbRoot, 'analytics.json');
+
+  if (!existsSync(analyticsPath)) {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+
+  try {
+    const content = readFileSync(analyticsPath, 'utf-8');
+    const analytics = JSON.parse(content) as {
+      lastUpdated?: string;
+      overview?: { totalLessons?: number; totalComponents?: number };
+    };
+
+    const llkbVersion = analytics.lastUpdated || new Date().toISOString();
+    const totalLessons = analytics.overview?.totalLessons || 0;
+    const totalComponents = analytics.overview?.totalComponents || 0;
+    const llkbEntries = totalLessons + totalComponents;
+
+    return { llkbVersion, llkbEntries };
+  } catch {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+}
+
+/**
  * Generate Playwright test code from IR Journey
  */
 export function generateTest(
   journey: IRJourney,
   options: GenerateTestOptions = {}
 ): GenerateTestResult {
-  const { templatePath, imports: additionalImports = [], strategy = 'full', existingCode } = options;
+  const {
+    templatePath,
+    imports: additionalImports = [],
+    strategy = 'full',
+    existingCode,
+    llkbRoot = '.artk/llkb',
+    includeLlkbVersion = true,
+  } = options;
 
   // Load template
   const template = templatePath
@@ -292,6 +332,16 @@ export function generateTest(
 
   // Collect imports
   const imports = [...collectImports(journey), ...additionalImports];
+
+  // Get LLKB version info if enabled
+  let llkbVersion: string | null = null;
+  let llkbEntries: number | null = null;
+
+  if (includeLlkbVersion) {
+    const llkbInfo = getLlkbInfo(llkbRoot);
+    llkbVersion = llkbInfo.llkbVersion;
+    llkbEntries = llkbInfo.llkbEntries;
+  }
 
   // Render template with version branding
   let code = ejs.render(template, {
@@ -302,6 +352,8 @@ export function generateTest(
     escapeRegex,
     version: getPackageVersion(),
     timestamp: getGeneratedTimestamp(),
+    llkbVersion,
+    llkbEntries,
   });
 
   // Apply strategy-specific processing

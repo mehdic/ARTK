@@ -194,6 +194,88 @@ browsers:
   strategy: auto
 ```
 
+## LLKB Commands (Lessons Learned Knowledge Base)
+
+ARTK includes LLKB (Lessons Learned Knowledge Base) for continuous learning and improvement of test generation. While not part of `@artk/cli`, these commands are available after initialization.
+
+### Export for AutoGen
+
+Export LLKB knowledge to AutoGen-compatible format:
+
+```bash
+# Basic export
+npx artk-llkb export --for-autogen --output artk-e2e/
+
+# With confidence threshold
+npx artk-llkb export --for-autogen --output artk-e2e/ --min-confidence 0.8
+
+# Dry run (preview only)
+npx artk-llkb export --for-autogen --output artk-e2e/ --dry-run
+
+# Generate only glossary or config
+npx artk-llkb export --for-autogen --output artk-e2e/ --glossary-only
+npx artk-llkb export --for-autogen --output artk-e2e/ --config-only
+```
+
+### Version Management
+
+Check and update tests to use latest LLKB knowledge:
+
+```bash
+# Check which tests need updates
+npx artk-llkb check-updates --tests-dir artk-e2e/tests/
+
+# Update a single test
+npx artk-llkb update-test --test artk-e2e/tests/login.spec.ts
+
+# Dry run (preview changes)
+npx artk-llkb update-test --test artk-e2e/tests/login.spec.ts --dry-run
+
+# Batch update all outdated tests
+npx artk-llkb update-tests --tests-dir artk-e2e/tests/
+npx artk-llkb update-tests --tests-dir artk-e2e/tests/ --dry-run
+```
+
+### Learning Events
+
+Record learning events to improve LLKB:
+
+```bash
+# Record component usage
+npx artk-llkb learn --type component --id COMP012 --journey JRN-0001 --success
+
+# Record lesson application
+npx artk-llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "Applied ag-grid pattern"
+
+# Record pattern learned
+npx artk-llkb learn --type pattern --journey JRN-0001 --success \
+  --context "Save button" \
+  --selector-strategy testid \
+  --selector-value btn-save
+```
+
+### Health & Maintenance
+
+Monitor and maintain LLKB health:
+
+```bash
+# Health check
+npx artk-llkb health
+
+# Statistics
+npx artk-llkb stats
+
+# Prune old history files (keep 90 days)
+npx artk-llkb prune --history-retention-days 90
+
+# Archive inactive components (unused for 180+ days)
+npx artk-llkb prune --archive-inactive-components --inactive-days 180
+```
+
+**See also:**
+- `CLAUDE.md` - LLKB-AutoGen Integration section for architecture details
+- `research/2026-01-23_llkb-autogen-integration-specification.md` - Full technical specification
+
 ## Architecture & Implementation Details
 
 For detailed architecture documentation and implementation notes, see:

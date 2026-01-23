@@ -1,11 +1,14 @@
 /**
  * Glossary Loader - Load and resolve synonyms for step text normalization
  * @see research/2026-01-02_autogen-refined-plan.md Section 10
+ * @see research/2026-01-23_llkb-autogen-integration-specification.md (LLKB integration)
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
+import type { IRPrimitive } from '../ir/types.js';
 
 /**
  * Glossary entry schema
@@ -216,7 +219,7 @@ export function loadGlossary(glossaryPath: string): Glossary {
 
     // Merge with defaults
     return mergeGlossaries(defaultGlossary, result.data);
-  } catch (err) {
+  } catch {
     console.warn(`Failed to load glossary from ${resolvedPath}, using defaults`);
     return defaultGlossary;
   }
@@ -476,4 +479,223 @@ export function getModuleMethods(): ModuleMethodMapping[] {
     initGlossary();
   }
   return glossaryCache!.moduleMethods ?? [];
+}
+
+// ============================================================================
+// LLKB Extended Glossary Support
+// @see research/2026-01-23_llkb-autogen-integration-specification.md
+// ============================================================================
+
+/**
+ * Extended glossary metadata from LLKB export
+ */
+export interface ExtendedGlossaryMeta {
+  exportedAt: string;
+  entryCount: number;
+  minConfidence?: number;
+  sourceComponents?: string[];
+  sourceLessons?: string[];
+}
+
+/**
+ * Extended glossary loaded from LLKB export
+ */
+let extendedGlossary: Map<string, IRPrimitive> | null = null;
+let extendedGlossaryMeta: ExtendedGlossaryMeta | null = null;
+
+/**
+ * Load extended glossary from LLKB export file
+ * @param glossaryPath - Path to the LLKB-generated glossary TypeScript file
+ * @returns Loading result with entry count and metadata
+ */
+export async function loadExtendedGlossary(glossaryPath: string): Promise<{
+  loaded: boolean;
+  entryCount: number;
+  exportedAt: string | null;
+  error?: string;
+}> {
+  try {
+    const resolvedPath = resolve(glossaryPath);
+
+    if (!existsSync(resolvedPath)) {
+      return {
+        loaded: false,
+        entryCount: 0,
+        exportedAt: null,
+        error: `Glossary file not found: ${resolvedPath}`,
+      };
+    }
+
+    // Dynamic import of the generated glossary file
+    // Use file:// URL for Windows compatibility
+    const fileUrl = pathToFileURL(resolvedPath).href;
+    const module = await import(fileUrl);
+
+    if (module.llkbGlossary instanceof Map) {
+      const glossaryMap: Map<string, IRPrimitive> = module.llkbGlossary;
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+      };
+    }
+
+    // If llkbGlossary is a plain object, convert to Map
+    if (module.llkbGlossary && typeof module.llkbGlossary === 'object') {
+      const glossaryMap = new Map<string, IRPrimitive>(
+        Object.entries(module.llkbGlossary) as [string, IRPrimitive][]
+      );
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+      };
+    }
+
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: 'Invalid glossary format: llkbGlossary not found or not a Map/object',
+    };
+  } catch (err) {
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: `Failed to load glossary: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/**
+ * Clear extended glossary (for testing)
+ */
+export function clearExtendedGlossary(): void {
+  extendedGlossary = null;
+  extendedGlossaryMeta = null;
+}
+
+/**
+ * Check if a term exactly matches a core glossary phrase
+ * (not just a partial/substring match)
+ */
+function isExactCoreMatch(term: string): boolean {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+
+  const normalizedTerm = term.toLowerCase().trim();
+
+  // Check if any module method phrase exactly matches the term
+  for (const mapping of glossaryCache!.moduleMethods ?? []) {
+    if (mapping.phrase.toLowerCase() === normalizedTerm) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Lookup a term in both core glossary and extended LLKB glossary
+ * Core glossary takes precedence for exact matches (LLKB only extends, never overrides)
+ * @param term - Term to look up
+ * @returns IR primitive if found, undefined otherwise
+ */
+export function lookupGlossary(term: string): IRPrimitive | undefined {
+  const normalizedTerm = term.toLowerCase().trim();
+
+  // First check if core glossary has an EXACT match for this term
+  // Core always wins for exact matches (LLKB never overrides core)
+  if (isExactCoreMatch(normalizedTerm)) {
+    const coreMapping = findModuleMethod(normalizedTerm);
+    if (coreMapping) {
+      return {
+        type: 'callModule',
+        module: coreMapping.module,
+        method: coreMapping.method,
+        args: coreMapping.params ? [coreMapping.params] : undefined,
+      };
+    }
+  }
+
+  // Then check extended glossary for exact match
+  // LLKB extends core glossary with new terms
+  if (extendedGlossary) {
+    const extendedMatch = extendedGlossary.get(normalizedTerm);
+    if (extendedMatch) {
+      return extendedMatch;
+    }
+  }
+
+  // Finally, check core glossary for partial/substring matches
+  // This allows core patterns like "wait for" to match "wait for something"
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: 'callModule',
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : undefined,
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Lookup a term in core glossary only (for priority enforcement)
+ * Used when LLKB should NOT override core mappings
+ * @param term - Term to look up
+ * @returns IR primitive if found, undefined otherwise
+ */
+export function lookupCoreGlossary(term: string): IRPrimitive | undefined {
+  const normalizedTerm = term.toLowerCase().trim();
+
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: 'callModule',
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : undefined,
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Get glossary statistics
+ */
+export function getGlossaryStats(): {
+  coreEntries: number;
+  extendedEntries: number;
+  extendedExportedAt: string | null;
+  extendedMeta: ExtendedGlossaryMeta | null;
+} {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+
+  return {
+    coreEntries: glossaryCache!.moduleMethods?.length ?? 0,
+    extendedEntries: extendedGlossary?.size ?? 0,
+    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+    extendedMeta: extendedGlossaryMeta,
+  };
+}
+
+/**
+ * Check if extended glossary is loaded
+ */
+export function hasExtendedGlossary(): boolean {
+  return extendedGlossary !== null && extendedGlossary.size > 0;
 }

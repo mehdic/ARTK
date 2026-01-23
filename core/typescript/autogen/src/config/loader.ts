@@ -1,6 +1,7 @@
 /**
  * Config loader for artk/autogen.config.yml
  * @see research/2026-01-02_autogen-refined-plan.md Section 7
+ * @see research/2026-01-23_llkb-autogen-integration-specification.md (LLKB integration)
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -23,10 +24,14 @@ const CONFIG_PATHS = [
 export class ConfigLoadError extends Error {
   constructor(
     message: string,
-    public readonly cause?: unknown
+    public readonly cause?: unknown // Preserved for error chaining, used by callers
   ) {
     super(message);
     this.name = 'ConfigLoadError';
+    // Store cause in standard Error.cause property if supported
+    if (cause !== undefined) {
+      (this as { cause?: unknown }).cause = cause;
+    }
   }
 }
 
@@ -117,4 +122,162 @@ export function resolveConfigPath(
 ): string {
   const base = rootDir || process.cwd();
   return resolve(base, config.paths[pathKey]);
+}
+
+/**
+ * Load a single config file without validation error handling
+ * Used internally by loadConfigs for multi-config merging
+ */
+function loadSingleConfig(configPath: string): AutogenConfig {
+  const resolvedPath = resolve(process.cwd(), configPath);
+
+  if (!existsSync(resolvedPath)) {
+    throw new ConfigLoadError(`Config file not found: ${resolvedPath}`);
+  }
+
+  let rawContent: string;
+  try {
+    rawContent = readFileSync(resolvedPath, 'utf-8');
+  } catch (err) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(rawContent);
+  } catch (err) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err);
+  }
+
+  const result = AutogenConfigSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
+      .join('\n');
+    throw new ConfigLoadError(
+      `Invalid config in ${resolvedPath}:\n${issues}`,
+      result.error
+    );
+  }
+
+  return result.data;
+}
+
+/**
+ * Deep merge helper for nested objects
+ * Only merges properties that are explicitly defined (not undefined)
+ */
+function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial<T>): T {
+  const result = { ...base };
+
+  for (const key of Object.keys(override) as Array<keyof T>) {
+    const overrideValue = override[key];
+    if (overrideValue !== undefined) {
+      result[key] = overrideValue as T[keyof T];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Merge multiple configs with later configs taking precedence
+ * Arrays are merged additively for forbiddenPatterns, but overwritten for others
+ * @see research/2026-01-23_llkb-autogen-integration-specification.md Round 2
+ */
+export function mergeConfigs(configs: AutogenConfig[]): AutogenConfig {
+  if (configs.length === 0) {
+    return getDefaultConfig();
+  }
+
+  // Start with first config, then merge subsequent configs into it
+  return configs.reduce((merged, config, index) => {
+    if (index === 0) {
+      return config;
+    }
+
+    return {
+      ...merged,
+      version: config.version ?? merged.version,
+      regenerationStrategy: config.regenerationStrategy ?? merged.regenerationStrategy,
+      paths: deepMerge(merged.paths, config.paths),
+      selectorPolicy: {
+        ...merged.selectorPolicy,
+        ...config.selectorPolicy,
+        // Merge arrays additively for forbiddenPatterns
+        forbiddenPatterns: [
+          ...new Set([
+            ...(merged.selectorPolicy?.forbiddenPatterns ?? []),
+            ...(config.selectorPolicy?.forbiddenPatterns ?? []),
+          ]),
+        ],
+        // Priority is overwritten if provided, not merged
+        priority: config.selectorPolicy?.priority?.length
+          ? config.selectorPolicy.priority
+          : merged.selectorPolicy?.priority,
+      },
+      validation: {
+        ...merged.validation,
+        ...config.validation,
+        eslintRules: {
+          ...merged.validation?.eslintRules,
+          ...config.validation?.eslintRules,
+        },
+        customRules: [
+          ...new Set([
+            ...(merged.validation?.customRules ?? []),
+            ...(config.validation?.customRules ?? []),
+          ]),
+        ],
+      },
+      heal: deepMerge(merged.heal, config.heal),
+      llkb: deepMerge(merged.llkb, config.llkb),
+    };
+  });
+}
+
+/**
+ * Load and merge multiple config files
+ * Later configs take precedence over earlier ones
+ * @param configPaths - Array of config file paths to load and merge
+ * @returns Merged config
+ */
+export function loadConfigs(configPaths: string[]): AutogenConfig {
+  const existingPaths = configPaths.filter((p) => {
+    const resolved = resolve(process.cwd(), p);
+    return existsSync(resolved);
+  });
+
+  if (existingPaths.length === 0) {
+    return getDefaultConfig();
+  }
+
+  const configs = existingPaths.map((p) => loadSingleConfig(p));
+  return mergeConfigs(configs);
+}
+
+/**
+ * Load LLKB extension config if present
+ * @param basePath - Base path to search for LLKB config
+ * @returns Partial config or null if not found
+ */
+export function loadLLKBConfig(basePath: string): AutogenConfig | null {
+  const llkbConfigPaths = [
+    join(basePath, 'autogen-llkb.config.yml'),
+    join(basePath, 'autogen-llkb.config.yaml'),
+  ];
+
+  for (const llkbConfigPath of llkbConfigPaths) {
+    if (existsSync(llkbConfigPath)) {
+      try {
+        return loadSingleConfig(llkbConfigPath);
+      } catch {
+        // If LLKB config is invalid, return null rather than failing
+        console.warn(`Warning: Invalid LLKB config at ${llkbConfigPath}, skipping`);
+        return null;
+      }
+    }
+  }
+
+  return null;
 }

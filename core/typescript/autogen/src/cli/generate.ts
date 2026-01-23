@@ -1,12 +1,15 @@
 /**
  * CLI Generate Command - Generate Playwright tests from Journey files
  * @see T094 - Create CLI entry point for generation
+ * @see research/2026-01-23_llkb-autogen-integration-specification.md (LLKB integration)
  */
 import { parseArgs } from 'node:util';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import fg from 'fast-glob';
 import { generateJourneyTests, type GenerateJourneyTestsOptions } from '../index.js';
+import { loadConfigs } from '../config/loader.js';
+import { loadExtendedGlossary, getGlossaryStats } from '../mapping/glossary.js';
 
 const USAGE = `
 Usage: artk-autogen generate [options] <journey-files...>
@@ -17,17 +20,23 @@ Arguments:
   journey-files    Journey file paths or glob patterns
 
 Options:
-  -o, --output <dir>     Output directory for generated files (default: ./tests/generated)
-  -m, --modules          Also generate module files
-  -c, --config <file>    Path to autogen config file
-  --dry-run              Preview generation without writing files
-  -q, --quiet            Suppress output except errors
-  -h, --help             Show this help message
+  -o, --output <dir>       Output directory for generated files (default: ./tests/generated)
+  -m, --modules            Also generate module files
+  -c, --config <file>      Path to autogen config file
+  --dry-run                Preview generation without writing files
+  -q, --quiet              Suppress output except errors
+  -h, --help               Show this help message
+
+LLKB Integration Options:
+  --llkb-config <file>     Path to LLKB-generated config file
+  --llkb-glossary <file>   Path to LLKB-generated glossary file
+  --no-llkb                Disable LLKB integration even if config enables it
 
 Examples:
   artk-autogen generate journeys/login.md
   artk-autogen generate "journeys/*.md" -o tests/e2e -m
   artk-autogen generate journeys/*.md --dry-run
+  artk-autogen generate journeys/*.md --llkb-config autogen-llkb.config.yml --llkb-glossary llkb-glossary.ts
 `;
 
 export async function runGenerate(args: string[]): Promise<void> {
@@ -40,6 +49,10 @@ export async function runGenerate(args: string[]): Promise<void> {
       'dry-run': { type: 'boolean', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
       help: { type: 'boolean', short: 'h', default: false },
+      // LLKB integration options
+      'llkb-config': { type: 'string' },
+      'llkb-glossary': { type: 'string' },
+      'no-llkb': { type: 'boolean', default: false },
     },
     allowPositionals: true,
   });
@@ -59,6 +72,41 @@ export async function runGenerate(args: string[]): Promise<void> {
   const dryRun = values['dry-run'];
   const quiet = values.quiet;
 
+  // Load configs (base + LLKB if provided)
+  const configPaths: string[] = [];
+  if (values.config) {
+    configPaths.push(values.config);
+  }
+  if (values['llkb-config'] && !values['no-llkb']) {
+    configPaths.push(values['llkb-config']);
+  }
+
+  // Load merged config if multiple paths provided
+  const configPath = values.config;
+  if (configPaths.length > 1) {
+    // When we have multiple configs, merge them and log
+    // The merged config includes LLKB settings
+    loadConfigs(configPaths);
+    if (!quiet) {
+      console.log(`Loaded ${configPaths.length} config file(s)`);
+    }
+  }
+
+  // Load LLKB glossary if provided
+  if (values['llkb-glossary'] && !values['no-llkb']) {
+    const glossaryResult = await loadExtendedGlossary(values['llkb-glossary']);
+    if (glossaryResult.loaded) {
+      if (!quiet) {
+        console.log(
+          `Loaded LLKB glossary: ${glossaryResult.entryCount} entries` +
+            (glossaryResult.exportedAt ? ` (exported: ${glossaryResult.exportedAt})` : '')
+        );
+      }
+    } else if (!quiet) {
+      console.warn(`Warning: Failed to load LLKB glossary: ${glossaryResult.error}`);
+    }
+  }
+
   // Expand glob patterns
   const journeyFiles = await fg(positionals, {
     absolute: true,
@@ -71,6 +119,11 @@ export async function runGenerate(args: string[]): Promise<void> {
 
   if (!quiet) {
     console.log(`Found ${journeyFiles.length} journey file(s)`);
+    // Show LLKB stats if glossary is loaded
+    const stats = getGlossaryStats();
+    if (stats.extendedEntries > 0) {
+      console.log(`LLKB glossary active: ${stats.extendedEntries} extended entries`);
+    }
   }
 
   // Generate tests
@@ -81,8 +134,8 @@ export async function runGenerate(args: string[]): Promise<void> {
     generateModules: values.modules,
   };
 
-  if (values.config) {
-    options.config = values.config;
+  if (configPath) {
+    options.config = configPath;
   }
 
   const result = await generateJourneyTests(options);

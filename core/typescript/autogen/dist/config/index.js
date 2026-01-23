@@ -50,13 +50,25 @@ var HealSchema = z.object({
   skipPatterns: z.array(z.string()).default([])
 });
 var RegenerationStrategySchema = z.enum(["ast", "blocks"]).default("ast");
+var LLKBIntegrationLevelSchema = z.enum(["minimal", "enhance", "aggressive"]).default("enhance");
+var LLKBIntegrationSchema = z.object({
+  /** Enable LLKB integration */
+  enabled: z.boolean().default(false),
+  /** Path to LLKB-generated config file */
+  configPath: z.string().optional(),
+  /** Path to LLKB-generated glossary file */
+  glossaryPath: z.string().optional(),
+  /** Integration level */
+  level: LLKBIntegrationLevelSchema
+}).default({});
 var AutogenConfigSchema = z.object({
   version: z.literal(1).default(1),
   paths: PathsSchema.default({}),
   selectorPolicy: SelectorPolicySchema.default({}),
   validation: ValidationSchema.default({}),
   heal: HealSchema.default({}),
-  regenerationStrategy: RegenerationStrategySchema
+  regenerationStrategy: RegenerationStrategySchema,
+  llkb: LLKBIntegrationSchema
 });
 var CONFIG_PATHS = [
   "artk/autogen.config.yml",
@@ -69,6 +81,9 @@ var ConfigLoadError = class extends Error {
     super(message);
     this.cause = cause;
     this.name = "ConfigLoadError";
+    if (cause !== void 0) {
+      this.cause = cause;
+    }
   }
 };
 function findConfigFile(rootDir) {
@@ -128,7 +143,118 @@ function resolveConfigPath(config, pathKey, rootDir) {
   const base = rootDir || process.cwd();
   return resolve(base, config.paths[pathKey]);
 }
+function loadSingleConfig(configPath) {
+  const resolvedPath = resolve(process.cwd(), configPath);
+  if (!existsSync(resolvedPath)) {
+    throw new ConfigLoadError(`Config file not found: ${resolvedPath}`);
+  }
+  let rawContent;
+  try {
+    rawContent = readFileSync(resolvedPath, "utf-8");
+  } catch (err) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err);
+  }
+  let parsed;
+  try {
+    parsed = parse(rawContent);
+  } catch (err) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err);
+  }
+  const result = AutogenConfigSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    throw new ConfigLoadError(
+      `Invalid config in ${resolvedPath}:
+${issues}`,
+      result.error
+    );
+  }
+  return result.data;
+}
+function deepMerge(base, override) {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const overrideValue = override[key];
+    if (overrideValue !== void 0) {
+      result[key] = overrideValue;
+    }
+  }
+  return result;
+}
+function mergeConfigs(configs) {
+  if (configs.length === 0) {
+    return getDefaultConfig();
+  }
+  return configs.reduce((merged, config, index) => {
+    if (index === 0) {
+      return config;
+    }
+    return {
+      ...merged,
+      version: config.version ?? merged.version,
+      regenerationStrategy: config.regenerationStrategy ?? merged.regenerationStrategy,
+      paths: deepMerge(merged.paths, config.paths),
+      selectorPolicy: {
+        ...merged.selectorPolicy,
+        ...config.selectorPolicy,
+        // Merge arrays additively for forbiddenPatterns
+        forbiddenPatterns: [
+          .../* @__PURE__ */ new Set([
+            ...merged.selectorPolicy?.forbiddenPatterns ?? [],
+            ...config.selectorPolicy?.forbiddenPatterns ?? []
+          ])
+        ],
+        // Priority is overwritten if provided, not merged
+        priority: config.selectorPolicy?.priority?.length ? config.selectorPolicy.priority : merged.selectorPolicy?.priority
+      },
+      validation: {
+        ...merged.validation,
+        ...config.validation,
+        eslintRules: {
+          ...merged.validation?.eslintRules,
+          ...config.validation?.eslintRules
+        },
+        customRules: [
+          .../* @__PURE__ */ new Set([
+            ...merged.validation?.customRules ?? [],
+            ...config.validation?.customRules ?? []
+          ])
+        ]
+      },
+      heal: deepMerge(merged.heal, config.heal),
+      llkb: deepMerge(merged.llkb, config.llkb)
+    };
+  });
+}
+function loadConfigs(configPaths) {
+  const existingPaths = configPaths.filter((p) => {
+    const resolved = resolve(process.cwd(), p);
+    return existsSync(resolved);
+  });
+  if (existingPaths.length === 0) {
+    return getDefaultConfig();
+  }
+  const configs = existingPaths.map((p) => loadSingleConfig(p));
+  return mergeConfigs(configs);
+}
+function loadLLKBConfig(basePath) {
+  const llkbConfigPaths = [
+    join(basePath, "autogen-llkb.config.yml"),
+    join(basePath, "autogen-llkb.config.yaml")
+  ];
+  for (const llkbConfigPath of llkbConfigPaths) {
+    if (existsSync(llkbConfigPath)) {
+      try {
+        return loadSingleConfig(llkbConfigPath);
+      } catch {
+        console.warn(`Warning: Invalid LLKB config at ${llkbConfigPath}, skipping`);
+        return null;
+      }
+    }
+  }
+  return null;
+}
 
-export { AutogenConfigSchema, ConfigLoadError, EslintRulesSchema, EslintSeveritySchema, HealSchema, PathsSchema, RegenerationStrategySchema, SelectorPolicySchema, SelectorStrategySchema, ValidationSchema, findConfigFile, getDefaultConfig, loadConfig, resolveConfigPath };
+export { AutogenConfigSchema, ConfigLoadError, EslintRulesSchema, EslintSeveritySchema, HealSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, PathsSchema, RegenerationStrategySchema, SelectorPolicySchema, SelectorStrategySchema, ValidationSchema, findConfigFile, getDefaultConfig, loadConfig, loadConfigs, loadLLKBConfig, mergeConfigs, resolveConfigPath };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

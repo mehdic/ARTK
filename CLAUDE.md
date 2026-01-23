@@ -801,60 +801,223 @@ artk-export
 
 ## LLKB-AutoGen Integration
 
-ARTK features a self-improving test generation system where LLKB (Lessons Learned Knowledge Base) enhances AutoGen's capabilities over time.
+ARTK features a self-improving test generation system where LLKB (Lessons Learned Knowledge Base) enhances AutoGen's code generation capabilities through continuous learning.
 
-**How it works:**
-1. LLKB accumulates patterns, selectors, and components as tests are developed
-2. Before test generation, LLKB exports its knowledge to AutoGen-compatible files
-3. AutoGen uses this exported knowledge for better pattern matching and code generation
-4. After test verification, outcomes are fed back to LLKB to refine confidence scores
+### How It Works
 
-**Key files generated:**
-- `artk-e2e/autogen-llkb.config.yml` - Additional patterns, selector overrides, timing hints
-- `artk-e2e/llkb-glossary.ts` - Term-to-IR-primitive mappings
+The integration follows the **Adapter Pattern** to bridge LLKB knowledge and AutoGen's generation engine:
 
-**CLI commands:**
+1. **Knowledge Accumulation**: LLKB accumulates patterns, selectors, and components as tests are developed and verified
+2. **Pre-Generation Export**: Before running AutoGen, LLKB exports its high-confidence knowledge (≥0.7) to AutoGen-compatible files
+3. **Enhanced Generation**: AutoGen loads LLKB exports and uses them alongside core patterns for smarter code generation
+4. **Learning Loop**: After test verification, outcomes are fed back to LLKB to refine confidence scores and create new lessons
+
+### Integration Points
+
+**In `/artk.journey-implement` (Step 2.5):**
 ```bash
-# Export LLKB for AutoGen
-npx artk-llkb export --for-autogen --output artk-e2e/
+# MANDATORY: Export LLKB before running AutoGen
+npx artk-llkb export --for-autogen \
+  --output <harnessRoot>/ \
+  --min-confidence 0.7
 
-# Check which tests need LLKB updates
-npx artk-llkb check-updates --tests-dir artk-e2e/tests/
-
-# Record learning event
-npx artk-llkb learn --type component --id COMP012 --journey JRN-0001 --success
+# Then run AutoGen with LLKB extensions
+npx artk-autogen generate \
+  --config <harnessRoot>/autogen.config.yml \
+  --llkb-config <harnessRoot>/autogen-llkb.config.yml \
+  --llkb-glossary <harnessRoot>/llkb-glossary.ts \
+  -o <testsDir> -m <journeyPath>
 ```
 
-**See:** `research/2026-01-23_llkb-autogen-integration-*.md` for architecture details.
+**In `/artk.journey-verify`:**
+- Learning hooks record successful patterns, component usages, and lesson applications
+- Failed tests trigger confidence adjustments
+- New patterns discovered during manual fixes become lesson candidates
+
+### Key Files Generated
+
+| File | Purpose | Contents |
+|------|---------|----------|
+| `autogen-llkb.config.yml` | Configuration extension | Additional patterns, selector overrides, timing hints, module mappings |
+| `llkb-glossary.ts` | Glossary extension | Natural language term-to-IR-primitive mappings from high-confidence lessons |
+
+**AutoGen Priority:** Core glossary > LLKB glossary (LLKB extends, never overrides core patterns)
+
+### LLKB CLI Commands
+
+```bash
+# Export for AutoGen consumption
+npx artk-llkb export --for-autogen --output artk-e2e/
+npx artk-llkb export --for-autogen --output artk-e2e/ --min-confidence 0.8
+npx artk-llkb export --for-autogen --output artk-e2e/ --dry-run
+
+# Check which tests have outdated LLKB versions
+npx artk-llkb check-updates --tests-dir artk-e2e/tests/
+
+# Update specific test to latest LLKB version
+npx artk-llkb update-test --test artk-e2e/tests/login.spec.ts
+npx artk-llkb update-test --test artk-e2e/tests/login.spec.ts --dry-run
+
+# Update all outdated tests (batch)
+npx artk-llkb update-tests --tests-dir artk-e2e/tests/
+npx artk-llkb update-tests --tests-dir artk-e2e/tests/ --dry-run
+
+# Record learning events (manual or automated)
+npx artk-llkb learn --type component --id COMP012 --journey JRN-0001 --success
+npx artk-llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "grid edit"
+npx artk-llkb learn --type pattern --journey JRN-0001 --success --context "Save button" --selector-strategy testid --selector-value btn-save
+
+# Health check and statistics
+npx artk-llkb health
+npx artk-llkb stats
+npx artk-llkb prune --history-retention-days 90
+```
+
+### Test File Versioning
+
+Generated tests include LLKB version metadata in headers:
+
+```typescript
+/**
+ * @journey JRN-0001
+ * @generated 2026-01-23T10:00:00Z
+ * @artk-version 1.0.0
+ * @llkb-version 2026-01-23T10:00:00Z
+ * @llkb-entries 24
+ *
+ * DO NOT EDIT GENERATED SECTIONS
+ */
+```
+
+This enables version tracking and allows `/artk.journey-maintain` (when implemented) to detect outdated tests and offer updates.
+
+### Architecture Details
+
+**See:**
+- `research/2026-01-23_llkb-autogen-integration-specification.md` - Full technical specification
+- `research/2026-01-23_llkb-autogen-integration-debate.md` - Architecture debate and design decisions
+- `core/typescript/llkb/adapter.ts` - Adapter implementation
+- `core/typescript/llkb/learning.ts` - Learning loop implementation
+- `core/typescript/llkb/versioning.ts` - Version comparison and update logic
 
 ---
 
 ## Journey-Maintain and LLKB Updates
 
-**IMPORTANT NOTE:** When `/artk.journey-maintain` prompt is implemented, it MUST handle updating older tests to use the latest LLKB knowledge:
+**IMPORTANT NOTE:** When `/artk.journey-maintain` prompt is implemented, it MUST handle updating older tests to use the latest LLKB knowledge.
 
-1. **Version Check:** Read each test's `@llkb-version` header and compare against current LLKB state
-2. **User Confirmation:** Always prompt user before updating tests to latest LLKB version
-3. **Diff Preview:** Show what will change before applying updates
-4. **Batch Support:** Allow updating all outdated tests with single confirmation
-5. **Rollback:** If a test fails after update, automatically rollback and flag for review
+### Required Features (5-Point Checklist)
 
-**Test header format:**
+When implementing `/artk.journey-maintain`, ensure these 5 capabilities are included:
+
+1. **Version Check**
+   - Read each test's `@llkb-version` header from test file comments
+   - Compare against current LLKB state (from `.artk/llkb/analytics.json` `lastUpdated`)
+   - Identify tests that are outdated (test version < current LLKB version)
+   - Count new patterns/components available since test generation
+
+2. **User Confirmation**
+   - ALWAYS prompt user before updating tests to latest LLKB version
+   - Never auto-update without explicit user approval
+   - Provide clear information: "N tests have outdated LLKB. Update to latest? [Y/n/preview]"
+   - Support batch confirmation: "Update all N tests with one confirmation? [Y/n]"
+
+3. **Diff Preview**
+   - Show what will change BEFORE applying updates
+   - Display: Previous LLKB version → New LLKB version
+   - Display: Number of new patterns/components available
+   - Display: Test file path and Journey ID
+   - Allow user to review changes before proceeding
+
+4. **Batch Support**
+   - Allow updating all outdated tests with single confirmation
+   - Use `npx artk-llkb update-tests --tests-dir artk-e2e/tests/` for batch operations
+   - Support dry-run mode: `--dry-run` flag to preview without writing
+   - Report summary after batch update (N updated, N skipped, N failed)
+
+5. **Rollback on Failure**
+   - Create backup before regeneration: `{testFile}.llkb-backup-{timestamp}`
+   - After regeneration, run quick verify (Playwright test execution)
+   - If verify fails: Automatically rollback from backup
+   - Flag failed updates for manual review
+   - Log failure reason and preserve backup for investigation
+   - Clean up backup only on successful verify
+
+### Test Header Format
+
 ```typescript
 /**
  * @journey JRN-0001
+ * @generated 2026-01-23T10:00:00Z
+ * @artk-version 1.0.0
  * @llkb-version 2026-01-23T10:00:00Z
  * @llkb-entries 24
+ *
+ * DO NOT EDIT GENERATED SECTIONS
  */
 ```
 
-**Update flow:**
-1. Detect outdated tests (LLKB version in test < current LLKB)
-2. Ask: "N tests have outdated LLKB. Update to latest? [Y/n/preview]"
-3. If yes: Re-export LLKB → Regenerate test with AutoGen → Run quick verify
-4. If verify fails: Rollback to backup, report issue
+### Update Flow
 
-This ensures tests continuously benefit from LLKB improvements while maintaining user control over changes.
+```
+1. Detect Outdated Tests
+   ↓
+   npx artk-llkb check-updates --tests-dir artk-e2e/tests/
+   ↓
+   Output: "N tests need LLKB update (new patterns: X, new components: Y)"
+
+2. User Decision
+   ↓
+   Prompt: "Update N tests to latest LLKB? [Y/n/preview]"
+   ↓
+   If preview: Show comparison for each test
+   If yes: Continue to step 3
+   If no: Exit
+
+3. Backup & Re-export
+   ↓
+   For each outdated test:
+     - Create backup: {testFile}.llkb-backup-{timestamp}
+     - Re-export LLKB: npx artk-llkb export --for-autogen
+     - Regenerate test with AutoGen (with --llkb-config, --llkb-glossary)
+
+4. Quick Verify
+   ↓
+   Run: npx playwright test {testFile}
+   ↓
+   If PASS: Delete backup, mark success
+   If FAIL: Rollback from backup, flag for review
+
+5. Report Results
+   ↓
+   Summary: "Updated: N, Failed (rolled back): M, Skipped: K"
+```
+
+### LLKB Health Maintenance
+
+Journey-Maintain should also support LLKB health operations:
+
+```bash
+# Prune low-confidence lessons and old history
+npx artk-llkb prune --history-retention-days 90
+
+# Archive inactive components (unused for 180+ days)
+npx artk-llkb prune --archive-inactive-components --inactive-days 180
+
+# Regenerate analytics
+npx artk-llkb stats
+```
+
+### Structural Change Detection
+
+When regenerating tests with updated LLKB:
+- **Capture before**: Test structure (steps, assertions, fixtures)
+- **Capture after**: New test structure
+- **Compare**: Detect behavioral changes vs structural-only changes
+- **If behavioral change**: STOP, require manual review
+- **If structural-only**: Apply with notice (e.g., better selectors, same test flow)
+
+This ensures tests continuously benefit from LLKB improvements while maintaining safety and user control.
 
 ---
 

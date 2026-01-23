@@ -3,9 +3,9 @@ import { join, resolve, dirname, relative, basename, extname } from 'path';
 import { randomBytes, createHash } from 'crypto';
 import { z } from 'zod';
 import { parse, stringify } from 'yaml';
+import { pathToFileURL, fileURLToPath } from 'url';
 import fg from 'fast-glob';
 import ejs from 'ejs';
-import { fileURLToPath } from 'url';
 import { Project, ModuleKind, ScriptTarget, SyntaxKind } from 'ts-morph';
 import { execSync, spawn } from 'child_process';
 import { tmpdir } from 'os';
@@ -1996,13 +1996,25 @@ var HealSchema = z.object({
   skipPatterns: z.array(z.string()).default([])
 });
 var RegenerationStrategySchema = z.enum(["ast", "blocks"]).default("ast");
+var LLKBIntegrationLevelSchema = z.enum(["minimal", "enhance", "aggressive"]).default("enhance");
+var LLKBIntegrationSchema = z.object({
+  /** Enable LLKB integration */
+  enabled: z.boolean().default(false),
+  /** Path to LLKB-generated config file */
+  configPath: z.string().optional(),
+  /** Path to LLKB-generated glossary file */
+  glossaryPath: z.string().optional(),
+  /** Integration level */
+  level: LLKBIntegrationLevelSchema
+}).default({});
 var AutogenConfigSchema = z.object({
   version: z.literal(1).default(1),
   paths: PathsSchema.default({}),
   selectorPolicy: SelectorPolicySchema.default({}),
   validation: ValidationSchema.default({}),
   heal: HealSchema.default({}),
-  regenerationStrategy: RegenerationStrategySchema
+  regenerationStrategy: RegenerationStrategySchema,
+  llkb: LLKBIntegrationSchema
 });
 var CONFIG_PATHS = [
   "artk/autogen.config.yml",
@@ -2015,6 +2027,9 @@ var ConfigLoadError = class extends Error {
     super(message);
     this.cause = cause;
     this.name = "ConfigLoadError";
+    if (cause !== void 0) {
+      this.cause = cause;
+    }
   }
 };
 function findConfigFile(rootDir) {
@@ -2073,6 +2088,117 @@ function getDefaultConfig() {
 function resolveConfigPath(config, pathKey, rootDir) {
   const base = rootDir || process.cwd();
   return resolve(base, config.paths[pathKey]);
+}
+function loadSingleConfig(configPath) {
+  const resolvedPath = resolve(process.cwd(), configPath);
+  if (!existsSync(resolvedPath)) {
+    throw new ConfigLoadError(`Config file not found: ${resolvedPath}`);
+  }
+  let rawContent;
+  try {
+    rawContent = readFileSync(resolvedPath, "utf-8");
+  } catch (err2) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err2);
+  }
+  let parsed;
+  try {
+    parsed = parse(rawContent);
+  } catch (err2) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err2);
+  }
+  const result = AutogenConfigSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    throw new ConfigLoadError(
+      `Invalid config in ${resolvedPath}:
+${issues}`,
+      result.error
+    );
+  }
+  return result.data;
+}
+function deepMerge(base, override) {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const overrideValue = override[key];
+    if (overrideValue !== void 0) {
+      result[key] = overrideValue;
+    }
+  }
+  return result;
+}
+function mergeConfigs(configs) {
+  if (configs.length === 0) {
+    return getDefaultConfig();
+  }
+  return configs.reduce((merged, config, index) => {
+    if (index === 0) {
+      return config;
+    }
+    return {
+      ...merged,
+      version: config.version ?? merged.version,
+      regenerationStrategy: config.regenerationStrategy ?? merged.regenerationStrategy,
+      paths: deepMerge(merged.paths, config.paths),
+      selectorPolicy: {
+        ...merged.selectorPolicy,
+        ...config.selectorPolicy,
+        // Merge arrays additively for forbiddenPatterns
+        forbiddenPatterns: [
+          .../* @__PURE__ */ new Set([
+            ...merged.selectorPolicy?.forbiddenPatterns ?? [],
+            ...config.selectorPolicy?.forbiddenPatterns ?? []
+          ])
+        ],
+        // Priority is overwritten if provided, not merged
+        priority: config.selectorPolicy?.priority?.length ? config.selectorPolicy.priority : merged.selectorPolicy?.priority
+      },
+      validation: {
+        ...merged.validation,
+        ...config.validation,
+        eslintRules: {
+          ...merged.validation?.eslintRules,
+          ...config.validation?.eslintRules
+        },
+        customRules: [
+          .../* @__PURE__ */ new Set([
+            ...merged.validation?.customRules ?? [],
+            ...config.validation?.customRules ?? []
+          ])
+        ]
+      },
+      heal: deepMerge(merged.heal, config.heal),
+      llkb: deepMerge(merged.llkb, config.llkb)
+    };
+  });
+}
+function loadConfigs(configPaths) {
+  const existingPaths = configPaths.filter((p) => {
+    const resolved = resolve(process.cwd(), p);
+    return existsSync(resolved);
+  });
+  if (existingPaths.length === 0) {
+    return getDefaultConfig();
+  }
+  const configs = existingPaths.map((p) => loadSingleConfig(p));
+  return mergeConfigs(configs);
+}
+function loadLLKBConfig(basePath) {
+  const llkbConfigPaths = [
+    join(basePath, "autogen-llkb.config.yml"),
+    join(basePath, "autogen-llkb.config.yaml")
+  ];
+  for (const llkbConfigPath of llkbConfigPaths) {
+    if (existsSync(llkbConfigPath)) {
+      try {
+        return loadSingleConfig(llkbConfigPath);
+      } catch {
+        console.warn(`Warning: Invalid LLKB config at ${llkbConfigPath}, skipping`);
+        return null;
+      }
+    }
+  }
+  return null;
 }
 var JourneyStatusSchema = z.enum([
   "proposed",
@@ -3341,7 +3467,7 @@ function loadGlossary(glossaryPath) {
       return defaultGlossary;
     }
     return mergeGlossaries(defaultGlossary, result.data);
-  } catch (err2) {
+  } catch {
     console.warn(`Failed to load glossary from ${resolvedPath}, using defaults`);
     return defaultGlossary;
   }
@@ -3500,6 +3626,131 @@ function getModuleMethods() {
     initGlossary();
   }
   return glossaryCache.moduleMethods ?? [];
+}
+var extendedGlossary = null;
+var extendedGlossaryMeta = null;
+async function loadExtendedGlossary(glossaryPath) {
+  try {
+    const resolvedPath = resolve(glossaryPath);
+    if (!existsSync(resolvedPath)) {
+      return {
+        loaded: false,
+        entryCount: 0,
+        exportedAt: null,
+        error: `Glossary file not found: ${resolvedPath}`
+      };
+    }
+    const fileUrl = pathToFileURL(resolvedPath).href;
+    const module = await import(fileUrl);
+    if (module.llkbGlossary instanceof Map) {
+      const glossaryMap = module.llkbGlossary;
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    if (module.llkbGlossary && typeof module.llkbGlossary === "object") {
+      const glossaryMap = new Map(
+        Object.entries(module.llkbGlossary)
+      );
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
+    };
+  } catch (err2) {
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: `Failed to load glossary: ${err2 instanceof Error ? err2.message : String(err2)}`
+    };
+  }
+}
+function clearExtendedGlossary() {
+  extendedGlossary = null;
+  extendedGlossaryMeta = null;
+}
+function isExactCoreMatch(term) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedTerm = term.toLowerCase().trim();
+  for (const mapping of glossaryCache.moduleMethods ?? []) {
+    if (mapping.phrase.toLowerCase() === normalizedTerm) {
+      return true;
+    }
+  }
+  return false;
+}
+function lookupGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  if (isExactCoreMatch(normalizedTerm)) {
+    const coreMapping2 = findModuleMethod(normalizedTerm);
+    if (coreMapping2) {
+      return {
+        type: "callModule",
+        module: coreMapping2.module,
+        method: coreMapping2.method,
+        args: coreMapping2.params ? [coreMapping2.params] : void 0
+      };
+    }
+  }
+  if (extendedGlossary) {
+    const extendedMatch = extendedGlossary.get(normalizedTerm);
+    if (extendedMatch) {
+      return extendedMatch;
+    }
+  }
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function lookupCoreGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function getGlossaryStats() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return {
+    coreEntries: glossaryCache.moduleMethods?.length ?? 0,
+    extendedEntries: extendedGlossary?.size ?? 0,
+    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+    extendedMeta: extendedGlossaryMeta
+  };
+}
+function hasExtendedGlossary() {
+  return extendedGlossary !== null && extendedGlossary.size > 0;
 }
 
 // src/journey/hintPatterns.ts
@@ -9699,6 +9950,6 @@ async function verifyJourneys(journeys, options = {}) {
   return results;
 }
 
-export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LocatorBuilder, NAMEABLE_ROLES, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, clearDebt, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllTestIds, getApplicableRules, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageVersion, getPatternMatches, getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSelectorPriority, getSummary, getSynonyms, getTestCount, getViolationSummary, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadEvidence, loadGlossary, loadHealingLog, loadRegistry, loadSourceFile, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, mergeModuleFiles, mergeWithInferred, namespaceEmail, namespaceName, navigationPatterns, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
+export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, LocatorBuilder, NAMEABLE_ROLES, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, clearDebt, clearExtendedGlossary, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllTestIds, getApplicableRules, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getGlossaryStats, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageVersion, getPatternMatches, getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSelectorPriority, getSummary, getSynonyms, getTestCount, getViolationSummary, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasExtendedGlossary, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadConfigs, loadEvidence, loadExtendedGlossary, loadGlossary, loadHealingLog, loadLLKBConfig, loadRegistry, loadSourceFile, lookupCoreGlossary, lookupGlossary, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeConfigs, mergeGlossaries, mergeModuleFiles, mergeWithInferred, namespaceEmail, namespaceName, navigationPatterns, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

@@ -83,6 +83,32 @@ export const HealSchema = z.object({
 export const RegenerationStrategySchema = z.enum(['ast', 'blocks']).default('ast');
 
 /**
+ * LLKB integration level
+ * - minimal: Only load patterns, no glossary extension
+ * - enhance: Load patterns and extend glossary (default)
+ * - aggressive: Full LLKB integration with selector overrides
+ */
+export const LLKBIntegrationLevelSchema = z.enum(['minimal', 'enhance', 'aggressive']).default('enhance');
+
+/**
+ * LLKB integration configuration (optional)
+ * @see research/2026-01-23_llkb-autogen-integration-specification.md
+ */
+export const LLKBIntegrationSchema = z.object({
+  /** Enable LLKB integration */
+  enabled: z.boolean().default(false),
+
+  /** Path to LLKB-generated config file */
+  configPath: z.string().optional(),
+
+  /** Path to LLKB-generated glossary file */
+  glossaryPath: z.string().optional(),
+
+  /** Integration level */
+  level: LLKBIntegrationLevelSchema,
+}).default({});
+
+/**
  * Complete AutoGen configuration schema
  */
 export const AutogenConfigSchema = z.object({
@@ -92,6 +118,7 @@ export const AutogenConfigSchema = z.object({
   validation: ValidationSchema.default({}),
   heal: HealSchema.default({}),
   regenerationStrategy: RegenerationStrategySchema,
+  llkb: LLKBIntegrationSchema,
 });
 
 /**
@@ -104,4 +131,6 @@ export type SelectorPolicy = z.infer<typeof SelectorPolicySchema>;
 export type Validation = z.infer<typeof ValidationSchema>;
 export type Heal = z.infer<typeof HealSchema>;
 export type RegenerationStrategy = z.infer<typeof RegenerationStrategySchema>;
+export type LLKBIntegrationLevel = z.infer<typeof LLKBIntegrationLevelSchema>;
+export type LLKBIntegration = z.infer<typeof LLKBIntegrationSchema>;
 export type AutogenConfig = z.infer<typeof AutogenConfigSchema>;

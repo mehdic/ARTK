@@ -1,12 +1,12 @@
 import { b as IRJourney } from './types-CDhy20ih.js';
 export { i as AccessibilityConfig, A as AccessibilityTiming, e as CleanupStrategy, C as CompletionSignal, f as CompletionSignalType, D as DataStrategy, I as IRMappingResult, a as IRPrimitive, d as IRStep, g as JourneyDataConfig, J as JourneyTier, c as LocatorSpec, L as LocatorStrategy, M as ModuleDependencies, N as NegativePath, P as PerformanceConfig, T as TestDataSet, V as ValueSpec, h as VisualRegressionConfig } from './types-CDhy20ih.js';
 export { IR, JourneyBuilder, LocatorBuilder, SerializeOptions, StepBuilder, ValueBuilder, describeLocator, describePrimitive, serializeJourney, serializePrimitive, serializeStep, summarizeJourney } from './ir/index.js';
-import { A as AutogenConfig } from './schema-Jooze9KU.js';
-export { c as AutogenConfigSchema, a as EslintRulesSchema, f as EslintSeverity, E as EslintSeveritySchema, i as Heal, H as HealSchema, e as Paths, P as PathsSchema, j as RegenerationStrategy, R as RegenerationStrategySchema, g as SelectorPolicy, b as SelectorPolicySchema, d as SelectorStrategy, S as SelectorStrategySchema, h as Validation, V as ValidationSchema } from './schema-Jooze9KU.js';
-export { ConfigLoadError, findConfigFile, getDefaultConfig, loadConfig, resolveConfigPath } from './config/index.js';
+import { A as AutogenConfig } from './schema-BocNY0qp.js';
+export { d as AutogenConfigSchema, a as EslintRulesSchema, g as EslintSeverity, E as EslintSeveritySchema, j as Heal, H as HealSchema, m as LLKBIntegration, l as LLKBIntegrationLevel, L as LLKBIntegrationLevelSchema, c as LLKBIntegrationSchema, f as Paths, P as PathsSchema, k as RegenerationStrategy, R as RegenerationStrategySchema, h as SelectorPolicy, b as SelectorPolicySchema, e as SelectorStrategy, S as SelectorStrategySchema, i as Validation, V as ValidationSchema } from './schema-BocNY0qp.js';
+export { ConfigLoadError, findConfigFile, getDefaultConfig, loadConfig, loadConfigs, loadLLKBConfig, mergeConfigs, resolveConfigPath } from './config/index.js';
 export { F as AcceptanceCriterion, a9 as CodedError, x as JourneyFrontmatter, g as JourneyFrontmatterSchema, z as JourneyParseError, i as JourneyStatus, J as JourneyStatusSchema, B as ParsedJourney, G as ProceduralStep, X as Result, H as StructuredStep, S as StructuredStepAction, a4 as andThen, aa as codedError, a5 as collect, Z as err, $ as isErr, _ as isOk, a2 as map, a3 as mapErr, Y as ok, O as parseJourney, U as parseJourneyContent, R as parseJourneyForAutoGen, K as parseStructuredSteps, a6 as partition, a7 as tryCatch, a8 as tryCatchAsync, W as tryParseJourneyContent, a0 as unwrap, a1 as unwrapOr } from './parseJourney-BY3R1Dwj.js';
 export { N as NormalizeOptions, c as completionSignalsToAssertions, n as normalizeJourney, v as validateJourneyForCodeGen } from './normalize-Cx5keI1P.js';
-export { ACMappingResult, Glossary, GlossaryEntry, LabelAlias, ModuleMethodMapping, PatternMatch, StepMapperOptions, StepMappingResult, StepPattern, allPatterns, authPatterns, checkPatterns, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, initGlossary, isSynonymOf, loadGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns } from './mapping/index.js';
+export { ACMappingResult, ExtendedGlossaryMeta, Glossary, GlossaryEntry, LabelAlias, ModuleMethodMapping, PatternMatch, StepMapperOptions, StepMappingResult, StepPattern, allPatterns, authPatterns, checkPatterns, clearExtendedGlossary, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getGlossaryStats, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, hasExtendedGlossary, initGlossary, isSynonymOf, loadExtendedGlossary, loadGlossary, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns } from './mapping/index.js';
 export { DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, NAMEABLE_ROLES, compareLocators, createCssSelector, extractName, getRecommendedStrategies, getSelectorPriority, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, isCssLocator, isForbiddenSelector, isRoleLocator, isSemanticLocator, isTestIdLocator, scoreLocator, selectBestLocator, suggestSelectorApproach, toPlaywrightLocator, validateLocator } from './selectors/index.js';
 import { z } from 'zod';
 import { GenerateTestOptions, GenerateModuleOptions, GenerateTestResult, GenerateModuleResult } from './codegen/index.js';
@@ -201,12 +201,12 @@ declare const SelectorEntrySchema: z.ZodObject<{
         level: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         exact?: boolean | undefined;
-        name?: string | undefined;
         level?: number | undefined;
+        name?: string | undefined;
     }, {
         exact?: boolean | undefined;
-        name?: string | undefined;
         level?: number | undefined;
+        name?: string | undefined;
     }>>;
     /** Component or page this selector belongs to */
     component: z.ZodOptional<z.ZodString>;
@@ -227,8 +227,8 @@ declare const SelectorEntrySchema: z.ZodObject<{
     stable: boolean;
     options?: {
         exact?: boolean | undefined;
-        name?: string | undefined;
         level?: number | undefined;
+        name?: string | undefined;
     } | undefined;
     tags?: string[] | undefined;
     description?: string | undefined;
@@ -242,8 +242,8 @@ declare const SelectorEntrySchema: z.ZodObject<{
     id: string;
     options?: {
         exact?: boolean | undefined;
-        name?: string | undefined;
         level?: number | undefined;
+        name?: string | undefined;
     } | undefined;
     tags?: string[] | undefined;
     description?: string | undefined;
@@ -387,12 +387,12 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             level: z.ZodOptional<z.ZodNumber>;
         }, "strip", z.ZodTypeAny, {
             exact?: boolean | undefined;
-            name?: string | undefined;
             level?: number | undefined;
+            name?: string | undefined;
         }, {
             exact?: boolean | undefined;
-            name?: string | undefined;
             level?: number | undefined;
+            name?: string | undefined;
         }>>;
         /** Component or page this selector belongs to */
         component: z.ZodOptional<z.ZodString>;
@@ -413,8 +413,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
         stable: boolean;
         options?: {
             exact?: boolean | undefined;
-            name?: string | undefined;
             level?: number | undefined;
+            name?: string | undefined;
         } | undefined;
         tags?: string[] | undefined;
         description?: string | undefined;
@@ -428,8 +428,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
         id: string;
         options?: {
             exact?: boolean | undefined;
-            name?: string | undefined;
             level?: number | undefined;
+            name?: string | undefined;
         } | undefined;
         tags?: string[] | undefined;
         description?: string | undefined;
@@ -571,8 +571,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
         stable: boolean;
         options?: {
             exact?: boolean | undefined;
-            name?: string | undefined;
             level?: number | undefined;
+            name?: string | undefined;
         } | undefined;
         tags?: string[] | undefined;
         description?: string | undefined;
@@ -624,8 +624,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
         id: string;
         options?: {
             exact?: boolean | undefined;
-            name?: string | undefined;
             level?: number | undefined;
+            name?: string | undefined;
         } | undefined;
         tags?: string[] | undefined;
         description?: string | undefined;

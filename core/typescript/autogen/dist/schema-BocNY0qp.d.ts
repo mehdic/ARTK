@@ -86,6 +86,37 @@ declare const HealSchema: z.ZodObject<{
  */
 declare const RegenerationStrategySchema: z.ZodDefault<z.ZodEnum<["ast", "blocks"]>>;
 /**
+ * LLKB integration level
+ * - minimal: Only load patterns, no glossary extension
+ * - enhance: Load patterns and extend glossary (default)
+ * - aggressive: Full LLKB integration with selector overrides
+ */
+declare const LLKBIntegrationLevelSchema: z.ZodDefault<z.ZodEnum<["minimal", "enhance", "aggressive"]>>;
+/**
+ * LLKB integration configuration (optional)
+ * @see research/2026-01-23_llkb-autogen-integration-specification.md
+ */
+declare const LLKBIntegrationSchema: z.ZodDefault<z.ZodObject<{
+    /** Enable LLKB integration */
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    /** Path to LLKB-generated config file */
+    configPath: z.ZodOptional<z.ZodString>;
+    /** Path to LLKB-generated glossary file */
+    glossaryPath: z.ZodOptional<z.ZodString>;
+    /** Integration level */
+    level: z.ZodDefault<z.ZodEnum<["minimal", "enhance", "aggressive"]>>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    level: "minimal" | "enhance" | "aggressive";
+    configPath?: string | undefined;
+    glossaryPath?: string | undefined;
+}, {
+    enabled?: boolean | undefined;
+    configPath?: string | undefined;
+    glossaryPath?: string | undefined;
+    level?: "minimal" | "enhance" | "aggressive" | undefined;
+}>>;
+/**
  * Complete AutoGen configuration schema
  */
 declare const AutogenConfigSchema: z.ZodObject<{
@@ -143,6 +174,26 @@ declare const AutogenConfigSchema: z.ZodObject<{
         skipPatterns?: string[] | undefined;
     }>>;
     regenerationStrategy: z.ZodDefault<z.ZodEnum<["ast", "blocks"]>>;
+    llkb: z.ZodDefault<z.ZodObject<{
+        /** Enable LLKB integration */
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        /** Path to LLKB-generated config file */
+        configPath: z.ZodOptional<z.ZodString>;
+        /** Path to LLKB-generated glossary file */
+        glossaryPath: z.ZodOptional<z.ZodString>;
+        /** Integration level */
+        level: z.ZodDefault<z.ZodEnum<["minimal", "enhance", "aggressive"]>>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        level: "minimal" | "enhance" | "aggressive";
+        configPath?: string | undefined;
+        glossaryPath?: string | undefined;
+    }, {
+        enabled?: boolean | undefined;
+        configPath?: string | undefined;
+        glossaryPath?: string | undefined;
+        level?: "minimal" | "enhance" | "aggressive" | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     version: 1;
     validation: {
@@ -166,6 +217,12 @@ declare const AutogenConfigSchema: z.ZodObject<{
         skipPatterns: string[];
     };
     regenerationStrategy: "ast" | "blocks";
+    llkb: {
+        enabled: boolean;
+        level: "minimal" | "enhance" | "aggressive";
+        configPath?: string | undefined;
+        glossaryPath?: string | undefined;
+    };
 }, {
     version?: 1 | undefined;
     validation?: {
@@ -189,6 +246,12 @@ declare const AutogenConfigSchema: z.ZodObject<{
         skipPatterns?: string[] | undefined;
     } | undefined;
     regenerationStrategy?: "ast" | "blocks" | undefined;
+    llkb?: {
+        enabled?: boolean | undefined;
+        configPath?: string | undefined;
+        glossaryPath?: string | undefined;
+        level?: "minimal" | "enhance" | "aggressive" | undefined;
+    } | undefined;
 }>;
 /**
  * TypeScript types derived from schemas
@@ -200,6 +263,8 @@ type SelectorPolicy = z.infer<typeof SelectorPolicySchema>;
 type Validation = z.infer<typeof ValidationSchema>;
 type Heal = z.infer<typeof HealSchema>;
 type RegenerationStrategy = z.infer<typeof RegenerationStrategySchema>;
+type LLKBIntegrationLevel = z.infer<typeof LLKBIntegrationLevelSchema>;
+type LLKBIntegration = z.infer<typeof LLKBIntegrationSchema>;
 type AutogenConfig = z.infer<typeof AutogenConfigSchema>;
 
-export { type AutogenConfig as A, EslintSeveritySchema as E, HealSchema as H, PathsSchema as P, RegenerationStrategySchema as R, SelectorStrategySchema as S, ValidationSchema as V, EslintRulesSchema as a, SelectorPolicySchema as b, AutogenConfigSchema as c, type SelectorStrategy as d, type Paths as e, type EslintSeverity as f, type SelectorPolicy as g, type Validation as h, type Heal as i, type RegenerationStrategy as j };
+export { type AutogenConfig as A, EslintSeveritySchema as E, HealSchema as H, LLKBIntegrationLevelSchema as L, PathsSchema as P, RegenerationStrategySchema as R, SelectorStrategySchema as S, ValidationSchema as V, EslintRulesSchema as a, SelectorPolicySchema as b, LLKBIntegrationSchema as c, AutogenConfigSchema as d, type SelectorStrategy as e, type Paths as f, type EslintSeverity as g, type SelectorPolicy as h, type Validation as i, type Heal as j, type RegenerationStrategy as k, type LLKBIntegrationLevel as l, type LLKBIntegration as m };

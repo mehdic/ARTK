@@ -8,11 +8,14 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { LessonsFile, ComponentsFile, AnalyticsFile } from './types.js';
+import type { LessonsFile, ComponentsFile, AnalyticsFile, LLKBCategory, LLKBScope } from './types.js';
 import { loadJSON } from './file-utils.js';
 import { updateAnalytics } from './analytics.js';
 import { cleanupOldHistoryFiles, readTodayHistory, getHistoryDir } from './history.js';
 import { detectDecliningConfidence, needsConfidenceReview } from './confidence.js';
+import { exportForAutogen, formatExportResult } from './adapter.js';
+import type { LLKBAdapterConfig, LLKBAdapterResult } from './adapter-types.js';
+import { recordLearning, formatLearningResult, type LearningResult } from './learning.js';
 
 /**
  * Default LLKB root directory
@@ -597,3 +600,572 @@ export function formatPruneResult(result: PruneResult): string {
 
   return lines.join('\n');
 }
+
+// =============================================================================
+// Export Command Types and Functions
+// =============================================================================
+
+/**
+ * Options for the AutoGen export command
+ */
+export interface AutogenExportOptions {
+  /** LLKB root directory (default: .artk/llkb) */
+  llkbRoot?: string;
+
+  /** Output directory for generated files */
+  outputDir: string;
+
+  /** Minimum confidence threshold (default: 0.7) */
+  minConfidence?: number;
+
+  /** Categories to include (default: all) */
+  includeCategories?: LLKBCategory[];
+
+  /** Scopes to include (default: all) */
+  includeScopes?: LLKBScope[];
+
+  /** Whether to generate glossary file (default: true) */
+  generateGlossary?: boolean;
+
+  /** Whether to generate config file (default: true) */
+  generateConfig?: boolean;
+
+  /** Output format for config (default: yaml) */
+  configFormat?: 'yaml' | 'json';
+}
+
+/**
+ * Export LLKB for AutoGen consumption
+ *
+ * Generates configuration and glossary files that AutoGen can use
+ * to enhance test generation with learned patterns and components.
+ *
+ * @param options - Export options
+ * @returns Export result with paths and statistics
+ *
+ * @example
+ * ```typescript
+ * const result = await runExportForAutogen({
+ *   outputDir: './artk-e2e/',
+ *   minConfidence: 0.7,
+ *   configFormat: 'yaml',
+ * });
+ *
+ * console.log(formatExportResultForConsole(result));
+ * ```
+ */
+export async function runExportForAutogen(options: AutogenExportOptions): Promise<LLKBAdapterResult> {
+  const config: LLKBAdapterConfig = {
+    llkbRoot: options.llkbRoot,
+    outputDir: options.outputDir,
+    minConfidence: options.minConfidence,
+    includeCategories: options.includeCategories,
+    includeScopes: options.includeScopes,
+    generateGlossary: options.generateGlossary,
+    generateConfig: options.generateConfig,
+    configFormat: options.configFormat,
+  };
+
+  return exportForAutogen(config);
+}
+
+/**
+ * Format export result for console output
+ *
+ * @param result - Export result
+ * @returns Formatted string for console
+ */
+export function formatExportResultForConsole(result: LLKBAdapterResult): string {
+  return formatExportResult(result);
+}
+
+// =============================================================================
+// Learning Command Types and Functions
+// =============================================================================
+
+/**
+ * Options for the learn command
+ */
+export interface LearnOptions {
+  /** Type of learning event */
+  type: 'pattern' | 'component' | 'lesson';
+
+  /** Journey ID where the learning occurred */
+  journeyId: string;
+
+  /** Entity ID (component or lesson ID) */
+  id?: string;
+
+  /** Whether the operation was successful */
+  success: boolean;
+
+  /** Additional context or step text */
+  context?: string;
+
+  /** Test file path */
+  testFile?: string;
+
+  /** Source prompt */
+  prompt?: 'journey-implement' | 'journey-verify';
+
+  /** Selector strategy (for pattern type) */
+  selectorStrategy?: string;
+
+  /** Selector value (for pattern type) */
+  selectorValue?: string;
+
+  /** LLKB root directory */
+  llkbRoot?: string;
+}
+
+/**
+ * Run the learn command to record a learning event
+ *
+ * Records patterns, component usages, or lesson applications back to LLKB
+ * for continuous improvement of the knowledge base.
+ *
+ * @param options - Learn options
+ * @returns Learning result
+ *
+ * @example
+ * ```typescript
+ * // Record component usage
+ * const result = runLearnCommand({
+ *   type: 'component',
+ *   journeyId: 'JRN-0001',
+ *   id: 'COMP012',
+ *   success: true,
+ * });
+ *
+ * // Record lesson application
+ * const result = runLearnCommand({
+ *   type: 'lesson',
+ *   journeyId: 'JRN-0001',
+ *   id: 'L042',
+ *   success: true,
+ *   context: 'Applied ag-grid wait pattern',
+ * });
+ *
+ * // Record pattern learned
+ * const result = runLearnCommand({
+ *   type: 'pattern',
+ *   journeyId: 'JRN-0001',
+ *   success: true,
+ *   context: 'Click the Save button',
+ *   selectorStrategy: 'testid',
+ *   selectorValue: 'btn-save',
+ * });
+ *
+ * console.log(formatLearnResult(result));
+ * ```
+ */
+export function runLearnCommand(options: LearnOptions): LearningResult {
+  return recordLearning({
+    type: options.type,
+    journeyId: options.journeyId,
+    testFile: options.testFile,
+    prompt: options.prompt,
+    id: options.id,
+    success: options.success,
+    context: options.context,
+    stepText: options.context,
+    selectorStrategy: options.selectorStrategy,
+    selectorValue: options.selectorValue,
+    llkbRoot: options.llkbRoot,
+  });
+}
+
+/**
+ * Format learn result for console output
+ *
+ * @param result - Learning result
+ * @returns Formatted string for console
+ */
+export function formatLearnResult(result: LearningResult): string {
+  return formatLearningResult(result);
+}
+
+// Re-export learning types for CLI consumers
+export type { LearningResult } from './learning.js';
+
+// =============================================================================
+// Version Check Command Types and Functions
+// =============================================================================
+
+import {
+  checkUpdates,
+  compareVersions,
+  formatUpdateCheckResult,
+  formatVersionComparison,
+  updateTestLlkbVersion,
+  getCurrentLlkbVersion,
+  extractLlkbVersionFromTest,
+  type VersionComparison,
+  type UpdateCheckResult,
+} from './versioning.js';
+
+// Re-export versioning types for CLI consumers
+export type { VersionComparison, UpdateCheckResult };
+
+/**
+ * Options for the check-updates command
+ */
+export interface CheckUpdatesOptions {
+  /** Directory containing test files */
+  testsDir: string;
+
+  /** LLKB root directory (default: .artk/llkb) */
+  llkbRoot?: string;
+
+  /** File pattern (default: *.spec.ts) */
+  pattern?: string;
+}
+
+/**
+ * Options for the update-test command
+ */
+export interface UpdateTestOptions {
+  /** Path to the test file to update */
+  testPath: string;
+
+  /** LLKB root directory (default: .artk/llkb) */
+  llkbRoot?: string;
+
+  /** Whether to perform a dry run (show changes without writing) */
+  dryRun?: boolean;
+}
+
+/**
+ * Options for the update-tests command (batch)
+ */
+export interface UpdateTestsOptions {
+  /** Directory containing test files */
+  testsDir: string;
+
+  /** LLKB root directory (default: .artk/llkb) */
+  llkbRoot?: string;
+
+  /** File pattern (default: *.spec.ts) */
+  pattern?: string;
+
+  /** Whether to require confirmation for each file */
+  confirm?: boolean;
+
+  /** Whether to perform a dry run */
+  dryRun?: boolean;
+}
+
+/**
+ * Result of updating a test file
+ */
+export interface UpdateTestResult {
+  /** Whether the update succeeded */
+  success: boolean;
+
+  /** Path to the test file */
+  testPath: string;
+
+  /** Previous LLKB version (or null if none) */
+  previousVersion: string | null;
+
+  /** New LLKB version */
+  newVersion: string;
+
+  /** Whether the file was modified */
+  modified: boolean;
+
+  /** Error message if failed */
+  error?: string;
+
+  /** Whether this was a dry run */
+  dryRun: boolean;
+}
+
+/**
+ * Result of batch updating tests
+ */
+export interface UpdateTestsResult {
+  /** Successfully updated tests */
+  updated: UpdateTestResult[];
+
+  /** Tests that were skipped (already up to date) */
+  skipped: Array<{ testPath: string; reason: string }>;
+
+  /** Tests that failed to update */
+  failed: Array<{ testPath: string; error: string }>;
+
+  /** Summary statistics */
+  summary: {
+    total: number;
+    updated: number;
+    skipped: number;
+    failed: number;
+  };
+}
+
+/**
+ * Check which tests need LLKB updates
+ *
+ * @param options - Check options
+ * @returns Update check result
+ *
+ * @example
+ * ```typescript
+ * const result = runCheckUpdates({ testsDir: 'artk-e2e/tests/' });
+ * console.log(formatCheckUpdatesResult(result));
+ * ```
+ */
+export function runCheckUpdates(options: CheckUpdatesOptions): UpdateCheckResult {
+  return checkUpdates(
+    options.testsDir,
+    options.llkbRoot || DEFAULT_LLKB_ROOT,
+    options.pattern || '*.spec.ts'
+  );
+}
+
+/**
+ * Format check-updates result for console output
+ *
+ * @param result - Check result
+ * @returns Formatted string for console
+ */
+export function formatCheckUpdatesResult(result: UpdateCheckResult): string {
+  return formatUpdateCheckResult(result);
+}
+
+/**
+ * Update a single test file with current LLKB version
+ *
+ * @param options - Update options
+ * @returns Update result
+ *
+ * @example
+ * ```typescript
+ * const result = runUpdateTest({
+ *   testPath: 'artk-e2e/tests/login.spec.ts',
+ *   dryRun: true,
+ * });
+ * console.log(formatUpdateTestResult(result));
+ * ```
+ */
+export function runUpdateTest(options: UpdateTestOptions): UpdateTestResult {
+  const { testPath, llkbRoot = DEFAULT_LLKB_ROOT, dryRun = false } = options;
+
+  try {
+    // Read current test content
+    const content = fs.readFileSync(testPath, 'utf-8');
+
+    // Extract current version
+    const previousVersion = extractLlkbVersionFromTest(content);
+
+    // Get current LLKB version
+    const newVersion = getCurrentLlkbVersion(llkbRoot);
+
+    // Check if update is needed
+    if (previousVersion && previousVersion === newVersion) {
+      return {
+        success: true,
+        testPath,
+        previousVersion,
+        newVersion,
+        modified: false,
+        dryRun,
+      };
+    }
+
+    // Update content
+    const updatedContent = updateTestLlkbVersion(content, newVersion);
+
+    // Check if content actually changed
+    const modified = content !== updatedContent;
+
+    // Write if not dry run and content changed
+    if (!dryRun && modified) {
+      fs.writeFileSync(testPath, updatedContent, 'utf-8');
+    }
+
+    return {
+      success: true,
+      testPath,
+      previousVersion,
+      newVersion,
+      modified,
+      dryRun,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      testPath,
+      previousVersion: null,
+      newVersion: getCurrentLlkbVersion(llkbRoot),
+      modified: false,
+      error: error instanceof Error ? error.message : String(error),
+      dryRun,
+    };
+  }
+}
+
+/**
+ * Format update-test result for console output
+ *
+ * @param result - Update result
+ * @returns Formatted string for console
+ */
+export function formatUpdateTestResult(result: UpdateTestResult): string {
+  const lines: string[] = [];
+  const filename = path.basename(result.testPath);
+
+  if (!result.success) {
+    lines.push(`✗ ${filename}: ${result.error}`);
+    return lines.join('\n');
+  }
+
+  if (!result.modified) {
+    lines.push(`✓ ${filename}: Already up to date`);
+    return lines.join('\n');
+  }
+
+  const action = result.dryRun ? 'Would update' : 'Updated';
+  const prevVer = result.previousVersion?.split('T')[0] || 'none';
+  const newVer = result.newVersion.split('T')[0] ?? 'unknown';
+
+  lines.push(`✓ ${filename}: ${action} LLKB version ${prevVer} → ${newVer}`);
+
+  if (result.dryRun) {
+    lines.push('  (dry run - no changes written)');
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Update multiple test files with current LLKB version
+ *
+ * @param options - Update options
+ * @returns Batch update result
+ *
+ * @example
+ * ```typescript
+ * const result = runUpdateTests({
+ *   testsDir: 'artk-e2e/tests/',
+ *   dryRun: true,
+ * });
+ * console.log(formatUpdateTestsResult(result));
+ * ```
+ */
+export function runUpdateTests(options: UpdateTestsOptions): UpdateTestsResult {
+  const {
+    testsDir,
+    llkbRoot = DEFAULT_LLKB_ROOT,
+    pattern = '*.spec.ts',
+    dryRun = false,
+  } = options;
+
+  const result: UpdateTestsResult = {
+    updated: [],
+    skipped: [],
+    failed: [],
+    summary: {
+      total: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+    },
+  };
+
+  // First check which tests need updates
+  const checkResult = checkUpdates(testsDir, llkbRoot, pattern);
+  result.summary.total = checkResult.summary.total;
+
+  // Process outdated tests
+  for (const { testFile } of checkResult.outdated) {
+    const updateResult = runUpdateTest({
+      testPath: testFile,
+      llkbRoot,
+      dryRun,
+    });
+
+    if (updateResult.success) {
+      if (updateResult.modified) {
+        result.updated.push(updateResult);
+        result.summary.updated++;
+      } else {
+        result.skipped.push({
+          testPath: testFile,
+          reason: 'No changes needed after header update attempt',
+        });
+        result.summary.skipped++;
+      }
+    } else {
+      result.failed.push({
+        testPath: testFile,
+        error: updateResult.error || 'Unknown error',
+      });
+      result.summary.failed++;
+    }
+  }
+
+  // Count up-to-date as skipped
+  for (const { testFile } of checkResult.upToDate) {
+    result.skipped.push({
+      testPath: testFile,
+      reason: 'Already up to date',
+    });
+    result.summary.skipped++;
+  }
+
+  // Count errors
+  for (const { testFile, error } of checkResult.errors) {
+    result.failed.push({ testPath: testFile, error });
+    result.summary.failed++;
+  }
+
+  return result;
+}
+
+/**
+ * Format update-tests result for console output
+ *
+ * @param result - Batch update result
+ * @returns Formatted string for console
+ */
+export function formatUpdateTestsResult(result: UpdateTestsResult): string {
+  const lines: string[] = [];
+
+  lines.push('LLKB Batch Update Results');
+  lines.push('─'.repeat(50));
+  lines.push('');
+
+  if (result.updated.length > 0) {
+    lines.push('Updated:');
+    for (const update of result.updated) {
+      lines.push(`  ${formatUpdateTestResult(update)}`);
+    }
+    lines.push('');
+  }
+
+  if (result.failed.length > 0) {
+    lines.push('Failed:');
+    for (const { testPath, error } of result.failed) {
+      lines.push(`  ✗ ${path.basename(testPath)}: ${error}`);
+    }
+    lines.push('');
+  }
+
+  lines.push('─'.repeat(50));
+  lines.push(`Total: ${result.summary.total} tests`);
+  lines.push(`  Updated: ${result.summary.updated}`);
+  lines.push(`  Skipped: ${result.summary.skipped}`);
+  lines.push(`  Failed: ${result.summary.failed}`);
+
+  return lines.join('\n');
+}
+
+// Re-export versioning functions that may be useful directly
+export {
+  compareVersions as compareTestVersion,
+  extractLlkbVersionFromTest,
+  updateTestLlkbVersion,
+  getCurrentLlkbVersion,
+  formatVersionComparison,
+};

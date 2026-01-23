@@ -150,6 +150,15 @@ export type {
   HealthCheck,
   StatsResult,
   PruneResult,
+  AutogenExportOptions,
+  LearnOptions,
+  LearningResult,
+  // Versioning CLI types
+  CheckUpdatesOptions,
+  UpdateTestOptions,
+  UpdateTestsOptions,
+  UpdateTestResult,
+  UpdateTestsResult,
 } from './cli.js';
 
 export {
@@ -159,7 +168,74 @@ export {
   formatHealthCheck,
   formatStats,
   formatPruneResult,
+  runExportForAutogen,
+  formatExportResultForConsole,
+  runLearnCommand,
+  formatLearnResult,
+  // Versioning CLI functions
+  runCheckUpdates,
+  formatCheckUpdatesResult,
+  runUpdateTest,
+  formatUpdateTestResult,
+  runUpdateTests,
+  formatUpdateTestsResult,
+  compareTestVersion,
+  extractLlkbVersionFromTest,
+  updateTestLlkbVersion,
+  getCurrentLlkbVersion,
+  formatVersionComparison,
 } from './cli.js';
+
+// Learning functions (learning loop for continuous improvement)
+export type {
+  LearningInput,
+  PatternLearnedInput,
+  ComponentUsedInput,
+  LessonAppliedInput,
+} from './learning.js';
+
+export {
+  recordPatternLearned,
+  recordComponentUsed,
+  recordLessonApplied,
+  recordLearning,
+  formatLearningResult,
+} from './learning.js';
+
+// Adapter types (AutoGen integration)
+export type {
+  LLKBAdapterConfig,
+  LLKBAdapterResult,
+  ExportStats,
+  PatternSource,
+  AdditionalPattern,
+  SelectorOverride,
+  TimingHint,
+  ModuleMapping,
+  AutogenLLKBConfig,
+  IRPrimitive,
+  GlossaryEntry,
+  GlossaryMeta,
+} from './adapter-types.js';
+
+// Adapter functions (AutoGen integration)
+export {
+  exportForAutogen,
+  formatExportResult,
+} from './adapter.js';
+
+// Adapter transform functions
+export {
+  triggerToRegex,
+  componentNameToTrigger,
+  generateNameVariations,
+  lessonToPattern,
+  lessonToSelectorOverride,
+  lessonToTimingHint,
+  componentToModule,
+  componentToGlossaryEntries,
+  lessonToGlossaryEntries,
+} from './adapter-transforms.js';
 
 // Loaders - Load LLKB data from files
 export type {
@@ -284,3 +360,21 @@ export {
   generateReport,
   exportToFile,
 } from './search.js';
+
+// Versioning - Track LLKB versions in generated tests
+export type {
+  VersionComparison,
+  UpdateCheckResult,
+} from './versioning.js';
+
+export {
+  extractLlkbVersionFromTest as extractVersionFromTest,
+  extractLlkbEntriesFromTest,
+  updateTestLlkbVersion as updateVersionInTest,
+  getCurrentLlkbVersion as getLlkbVersion,
+  countNewEntriesSince,
+  compareVersions as compareTestVersions,
+  checkUpdates,
+  formatVersionComparison as formatComparison,
+  formatUpdateCheckResult,
+} from './versioning.js';

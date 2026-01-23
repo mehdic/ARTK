@@ -6,7 +6,7 @@
     "test_framework": "none detected",
     "build_system": "npm/yarn",
     "package_manager": "npm",
-    "primary_language": "java"
+    "primary_language": "typescript"
   },
-  "timestamp": "2026-01-04T14:00:09.028036"
+  "timestamp": "2026-01-23T11:24:31.884913"
 }
