@@ -26,7 +26,7 @@ LLKB and AutoGen integration follows the **Adapter Pattern**:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  LLKB Knowledge Base                     │
-│  (.artk/llkb/)                                          │
+│  (artk-e2e/llkb/)                                       │
 │  ├─ lessons.json       (patterns, selectors, timing)   │
 │  ├─ components.json    (reusable page objects)         │
 │  └─ analytics.json     (confidence scores, stats)      │
@@ -342,12 +342,16 @@ npx artk-llkb export --for-autogen --output <dir> [options]
 # Check updates
 npx artk-llkb check-updates --tests-dir <dir> [--pattern <glob>]
 
-# Update single test
+# Update single test (singular form - alias for updating one file)
 npx artk-llkb update-test --test <file> [--dry-run]
 
-# Batch update
+# Batch update (plural form - update multiple files)
 npx artk-llkb update-tests --tests-dir <dir> [--dry-run] [--pattern <glob>]
 ```
+
+**Note:** `update-test` (singular) is an alias for updating a single test file.
+Both forms are available for clarity: use `update-test` for single files,
+`update-tests` for batch operations.
 
 ### Learning Commands
 
@@ -473,6 +477,10 @@ cd artk-e2e
 /artk.discover-foundation
 ```
 
+**Note:** As of version 1.0, LLKB files are generated in `artk-e2e/llkb/` by default
+(changed from the legacy `.artk/llkb/` location). The `--llkb-root` flag can be used
+to specify an alternative location if needed.
+
 ### Export Succeeds but 0 Entries
 
 **Cause:** No high-confidence lessons yet (new project)
@@ -502,7 +510,7 @@ diff artk-e2e/tests/login.spec.ts artk-e2e/tests/login.spec.ts.llkb-backup-*
 
 # Manually review what changed
 # If pattern is incorrect, archive the lesson:
-# Edit .artk/llkb/lessons.json, set "archived": true
+# Edit artk-e2e/llkb/lessons.json, set "archived": true
 ```
 
 ### Glossary Import Fails

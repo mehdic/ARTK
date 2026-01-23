@@ -655,7 +655,7 @@ export interface AutogenExportOptions {
  * console.log(formatExportResultForConsole(result));
  * ```
  */
-export async function runExportForAutogen(options: AutogenExportOptions): Promise<LLKBAdapterResult> {
+export function runExportForAutogen(options: AutogenExportOptions): LLKBAdapterResult {
   const config: LLKBAdapterConfig = {
     llkbRoot: options.llkbRoot,
     outputDir: options.outputDir,
@@ -824,6 +824,13 @@ export interface CheckUpdatesOptions {
 
 /**
  * Options for the update-test command
+ *
+ * Note: This command has both singular (update-test) and plural (update-tests) forms.
+ * The singular form is an alias for updating a single test file.
+ *
+ * CLI usage:
+ * - `artk-llkb update-test --test <file>` (singular - single file)
+ * - `artk-llkb update-tests --tests-dir <dir>` (plural - batch update)
  */
 export interface UpdateTestOptions {
   /** Path to the test file to update */
