@@ -65,7 +65,7 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║  GATE 3: Use AutoGen CLI (Step 3)                                         ║
 # ║    □ Run `npx artk-autogen generate` for each journey                     ║
 # ║    □ Only use manual implementation if AutoGen fails or has blocked steps ║
-# ║    □ Subagents are fallback only — never primary                          ║
+# ║    □ In subagent mode, subagents run AutoGen (main agent does NOT)         ║
 # ║                                                                           ║
 # ║  Failure to complete these gates = INVALID implementation                 ║
 # ║  LLKB is MANDATORY - cannot proceed if it doesn't exist.                  ║
@@ -76,13 +76,15 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 
 ## ✅ AutoGen-First Gate (MANDATORY)
 
-**Before dispatching ANY subagents**, the main agent MUST:
-1. Run AutoGen CLI for each journey (one command per journey):
-   - `npx artk-autogen generate --journey=<JRN-ID>`
-2. Capture the CLI output (success, blocked steps, or failure).
-3. **Only if AutoGen fails or reports blocked steps** may you dispatch subagents for manual implementation.
+AutoGen is **always first**. Who runs it depends on batch mode:
+- **batchMode=subagent (default):** each subagent runs AutoGen for its journey.
+- **batchMode=serial:** the main agent runs AutoGen for each journey.
 
-Subagents are **fallback only**. Skipping AutoGen is INVALID.
+**AutoGen command must use a journey FILE PATH (not `--journey`):**
+- `npx artk-autogen generate ../journeys/<status>/<JRN-ID>__*.md -o <testsDir> -m`
+
+Only if AutoGen fails or reports blocked steps may you proceed to manual implementation.
+Skipping AutoGen is INVALID.
 
 ---
 
@@ -119,8 +121,9 @@ This command must:
 1) Convert a Journey (preferably `status: clarified`) into Playwright tests that follow the foundation harness conventions.
 2) **Load LLKB context FIRST** to reuse existing components and apply learned patterns.
 3) **Use AutoGen CLI as the PRIMARY approach** for test generation.
-   - The main agent MUST attempt AutoGen before any subagent dispatch.
-   - Subagents are a manual fallback ONLY if AutoGen fails or reports blocked steps.
+   - In subagent mode, subagents run AutoGen for their journey.
+   - In serial mode, the main agent runs AutoGen for each journey.
+   - Manual implementation is allowed only if AutoGen fails or reports blocked steps.
 4) Create/extend **feature modules** only when needed (foundation modules are reused).
 5) Run **quality gates**:
    - `/artk.journey-validate` (static rules + traceability)
@@ -489,7 +492,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - Journey ID: {batch[0]}
     - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen (file path) → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -500,7 +503,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - Journey ID: {batch[1]}
     - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen (file path) → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -511,7 +514,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - Journey ID: {batch[2]}
     - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen (file path) → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -2643,7 +2646,7 @@ import {
 
 # Completion checklist (print at end)
 - [ ] **LLKB context loaded** before any code generation
-- [ ] **AutoGen attempted** as primary approach (commands shown + result recorded)
+- [ ] **AutoGen attempted** as primary approach (command shown + result recorded)
 - [ ] Test file(s) created/updated with `@JRN-####` and tier tag
 - [ ] `@auth` / `@rbac` tags present when access control is asserted
 - [ ] Tests use harness fixtures and foundation modules
