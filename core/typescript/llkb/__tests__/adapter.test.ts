@@ -8,30 +8,30 @@
  * - Edge cases and error handling
  */
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 // Transform functions
 import {
-  triggerToRegex,
   componentNameToTrigger,
+  componentToGlossaryEntries,
+  componentToModule,
   generateNameVariations,
+  lessonToGlossaryEntries,
   lessonToPattern,
   lessonToSelectorOverride,
   lessonToTimingHint,
-  componentToModule,
-  componentToGlossaryEntries,
-  lessonToGlossaryEntries,
+  triggerToRegex,
 } from '../adapter-transforms.js';
 
 // Main adapter
 import { exportForAutogen, formatExportResult } from '../adapter.js';
 
 // Types
-import type { Lesson, Component, LessonsFile, ComponentsFile } from '../types.js';
-import type { LLKBAdapterConfig, LLKBAdapterResult } from '../adapter-types.js';
+import type { Component, ComponentsFile, Lesson, LessonsFile } from '../types.js';
+import type { LLKBAdapterResult } from '../adapter-types.js';
 
 // =============================================================================
 // Test Fixtures
@@ -82,6 +82,20 @@ function createTestComponent(overrides: Partial<Component> = {}): Component {
     },
     ...overrides,
   };
+}
+
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
+/**
+ * Type assertion helper to avoid non-null assertions
+ */
+function assertDefined<T>(value: T | undefined | null, message?: string): asserts value is T {
+  expect(value).toBeDefined();
+  if (value === undefined || value === null) {
+    throw new Error(message || 'Expected value to be defined');
+  }
 }
 
 // =============================================================================
@@ -539,7 +553,7 @@ describe('exportForAutogen', () => {
     }
   });
 
-  function setupLLKB(lessons: Lesson[] = [], components: Component[] = []) {
+  function setupLLKB(lessons: Lesson[] = [], components: Component[] = []): void {
     // Write config.yml
     writeFileSync(
       join(llkbRoot, 'config.yml'),
@@ -671,9 +685,10 @@ describe('exportForAutogen', () => {
 
     expect(result.configPath).not.toBeNull();
     expect(result.configPath).toContain('.yml');
-    expect(existsSync(result.configPath!)).toBe(true);
+    assertDefined(result.configPath, 'Expected configPath to be defined');
+    expect(existsSync(result.configPath)).toBe(true);
 
-    const content = readFileSync(result.configPath!, 'utf-8');
+    const content = readFileSync(result.configPath, 'utf-8');
     expect(content).toContain('version:');
     expect(content).toContain('additionalPatterns:');
   });
@@ -690,10 +705,11 @@ describe('exportForAutogen', () => {
 
     expect(result.configPath).not.toBeNull();
     expect(result.configPath).toContain('.json');
-    expect(existsSync(result.configPath!)).toBe(true);
+    assertDefined(result.configPath, 'Expected configPath to be defined');
+    expect(existsSync(result.configPath)).toBe(true);
 
-    const content = readFileSync(result.configPath!, 'utf-8');
-    const parsed = JSON.parse(content);
+    const content = readFileSync(result.configPath, 'utf-8');
+    const parsed = JSON.parse(content) as { version: number };
     expect(parsed.version).toBe(1);
   });
 
@@ -708,9 +724,10 @@ describe('exportForAutogen', () => {
     });
 
     expect(result.glossaryPath).not.toBeNull();
-    expect(existsSync(result.glossaryPath!)).toBe(true);
+    assertDefined(result.glossaryPath, 'Expected glossaryPath to be defined');
+    expect(existsSync(result.glossaryPath)).toBe(true);
 
-    const content = readFileSync(result.glossaryPath!, 'utf-8');
+    const content = readFileSync(result.glossaryPath, 'utf-8');
     expect(content).toContain('llkbGlossary');
     expect(content).toContain('IRPrimitive');
   });

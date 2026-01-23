@@ -13,22 +13,22 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import {
-  extractLlkbVersionFromTest,
-  extractLlkbEntriesFromTest,
-  updateTestLlkbVersion,
-  getCurrentLlkbVersion,
-  countNewEntriesSince,
-  compareVersions,
   checkUpdates,
-  formatVersionComparison,
+  compareVersions,
+  countNewEntriesSince,
+  extractLlkbEntriesFromTest,
+  extractLlkbVersionFromTest,
   formatUpdateCheckResult,
-  type VersionComparison,
+  formatVersionComparison,
+  getCurrentLlkbVersion,
   type UpdateCheckResult,
+  updateTestLlkbVersion,
+  type VersionComparison,
 } from '../versioning.js';
 
 // =============================================================================

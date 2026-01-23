@@ -10,22 +10,32 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import {
-  recordPatternLearned,
-  recordComponentUsed,
-  recordLessonApplied,
-  recordLearning,
   formatLearningResult,
+  recordComponentUsed,
+  recordLearning,
+  recordLessonApplied,
+  recordPatternLearned,
 } from '../learning.js';
-import type { LessonsFile, ComponentsFile, Lesson, Component } from '../types.js';
+import type { ComponentsFile, LessonsFile } from '../types.js';
 
 // =============================================================================
 // Test Setup
 // =============================================================================
+
+/**
+ * Type assertion helper to avoid non-null assertions
+ */
+function assertDefined<T>(value: T | undefined | null, message?: string): asserts value is T {
+  expect(value).toBeDefined();
+  if (value === undefined || value === null) {
+    throw new Error(message || 'Expected value to be defined');
+  }
+}
 
 function createTempLLKB(): string {
   const tempDir = join(tmpdir(), `llkb-learn-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -293,7 +303,7 @@ describe('recordPatternLearned', () => {
     });
 
     const historyDir = join(tempDir, 'history');
-    const files = require('fs').readdirSync(historyDir);
+    const files = readdirSync(historyDir);
     expect(files.length).toBe(1);
 
     const historyContent = readFileSync(join(historyDir, files[0]), 'utf-8');
@@ -387,7 +397,7 @@ describe('recordComponentUsed', () => {
     });
 
     const historyDir = join(tempDir, 'history');
-    const files = require('fs').readdirSync(historyDir);
+    const files = readdirSync(historyDir);
     expect(files.length).toBe(1);
 
     const historyContent = readFileSync(join(historyDir, files[0]), 'utf-8');
@@ -544,12 +554,16 @@ describe('recordLearning', () => {
   });
 
   it('handles unknown type', () => {
+    // Testing error handling for invalid type - intentionally using any
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
+    const invalidType = 'unknown' as any;
     const result = recordLearning({
-      type: 'unknown' as any,
+      type: invalidType,
       journeyId: 'JRN-0001',
       success: true,
       llkbRoot: tempDir,
     });
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Unknown learning type');
@@ -621,8 +635,10 @@ describe('Edge cases', () => {
   it('handles archived lessons (should not update)', () => {
     // Add an archived lesson
     const lessonsFile = createMockLessonsFile();
+    const firstLesson = lessonsFile.lessons[0];
+    assertDefined(firstLesson, 'Expected first lesson to be defined');
     lessonsFile.lessons.push({
-      ...lessonsFile.lessons[0]!,
+      ...firstLesson,
       id: 'L003',
       archived: true,
     });
@@ -648,8 +664,10 @@ describe('Edge cases', () => {
   it('handles archived components (should not update)', () => {
     // Add an archived component
     const componentsFile = createMockComponentsFile();
+    const firstComponent = componentsFile.components[0];
+    assertDefined(firstComponent, 'Expected first component to be defined');
     componentsFile.components.push({
-      ...componentsFile.components[0]!,
+      ...firstComponent,
       id: 'COMP003',
       archived: true,
     });

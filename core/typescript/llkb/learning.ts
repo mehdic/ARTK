@@ -12,13 +12,14 @@
 
 import * as path from 'path';
 import type {
-  LessonsFile,
   ComponentsFile,
   Lesson,
+  LessonsFile,
 } from './types.js';
 import { appendToHistory, DEFAULT_LLKB_ROOT } from './history.js';
 import { updateJSONWithLockSync } from './file-utils.js';
 import { calculateConfidence } from './confidence.js';
+import { PERCENTAGES } from './constants.js';
 
 // =============================================================================
 // Input Types
@@ -124,7 +125,7 @@ function calculateNewSuccessRate(
   const totalSuccesses = currentSuccessRate * currentOccurrences;
   const newSuccesses = newSuccess ? totalSuccesses + 1 : totalSuccesses;
   const newOccurrences = currentOccurrences + 1;
-  return Math.round((newSuccesses / newOccurrences) * 100) / 100;
+  return Math.round((newSuccesses / newOccurrences) * PERCENTAGES.FULL) / PERCENTAGES.FULL;
 }
 
 /**
@@ -545,7 +546,7 @@ export function recordLearning(args: {
     default:
       return {
         success: false,
-        error: `Unknown learning type: ${args.type}`,
+        error: `Unknown learning type: ${String(args.type)}`,
       };
   }
 }

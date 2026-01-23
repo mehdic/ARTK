@@ -7,16 +7,17 @@
  * @module llkb/adapter-transforms
  */
 
-import type { Lesson, Component } from './types.js';
+import type { Component, Lesson } from './types.js';
 import type {
   AdditionalPattern,
-  SelectorOverride,
-  TimingHint,
-  ModuleMapping,
   GlossaryEntry,
   IRPrimitive,
+  ModuleMapping,
   PatternSource,
+  SelectorOverride,
+  TimingHint,
 } from './adapter-types.js';
+import { CONFIDENCE, TIMEOUTS } from './constants.js';
 
 // =============================================================================
 // Category to Primitive Type Mapping
@@ -191,7 +192,7 @@ export function lessonToPattern(lesson: Lesson): AdditionalPattern | null {
   }
 
   // Require minimum confidence
-  if (lesson.metrics.confidence < 0.5) {
+  if (lesson.metrics.confidence < CONFIDENCE.DEFAULT_WEIGHT) {
     return null;
   }
 
@@ -304,11 +305,11 @@ export function lessonToTimingHint(lesson: Lesson): TimingHint | null {
   // If no explicit time found, use a sensible default based on pattern keywords
   if (waitMs === 0) {
     if (pattern.toLowerCase().includes('animation')) {
-      waitMs = 300;
+      waitMs = TIMEOUTS.SHORT_MS;
     } else if (pattern.toLowerCase().includes('load')) {
-      waitMs = 1000;
+      waitMs = TIMEOUTS.MEDIUM_MS;
     } else if (pattern.toLowerCase().includes('network')) {
-      waitMs = 2000;
+      waitMs = TIMEOUTS.LONG_MS;
     } else {
       // Cannot determine timing
       return null;

@@ -8,14 +8,15 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { LessonsFile, ComponentsFile, AnalyticsFile, LLKBCategory, LLKBScope } from './types.js';
+import type { AnalyticsFile, ComponentsFile, LessonsFile, LLKBCategory, LLKBScope } from './types.js';
 import { loadJSON } from './file-utils.js';
 import { updateAnalytics } from './analytics.js';
-import { cleanupOldHistoryFiles, readTodayHistory, getHistoryDir } from './history.js';
+import { cleanupOldHistoryFiles, getHistoryDir, readTodayHistory } from './history.js';
 import { detectDecliningConfidence, needsConfidenceReview } from './confidence.js';
 import { exportForAutogen, formatExportResult } from './adapter.js';
 import type { LLKBAdapterConfig, LLKBAdapterResult } from './adapter-types.js';
-import { recordLearning, formatLearningResult, type LearningResult } from './learning.js';
+import { formatLearningResult, type LearningResult, recordLearning } from './learning.js';
+import { PERCENTAGES, TABLE } from './constants.js';
 
 /**
  * Default LLKB root directory
@@ -141,22 +142,22 @@ export function runHealthCheck(llkbRoot: string = DEFAULT_LLKB_ROOT): HealthChec
   const lessonsPath = path.join(llkbRoot, 'lessons.json');
   const lessonsCheck = checkJSONFile<LessonsFile>(lessonsPath, 'lessons.json');
   checks.push(lessonsCheck);
-  if (lessonsCheck.status === 'fail') hasError = true;
-  if (lessonsCheck.status === 'warn') hasWarning = true;
+  if (lessonsCheck.status === 'fail') {hasError = true;}
+  if (lessonsCheck.status === 'warn') {hasWarning = true;}
 
   // Check 4: Components file
   const componentsPath = path.join(llkbRoot, 'components.json');
   const componentsCheck = checkJSONFile<ComponentsFile>(componentsPath, 'components.json');
   checks.push(componentsCheck);
-  if (componentsCheck.status === 'fail') hasError = true;
-  if (componentsCheck.status === 'warn') hasWarning = true;
+  if (componentsCheck.status === 'fail') {hasError = true;}
+  if (componentsCheck.status === 'warn') {hasWarning = true;}
 
   // Check 5: Analytics file
   const analyticsPath = path.join(llkbRoot, 'analytics.json');
   const analyticsCheck = checkJSONFile<AnalyticsFile>(analyticsPath, 'analytics.json');
   checks.push(analyticsCheck);
-  if (analyticsCheck.status === 'fail') hasError = true;
-  if (analyticsCheck.status === 'warn') hasWarning = true;
+  if (analyticsCheck.status === 'fail') {hasError = true;}
+  if (analyticsCheck.status === 'warn') {hasWarning = true;}
 
   // Check 6: History directory
   const historyDir = getHistoryDir(llkbRoot);
@@ -293,14 +294,14 @@ export function getStats(llkbRoot: string = DEFAULT_LLKB_ROOT): StatsResult {
       Math.round(
         (activeLessons.reduce((acc, l) => acc + l.metrics.confidence, 0) /
           activeLessons.length) *
-          100
-      ) / 100;
+          PERCENTAGES.FULL
+      ) / PERCENTAGES.FULL;
     avgSuccessRate =
       Math.round(
         (activeLessons.reduce((acc, l) => acc + l.metrics.successRate, 0) /
           activeLessons.length) *
-          100
-      ) / 100;
+          PERCENTAGES.FULL
+      ) / PERCENTAGES.FULL;
     needsReview = activeLessons.filter(
       (l) => needsConfidenceReview(l) || detectDecliningConfidence(l)
     ).length;
@@ -317,7 +318,7 @@ export function getStats(llkbRoot: string = DEFAULT_LLKB_ROOT): StatsResult {
   if (activeComponents.length > 0) {
     totalReuses = activeComponents.reduce((acc, c) => acc + (c.metrics.totalUses ?? 0), 0);
     avgReusesPerComponent =
-      Math.round((totalReuses / activeComponents.length) * 100) / 100;
+      Math.round((totalReuses / activeComponents.length) * PERCENTAGES.FULL) / PERCENTAGES.FULL;
   }
 
   // History stats
@@ -488,10 +489,10 @@ function archiveInactiveItems(
   let archivedCount = 0;
 
   for (const item of items) {
-    if (item.archived) continue;
+    if (item.archived) {continue;}
 
     const lastUsedStr = item.metrics.lastSuccess ?? item.metrics.lastUsed;
-    if (!lastUsedStr) continue;
+    if (!lastUsedStr) {continue;}
 
     const lastUsed = new Date(lastUsedStr);
     if (lastUsed < cutoffDate) {
@@ -518,7 +519,7 @@ export function formatHealthCheck(result: HealthCheckResult): string {
   const statusIcon = result.status === 'healthy' ? '✓' : result.status === 'warning' ? '⚠' : '✗';
 
   lines.push(`${statusIcon} LLKB Health Check: ${result.status.toUpperCase()}`);
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
 
   for (const check of result.checks) {
     const icon = check.status === 'pass' ? '✓' : check.status === 'warn' ? '⚠' : '✗';
@@ -528,7 +529,7 @@ export function formatHealthCheck(result: HealthCheckResult): string {
     }
   }
 
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
   lines.push(result.summary);
 
   return lines.join('\n');
@@ -544,7 +545,7 @@ export function formatStats(stats: StatsResult): string {
   const lines: string[] = [];
 
   lines.push('LLKB Statistics');
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
 
   lines.push('');
   lines.push('Lessons:');
@@ -580,7 +581,7 @@ export function formatPruneResult(result: PruneResult): string {
   const lines: string[] = [];
 
   lines.push('LLKB Prune Results');
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
 
   lines.push(`History files deleted: ${result.historyFilesDeleted}`);
   if (result.archivedLessons > 0) {
@@ -795,13 +796,13 @@ export type { LearningResult } from './learning.js';
 import {
   checkUpdates,
   compareVersions,
+  extractLlkbVersionFromTest,
   formatUpdateCheckResult,
   formatVersionComparison,
-  updateTestLlkbVersion,
   getCurrentLlkbVersion,
-  extractLlkbVersionFromTest,
-  type VersionComparison,
   type UpdateCheckResult,
+  updateTestLlkbVersion,
+  type VersionComparison,
 } from './versioning.js';
 
 // Re-export versioning types for CLI consumers
@@ -1133,7 +1134,7 @@ export function formatUpdateTestsResult(result: UpdateTestsResult): string {
   const lines: string[] = [];
 
   lines.push('LLKB Batch Update Results');
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
   lines.push('');
 
   if (result.updated.length > 0) {
@@ -1152,7 +1153,7 @@ export function formatUpdateTestsResult(result: UpdateTestsResult): string {
     lines.push('');
   }
 
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
   lines.push(`Total: ${result.summary.total} tests`);
   lines.push(`  Updated: ${result.summary.updated}`);
   lines.push(`  Skipped: ${result.summary.skipped}`);

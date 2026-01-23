@@ -9,8 +9,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { LessonsFile, ComponentsFile, AnalyticsFile } from './types.js';
+import type { AnalyticsFile, ComponentsFile, LessonsFile } from './types.js';
 import { loadJSON } from './file-utils.js';
+import { LIMITS, TABLE, TIME } from './constants.js';
 
 /**
  * Default LLKB root directory
@@ -214,11 +215,11 @@ export function countNewEntriesSince(
     const lessonsPath = path.join(llkbRoot, 'lessons.json');
     try {
       const lessons = loadJSON<LessonsFile>(lessonsPath);
-      if (!lessons?.lessons) return 0;
+      if (!lessons?.lessons) {return 0;}
 
       return lessons.lessons.filter((lesson) => {
         const firstSeen = lesson.metrics.firstSeen;
-        if (!firstSeen) return false;
+        if (!firstSeen) {return false;}
         return new Date(firstSeen) > sinceDate;
       }).length;
     } catch {
@@ -228,11 +229,11 @@ export function countNewEntriesSince(
     const componentsPath = path.join(llkbRoot, 'components.json');
     try {
       const components = loadJSON<ComponentsFile>(componentsPath);
-      if (!components?.components) return 0;
+      if (!components?.components) {return 0;}
 
       return components.components.filter((component) => {
         const extractedAt = component.source?.extractedAt;
-        if (!extractedAt) return false;
+        if (!extractedAt) {return false;}
         return new Date(extractedAt) > sinceDate;
       }).length;
     } catch {
@@ -276,7 +277,7 @@ export function compareVersions(
 
   // Calculate days since update
   const daysSinceUpdate = testLlkbVersion
-    ? Math.floor((Date.now() - new Date(testLlkbVersion).getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((Date.now() - new Date(testLlkbVersion).getTime()) / (TIME.MS_PER_SECOND * TIME.SECONDS_PER_MINUTE * TIME.MINUTES_PER_HOUR * TIME.HOURS_PER_DAY))
     : Infinity;
 
   // Count new entries since test version
@@ -286,9 +287,9 @@ export function compareVersions(
   // Determine recommendation
   let recommendation: 'update' | 'skip' | 'review' = 'skip';
 
-  if (isOutdated && (newPatternsAvailable > 5 || newComponentsAvailable > 2)) {
+  if (isOutdated && (newPatternsAvailable > LIMITS.MAX_RECENT_ITEMS || newComponentsAvailable > 2)) {
     recommendation = 'update';
-  } else if (isOutdated && daysSinceUpdate > 30) {
+  } else if (isOutdated && daysSinceUpdate > LIMITS.DEFAULT_RETENTION_DAYS) {
     recommendation = 'review';
   } else if (newPatternsAvailable > 0 || newComponentsAvailable > 0) {
     recommendation = 'review';
@@ -463,7 +464,7 @@ export function formatUpdateCheckResult(result: UpdateCheckResult): string {
   const lines: string[] = [];
 
   lines.push('LLKB Version Check');
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
   lines.push('');
 
   if (result.outdated.length > 0) {
@@ -490,7 +491,7 @@ export function formatUpdateCheckResult(result: UpdateCheckResult): string {
     lines.push('');
   }
 
-  lines.push('─'.repeat(50));
+  lines.push('─'.repeat(TABLE.COLUMN_WIDTH));
   lines.push(`Total: ${result.summary.total} tests`);
   lines.push(result.summary.recommendation);
 
