@@ -326,17 +326,46 @@ IF batchMode == "subagent":
   # If you cannot determine the environment, assume NOT VS Code and fallback.
 
   isVSCodeLocal = detectVSCodeLocalEnvironment()
+  fallbackReason = null
 
+  # ═══════════════════════════════════════════════════════════════
+  # FALLBACK DETECTION: Check why subagent mode cannot be used
+  # ═══════════════════════════════════════════════════════════════
   IF NOT isVSCodeLocal:
+    # Determine specific reason for fallback
+    IF environmentType == "github.com":
+      fallbackReason = "GitHub web interface does not support #runSubagent"
+    ELSE IF environmentType == "cli-codex":
+      fallbackReason = "Codex CLI does not support #runSubagent (VS Code feature only)"
+    ELSE IF environmentType == "cli-claude":
+      fallbackReason = "Claude Code CLI does not support #runSubagent (VS Code feature only)"
+    ELSE IF environmentType == "terminal":
+      fallbackReason = "Terminal environment does not support #runSubagent"
+    ELSE:
+      fallbackReason = "Unknown environment - #runSubagent availability uncertain"
+
     OUTPUT:
     ╔════════════════════════════════════════════════════════════════════╗
-    ║  ⚠️  SUBAGENT MODE NOT AVAILABLE                                   ║
+    ║  ⚠️  SUBAGENT MODE NOT AVAILABLE — FALLING BACK TO SERIAL          ║
     ╠════════════════════════════════════════════════════════════════════╣
-    ║  #runSubagent is only supported in VS Code local sessions.         ║
+    ║  Requested mode: subagent (parallel batches)                       ║
+    ║  Fallback mode:  serial (one at a time)                            ║
     ║                                                                    ║
     ║  Detected environment: {environmentType}                           ║
-    ║  Automatically falling back to batchMode=serial.                   ║
+    ║  Reason: {fallbackReason}                                          ║
+    ║                                                                    ║
+    ║  Impact:                                                           ║
+    ║  - Journeys will be processed sequentially instead of in parallel  ║
+    ║  - Total time may be longer for large batches                      ║
+    ║  - LLKB updates will still work correctly                          ║
+    ║                                                                    ║
+    ║  To use parallel mode:                                             ║
+    ║  - Open this project in VS Code                                    ║
+    ║  - Run this command from VS Code Copilot Chat                      ║
     ╚════════════════════════════════════════════════════════════════════╝
+
+    # Log the fallback decision for debugging
+    LOG INFO: "Subagent mode fallback: {fallbackReason} | Environment: {environmentType}"
 
     batchMode = "serial"  # Auto-fallback
 
@@ -529,16 +558,27 @@ IF batchMode == "subagent" AND totalJourneys > 1:
       subagentResults.push(result)
 
     # ═══════════════════════════════════════════════════════════════
-    # STEP 5: Merge LLKB updates with deduplication
+    # STEP 5: Merge LLKB updates with deduplication and persistence
     # ═══════════════════════════════════════════════════════════════
+    #
+    # ARCHITECTURE: In subagent mode, each subagent may create components
+    # and apply lessons independently. This step merges all updates into
+    # the main LLKB files with conflict resolution.
+    #
+    # ═══════════════════════════════════════════════════════════════
+
     newComponentsAdded = 0
     newLessonsAdded = 0
+    mergedUsageUpdates = 0
+    historyEvents = []
 
     FOR result IN subagentResults:
       IF result.status != "implemented":
         CONTINUE  # Skip failed/timeout/blocked journeys
 
-      # Merge new components with semantic deduplication
+      # ─────────────────────────────────────────────────────────────
+      # 5.1: Merge new components with semantic deduplication
+      # ─────────────────────────────────────────────────────────────
       FOR newComponent IN result.newComponents:
         # Check for exact ID match
         IF newComponent.id IN llkbComponentIds:
@@ -550,6 +590,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
         IF existingSimilar:
           LOG: "Component similar to {existingSimilar.id}, merging usage"
           existingSimilar.usedInJourneys.push(result.journeyId)
+          existingSimilar.totalUses += 1
+          existingSimilar.lastUsed = now().toISO8601()
+          mergedUsageUpdates++
           CONTINUE
 
         # Add as new component
@@ -558,12 +601,106 @@ IF batchMode == "subagent" AND totalJourneys > 1:
         newComponentsAdded++
         LOG: "✓ Added component {newComponent.id} from {result.journeyId}"
 
+        # Queue history event
+        historyEvents.push({
+          timestamp: now().toISO8601(),
+          event: "component_created",
+          id: newComponent.id,
+          journey: result.journeyId,
+          prompt: "journey-implement",
+          mode: "subagent"
+        })
+
+      # ─────────────────────────────────────────────────────────────
+      # 5.2: Merge component usage from subagent
+      # ─────────────────────────────────────────────────────────────
+      FOR usedComponent IN result.usedComponents:
+        existing = findComponentById(usedComponent.id)
+        IF existing:
+          IF result.journeyId NOT IN existing.usedInJourneys:
+            existing.usedInJourneys.push(result.journeyId)
+            existing.totalUses += 1
+            existing.lastUsed = now().toISO8601()
+            mergedUsageUpdates++
+
+          historyEvents.push({
+            timestamp: now().toISO8601(),
+            event: "component_used",
+            id: usedComponent.id,
+            journey: result.journeyId,
+            prompt: "journey-implement",
+            mode: "subagent"
+          })
+
+      # ─────────────────────────────────────────────────────────────
+      # 5.3: Merge lesson applications
+      # ─────────────────────────────────────────────────────────────
+      FOR appliedLesson IN result.appliedLessons:
+        lesson = findLessonById(appliedLesson.id)
+        IF lesson:
+          lesson.metrics.lastApplied = now().toISO8601()
+          # Recalculate success rate based on subagent outcome
+          IF appliedLesson.success:
+            lesson.metrics.successRate = recalculateSuccessRate(lesson, true)
+          ELSE:
+            lesson.metrics.successRate = recalculateSuccessRate(lesson, false)
+
+          historyEvents.push({
+            timestamp: now().toISO8601(),
+            event: "lesson_applied",
+            id: appliedLesson.id,
+            journey: result.journeyId,
+            prompt: "journey-implement",
+            mode: "subagent",
+            success: appliedLesson.success
+          })
+
       # Merge new lessons
       FOR newLesson IN result.newLessons:
         IF newLesson.id NOT IN llkbLessonIds:
           addLessonToLLKB(newLesson)
           llkbLessonIds.push(newLesson.id)
           newLessonsAdded++
+
+          historyEvents.push({
+            timestamp: now().toISO8601(),
+            event: "lesson_created",
+            id: newLesson.id,
+            journey: result.journeyId,
+            prompt: "journey-implement",
+            mode: "subagent"
+          })
+
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 5.5: Persist merged LLKB updates to disk (MANDATORY)
+    # ═══════════════════════════════════════════════════════════════
+    # In subagent mode, the orchestrator persists LLKB after merging
+    # all subagent results. This ensures atomic updates and prevents
+    # race conditions from parallel subagents writing to the same files.
+    # ═══════════════════════════════════════════════════════════════
+
+    IF newComponentsAdded > 0 OR mergedUsageUpdates > 0:
+      # Persist components.json
+      writeJSON("<ARTK_ROOT>/.artk/llkb/components.json", {
+        version: "1.0",
+        components: llkbSnapshot.components
+      })
+      LOG: "✓ Persisted components.json ({newComponentsAdded} new, {mergedUsageUpdates} updated)"
+
+    IF newLessonsAdded > 0:
+      # Persist lessons.json
+      writeJSON("<ARTK_ROOT>/.artk/llkb/lessons.json", {
+        version: "1.0",
+        lessons: llkbSnapshot.lessons
+      })
+      LOG: "✓ Persisted lessons.json ({newLessonsAdded} new)"
+
+    IF historyEvents.length > 0:
+      # Append all history events
+      historyPath = "<ARTK_ROOT>/.artk/llkb/history/{YYYY-MM-DD}.jsonl"
+      FOR event IN historyEvents:
+        appendLine(historyPath, JSON.stringify(event))
+      LOG: "✓ Persisted {historyEvents.length} history events"
 
     # ═══════════════════════════════════════════════════════════════
     # STEP 6: Output batch summary with error details
@@ -582,9 +719,13 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     ║  ⏱️  Timeout: {timeoutCount}                                       ║
     ║  🚫 Blocked: {blockedCount}                                        ║
     ║                                                                    ║
-    ║  LLKB updates:                                                     ║
+    ║  LLKB updates (merged from subagents):                             ║
     ║    New components: {newComponentsAdded}                            ║
+    ║    Usage updates: {mergedUsageUpdates}                             ║
     ║    New lessons: {newLessonsAdded}                                  ║
+    ║    History events: {historyEvents.length}                          ║
+    ║                                                                    ║
+    ║  LLKB persisted: ✓ components.json, lessons.json, history/         ║
     ╚════════════════════════════════════════════════════════════════════╝
 
     IF failedCount > 0 OR timeoutCount > 0:
@@ -669,13 +810,41 @@ If the Journey is not clarified:
 
 ### 2.1 Check LLKB Availability (MANDATORY)
 ```
-IF NOT exists(".artk/llkb/"):
-  # LLKB MUST exist - it should have been created by discover-foundation
+# ═══════════════════════════════════════════════════════════════
+# LLKB STRUCTURE VALIDATION (not just directory existence)
+# ═══════════════════════════════════════════════════════════════
+# Required files for valid LLKB:
+#   - .artk/llkb/config.yml (configuration)
+#   - .artk/llkb/components.json (component registry)
+#   - .artk/llkb/lessons.json (lessons learned)
+#
+# The directory alone is NOT sufficient - all core files must exist.
+# ═══════════════════════════════════════════════════════════════
+
+REQUIRED_LLKB_FILES = [
+  ".artk/llkb/config.yml",
+  ".artk/llkb/components.json",
+  ".artk/llkb/lessons.json"
+]
+
+missingFiles = []
+FOR file IN REQUIRED_LLKB_FILES:
+  IF NOT exists(file):
+    missingFiles.push(file)
+
+IF NOT exists(".artk/llkb/") OR missingFiles.length > 0:
+  # LLKB MUST exist with valid structure
   OUTPUT:
   ╔════════════════════════════════════════════════════════════════════╗
-  ║  ❌ LLKB DIRECTORY NOT FOUND                                       ║
+  ║  ❌ LLKB STRUCTURE INVALID                                         ║
   ╠════════════════════════════════════════════════════════════════════╣
-  ║  The .artk/llkb/ directory is MANDATORY for journey implementation.║
+  ║  The LLKB directory is missing or incomplete.                      ║
+  ║                                                                    ║
+  ║  Directory exists: {exists(".artk/llkb/") ? "Yes" : "No"}          ║
+  ║  Missing files:                                                    ║
+  {FOR file IN missingFiles:
+  ║    - {file}                                                        ║
+  }
   ║                                                                    ║
   ║  LLKB should have been created by /artk.discover-foundation.       ║
   ║                                                                    ║
@@ -690,7 +859,7 @@ IF NOT exists(".artk/llkb/"):
   ║    - lessons.json (empty, ready for learnings)                     ║
   ║    - components.json (empty, ready for components)                 ║
   ║                                                                    ║
-  ║  Cannot proceed without LLKB.                                      ║
+  ║  Cannot proceed without valid LLKB structure.                      ║
   ╚════════════════════════════════════════════════════════════════════╝
   STOP
 
@@ -2163,7 +2332,45 @@ Proceeding with caution...
 # ║  DO NOT proceed to Step 8 or the next journey without saving LLKB.        ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
-**Required LLKB file updates (write to disk NOW):**
+### Mode-Specific Behavior
+
+```
+# ═══════════════════════════════════════════════════════════════
+# WHO PERSISTS LLKB DEPENDS ON THE EXECUTION MODE
+# ═══════════════════════════════════════════════════════════════
+
+IF batchMode == "subagent":
+  # ─────────────────────────────────────────────────────────────
+  # SUBAGENT MODE: Orchestrator handles LLKB persistence
+  # ─────────────────────────────────────────────────────────────
+  # - Subagents collect their LLKB updates in memory
+  # - Subagents return updates in their result payload:
+  #     { newComponents[], usedComponents[], appliedLessons[] }
+  # - Orchestrator MERGES all updates in Step 5.5 (after subagent collection)
+  # - Orchestrator PERSISTS to disk once per batch (not per journey)
+  #
+  # ⚠️  SUBAGENTS DO NOT WRITE TO LLKB FILES DIRECTLY
+  #     This prevents race conditions from parallel writes
+  #
+  # This step (7.5) is SKIPPED for individual journeys in subagent mode.
+  # LLKB persistence happens in Step 5.5 after batch collection.
+  #
+  IF currentlyInSubagent:
+    RETURN  # Skip - orchestrator handles persistence after batch
+
+ELSE IF batchMode == "serial":
+  # ─────────────────────────────────────────────────────────────
+  # SERIAL MODE: Persist after each journey
+  # ─────────────────────────────────────────────────────────────
+  # - Each journey is processed completely before the next
+  # - LLKB must be persisted before looping to next journey
+  # - This ensures Journey N+1 sees updates from Journey N
+  #
+  # Continue with the persistence steps below...
+  PASS
+```
+
+**Required LLKB file updates (write to disk NOW — SERIAL MODE ONLY):**
 
 1. **Update `components.json`** if any components were created or used:
    ```
