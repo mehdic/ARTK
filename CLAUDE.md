@@ -799,6 +799,65 @@ artk-export
 ```
 
 
+## LLKB-AutoGen Integration
+
+ARTK features a self-improving test generation system where LLKB (Lessons Learned Knowledge Base) enhances AutoGen's capabilities over time.
+
+**How it works:**
+1. LLKB accumulates patterns, selectors, and components as tests are developed
+2. Before test generation, LLKB exports its knowledge to AutoGen-compatible files
+3. AutoGen uses this exported knowledge for better pattern matching and code generation
+4. After test verification, outcomes are fed back to LLKB to refine confidence scores
+
+**Key files generated:**
+- `artk-e2e/autogen-llkb.config.yml` - Additional patterns, selector overrides, timing hints
+- `artk-e2e/llkb-glossary.ts` - Term-to-IR-primitive mappings
+
+**CLI commands:**
+```bash
+# Export LLKB for AutoGen
+npx artk-llkb export --for-autogen --output artk-e2e/
+
+# Check which tests need LLKB updates
+npx artk-llkb check-updates --tests-dir artk-e2e/tests/
+
+# Record learning event
+npx artk-llkb learn --type component --id COMP012 --journey JRN-0001 --success
+```
+
+**See:** `research/2026-01-23_llkb-autogen-integration-*.md` for architecture details.
+
+---
+
+## Journey-Maintain and LLKB Updates
+
+**IMPORTANT NOTE:** When `/artk.journey-maintain` prompt is implemented, it MUST handle updating older tests to use the latest LLKB knowledge:
+
+1. **Version Check:** Read each test's `@llkb-version` header and compare against current LLKB state
+2. **User Confirmation:** Always prompt user before updating tests to latest LLKB version
+3. **Diff Preview:** Show what will change before applying updates
+4. **Batch Support:** Allow updating all outdated tests with single confirmation
+5. **Rollback:** If a test fails after update, automatically rollback and flag for review
+
+**Test header format:**
+```typescript
+/**
+ * @journey JRN-0001
+ * @llkb-version 2026-01-23T10:00:00Z
+ * @llkb-entries 24
+ */
+```
+
+**Update flow:**
+1. Detect outdated tests (LLKB version in test < current LLKB)
+2. Ask: "N tests have outdated LLKB. Update to latest? [Y/n/preview]"
+3. If yes: Re-export LLKB → Regenerate test with AutoGen → Run quick verify
+4. If verify fails: Rollback to backup, report issue
+
+This ensures tests continuously benefit from LLKB improvements while maintaining user control over changes.
+
+---
+
 ## Active Technologies
 - TypeScript 5.x targeting Node.js 18.0.0+ (both CommonJS and ESM environments) (001-foundation-compatibility)
 - File-based (`.artk/context.json` for detection cache, `.artk/validation-results.json` for validation history) (001-foundation-compatibility)
