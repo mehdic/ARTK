@@ -62,8 +62,14 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║    □ Read `.artk/llkb/lessons.json`                                       ║
 # ║    □ Output "LLKB Context Loaded" section showing findings                ║
 # ║                                                                           ║
+# ║  GATE 2.5: Export LLKB for AutoGen (Step 2.5)                             ║
+# ║    □ Run `npx artk-llkb export --for-autogen`                             ║
+# ║    □ Generates autogen-llkb.config.yml and llkb-glossary.ts               ║
+# ║    □ Output export statistics                                             ║
+# ║    □ In subagent mode: Orchestrator runs export ONCE (not per subagent)   ║
+# ║                                                                           ║
 # ║  GATE 3: Use AutoGen CLI (Step 3)                                         ║
-# ║    □ Run `npx artk-autogen generate` for each journey                     ║
+# ║    □ Run `npx artk-autogen generate` with --llkb-config and --llkb-glossary ║
 # ║    □ Only use manual implementation if AutoGen fails or has blocked steps ║
 # ║    □ In subagent mode, subagents run AutoGen (main agent does NOT)         ║
 # ║                                                                           ║
@@ -97,6 +103,7 @@ Skipping AutoGen is INVALID.
 # ║  DEFAULT MODE (batchMode=subagent): PARALLEL SUBAGENT EXECUTION           ║
 # ║  ✅ Faster for large batches (processes N journeys in parallel)           ║
 # ║  ✅ LLKB loaded by each subagent (better isolation)                       ║
+# ║  ✅ LLKB export runs ONCE at orchestrator level (not per subagent)        ║
 # ║  ⚠️  Auto-fallbacks to serial in non-VS Code environments                 ║
 # ║                                                                           ║
 # ║  FALLBACK MODE (batchMode=serial): SERIAL EXECUTION                       ║
@@ -491,8 +498,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[0]}
     - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
+    - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen (file path) → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -502,8 +510,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[1]}
     - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
+    - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen (file path) → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -513,8 +522,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[2]}
     - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
+    - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen (file path) → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -1049,6 +1059,163 @@ FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) ->
 
 ---
 
+## Step 2.5 — Export LLKB for AutoGen (MANDATORY)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 STOP: This step is MANDATORY after Step 2                             ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  You MUST export LLKB to AutoGen-compatible format BEFORE Step 3.         ║
+# ║  This step generates files that AutoGen CLI will consume.                 ║
+# ║                                                                           ║
+# ║  In subagent mode: Orchestrator runs this ONCE (not per subagent).        ║
+# ║  Subagents will use the exported files generated by the orchestrator.     ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+### 2.5.1 Run LLKB Export Command
+
+Before running AutoGen, export LLKB knowledge to AutoGen-compatible format:
+
+```bash
+# From harness root directory
+cd <ARTK_ROOT>/<harnessRoot>
+
+# Export LLKB for AutoGen
+npx artk-llkb export --for-autogen \
+  --output ./ \
+  --min-confidence 0.7
+```
+
+**Command options:**
+- `--output ./` — Output directory (harness root)
+- `--min-confidence 0.7` — Minimum confidence threshold for exported entries
+- `--dry-run` — Preview export without writing files (optional)
+
+### 2.5.2 Expected Output Files
+
+The export command generates two files in the harness root:
+
+1. **`autogen-llkb.config.yml`** — AutoGen config extension with:
+   - Additional patterns from LLKB lessons
+   - Selector overrides from lessons
+   - Timing hints from lessons
+   - Module mappings from components
+
+2. **`llkb-glossary.ts`** — TypeScript glossary file with:
+   - Natural language term mappings to IR primitives
+   - Component name variations
+   - Metadata about export (timestamp, confidence, sources)
+
+### 2.5.3 Output Export Statistics (MANDATORY)
+
+**You MUST output this section showing export results:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  LLKB EXPORTED FOR AUTOGEN                                         ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  📊 Export Statistics:                                             ║
+║    Patterns exported: {patternsExported}                           ║
+║    Selector overrides exported: {selectorsExported}                ║
+║    Timing hints exported: {timingHintsExported}                    ║
+║    Modules exported: {modulesExported}                             ║
+║    Glossary entries generated: {glossaryEntriesExported}           ║
+║                                                                    ║
+║  📦 Output Files:                                                  ║
+║    - {harnessRoot}/autogen-llkb.config.yml                         ║
+║    - {harnessRoot}/llkb-glossary.ts                                ║
+║                                                                    ║
+║  ⏰ Export completed at: {exportedAt}                              ║
+║  🎯 Min confidence threshold: {minConfidence}                      ║
+║                                                                    ║
+║  Warnings: {warnings.length} {warnings.length > 0 ? "⚠️" : "✓"}    ║
+{FOR warning IN warnings:
+║    - {warning}                                                     ║
+}
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+### 2.5.4 Error Handling
+
+**If export fails:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  ⚠️  LLKB EXPORT FAILED                                            ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Error: {errorMessage}                                             ║
+║                                                                    ║
+║  Possible causes:                                                  ║
+║  - LLKB not properly initialized                                   ║
+║  - Invalid LLKB data format                                        ║
+║  - No high-confidence entries to export                            ║
+║                                                                    ║
+║  Action: Continuing without LLKB export (AutoGen uses core only)   ║
+║  Impact: AutoGen will not benefit from learned patterns            ║
+║                                                                    ║
+║  To fix: Run /artk.discover-foundation to rebuild LLKB             ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**If no high-confidence entries:**
+
+This is a WARNING, not an error. Continue with empty export:
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  ⚠️  NO HIGH-CONFIDENCE LLKB ENTRIES                               ║
+╠════════════════════════════════════════════════════════════════════╣
+║  No lessons or components meet the confidence threshold (0.7).     ║
+║                                                                    ║
+║  Generated empty export files for AutoGen.                         ║
+║  AutoGen will use core patterns only.                              ║
+║                                                                    ║
+║  This is normal for new projects with limited learning history.    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+### 2.5.5 Batch Mode Considerations
+
+**In subagent mode (batchMode=subagent):**
+
+The LLKB export happens ONCE at the orchestrator level, NOT per subagent:
+
+```
+IF batchMode == "subagent":
+  # Orchestrator runs export BEFORE spawning subagents
+  OUTPUT: "Running LLKB export (once for all subagents)..."
+  RUN: npx artk-llkb export --for-autogen --output {harnessRoot}/
+
+  # Then spawn subagents
+  # Subagents will find and use the exported files
+  FOR batch IN batches:
+    spawnSubagents(batch)
+```
+
+**In serial mode (batchMode=serial):**
+
+The LLKB export happens ONCE before processing journeys:
+
+```
+IF batchMode == "serial":
+  # Orchestrator runs export ONCE
+  OUTPUT: "Running LLKB export (once for all journeys)..."
+  RUN: npx artk-llkb export --for-autogen --output {harnessRoot}/
+
+  # Then process journeys serially
+  FOR journey IN journeyList:
+    implementJourney(journey)
+```
+
+**Why once, not per journey/subagent:**
+- LLKB data is project-wide, not journey-specific
+- Export is idempotent and deterministic
+- Running once reduces overhead (5-10s per export)
+- All subagents/journeys use the same exported files
+
+---
+
 ## Step 3 — Generate Tests with AutoGen CLI (PRIMARY APPROACH — MANDATORY)
 
 # ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -1156,20 +1323,28 @@ From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 # Navigate to harness root
 cd <ARTK_ROOT>/<harnessRoot>
 
-# Generate tests from the Journey
+# Generate tests from the Journey (with LLKB integration)
 npx artk-autogen generate "../journeys/{status}/{journey.file}" \
   -o tests/{tier}/ \
   -m \
+  --llkb-config ./autogen-llkb.config.yml \
+  --llkb-glossary ./llkb-glossary.ts \
   --dry-run  # First do a dry run to check for issues
 ```
 
 **If dry-run succeeds:**
 ```bash
-# Run actual generation
+# Run actual generation (with LLKB integration)
 npx artk-autogen generate "../journeys/{status}/{journey.file}" \
   -o tests/{tier}/ \
-  -m
+  -m \
+  --llkb-config ./autogen-llkb.config.yml \
+  --llkb-glossary ./llkb-glossary.ts
 ```
+
+**Note:** The `--llkb-config` and `--llkb-glossary` flags are optional but STRONGLY RECOMMENDED.
+If the exported files don't exist (export failed or skipped), AutoGen will ignore these flags
+and proceed with core patterns only.
 
 **CLI Options:**
 
@@ -1179,6 +1354,9 @@ npx artk-autogen generate "../journeys/{status}/{journey.file}" \
 | `-m, --modules` | Also generate feature module files |
 | `--dry-run` | Preview what would be generated without writing |
 | `-c, --config <file>` | Custom autogen config file |
+| `--llkb-config <file>` | **NEW:** LLKB-generated config (from Step 2.5) |
+| `--llkb-glossary <file>` | **NEW:** LLKB-generated glossary (from Step 2.5) |
+| `--no-llkb` | Disable LLKB integration (use core patterns only) |
 | `-q, --quiet` | Suppress output except errors |
 
 **Example CLI output:**
