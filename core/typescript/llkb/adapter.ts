@@ -32,6 +32,7 @@ import type {
   SelectorOverride,
   TimingHint,
 } from './adapter-types.js';
+import type { LLKBCategory, LLKBScope } from './types.js';
 
 // =============================================================================
 // Constants
@@ -125,7 +126,7 @@ export function exportForAutogen(
   });
 
   const components = loadComponents(llkbRoot, {
-    category: includeCategories as LLKBCategory[] | undefined,
+    category: includeCategories,
     scope: includeScopes,
     minConfidence,
     includeArchived: false,
@@ -399,4 +400,103 @@ export function formatExportResult(result: LLKBAdapterResult): string {
   lines.push(`Export completed at: ${result.exportedAt}`);
 
   return lines.join('\n');
+}
+
+// =============================================================================
+// CLI Functions (T005: Add runAdapterCLI Function)
+// =============================================================================
+
+/**
+ * Parse command-line arguments for the adapter CLI
+ *
+ * @param args - Command-line arguments (e.g., process.argv.slice(2))
+ * @returns Parsed adapter configuration
+ *
+ * @example
+ * ```typescript
+ * const config = parseAdapterArgs(['--output-dir', './artk-e2e', '--min-confidence', '0.8']);
+ * ```
+ */
+export function parseAdapterArgs(args: string[]): LLKBAdapterConfig {
+  const config: LLKBAdapterConfig = {
+    outputDir: './artk-e2e',
+    minConfidence: DEFAULT_MIN_CONFIDENCE,
+    generateGlossary: true,
+    generateConfig: true,
+    configFormat: 'yaml',
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    switch (arg) {
+      case '--output-dir':
+      case '-o':
+        config.outputDir = args[++i] ?? './artk-e2e';
+        break;
+
+      case '--llkb-root':
+        config.llkbRoot = args[++i];
+        break;
+
+      case '--min-confidence':
+        config.minConfidence = parseFloat(args[++i] ?? String(DEFAULT_MIN_CONFIDENCE));
+        break;
+
+      case '--format':
+        config.configFormat = args[++i] === 'json' ? 'json' : 'yaml';
+        break;
+
+      case '--no-glossary':
+        config.generateGlossary = false;
+        break;
+
+      case '--no-config':
+        config.generateConfig = false;
+        break;
+
+      case '--categories':
+        config.includeCategories = args[++i]?.split(',') as LLKBCategory[] | undefined;
+        break;
+
+      case '--scopes':
+        config.includeScopes = args[++i]?.split(',') as LLKBScope[] | undefined;
+        break;
+
+      default:
+        // Ignore unknown arguments
+        break;
+    }
+  }
+
+  return config;
+}
+
+/**
+ * Run the adapter CLI (T005: Add runAdapterCLI Function)
+ *
+ * This is a wrapper function that provides a simple entry point for CLI usage.
+ * It parses arguments, runs the export, and formats the output for console display.
+ *
+ * @param args - Command-line arguments (e.g., process.argv.slice(2))
+ * @returns Promise that resolves when export is complete
+ *
+ * @example
+ * ```typescript
+ * // In CLI script
+ * import { runAdapterCLI } from '@artk/llkb';
+ * await runAdapterCLI(process.argv.slice(2));
+ * ```
+ *
+ * @example
+ * ```bash
+ * # Command-line usage
+ * npx artk-llkb export --for-autogen --output-dir ./artk-e2e --min-confidence 0.7
+ * ```
+ */
+export function runAdapterCLI(args: string[]): void {
+  const parsed = parseAdapterArgs(args);
+  const result = exportForAutogen(parsed);
+  // eslint-disable-next-line no-console
+  console.log(formatExportResult(result));
 }

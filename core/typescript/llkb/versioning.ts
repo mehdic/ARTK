@@ -581,3 +581,276 @@ export function updateTestWithVersionCheck(
     };
   }
 }
+
+// =============================================================================
+// Rollback Support (T007: Implement Rollback for Failed Updates)
+// =============================================================================
+
+/**
+ * Options for updateTestSafe with verification and rollback
+ */
+export interface UpdateTestSafeOptions {
+  /** Path to the test file to update */
+  testPath: string;
+
+  /** LLKB root directory (optional, defaults to .artk/llkb) */
+  llkbRoot?: string;
+
+  /** Whether to verify the test runs after update */
+  verifyAfterUpdate?: boolean;
+
+  /** Whether to rollback on verification failure */
+  rollbackOnFailure?: boolean;
+
+  /** Custom verification command (default: runs the test file) */
+  verificationCommand?: string;
+}
+
+/**
+ * Result of safe test update with optional rollback
+ */
+export interface UpdateTestSafeResult {
+  /** Whether the update succeeded */
+  success: boolean;
+
+  /** Whether the update was rolled back */
+  rolledBack?: boolean;
+
+  /** Path to the backup file (if created) */
+  originalBackupPath?: string;
+
+  /** Error message if failed */
+  error?: string;
+
+  /** New version written to test file (if successful) */
+  newVersion?: string;
+
+  /** Verification result (if verification was requested) */
+  verificationResult?: {
+    success: boolean;
+    output?: string;
+    error?: string;
+  };
+}
+
+/**
+ * Update test file with atomic version check and optional rollback (T007)
+ *
+ * This function provides a safe update mechanism with backup and rollback support:
+ * 1. Creates a backup of the original test file
+ * 2. Updates the test file with new LLKB version
+ * 3. Optionally verifies the test runs successfully
+ * 4. Rolls back to backup if verification fails
+ * 5. Cleans up backup on success
+ *
+ * @param options - Update options with verification and rollback settings
+ * @returns Update result with success/rollback status
+ *
+ * @example
+ * ```typescript
+ * const result = await updateTestSafe({
+ *   testPath: 'tests/login.spec.ts',
+ *   llkbRoot: '.artk/llkb',
+ *   verifyAfterUpdate: true,
+ *   rollbackOnFailure: true,
+ * });
+ *
+ * if (result.rolledBack) {
+ *   console.log('Update failed verification, rolled back');
+ * } else if (result.success) {
+ *   console.log('Update successful');
+ * }
+ * ```
+ */
+export async function updateTestSafe(
+  options: UpdateTestSafeOptions
+): Promise<UpdateTestSafeResult> {
+  const {
+    testPath,
+    llkbRoot = DEFAULT_LLKB_ROOT,
+    verifyAfterUpdate = false,
+    rollbackOnFailure = true,
+    verificationCommand,
+  } = options;
+
+  let backupPath: string | null = null;
+
+  try {
+    // Step 1: Create backup
+    backupPath = `${testPath}.backup`;
+
+    try {
+      fs.copyFileSync(testPath, backupPath);
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to create backup: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+
+    // Step 2: Get current LLKB version
+    const currentVersion = getCurrentLlkbVersion(llkbRoot);
+
+    // Step 3: Read and update test file
+    let testContent: string;
+    try {
+      testContent = fs.readFileSync(testPath, 'utf-8');
+    } catch (error) {
+      // Restore backup before returning
+      if (backupPath) {
+        fs.copyFileSync(backupPath, testPath);
+        fs.unlinkSync(backupPath);
+      }
+      return {
+        success: false,
+        error: `Failed to read test file: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+
+    // Update version in content
+    const updatedContent = updateTestLlkbVersion(testContent, currentVersion);
+
+    // Write updated content
+    try {
+      fs.writeFileSync(testPath, updatedContent, 'utf-8');
+    } catch (error) {
+      // Restore backup before returning
+      if (backupPath) {
+        fs.copyFileSync(backupPath, testPath);
+        fs.unlinkSync(backupPath);
+      }
+      return {
+        success: false,
+        error: `Failed to write updated test: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+
+    // Step 4: Verify test runs (if requested)
+    if (verifyAfterUpdate) {
+      const verificationResult = await verifyTest(testPath, verificationCommand);
+
+      if (!verificationResult.success) {
+        // Verification failed - rollback if requested
+        if (rollbackOnFailure && backupPath) {
+          try {
+            fs.copyFileSync(backupPath, testPath);
+            fs.unlinkSync(backupPath);
+
+            return {
+              success: false,
+              rolledBack: true,
+              originalBackupPath: backupPath,
+              error: 'Verification failed, rolled back to original',
+              verificationResult,
+            };
+          } catch (rollbackError) {
+            return {
+              success: false,
+              rolledBack: false,
+              error: `Verification failed and rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+              verificationResult,
+            };
+          }
+        }
+
+        // Verification failed but rollback not requested
+        return {
+          success: false,
+          rolledBack: false,
+          error: 'Verification failed, no rollback requested',
+          verificationResult,
+        };
+      }
+
+      // Verification succeeded - clean up backup
+      if (backupPath) {
+        try {
+          fs.unlinkSync(backupPath);
+        } catch {
+          // Non-fatal - backup cleanup failed but update succeeded
+        }
+      }
+
+      return {
+        success: true,
+        rolledBack: false,
+        newVersion: currentVersion,
+        verificationResult,
+      };
+    }
+
+    // No verification requested - clean up backup and return success
+    if (backupPath) {
+      try {
+        fs.unlinkSync(backupPath);
+      } catch {
+        // Non-fatal - backup cleanup failed but update succeeded
+      }
+    }
+
+    return {
+      success: true,
+      rolledBack: false,
+      newVersion: currentVersion,
+    };
+  } catch (error) {
+    // Unexpected error - attempt rollback if backup exists
+    if (backupPath && fs.existsSync(backupPath)) {
+      try {
+        fs.copyFileSync(backupPath, testPath);
+        fs.unlinkSync(backupPath);
+        return {
+          success: false,
+          rolledBack: true,
+          error: `Unexpected error, rolled back: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      } catch {
+        return {
+          success: false,
+          rolledBack: false,
+          error: `Unexpected error and rollback failed: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Verify a test file runs successfully
+ *
+ * @param testPath - Path to test file
+ * @param customCommand - Custom verification command (optional)
+ * @returns Verification result
+ */
+async function verifyTest(
+  testPath: string,
+  customCommand?: string
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  // Import dynamically to avoid requiring Node.js child_process at module load time
+  const { execSync } = await import('node:child_process');
+
+  const command = customCommand ?? `npx playwright test ${testPath}`;
+
+  try {
+    const output = execSync(command, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      timeout: 60000, // 60 second timeout
+    });
+
+    return {
+      success: true,
+      output,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

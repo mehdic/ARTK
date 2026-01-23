@@ -281,3 +281,66 @@ export function loadLLKBConfig(basePath: string): AutogenConfig | null {
 
   return null;
 }
+
+/**
+ * Load config with automatic migration for backward compatibility (T009)
+ *
+ * This function ensures backward compatibility when the llkb field was added
+ * to the AutogenConfig schema. Old configs without the llkb field will be
+ * migrated to include it with default values.
+ *
+ * @param configPath - Path to config file, or project root to auto-detect
+ * @returns Parsed config with llkb field guaranteed to exist
+ *
+ * @example
+ * ```typescript
+ * // Load config with automatic migration
+ * const config = loadConfigWithMigration();
+ * // config.llkb is guaranteed to exist (even for old configs)
+ * ```
+ */
+export function loadConfigWithMigration(configPath?: string): AutogenConfig {
+  const config = loadConfig(configPath);
+
+  // Migration: Ensure llkb field exists
+  // The schema already has .default({}) but we add explicit migration
+  // for clarity and to handle edge cases where partial configs are loaded
+  if (config.llkb === undefined) {
+    config.llkb = {
+      enabled: false,
+      level: 'minimal',
+    };
+  }
+
+  return config;
+}
+
+/**
+ * Check if a config needs migration
+ *
+ * @param config - Config to check
+ * @returns True if migration is needed
+ */
+export function needsConfigMigration(config: unknown): boolean {
+  if (typeof config !== 'object' || config === null) {
+    return false;
+  }
+
+  const obj = config as Record<string, unknown>;
+
+  // Check if llkb field is missing or undefined
+  return obj.llkb === undefined;
+}
+
+/**
+ * Get schema version from config
+ *
+ * This helps track which version of the schema a config file was created with.
+ * Future schema changes can use this for more sophisticated migrations.
+ *
+ * @param config - Config object
+ * @returns Schema version number
+ */
+export function getSchemaVersion(config: AutogenConfig): number {
+  return config.version;
+}

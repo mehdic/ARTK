@@ -192,6 +192,8 @@ export type {
   PatternLearnedInput,
   ComponentUsedInput,
   LessonAppliedInput,
+  BatchLearningEvent,
+  BatchResult,
 } from './learning.js';
 
 export {
@@ -200,6 +202,7 @@ export {
   recordLessonApplied,
   recordLearning,
   formatLearningResult,
+  recordBatch,
 } from './learning.js';
 
 // Adapter types (AutoGen integration)
@@ -222,6 +225,8 @@ export type {
 export {
   exportForAutogen,
   formatExportResult,
+  runAdapterCLI,
+  parseAdapterArgs,
 } from './adapter.js';
 
 // Adapter transform functions
@@ -365,6 +370,8 @@ export {
 export type {
   VersionComparison,
   UpdateCheckResult,
+  UpdateTestSafeOptions,
+  UpdateTestSafeResult,
 } from './versioning.js';
 
 export {
@@ -377,4 +384,20 @@ export {
   checkUpdates,
   formatVersionComparison as formatComparison,
   formatUpdateCheckResult,
+  updateTestSafe,
 } from './versioning.js';
+
+// Result types - Standardized error handling
+export type {
+  LLKBResult,
+} from './result-types.js';
+
+export {
+  ok,
+  fail,
+  tryCatch,
+  mapResult,
+  combineResults,
+  isOk,
+  isFail,
+} from './result-types.js';
