@@ -65,4 +65,4 @@ bazinga/templates/specializations/08-testing/playwright-cypress.md
 .github/copilot-instructions.md
 .github/agents/
 .github/prompts/bazinga.*.prompt.md
-.github/skills/
+.github/skills
