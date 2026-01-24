@@ -42,3 +42,27 @@ bazinga/*.db*
 bazinga/artifacts/
 bazinga/prompts/
 bazinga/.analysis_cache/
+bazinga/mini-dashboard/
+bazinga/scripts/check-no-inline-sql.sh
+bazinga/scripts/validate-agent-sizes.sh
+bazinga/templates/specializations/08-testing/playwright-cypress.md
+
+# Claude Code local config (machine-specific)
+.claude/agents/investigator.md
+.claude/agents/orchestrator.md
+.claude/agents/orchestrator_speckit.md
+.claude/agents/project_manager.md
+.claude/agents/qa_expert.md
+.claude/agents/requirements_engineer.md
+.claude/agents/senior_software_engineer.md
+.claude/agents/tech_lead.md
+.claude/hooks/bazinga-compact-recovery.sh
+.claude/settings.json
+.claude/skills/bazinga-db/references/schema.md
+.claude/skills/bazinga-db/scripts/init_db.py
+
+# GitHub Copilot local config
+.github/copilot-instructions.md
+.github/agents/
+.github/prompts/bazinga.*.prompt.md
+.github/skills/

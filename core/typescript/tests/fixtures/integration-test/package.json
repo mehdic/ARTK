@@ -1,4 +1,5 @@
 {
-  "name": "test-cjs",
+  "name": "test-esm",
+  "type": "module",
   "version": "1.0.0"
 }
