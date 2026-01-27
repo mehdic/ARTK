@@ -94,6 +94,43 @@ Skipping AutoGen is INVALID.
 
 ---
 
+## ⚠️ Terminal Access REQUIRED (STOP if unavailable)
+
+**AutoGen requires terminal/bash access to run `npx` commands.**
+
+**BEFORE proceeding, verify terminal access is available:**
+1. Check if you can execute shell commands (e.g., `ls`, `pwd`, `npx --version`)
+2. If terminal access is NOT enabled/available:
+
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  ⛔ TERMINAL ACCESS REQUIRED                                               ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  This command requires terminal/bash access to run AutoGen CLI.            ║
+║                                                                            ║
+║  Please enable terminal tools in your Copilot settings:                    ║
+║  1. Open VS Code Settings (Ctrl+,)                                         ║
+║  2. Search for "github.copilot.chat.terminalAccess"                        ║
+║  3. Set to "enabled"                                                       ║
+║  4. Re-run this command                                                    ║
+║                                                                            ║
+║  ❌ DO NOT proceed with manual implementation.                              ║
+║  ❌ "Terminal not available" is NOT the same as "AutoGen failed".           ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
+
+**STOP HERE if terminal is unavailable. Do NOT fall back to manual implementation.**
+
+Manual implementation is ONLY allowed when:
+- AutoGen command **runs** but exits with an error
+- AutoGen reports specific blocked steps that cannot be resolved
+
+"Terminal not available" ≠ "AutoGen failed". You must have terminal access.
+
+---
+
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║  🔄 BATCH EXECUTION POLICY — MULTIPLE JOURNEYS                            ║
 # ╠═══════════════════════════════════════════════════════════════════════════╣
