@@ -13,6 +13,7 @@ Commands:
   generate    Generate Playwright tests from Journey files
   validate    Validate generated test code
   verify      Run and verify generated tests
+  patterns    Analyze blocked step telemetry and pattern gaps
 
 Options:
   -h, --help      Show this help message
@@ -24,6 +25,8 @@ Examples:
   artk-autogen generate journeys/login.md
   artk-autogen validate tests/login.spec.ts
   artk-autogen verify journeys/login.md --heal
+  artk-autogen patterns gaps --limit 20
+  artk-autogen patterns stats
 `;
 
 async function main(): Promise<void> {
@@ -75,6 +78,11 @@ async function main(): Promise<void> {
       case 'verify': {
         const { runVerify } = await import('./verify.js');
         await runVerify(subArgs);
+        break;
+      }
+      case 'patterns': {
+        const { runPatterns } = await import('./patterns.js');
+        await runPatterns(subArgs);
         break;
       }
       default:
