@@ -33,6 +33,32 @@ param(
 # Multi-variant support functions
 $ValidVariants = @("modern-esm", "modern-cjs", "legacy-16", "legacy-14")
 
+# Helper function to write file with retry (handles Windows file locking)
+function Write-FileWithRetry {
+    param(
+        [string]$Path,
+        [string]$Content,
+        [int]$MaxRetries = 3,
+        [int]$RetryDelayMs = 500
+    )
+
+    for ($i = 1; $i -le $MaxRetries; $i++) {
+        try {
+            Set-Content -Path $Path -Value $Content -ErrorAction Stop
+            return $true
+        }
+        catch [System.IO.IOException] {
+            if ($i -eq $MaxRetries) {
+                Write-Host "  Warning: Could not write to $Path (file locked). Close VS Code and retry." -ForegroundColor Yellow
+                return $false
+            }
+            Write-Host "  File locked, retrying ($i/$MaxRetries)..." -ForegroundColor Yellow
+            Start-Sleep -Milliseconds $RetryDelayMs
+        }
+    }
+    return $false
+}
+
 function Get-NodeMajorVersion {
     try {
         $versionOutput = node -e "console.log(process.version.slice(1).split('.')[0])" 2>$null
@@ -1505,7 +1531,7 @@ heal-logs/
 *.heal.json
 selector-catalog.local.json
 "@
-Set-Content -Path (Join-Path $ArtkDir ".gitignore") -Value $ArtkGitIgnore
+Write-FileWithRetry -Path (Join-Path $ArtkDir ".gitignore") -Content $ArtkGitIgnore | Out-Null
 
 # .gitignore additions
 $GitIgnore = @"
@@ -1516,7 +1542,7 @@ playwright-report/
 .auth-states/
 *.local
 "@
-Set-Content -Path (Join-Path $ArtkE2e ".gitignore") -Value $GitIgnore
+Write-FileWithRetry -Path (Join-Path $ArtkE2e ".gitignore") -Content $GitIgnore | Out-Null
 
 # Step 6: Run npm install
 if (-not $SkipNpm) {
