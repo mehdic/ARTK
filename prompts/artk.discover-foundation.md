@@ -1982,23 +1982,31 @@ Next steps:
 
 ### Next Commands
 
-**Display the following commands VERBATIM (do not summarize or paraphrase):**
+**⚠️ CRITICAL: You MUST copy-paste the EXACT box below. DO NOT:**
+- Invent command names (NO `/artk.testid-coverage`, NO `/artk.journey-create`)
+- Add suggested journeys (NO `JRN-AUTH-001`, NO `JRN-PROD-001`)
+- Add `npm run test:validation` or other commands not in the box
+- Modify, rephrase, or "improve" the text in any way
+
+**The ONLY valid commands are: `/artk.testid-audit`, `/artk.journey-propose`, `/artk.journey-define`**
+
+**Copy this box EXACTLY as-is:**
 
 ```
 ╔════════════════════════════════════════════════════════════════════╗
-║  NEXT COMMANDS                                                      ║
+║                         NEXT COMMANDS                              ║
 ╠════════════════════════════════════════════════════════════════════╣
-║                                                                     ║
-║  1. (RECOMMENDED) Audit testid coverage:                            ║
+║                                                                    ║
+║  1. (RECOMMENDED) Audit testid coverage:                           ║
 ║     /artk.testid-audit mode=report                                 ║
-║                                                                     ║
-║  2. (OPTIONAL) Propose journeys from discovery:                     ║
+║                                                                    ║
+║  2. (OPTIONAL) Propose journeys from discovery:                    ║
 ║     /artk.journey-propose                                          ║
-║                                                                     ║
-║  3. (OPTIONAL) Create a specific journey manually:                  ║
+║                                                                    ║
+║  3. (OPTIONAL) Create a specific journey manually:                 ║
 ║     /artk.journey-define id=JRN-0001 title="<your title>"          ║
-║                                                                     ║
+║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-**IMPORTANT:** Copy the commands box exactly. Do not abbreviate or summarize.
+**DO NOT add anything after this box. END your response here.**
