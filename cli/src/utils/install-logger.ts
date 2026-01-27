@@ -26,7 +26,7 @@ export class InstallLogger {
   private artkDir: string;
 
   constructor(targetPath: string) {
-    this.artkDir = path.join(targetPath, '.artk');
+    this.artkDir = path.join(targetPath, 'artk-e2e', '.artk');
     this.logPath = path.join(this.artkDir, 'install.log');
   }
 

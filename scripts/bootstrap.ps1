@@ -768,9 +768,9 @@ if ($Variant) {
     $script:SelectedVariant = $Variant
     $script:OverrideUsed = $true
     Write-Host "Using forced variant: $SelectedVariant" -ForegroundColor Cyan
-} elseif (-not $ForceDetect -and (Test-Path (Join-Path $TargetProject ".artk\context.json"))) {
+} elseif (-not $ForceDetect -and (Test-Path (Join-Path $ArtkE2e ".artk\context.json"))) {
     try {
-        $existingContext = Get-Content (Join-Path $TargetProject ".artk\context.json") -Raw | ConvertFrom-Json
+        $existingContext = Get-Content (Join-Path $ArtkE2e ".artk\context.json") -Raw | ConvertFrom-Json
         $script:SelectedVariant = $existingContext.variant
         if (-not $SelectedVariant) {
             $script:SelectedVariant = Select-Variant -NodeMajor $NodeMajor -ModuleSystem $ModuleSystem
@@ -1390,7 +1390,7 @@ if (Test-Path $configPath) {
 }
 
 # Create context file
-$ArtkDir = Join-Path $TargetProject ".artk"
+$ArtkDir = Join-Path $ArtkE2e ".artk"
 New-Item -ItemType Directory -Force -Path $ArtkDir | Out-Null
 
 # Map variant to legacy templateVariant for backwards compatibility
@@ -1570,7 +1570,7 @@ heal-logs/
 *.heal.json
 selector-catalog.local.json
 "@
-Write-FileWithRetry -Path (Join-Path $ArtkDir ".gitignore") -Content $ArtkGitIgnore | Out-Null
+Write-FileWithRetry -Path (Join-Path (Join-Path $ArtkE2e ".artk") ".gitignore") -Content $ArtkGitIgnore | Out-Null
 
 # .gitignore additions
 $GitIgnore = @"
@@ -1591,7 +1591,7 @@ if (-not $SkipNpm) {
         # Install npm deps without triggering Playwright browser download.
         $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 
-        $logsDir = Join-Path $TargetProject ".artk\logs"
+        $logsDir = Join-Path $ArtkE2e ".artk\logs"
         New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
         $npmLogOut = Join-Path $logsDir "npm-install.out.log"
         $npmLogErr = Join-Path $logsDir "npm-install.err.log"
@@ -1658,7 +1658,7 @@ if (-not $SkipNpm) {
         $finalBrowserPath = $null
 
         # Use a repo-local cache so developers don't fight global caches.
-        $browsersCacheDir = Join-Path $TargetProject ".artk\browsers"
+        $browsersCacheDir = Join-Path $ArtkE2e ".artk\browsers"
         New-Item -ItemType Directory -Force -Path $browsersCacheDir | Out-Null
         $env:PLAYWRIGHT_BROWSERS_PATH = $browsersCacheDir
 
@@ -1675,7 +1675,7 @@ if (-not $SkipNpm) {
             Write-Host "Release cache unavailable; installing Playwright browsers..." -ForegroundColor Yellow
             Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
 
-            $logsDir = Join-Path $TargetProject ".artk\logs"
+            $logsDir = Join-Path $ArtkE2e ".artk\logs"
             New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
             $pwInstallLogOut = Join-Path $logsDir "playwright-browser-install.out.log"
             $pwInstallLogErr = Join-Path $logsDir "playwright-browser-install.err.log"
@@ -1705,7 +1705,7 @@ if (-not $SkipNpm) {
         if (-not $browsersReady) {
             $detectLog = $null
             try {
-                $logsDir2 = Join-Path $TargetProject ".artk\logs"
+                $logsDir2 = Join-Path $ArtkE2e ".artk\logs"
                 New-Item -ItemType Directory -Force -Path $logsDir2 | Out-Null
                 $detectLog = Join-Path $logsDir2 "system-browser-detect.log"
             } catch {
@@ -1766,9 +1766,9 @@ Write-Host "  artk-e2e/tsconfig.json                - TypeScript configuration"
 Write-Host "  artk-e2e/artk.config.yml              - ARTK configuration"
 Write-Host "  .github/prompts/                      - Copilot prompts"
 Write-Host "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
-Write-Host "  .artk/context.json                    - ARTK context"
-Write-Host "  .artk/browsers/                       - Playwright browsers cache (repo-local)"
-Write-Host "  .artk/logs/                           - Bootstrap logs (npm + Playwright)"
+Write-Host "  artk-e2e/.artk/context.json           - ARTK context"
+Write-Host "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"
+Write-Host "  artk-e2e/.artk/logs/                  - Bootstrap logs (npm + Playwright)"
 
 if ($script:FinalBrowserChannel) {
     Write-Host "" 
