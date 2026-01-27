@@ -1097,11 +1097,27 @@ $VscodeTemplate = Join-Path $ArtkRepo "templates\vscode\settings.json"
 
 New-Item -ItemType Directory -Force -Path $VscodeDir | Out-Null
 
+# Helper to strip JSONC comments for parsing
+function Remove-JsonComments {
+    param([string]$JsonText)
+    # Remove single-line comments
+    $result = $JsonText -replace '//.*$', '' -replace '(?m)^\s*//.*$', ''
+    # Remove multi-line comments
+    $result = $result -replace '/\*[\s\S]*?\*/', ''
+    # Remove trailing commas before } or ]
+    $result = $result -replace ',(\s*[}\]])', '$1'
+    return $result
+}
+
 if (Test-Path $VscodeTemplate) {
     if (Test-Path $VscodeSettings) {
         # Merge: only add ARTK settings that don't already exist
+        $merged = $false
         try {
-            $existing = Get-Content $VscodeSettings -Raw | ConvertFrom-Json -AsHashtable
+            # Try parsing existing settings (may have JSONC comments)
+            $existingRaw = Get-Content $VscodeSettings -Raw
+            $existingClean = Remove-JsonComments $existingRaw
+            $existing = $existingClean | ConvertFrom-Json -AsHashtable
             $artk = Get-Content $VscodeTemplate -Raw | ConvertFrom-Json -AsHashtable
 
             $added = 0
@@ -1120,11 +1136,34 @@ if (Test-Path $VscodeTemplate) {
 
             $existing | ConvertTo-Json -Depth 10 | Set-Content $VscodeSettings
             Write-Host "  ARTK VS Code settings: $added added, $skipped already present" -ForegroundColor Cyan
+            $merged = $true
         }
         catch {
-            Write-Host "  Warning: Could not merge VS Code settings. Please manually add Copilot terminal access." -ForegroundColor Yellow
-            Write-Host "  Add: `"github.copilot.chat.terminalAccess.enabled`": true" -ForegroundColor Yellow
-            Write-Host "  Add: `"github.copilot.chat.agent.runInTerminal`": true" -ForegroundColor Yellow
+            # JSON parsing failed - try to append settings directly
+            Write-Host "  Note: Could not parse existing settings.json (may have comments)" -ForegroundColor Yellow
+        }
+
+        if (-not $merged) {
+            # Fallback: check if required settings exist as text, append if not
+            $existingContent = Get-Content $VscodeSettings -Raw
+            $settingsToAdd = @()
+
+            if ($existingContent -notmatch 'github\.copilot\.chat\.terminalAccess') {
+                $settingsToAdd += '  "github.copilot.chat.terminalAccess.enabled": true'
+            }
+            if ($existingContent -notmatch 'github\.copilot\.chat\.agent\.runInTerminal') {
+                $settingsToAdd += '  "github.copilot.chat.agent.runInTerminal": true'
+            }
+
+            if ($settingsToAdd.Count -gt 0) {
+                Write-Host "  Appending required Copilot settings..." -ForegroundColor Cyan
+                # Insert before the last closing brace
+                $newContent = $existingContent -replace '(\s*)\}(\s*)$', (",`n" + ($settingsToAdd -join ",`n") + "`n}`$2")
+                Set-Content $VscodeSettings -Value $newContent
+                Write-Host "  Added $($settingsToAdd.Count) Copilot settings" -ForegroundColor Green
+            } else {
+                Write-Host "  Copilot settings already present" -ForegroundColor Cyan
+            }
         }
     }
     else {
