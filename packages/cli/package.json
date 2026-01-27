@@ -32,6 +32,14 @@
     "zod": "^3.22.4",
     "semver": "^7.6.0"
   },
+  "peerDependencies": {
+    "@artk/core": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@artk/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.10.0",
