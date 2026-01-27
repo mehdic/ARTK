@@ -1,5 +1,8 @@
 # ARTK repo starter
 .DS_Store
+
+# Temporary/scratch folder (never commit)
+tmp/
 .idea/
 .vscode/
 
