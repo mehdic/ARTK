@@ -1063,6 +1063,54 @@ if (Test-Path $CommonPromptsSource) {
     }
 }
 
+# Install VS Code settings (merge with existing if present - only add missing keys)
+Write-Host "  Installing VS Code settings..." -ForegroundColor Cyan
+$VscodeDir = Join-Path $TargetProject ".vscode"
+$VscodeSettings = Join-Path $VscodeDir "settings.json"
+$VscodeTemplate = Join-Path $ArtkRepo "templates\vscode\settings.json"
+
+New-Item -ItemType Directory -Force -Path $VscodeDir | Out-Null
+
+if (Test-Path $VscodeTemplate) {
+    if (Test-Path $VscodeSettings) {
+        # Merge: only add ARTK settings that don't already exist
+        try {
+            $existing = Get-Content $VscodeSettings -Raw | ConvertFrom-Json -AsHashtable
+            $artk = Get-Content $VscodeTemplate -Raw | ConvertFrom-Json -AsHashtable
+
+            $added = 0
+            $skipped = 0
+
+            # Only add keys that don't exist in existing settings
+            foreach ($key in $artk.Keys) {
+                if (-not $existing.ContainsKey($key)) {
+                    $existing[$key] = $artk[$key]
+                    $added++
+                    Write-Host "    + Added: $key" -ForegroundColor Green
+                } else {
+                    $skipped++
+                }
+            }
+
+            $existing | ConvertTo-Json -Depth 10 | Set-Content $VscodeSettings
+            Write-Host "  ARTK VS Code settings: $added added, $skipped already present" -ForegroundColor Cyan
+        }
+        catch {
+            Write-Host "  Warning: Could not merge VS Code settings. Please manually add Copilot terminal access." -ForegroundColor Yellow
+            Write-Host "  Add: `"github.copilot.chat.terminalAccess.enabled`": true" -ForegroundColor Yellow
+            Write-Host "  Add: `"github.copilot.chat.agent.runInTerminal`": true" -ForegroundColor Yellow
+        }
+    }
+    else {
+        # No existing settings - just copy template
+        Copy-Item $VscodeTemplate -Destination $VscodeSettings -Force
+        Write-Host "  Created .vscode/settings.json with Copilot terminal access enabled" -ForegroundColor Cyan
+    }
+}
+else {
+    Write-Host "  Warning: VS Code template not found at $VscodeTemplate" -ForegroundColor Yellow
+}
+
 # Step 5: Create configuration files
 Write-Host "[5/7] Creating configuration files..." -ForegroundColor Yellow
 
@@ -1652,6 +1700,7 @@ Write-Host "  artk-e2e/playwright.config.ts         - Playwright configuration"
 Write-Host "  artk-e2e/tsconfig.json                - TypeScript configuration"
 Write-Host "  artk-e2e/artk.config.yml              - ARTK configuration"
 Write-Host "  .github/prompts/                      - Copilot prompts"
+Write-Host "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
 Write-Host "  .artk/context.json                    - ARTK context"
 Write-Host "  .artk/browsers/                       - Playwright browsers cache (repo-local)"
 Write-Host "  .artk/logs/                           - Bootstrap logs (npm + Playwright)"

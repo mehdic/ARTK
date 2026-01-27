@@ -1004,6 +1004,57 @@ if [ -d "$COMMON_PROMPTS_SOURCE" ]; then
     cp "$COMMON_PROMPTS_SOURCE"/GENERAL_RULES.md "$COMMON_PROMPTS_TARGET/" 2>/dev/null || true
 fi
 
+# Install VS Code settings (merge with existing if present - only add missing keys)
+echo -e "${CYAN}  Installing VS Code settings...${NC}"
+VSCODE_DIR="$TARGET_PROJECT/.vscode"
+VSCODE_SETTINGS="$VSCODE_DIR/settings.json"
+VSCODE_TEMPLATE="$ARTK_REPO/templates/vscode/settings.json"
+
+mkdir -p "$VSCODE_DIR"
+
+if [ -f "$VSCODE_TEMPLATE" ]; then
+    if [ -f "$VSCODE_SETTINGS" ]; then
+        # Merge: only add ARTK settings that don't already exist
+        # Use node to merge JSON if available
+        if command -v node >/dev/null 2>&1; then
+            node -e "
+const fs = require('fs');
+const existing = JSON.parse(fs.readFileSync('$VSCODE_SETTINGS', 'utf8'));
+const artk = JSON.parse(fs.readFileSync('$VSCODE_TEMPLATE', 'utf8'));
+
+let added = 0;
+let skipped = 0;
+
+// Only add keys that don't exist in existing settings
+for (const [key, value] of Object.entries(artk)) {
+    if (!(key in existing)) {
+        existing[key] = value;
+        added++;
+        console.log('  + Added: ' + key);
+    } else {
+        skipped++;
+    }
+}
+
+fs.writeFileSync('$VSCODE_SETTINGS', JSON.stringify(existing, null, 2));
+console.log('ARTK VS Code settings: ' + added + ' added, ' + skipped + ' already present');
+" 2>/dev/null || {
+                echo -e "${YELLOW}  Warning: Could not merge VS Code settings. Please manually add Copilot terminal access.${NC}"
+            }
+        else
+            echo -e "${YELLOW}  Warning: Node.js not found. Please manually enable terminal access in VS Code settings.${NC}"
+            echo -e "${YELLOW}  Add: \"github.copilot.chat.terminalAccess.enabled\": true${NC}"
+            echo -e "${YELLOW}  Add: \"github.copilot.chat.agent.runInTerminal\": true${NC}"
+        fi
+    else
+        # No existing settings - just copy template
+        cp "$VSCODE_TEMPLATE" "$VSCODE_SETTINGS"
+        echo -e "${CYAN}  ✓ Created .vscode/settings.json with Copilot terminal access enabled${NC}"
+    fi
+else
+    echo -e "${YELLOW}  Warning: VS Code template not found at $VSCODE_TEMPLATE${NC}"
+fi
+
 write_artk_config() {
     local project_name="$1"
     local channel="${2:-bundled}"
@@ -1677,6 +1728,7 @@ echo "  artk-e2e/playwright.config.ts         - Playwright configuration"
 echo "  artk-e2e/tsconfig.json                - TypeScript configuration"
 echo "  artk-e2e/artk.config.yml              - ARTK configuration"
 echo "  .github/prompts/                      - Copilot prompts"
+echo "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
 echo "  .artk/context.json                    - ARTK context"
 echo "  .artk/browsers/                       - Playwright browsers cache (repo-local)"
 echo "  .artk/logs/                           - Bootstrap logs (npm + Playwright)"
