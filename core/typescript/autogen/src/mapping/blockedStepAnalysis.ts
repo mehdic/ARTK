@@ -181,7 +181,7 @@ export function getAssertionSuggestions(text: string): StepSuggestion[] {
 /**
  * Get suggestions for wait steps
  */
-export function getWaitSuggestions(text: string): StepSuggestion[] {
+export function getWaitSuggestions(_text: string): StepSuggestion[] {
   const suggestions: StepSuggestion[] = [];
 
   suggestions.push({

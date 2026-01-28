@@ -12,7 +12,7 @@ import {
   analyzeBlockedPatterns,
   getTelemetryStats,
   clearTelemetry,
-  normalizeStepText,
+  normalizeStepTextForTelemetry as normalizeStepText,
   categorizeStepText,
   getTelemetryPath,
   type BlockedStepRecord,
@@ -393,7 +393,7 @@ describe('Extended Patterns Tests', () => {
       const result = matchPattern('Wait for 2 seconds');
       expect(result).not.toBeNull();
       expect(result!.type).toBe('waitForTimeout');
-      expect((result as any).timeout).toBe(2000);
+      expect((result as { type: string; ms: number }).ms).toBe(2000);
     });
 
     it('should match "Wait for network idle"', () => {

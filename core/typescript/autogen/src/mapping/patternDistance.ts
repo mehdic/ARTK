@@ -65,7 +65,8 @@ export function calculateSimilarity(a: string, b: string): number {
  * This is a heuristic - it tries to create a plausible example from the regex
  */
 function generateExampleFromRegex(regex: RegExp, patternName: string): string {
-  const source = regex.source;
+  // Reserved for future regex-based example generation
+  void regex.source;
 
   // Navigation patterns
   if (patternName.includes('navigate')) {

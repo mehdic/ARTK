@@ -95,9 +95,10 @@ function ensureTelemetryDir(telemetryPath: string): void {
 }
 
 /**
- * Normalize step text for comparison
+ * Normalize step text for telemetry comparison
+ * (Simpler normalization than glossary - for deduplication purposes)
  */
-export function normalizeStepText(text: string): string {
+export function normalizeStepTextForTelemetry(text: string): string {
   return text
     .toLowerCase()
     .trim()
@@ -176,7 +177,7 @@ export function recordBlockedStep(
   const fullRecord: BlockedStepRecord = {
     ...record,
     timestamp: new Date().toISOString(),
-    normalizedText: normalizeStepText(record.stepText),
+    normalizedText: normalizeStepTextForTelemetry(record.stepText),
     category: record.category || categorizeStepText(record.stepText),
   };
 
@@ -371,19 +372,18 @@ export function recordUserFix(
   options: { baseDir?: string } = {}
 ): void {
   const records = readBlockedStepRecords(options);
-  const normalizedOriginal = normalizeStepText(originalStepText);
+  const normalizedOriginal = normalizeStepTextForTelemetry(originalStepText);
 
   // Find matching record and update it (append new record with fix)
   const matchingRecord = records.find((r) => r.normalizedText === normalizedOriginal && !r.userFix);
 
   if (matchingRecord) {
+    // Record the user fix - timestamp and normalizedText will be set by recordBlockedStep
+    const { timestamp: _t, normalizedText: _n, ...recordWithoutTimestamp } = matchingRecord;
     recordBlockedStep(
       {
-        ...matchingRecord,
+        ...recordWithoutTimestamp,
         userFix: userFixedText,
-        timestamp: undefined as unknown as string, // Will be set by recordBlockedStep
-        normalizedText: undefined as unknown as string,
-        category: matchingRecord.category,
       },
       options
     );

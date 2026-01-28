@@ -53,9 +53,20 @@ export type IRPrimitive =
   | { type: 'waitForURL'; pattern: string | RegExp }
   | { type: 'waitForResponse'; urlPattern: string }
   | { type: 'waitForLoadingComplete'; timeout?: number }
+  | { type: 'reload' }
+  | { type: 'goBack' }
+  | { type: 'goForward' }
+
+  // Wait primitives
+  | { type: 'waitForVisible'; locator: LocatorSpec; timeout?: number }
+  | { type: 'waitForHidden'; locator: LocatorSpec; timeout?: number }
+  | { type: 'waitForTimeout'; ms: number }
+  | { type: 'waitForNetworkIdle'; timeout?: number }
 
   // Interactions
   | { type: 'click'; locator: LocatorSpec }
+  | { type: 'dblclick'; locator: LocatorSpec }
+  | { type: 'rightClick'; locator: LocatorSpec }
   | { type: 'fill'; locator: LocatorSpec; value: ValueSpec }
   | { type: 'select'; locator: LocatorSpec; option: string }
   | { type: 'check'; locator: LocatorSpec }

@@ -794,7 +794,7 @@ export const extendedWaitPatterns: StepPattern[] = [
     primitiveType: 'waitForTimeout',
     extract: (match) => ({
       type: 'waitForTimeout',
-      timeout: parseInt(match[1]!, 10) * 1000,
+      ms: parseInt(match[1]!, 10) * 1000,
     }),
   },
   {
