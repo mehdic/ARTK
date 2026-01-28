@@ -1,13 +1,24 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { resolve } from 'path';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
+import { join, dirname, resolve } from 'path';
 import 'url';
 import { parse, stringify } from 'yaml';
 import { z } from 'zod';
 import { createHash } from 'crypto';
 
+var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
 function buildSynonymMap(glossary) {
   const map = /* @__PURE__ */ new Map();
@@ -181,6 +192,261 @@ var init_glossary = __esm({
     };
     glossaryCache = null;
     synonymMap = null;
+  }
+});
+
+// src/llkb/patternExtension.ts
+var patternExtension_exports = {};
+__export(patternExtension_exports, {
+  calculateConfidence: () => calculateConfidence,
+  clearLearnedPatterns: () => clearLearnedPatterns,
+  exportPatternsToConfig: () => exportPatternsToConfig,
+  generatePatternId: () => generatePatternId,
+  generateRegexFromText: () => generateRegexFromText,
+  getPatternStats: () => getPatternStats,
+  getPatternsFilePath: () => getPatternsFilePath,
+  getPromotablePatterns: () => getPromotablePatterns,
+  invalidatePatternCache: () => invalidatePatternCache,
+  loadLearnedPatterns: () => loadLearnedPatterns,
+  markPatternsPromoted: () => markPatternsPromoted,
+  matchLlkbPattern: () => matchLlkbPattern,
+  prunePatterns: () => prunePatterns,
+  recordPatternFailure: () => recordPatternFailure,
+  recordPatternSuccess: () => recordPatternSuccess,
+  saveLearnedPatterns: () => saveLearnedPatterns
+});
+function invalidatePatternCache() {
+  patternCache = null;
+}
+function getPatternsFilePath(llkbRoot) {
+  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  return join(root, PATTERNS_FILE);
+}
+function generatePatternId() {
+  return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+}
+function loadLearnedPatterns(options = {}) {
+  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const now = Date.now();
+  if (!options.bypassCache && patternCache && patternCache.llkbRoot === llkbRoot && now - patternCache.loadedAt < CACHE_TTL_MS) {
+    return patternCache.patterns;
+  }
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (!existsSync(filePath)) {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+    patternCache = { patterns, llkbRoot, loadedAt: now };
+    return patterns;
+  } catch {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+}
+function saveLearnedPatterns(patterns, options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const data = {
+    version: "1.0.0",
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns
+  };
+  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  invalidatePatternCache();
+}
+function calculateConfidence(successCount, failCount) {
+  const total = successCount + failCount;
+  if (total === 0) return 0.5;
+  const p = successCount / total;
+  const z3 = 1.96;
+  const n = total;
+  const denominator = 1 + z3 * z3 / n;
+  const center = p + z3 * z3 / (2 * n);
+  const spread = z3 * Math.sqrt((p * (1 - p) + z3 * z3 / (4 * n)) / n);
+  return Math.max(0, Math.min(1, (center - spread) / denominator));
+}
+function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(originalText);
+  let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.successCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    if (!pattern.sourceJourneys.includes(journeyId)) {
+      pattern.sourceJourneys.push(journeyId);
+    }
+  } else {
+    pattern = {
+      id: generatePatternId(),
+      originalText,
+      normalizedText,
+      mappedPrimitive: primitive,
+      confidence: 0.5,
+      // Initial confidence
+      sourceJourneys: [journeyId],
+      successCount: 1,
+      failCount: 0,
+      lastUsed: (/* @__PURE__ */ new Date()).toISOString(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      promotedToCore: false
+    };
+    patterns.push(pattern);
+  }
+  saveLearnedPatterns(patterns, options);
+  return pattern;
+}
+function recordPatternFailure(originalText, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(originalText);
+  const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.failCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    saveLearnedPatterns(patterns, options);
+    return pattern;
+  }
+  return null;
+}
+function matchLlkbPattern(text, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(text);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const match = patterns.find(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  );
+  if (match) {
+    return {
+      patternId: match.id,
+      primitive: match.mappedPrimitive,
+      confidence: match.confidence
+    };
+  }
+  return null;
+}
+function generateRegexFromText(text) {
+  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  return `^${pattern}$`;
+}
+function getPromotablePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const promotable = patterns.filter(
+    (p) => p.confidence >= 0.9 && p.successCount >= 5 && p.sourceJourneys.length >= 2 && !p.promotedToCore
+  );
+  return promotable.map((pattern) => ({
+    pattern,
+    generatedRegex: generateRegexFromText(pattern.originalText),
+    priority: pattern.successCount * pattern.confidence
+  }));
+}
+function markPatternsPromoted(patternIds, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  for (const pattern of patterns) {
+    if (patternIds.includes(pattern.id)) {
+      pattern.promotedToCore = true;
+      pattern.promotedAt = now;
+    }
+  }
+  saveLearnedPatterns(patterns, options);
+}
+function prunePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = Date.now();
+  const maxAge = (options.maxAgeDays ?? 90) * 24 * 60 * 60 * 1e3;
+  const minConfidence = options.minConfidence ?? 0.3;
+  const minSuccess = options.minSuccess ?? 1;
+  const filtered = patterns.filter((p) => {
+    if (p.promotedToCore) return true;
+    if (p.confidence < minConfidence) return false;
+    if (minSuccess > 0 && p.successCount < minSuccess) return false;
+    const age = now - new Date(p.createdAt).getTime();
+    if (age > maxAge && p.successCount === 0) return false;
+    return true;
+  });
+  const removed = patterns.length - filtered.length;
+  if (removed > 0) {
+    saveLearnedPatterns(filtered, options);
+  }
+  return {
+    removed,
+    remaining: filtered.length
+  };
+}
+function getPatternStats(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  if (patterns.length === 0) {
+    return {
+      total: 0,
+      promoted: 0,
+      highConfidence: 0,
+      lowConfidence: 0,
+      avgConfidence: 0,
+      totalSuccesses: 0,
+      totalFailures: 0
+    };
+  }
+  const promoted = patterns.filter((p) => p.promotedToCore).length;
+  const highConfidence = patterns.filter((p) => p.confidence >= 0.7).length;
+  const lowConfidence = patterns.filter((p) => p.confidence < 0.3).length;
+  const totalConfidence = patterns.reduce((sum, p) => sum + p.confidence, 0);
+  const totalSuccesses = patterns.reduce((sum, p) => sum + p.successCount, 0);
+  const totalFailures = patterns.reduce((sum, p) => sum + p.failCount, 0);
+  return {
+    total: patterns.length,
+    promoted,
+    highConfidence,
+    lowConfidence,
+    avgConfidence: totalConfidence / patterns.length,
+    totalSuccesses,
+    totalFailures
+  };
+}
+function exportPatternsToConfig(options) {
+  const patterns = loadLearnedPatterns(options);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const exportable = patterns.filter((p) => p.confidence >= minConfidence && !p.promotedToCore);
+  const config = {
+    version: "1.0.0",
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns: exportable.map((p) => ({
+      id: p.id,
+      trigger: generateRegexFromText(p.originalText),
+      primitive: p.mappedPrimitive,
+      confidence: p.confidence,
+      sourceCount: p.sourceJourneys.length
+    }))
+  };
+  const outputPath = options.outputPath || join(dirname(getPatternsFilePath(options.llkbRoot)), "autogen-patterns.json");
+  writeFileSync(outputPath, JSON.stringify(config, null, 2), "utf-8");
+  return {
+    exported: exportable.length,
+    path: outputPath
+  };
+}
+function clearLearnedPatterns(options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (existsSync(filePath)) {
+    const { unlinkSync } = __require("fs");
+    unlinkSync(filePath);
+  }
+}
+var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
+var init_patternExtension = __esm({
+  "src/llkb/patternExtension.ts"() {
+    init_glossary();
+    PATTERNS_FILE = "learned-patterns.json";
+    DEFAULT_LLKB_ROOT = ".artk/llkb";
+    patternCache = null;
+    CACHE_TTL_MS = 5e3;
   }
 });
 var JourneyStatusSchema = z.enum([
@@ -1738,8 +2004,32 @@ function parseModuleHint(moduleHint) {
     method: parts[1]
   };
 }
+
+// src/mapping/stepMapper.ts
+var llkbModule = null;
+var llkbLoadAttempted = false;
+async function loadLlkbModule() {
+  if (llkbLoadAttempted) return llkbModule;
+  llkbLoadAttempted = true;
+  try {
+    const mod = await Promise.resolve().then(() => (init_patternExtension(), patternExtension_exports));
+    llkbModule = {
+      matchLlkbPattern: mod.matchLlkbPattern,
+      recordPatternSuccess: mod.recordPatternSuccess
+    };
+  } catch {
+    llkbModule = null;
+  }
+  return llkbModule;
+}
 function tryLlkbMatch(text, options) {
-  return null;
+  if (!llkbModule) {
+    if (!llkbLoadAttempted) {
+      void loadLlkbModule();
+    }
+    return null;
+  }
+  return llkbModule.matchLlkbPattern(text, options);
 }
 function isAssertion(primitive) {
   return primitive.type.startsWith("expect");
@@ -1762,12 +2052,27 @@ function mapStepText(text, options = {}) {
   let llkbPatternId;
   let llkbConfidence;
   if (!primitive && useLlkb) {
-    const llkbMatch = tryLlkbMatch();
+    const llkbMatch = tryLlkbMatch(processedText, {
+      llkbRoot,
+      minConfidence: llkbMinConfidence
+    });
     if (llkbMatch) {
       primitive = llkbMatch.primitive;
       matchSource = "llkb";
       llkbPatternId = llkbMatch.patternId;
       llkbConfidence = llkbMatch.confidence;
+      if (llkbModule && options.journeyId) {
+        try {
+          llkbModule.recordPatternSuccess(
+            text,
+            // Original text, not processed
+            llkbMatch.primitive,
+            options.journeyId,
+            { llkbRoot }
+          );
+        } catch {
+        }
+      }
       if (hints.hasHints) {
         primitive = applyHintsToPrimitive(primitive, hints);
       }

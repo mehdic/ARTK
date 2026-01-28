@@ -481,6 +481,7 @@ __export(patternExtension_exports, {
   getPatternStats: () => getPatternStats,
   getPatternsFilePath: () => getPatternsFilePath,
   getPromotablePatterns: () => getPromotablePatterns,
+  invalidatePatternCache: () => invalidatePatternCache,
   loadLearnedPatterns: () => loadLearnedPatterns,
   markPatternsPromoted: () => markPatternsPromoted,
   matchLlkbPattern: () => matchLlkbPattern,
@@ -489,6 +490,9 @@ __export(patternExtension_exports, {
   recordPatternSuccess: () => recordPatternSuccess,
   saveLearnedPatterns: () => saveLearnedPatterns
 });
+function invalidatePatternCache() {
+  patternCache = null;
+}
 function getPatternsFilePath(llkbRoot) {
   const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
   return join(root, PATTERNS_FILE);
@@ -497,15 +501,24 @@ function generatePatternId() {
   return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
 }
 function loadLearnedPatterns(options = {}) {
+  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const now = Date.now();
+  if (!options.bypassCache && patternCache && patternCache.llkbRoot === llkbRoot && now - patternCache.loadedAt < CACHE_TTL_MS) {
+    return patternCache.patterns;
+  }
   const filePath = getPatternsFilePath(options.llkbRoot);
   if (!existsSync(filePath)) {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
     return [];
   }
   try {
     const content = readFileSync(filePath, "utf-8");
     const data = JSON.parse(content);
-    return Array.isArray(data.patterns) ? data.patterns : [];
+    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+    patternCache = { patterns, llkbRoot, loadedAt: now };
+    return patterns;
   } catch {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
     return [];
   }
 }
@@ -521,6 +534,7 @@ function saveLearnedPatterns(patterns, options = {}) {
     patterns
   };
   writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  invalidatePatternCache();
 }
 function calculateConfidence(successCount, failCount) {
   const total = successCount + failCount;
@@ -700,12 +714,14 @@ function clearLearnedPatterns(options = {}) {
     unlinkSync(filePath);
   }
 }
-var PATTERNS_FILE, DEFAULT_LLKB_ROOT;
+var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
     init_glossary();
     PATTERNS_FILE = "learned-patterns.json";
     DEFAULT_LLKB_ROOT = ".artk/llkb";
+    patternCache = null;
+    CACHE_TTL_MS = 5e3;
   }
 });
 
@@ -1759,7 +1775,12 @@ async function loadLlkbModule() {
   return llkbModule;
 }
 function tryLlkbMatch(text, options) {
-  if (!llkbModule) return null;
+  if (!llkbModule) {
+    if (!llkbLoadAttempted) {
+      void loadLlkbModule();
+    }
+    return null;
+  }
   return llkbModule.matchLlkbPattern(text, options);
 }
 function isAssertion(primitive) {
