@@ -1,11 +1,448 @@
-import { z } from 'zod';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { resolve } from 'path';
-import { parse, stringify } from 'yaml';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
+import { join, dirname, resolve } from 'path';
 import 'url';
+import { parse, stringify } from 'yaml';
+import { z } from 'zod';
 import { createHash } from 'crypto';
 
-// src/journey/schema.ts
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+function buildSynonymMap(glossary) {
+  const map = /* @__PURE__ */ new Map();
+  for (const entry of glossary.entries) {
+    map.set(entry.canonical.toLowerCase(), entry.canonical);
+    for (const synonym of entry.synonyms) {
+      map.set(synonym.toLowerCase(), entry.canonical);
+    }
+  }
+  return map;
+}
+function initGlossary(glossaryPath) {
+  {
+    glossaryCache = defaultGlossary;
+  }
+  synonymMap = buildSynonymMap(glossaryCache);
+}
+function normalizeStepText(text) {
+  if (!synonymMap) {
+    initGlossary();
+  }
+  const parts = [];
+  const regex = /(['"][^'"]+['"])|(\S+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const part = match[0];
+    if (part.startsWith('"') || part.startsWith("'")) {
+      parts.push(part);
+    } else {
+      const lowerPart = part.toLowerCase();
+      const canonical = synonymMap.get(lowerPart);
+      parts.push(canonical ?? lowerPart);
+    }
+  }
+  return parts.join(" ");
+}
+var GlossaryEntrySchema, LabelAliasSchema, ModuleMethodMappingSchema, defaultGlossary, glossaryCache, synonymMap;
+var init_glossary = __esm({
+  "src/mapping/glossary.ts"() {
+    GlossaryEntrySchema = z.object({
+      canonical: z.string(),
+      synonyms: z.array(z.string())
+    });
+    LabelAliasSchema = z.object({
+      label: z.string(),
+      testid: z.string().optional(),
+      role: z.string().optional(),
+      selector: z.string().optional()
+    });
+    ModuleMethodMappingSchema = z.object({
+      phrase: z.string(),
+      module: z.string(),
+      method: z.string(),
+      params: z.record(z.string()).optional()
+    });
+    z.object({
+      version: z.number().default(1),
+      entries: z.array(GlossaryEntrySchema),
+      labelAliases: z.array(LabelAliasSchema).default([]),
+      moduleMethods: z.array(ModuleMethodMappingSchema).default([])
+    });
+    defaultGlossary = {
+      version: 1,
+      labelAliases: [
+        // Common label-to-selector mappings
+        { label: "email", testid: "email-input", role: "textbox" },
+        { label: "password", testid: "password-input", role: "textbox" },
+        { label: "username", testid: "username-input", role: "textbox" },
+        { label: "search", testid: "search-input", role: "searchbox" },
+        { label: "submit", testid: "submit-button", role: "button" },
+        { label: "cancel", testid: "cancel-button", role: "button" },
+        { label: "close", testid: "close-button", role: "button" }
+      ],
+      moduleMethods: [
+        // Common phrase-to-module mappings
+        { phrase: "log in", module: "auth", method: "login" },
+        { phrase: "login", module: "auth", method: "login" },
+        { phrase: "sign in", module: "auth", method: "login" },
+        { phrase: "log out", module: "auth", method: "logout" },
+        { phrase: "logout", module: "auth", method: "logout" },
+        { phrase: "sign out", module: "auth", method: "logout" },
+        { phrase: "navigate to", module: "navigation", method: "goToPath" },
+        { phrase: "go to", module: "navigation", method: "goToPath" },
+        { phrase: "open", module: "navigation", method: "goToPath" },
+        { phrase: "fill form", module: "forms", method: "fillForm" },
+        { phrase: "submit form", module: "forms", method: "submitForm" },
+        { phrase: "wait for", module: "waits", method: "waitForSignal" }
+      ],
+      entries: [
+        {
+          canonical: "click",
+          synonyms: ["press", "tap", "select", "hit"]
+        },
+        {
+          canonical: "enter",
+          synonyms: ["type", "fill", "input", "write"]
+        },
+        {
+          canonical: "navigate",
+          synonyms: ["go", "open", "visit", "browse"]
+        },
+        {
+          canonical: "see",
+          synonyms: ["view", "observe", "notice", "find"]
+        },
+        {
+          canonical: "visible",
+          synonyms: ["displayed", "shown", "present"]
+        },
+        {
+          canonical: "button",
+          synonyms: ["btn", "action", "cta"]
+        },
+        {
+          canonical: "field",
+          synonyms: ["input", "textbox", "text field", "text input"]
+        },
+        {
+          canonical: "dropdown",
+          synonyms: ["select", "combo", "combobox", "selector", "picker"]
+        },
+        {
+          canonical: "checkbox",
+          synonyms: ["check", "tick", "toggle"]
+        },
+        {
+          canonical: "login",
+          synonyms: ["log in", "sign in", "authenticate"]
+        },
+        {
+          canonical: "logout",
+          synonyms: ["log out", "sign out", "exit"]
+        },
+        {
+          canonical: "submit",
+          synonyms: ["send", "save", "confirm", "ok"]
+        },
+        {
+          canonical: "cancel",
+          synonyms: ["close", "dismiss", "abort", "back"]
+        },
+        {
+          canonical: "success",
+          synonyms: ["passed", "completed", "done", "finished"]
+        },
+        {
+          canonical: "error",
+          synonyms: ["failure", "failed", "problem", "issue"]
+        },
+        {
+          canonical: "toast",
+          synonyms: ["notification", "message", "alert", "snackbar"]
+        },
+        {
+          canonical: "modal",
+          synonyms: ["dialog", "popup", "overlay", "lightbox"]
+        },
+        {
+          canonical: "user",
+          synonyms: ["customer", "visitor", "member", "client"]
+        },
+        {
+          canonical: "page",
+          synonyms: ["screen", "view", "section"]
+        },
+        {
+          canonical: "form",
+          synonyms: ["questionnaire", "survey", "wizard"]
+        }
+      ]
+    };
+    glossaryCache = null;
+    synonymMap = null;
+  }
+});
+
+// src/llkb/patternExtension.ts
+var patternExtension_exports = {};
+__export(patternExtension_exports, {
+  calculateConfidence: () => calculateConfidence,
+  clearLearnedPatterns: () => clearLearnedPatterns,
+  exportPatternsToConfig: () => exportPatternsToConfig,
+  generatePatternId: () => generatePatternId,
+  generateRegexFromText: () => generateRegexFromText,
+  getPatternStats: () => getPatternStats,
+  getPatternsFilePath: () => getPatternsFilePath,
+  getPromotablePatterns: () => getPromotablePatterns,
+  invalidatePatternCache: () => invalidatePatternCache,
+  loadLearnedPatterns: () => loadLearnedPatterns,
+  markPatternsPromoted: () => markPatternsPromoted,
+  matchLlkbPattern: () => matchLlkbPattern,
+  prunePatterns: () => prunePatterns,
+  recordPatternFailure: () => recordPatternFailure,
+  recordPatternSuccess: () => recordPatternSuccess,
+  saveLearnedPatterns: () => saveLearnedPatterns
+});
+function invalidatePatternCache() {
+  patternCache = null;
+}
+function getPatternsFilePath(llkbRoot) {
+  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  return join(root, PATTERNS_FILE);
+}
+function generatePatternId() {
+  return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+}
+function loadLearnedPatterns(options = {}) {
+  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const now = Date.now();
+  if (!options.bypassCache && patternCache && patternCache.llkbRoot === llkbRoot && now - patternCache.loadedAt < CACHE_TTL_MS) {
+    return patternCache.patterns;
+  }
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (!existsSync(filePath)) {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+    patternCache = { patterns, llkbRoot, loadedAt: now };
+    return patterns;
+  } catch {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+}
+function saveLearnedPatterns(patterns, options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const data = {
+    version: "1.0.0",
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns
+  };
+  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  invalidatePatternCache();
+}
+function calculateConfidence(successCount, failCount) {
+  const total = successCount + failCount;
+  if (total === 0) return 0.5;
+  const p = successCount / total;
+  const z3 = 1.96;
+  const n = total;
+  const denominator = 1 + z3 * z3 / n;
+  const center = p + z3 * z3 / (2 * n);
+  const spread = z3 * Math.sqrt((p * (1 - p) + z3 * z3 / (4 * n)) / n);
+  return Math.max(0, Math.min(1, (center - spread) / denominator));
+}
+function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(originalText);
+  let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.successCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    if (!pattern.sourceJourneys.includes(journeyId)) {
+      pattern.sourceJourneys.push(journeyId);
+    }
+  } else {
+    pattern = {
+      id: generatePatternId(),
+      originalText,
+      normalizedText,
+      mappedPrimitive: primitive,
+      confidence: 0.5,
+      // Initial confidence
+      sourceJourneys: [journeyId],
+      successCount: 1,
+      failCount: 0,
+      lastUsed: (/* @__PURE__ */ new Date()).toISOString(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      promotedToCore: false
+    };
+    patterns.push(pattern);
+  }
+  saveLearnedPatterns(patterns, options);
+  return pattern;
+}
+function recordPatternFailure(originalText, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(originalText);
+  const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.failCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    saveLearnedPatterns(patterns, options);
+    return pattern;
+  }
+  return null;
+}
+function matchLlkbPattern(text, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(text);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const match = patterns.find(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  );
+  if (match) {
+    return {
+      patternId: match.id,
+      primitive: match.mappedPrimitive,
+      confidence: match.confidence
+    };
+  }
+  return null;
+}
+function generateRegexFromText(text) {
+  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  return `^${pattern}$`;
+}
+function getPromotablePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const promotable = patterns.filter(
+    (p) => p.confidence >= 0.9 && p.successCount >= 5 && p.sourceJourneys.length >= 2 && !p.promotedToCore
+  );
+  return promotable.map((pattern) => ({
+    pattern,
+    generatedRegex: generateRegexFromText(pattern.originalText),
+    priority: pattern.successCount * pattern.confidence
+  }));
+}
+function markPatternsPromoted(patternIds, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  for (const pattern of patterns) {
+    if (patternIds.includes(pattern.id)) {
+      pattern.promotedToCore = true;
+      pattern.promotedAt = now;
+    }
+  }
+  saveLearnedPatterns(patterns, options);
+}
+function prunePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = Date.now();
+  const maxAge = (options.maxAgeDays ?? 90) * 24 * 60 * 60 * 1e3;
+  const minConfidence = options.minConfidence ?? 0.3;
+  const minSuccess = options.minSuccess ?? 1;
+  const filtered = patterns.filter((p) => {
+    if (p.promotedToCore) return true;
+    if (p.confidence < minConfidence) return false;
+    if (minSuccess > 0 && p.successCount < minSuccess) return false;
+    const age = now - new Date(p.createdAt).getTime();
+    if (age > maxAge && p.successCount === 0) return false;
+    return true;
+  });
+  const removed = patterns.length - filtered.length;
+  if (removed > 0) {
+    saveLearnedPatterns(filtered, options);
+  }
+  return {
+    removed,
+    remaining: filtered.length
+  };
+}
+function getPatternStats(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  if (patterns.length === 0) {
+    return {
+      total: 0,
+      promoted: 0,
+      highConfidence: 0,
+      lowConfidence: 0,
+      avgConfidence: 0,
+      totalSuccesses: 0,
+      totalFailures: 0
+    };
+  }
+  const promoted = patterns.filter((p) => p.promotedToCore).length;
+  const highConfidence = patterns.filter((p) => p.confidence >= 0.7).length;
+  const lowConfidence = patterns.filter((p) => p.confidence < 0.3).length;
+  const totalConfidence = patterns.reduce((sum, p) => sum + p.confidence, 0);
+  const totalSuccesses = patterns.reduce((sum, p) => sum + p.successCount, 0);
+  const totalFailures = patterns.reduce((sum, p) => sum + p.failCount, 0);
+  return {
+    total: patterns.length,
+    promoted,
+    highConfidence,
+    lowConfidence,
+    avgConfidence: totalConfidence / patterns.length,
+    totalSuccesses,
+    totalFailures
+  };
+}
+function exportPatternsToConfig(options) {
+  const patterns = loadLearnedPatterns(options);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const exportable = patterns.filter((p) => p.confidence >= minConfidence && !p.promotedToCore);
+  const config = {
+    version: "1.0.0",
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns: exportable.map((p) => ({
+      id: p.id,
+      trigger: generateRegexFromText(p.originalText),
+      primitive: p.mappedPrimitive,
+      confidence: p.confidence,
+      sourceCount: p.sourceJourneys.length
+    }))
+  };
+  const outputPath = options.outputPath || join(dirname(getPatternsFilePath(options.llkbRoot)), "autogen-patterns.json");
+  writeFileSync(outputPath, JSON.stringify(config, null, 2), "utf-8");
+  return {
+    exported: exportable.length,
+    path: outputPath
+  };
+}
+function clearLearnedPatterns(options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
+  }
+  invalidatePatternCache();
+}
+var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
+var init_patternExtension = __esm({
+  "src/llkb/patternExtension.ts"() {
+    init_glossary();
+    PATTERNS_FILE = "learned-patterns.json";
+    DEFAULT_LLKB_ROOT = ".artk/llkb";
+    patternCache = null;
+    CACHE_TTL_MS = 5e3;
+  }
+});
 var JourneyStatusSchema = z.enum([
   "proposed",
   "defined",
@@ -575,18 +1012,361 @@ var structuredPatterns = [
     }
   }
 ];
+var extendedClickPatterns = [
+  {
+    name: "click-on-element",
+    // "Click on Submit" or "Click on the Submit button"
+    regex: /^(?:user\s+)?clicks?\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
+    primitiveType: "click",
+    extract: (match) => ({
+      type: "click",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "press-enter-key",
+    // "Press Enter" or "Press the Enter key" or "Hit Enter"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:enter|return)(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Enter"
+    })
+  },
+  {
+    name: "press-tab-key",
+    // "Press Tab" or "Press the Tab key"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?tab(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Tab"
+    })
+  },
+  {
+    name: "press-escape-key",
+    // "Press Escape" or "Press Esc"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:escape|esc)(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Escape"
+    })
+  },
+  {
+    name: "double-click",
+    // "Double click on" or "Double-click the"
+    regex: /^(?:user\s+)?double[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "dblclick",
+    extract: (match) => ({
+      type: "dblclick",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "right-click",
+    // "Right click on" or "Right-click the"
+    regex: /^(?:user\s+)?right[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "rightClick",
+    extract: (match) => ({
+      type: "rightClick",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "submit-form",
+    // "Submit the form" or "Submits form"
+    regex: /^(?:user\s+)?submits?\s+(?:the\s+)?form$/i,
+    primitiveType: "click",
+    extract: () => ({
+      type: "click",
+      locator: createLocatorFromMatch("role", "button", "Submit")
+    })
+  }
+];
+var extendedFillPatterns = [
+  {
+    name: "type-into-field",
+    // "Type 'password' into the Password field"
+    regex: /^(?:user\s+)?types?\s+['"](.+?)['"]\s+into\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("label", match[2]),
+      value: createValueFromText(match[1])
+    })
+  },
+  {
+    name: "fill-in-field-no-value",
+    // "Fill in the email address" (without explicit value - uses actor data)
+    regex: /^(?:user\s+)?fills?\s+in\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "fill",
+    extract: (match) => {
+      const fieldName = match[1].replace(/["']/g, "");
+      return {
+        type: "fill",
+        locator: createLocatorFromMatch("label", fieldName),
+        value: { type: "actor", value: fieldName.toLowerCase().replace(/\s+/g, "_") }
+      };
+    }
+  },
+  {
+    name: "clear-field",
+    // "Clear the email field" or "Clears the input"
+    regex: /^(?:user\s+)?clears?\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "clear",
+    extract: (match) => ({
+      type: "clear",
+      locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "set-value",
+    // "Set the value to 'test'" or "Sets field to 'value'"
+    regex: /^(?:user\s+)?sets?\s+(?:the\s+)?(?:value\s+)?(?:of\s+)?["']?(.+?)["']?\s+to\s+['"](.+?)['"]$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("label", match[1]),
+      value: createValueFromText(match[2])
+    })
+  }
+];
+var extendedAssertionPatterns = [
+  {
+    name: "verify-element-showing",
+    // "Verify the dashboard is showing/displayed"
+    regex: /^(?:verify|confirm|ensure)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:is\s+)?(?:showing|displayed|visible)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "page-should-show",
+    // "The page should show 'Welcome'" or "Page should display 'text'"
+    regex: /^(?:the\s+)?page\s+should\s+(?:show|display|contain)\s+['"](.+?)['"]$/i,
+    primitiveType: "expectText",
+    extract: (match) => ({
+      type: "expectText",
+      locator: { strategy: "role", value: "main" },
+      text: match[1]
+    })
+  },
+  {
+    name: "make-sure-assertion",
+    // "Make sure the button is visible" or "Make sure user sees 'text'"
+    regex: /^make\s+sure\s+(?:that\s+)?(?:the\s+)?(.+?)\s+(?:is\s+)?(?:visible|displayed|shown)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "confirm-that-assertion",
+    // "Confirm that the message appears" or "Confirm the error is shown"
+    regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "check-element-exists",
+    // "Check that the element exists" or "Check the button is present"
+    regex: /^check\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:exists?|is\s+present)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-should-not-be-visible",
+    // "The error should not be visible" or "Error message is not displayed"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+    primitiveType: "expectHidden",
+    extract: (match) => ({
+      type: "expectHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-contains-text",
+    // "The header contains 'Welcome'" or "Element should contain 'text'"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?contains?\s+['"](.+?)['"]$/i,
+    primitiveType: "expectText",
+    extract: (match) => ({
+      type: "expectText",
+      locator: createLocatorFromMatch("text", match[1]),
+      text: match[2]
+    })
+  }
+];
+var extendedWaitPatterns = [
+  {
+    name: "wait-for-element-visible",
+    // "Wait for the loading spinner to disappear"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:disappear|be\s+hidden)$/i,
+    primitiveType: "waitForHidden",
+    extract: (match) => ({
+      type: "waitForHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "wait-for-element-appear",
+    // "Wait for the modal to appear" or "Wait for dialog to show"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:appear|show|be\s+visible)$/i,
+    primitiveType: "waitForVisible",
+    extract: (match) => ({
+      type: "waitForVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "wait-until-loaded",
+    // "Wait until the page is loaded" or "Wait until content loads"
+    regex: /^(?:user\s+)?waits?\s+until\s+(?:the\s+)?(?:page|content|data)\s+(?:is\s+)?loaded$/i,
+    primitiveType: "waitForLoadingComplete",
+    extract: () => ({
+      type: "waitForLoadingComplete"
+    })
+  },
+  {
+    name: "wait-seconds",
+    // "Wait for 2 seconds" or "Wait 3 seconds"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(\d+)\s+seconds?$/i,
+    primitiveType: "waitForTimeout",
+    extract: (match) => ({
+      type: "waitForTimeout",
+      ms: parseInt(match[1], 10) * 1e3
+    })
+  },
+  {
+    name: "wait-for-network",
+    // "Wait for network to be idle" or "Wait for network idle"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?network\s+(?:to\s+be\s+)?idle$/i,
+    primitiveType: "waitForNetworkIdle",
+    extract: () => ({
+      type: "waitForNetworkIdle"
+    })
+  }
+];
+var extendedNavigationPatterns = [
+  {
+    name: "refresh-page",
+    // "Refresh the page" or "Reload the page"
+    regex: /^(?:user\s+)?(?:refresh(?:es)?|reloads?)\s+(?:the\s+)?page$/i,
+    primitiveType: "reload",
+    extract: () => ({
+      type: "reload"
+    })
+  },
+  {
+    name: "go-back",
+    // "Go back" or "Navigate back" or "User goes back"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+back$/i,
+    primitiveType: "goBack",
+    extract: () => ({
+      type: "goBack"
+    })
+  },
+  {
+    name: "go-forward",
+    // "Go forward" or "Navigate forward"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+forward$/i,
+    primitiveType: "goForward",
+    extract: () => ({
+      type: "goForward"
+    })
+  }
+];
+var extendedSelectPatterns = [
+  {
+    name: "select-from-dropdown",
+    // "Select 'Option' from dropdown" or "Choose 'Value' from the dropdown"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+['"](.+?)['"]\s+from\s+(?:the\s+)?dropdown$/i,
+    primitiveType: "select",
+    extract: (match) => ({
+      type: "select",
+      locator: { strategy: "role", value: "combobox" },
+      option: match[1]
+    })
+  },
+  {
+    name: "select-option-named",
+    // "Select option 'Value'" or "Choose the 'Option' option"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?['"](.+?)['"](?:\s+option)?$/i,
+    primitiveType: "select",
+    extract: (match) => ({
+      type: "select",
+      locator: { strategy: "role", value: "combobox" },
+      option: match[1]
+    })
+  }
+];
+var hoverPatterns = [
+  {
+    name: "hover-over-element",
+    // "Hover over the menu" or "User hovers on button"
+    regex: /^(?:user\s+)?hovers?\s+(?:over|on)\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "hover",
+    extract: (match) => ({
+      type: "hover",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "mouse-over",
+    // "Mouse over the element" or "Mouseover the button"
+    regex: /^(?:user\s+)?mouse\s*over\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "hover",
+    extract: (match) => ({
+      type: "hover",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  }
+];
+var focusPatterns = [
+  {
+    name: "focus-on-element",
+    // "Focus on the input" or "User focuses the field"
+    regex: /^(?:user\s+)?focus(?:es)?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "focus",
+    extract: (match) => ({
+      type: "focus",
+      locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+    })
+  }
+];
 var allPatterns = [
   ...structuredPatterns,
   ...authPatterns,
   ...toastPatterns,
+  // Extended patterns come BEFORE base patterns to match more specific cases first
+  ...extendedNavigationPatterns,
+  // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
   ...navigationPatterns,
+  ...extendedClickPatterns,
+  // Must be before clickPatterns (e.g., "Click on" vs "Click")
   ...clickPatterns,
+  ...extendedFillPatterns,
   ...fillPatterns,
+  ...extendedSelectPatterns,
   ...selectPatterns,
   ...checkPatterns,
+  ...extendedAssertionPatterns,
+  // Must be before visibilityPatterns (e.g., "not be visible")
   ...visibilityPatterns,
   ...urlPatterns,
-  ...waitPatterns
+  ...extendedWaitPatterns,
+  ...waitPatterns,
+  ...hoverPatterns,
+  ...focusPatterns
 ];
 function matchPattern(text) {
   const trimmedText = text.trim();
@@ -1012,174 +1792,9 @@ function tryParseJourneyContent(content, virtualPath = "virtual.journey.md") {
     sourcePath: virtualPath
   });
 }
-var GlossaryEntrySchema = z.object({
-  canonical: z.string(),
-  synonyms: z.array(z.string())
-});
-var LabelAliasSchema = z.object({
-  label: z.string(),
-  testid: z.string().optional(),
-  role: z.string().optional(),
-  selector: z.string().optional()
-});
-var ModuleMethodMappingSchema = z.object({
-  phrase: z.string(),
-  module: z.string(),
-  method: z.string(),
-  params: z.record(z.string()).optional()
-});
-z.object({
-  version: z.number().default(1),
-  entries: z.array(GlossaryEntrySchema),
-  labelAliases: z.array(LabelAliasSchema).default([]),
-  moduleMethods: z.array(ModuleMethodMappingSchema).default([])
-});
-var defaultGlossary = {
-  version: 1,
-  labelAliases: [
-    // Common label-to-selector mappings
-    { label: "email", testid: "email-input", role: "textbox" },
-    { label: "password", testid: "password-input", role: "textbox" },
-    { label: "username", testid: "username-input", role: "textbox" },
-    { label: "search", testid: "search-input", role: "searchbox" },
-    { label: "submit", testid: "submit-button", role: "button" },
-    { label: "cancel", testid: "cancel-button", role: "button" },
-    { label: "close", testid: "close-button", role: "button" }
-  ],
-  moduleMethods: [
-    // Common phrase-to-module mappings
-    { phrase: "log in", module: "auth", method: "login" },
-    { phrase: "login", module: "auth", method: "login" },
-    { phrase: "sign in", module: "auth", method: "login" },
-    { phrase: "log out", module: "auth", method: "logout" },
-    { phrase: "logout", module: "auth", method: "logout" },
-    { phrase: "sign out", module: "auth", method: "logout" },
-    { phrase: "navigate to", module: "navigation", method: "goToPath" },
-    { phrase: "go to", module: "navigation", method: "goToPath" },
-    { phrase: "open", module: "navigation", method: "goToPath" },
-    { phrase: "fill form", module: "forms", method: "fillForm" },
-    { phrase: "submit form", module: "forms", method: "submitForm" },
-    { phrase: "wait for", module: "waits", method: "waitForSignal" }
-  ],
-  entries: [
-    {
-      canonical: "click",
-      synonyms: ["press", "tap", "select", "hit"]
-    },
-    {
-      canonical: "enter",
-      synonyms: ["type", "fill", "input", "write"]
-    },
-    {
-      canonical: "navigate",
-      synonyms: ["go", "open", "visit", "browse"]
-    },
-    {
-      canonical: "see",
-      synonyms: ["view", "observe", "notice", "find"]
-    },
-    {
-      canonical: "visible",
-      synonyms: ["displayed", "shown", "present"]
-    },
-    {
-      canonical: "button",
-      synonyms: ["btn", "action", "cta"]
-    },
-    {
-      canonical: "field",
-      synonyms: ["input", "textbox", "text field", "text input"]
-    },
-    {
-      canonical: "dropdown",
-      synonyms: ["select", "combo", "combobox", "selector", "picker"]
-    },
-    {
-      canonical: "checkbox",
-      synonyms: ["check", "tick", "toggle"]
-    },
-    {
-      canonical: "login",
-      synonyms: ["log in", "sign in", "authenticate"]
-    },
-    {
-      canonical: "logout",
-      synonyms: ["log out", "sign out", "exit"]
-    },
-    {
-      canonical: "submit",
-      synonyms: ["send", "save", "confirm", "ok"]
-    },
-    {
-      canonical: "cancel",
-      synonyms: ["close", "dismiss", "abort", "back"]
-    },
-    {
-      canonical: "success",
-      synonyms: ["passed", "completed", "done", "finished"]
-    },
-    {
-      canonical: "error",
-      synonyms: ["failure", "failed", "problem", "issue"]
-    },
-    {
-      canonical: "toast",
-      synonyms: ["notification", "message", "alert", "snackbar"]
-    },
-    {
-      canonical: "modal",
-      synonyms: ["dialog", "popup", "overlay", "lightbox"]
-    },
-    {
-      canonical: "user",
-      synonyms: ["customer", "visitor", "member", "client"]
-    },
-    {
-      canonical: "page",
-      synonyms: ["screen", "view", "section"]
-    },
-    {
-      canonical: "form",
-      synonyms: ["questionnaire", "survey", "wizard"]
-    }
-  ]
-};
-var glossaryCache = null;
-var synonymMap = null;
-function buildSynonymMap(glossary) {
-  const map = /* @__PURE__ */ new Map();
-  for (const entry of glossary.entries) {
-    map.set(entry.canonical.toLowerCase(), entry.canonical);
-    for (const synonym of entry.synonyms) {
-      map.set(synonym.toLowerCase(), entry.canonical);
-    }
-  }
-  return map;
-}
-function initGlossary(glossaryPath) {
-  {
-    glossaryCache = defaultGlossary;
-  }
-  synonymMap = buildSynonymMap(glossaryCache);
-}
-function normalizeStepText(text) {
-  if (!synonymMap) {
-    initGlossary();
-  }
-  const parts = [];
-  const regex = /(['"][^'"]+['"])|(\S+)/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const part = match[0];
-    if (part.startsWith('"') || part.startsWith("'")) {
-      parts.push(part);
-    } else {
-      const canonical = synonymMap.get(part.toLowerCase());
-      parts.push(canonical ?? part);
-    }
-  }
-  return parts.join(" ");
-}
+
+// src/mapping/stepMapper.ts
+init_glossary();
 
 // src/journey/hintPatterns.ts
 var HINT_BLOCK_PATTERN = /\(([a-z]+)=(?:"([^"]+)"|'([^']+)'|([^,)\s]+))\)/gi;
@@ -1385,32 +2000,100 @@ function parseModuleHint(moduleHint) {
 }
 
 // src/mapping/stepMapper.ts
+var llkbModule = null;
+var llkbLoadAttempted = false;
+async function loadLlkbModule() {
+  if (llkbLoadAttempted) return llkbModule;
+  llkbLoadAttempted = true;
+  try {
+    const mod = await Promise.resolve().then(() => (init_patternExtension(), patternExtension_exports));
+    llkbModule = {
+      matchLlkbPattern: mod.matchLlkbPattern,
+      recordPatternSuccess: mod.recordPatternSuccess
+    };
+  } catch {
+    llkbModule = null;
+  }
+  return llkbModule;
+}
+function tryLlkbMatch(text, options) {
+  if (!llkbModule) {
+    if (!llkbLoadAttempted) {
+      void loadLlkbModule();
+    }
+    return null;
+  }
+  return llkbModule.matchLlkbPattern(text, options);
+}
 function isAssertion(primitive) {
   return primitive.type.startsWith("expect");
 }
 function mapStepText(text, options = {}) {
-  const { normalizeText = true } = options;
+  const {
+    normalizeText = true,
+    useLlkb = true,
+    llkbRoot,
+    llkbMinConfidence = 0.7
+  } = options;
   const hints = extractHints(text);
   const cleanText = hints.hasHints ? hints.cleanText : text;
   const processedText = normalizeText ? normalizeStepText(cleanText) : cleanText;
   let primitive = matchPattern(processedText);
+  let matchSource = primitive ? "pattern" : "none";
   if (primitive && hints.hasHints) {
     primitive = applyHintsToPrimitive(primitive, hints);
-  } else if (!primitive && hasLocatorHints(hints)) {
+  }
+  let llkbPatternId;
+  let llkbConfidence;
+  if (!primitive && useLlkb) {
+    const llkbMatch = tryLlkbMatch(processedText, {
+      llkbRoot,
+      minConfidence: llkbMinConfidence
+    });
+    if (llkbMatch) {
+      primitive = llkbMatch.primitive;
+      matchSource = "llkb";
+      llkbPatternId = llkbMatch.patternId;
+      llkbConfidence = llkbMatch.confidence;
+      if (llkbModule && options.journeyId) {
+        try {
+          llkbModule.recordPatternSuccess(
+            text,
+            // Original text, not processed
+            llkbMatch.primitive,
+            options.journeyId,
+            { llkbRoot }
+          );
+        } catch {
+        }
+      }
+      if (hints.hasHints) {
+        primitive = applyHintsToPrimitive(primitive, hints);
+      }
+    }
+  }
+  if (!primitive && hasLocatorHints(hints)) {
     primitive = createPrimitiveFromHints(processedText, hints);
+    if (primitive) {
+      matchSource = "hints";
+    }
   }
   if (primitive) {
     return {
       primitive,
       sourceText: text,
-      isAssertion: isAssertion(primitive)
+      isAssertion: isAssertion(primitive),
+      matchSource,
+      llkbPatternId,
+      llkbConfidence
     };
   }
   return {
     primitive: null,
     sourceText: text,
     isAssertion: false,
-    message: `Could not map step: "${text}"`
+    message: `Could not map step: "${text}"`,
+    matchSource: "none"
   };
 }
 function applyHintsToPrimitive(primitive, hints) {

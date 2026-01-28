@@ -1,9 +1,9 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
-import { join, resolve, dirname, relative, basename, extname } from 'path';
-import { randomBytes, createHash } from 'crypto';
-import { z } from 'zod';
-import { parse, stringify } from 'yaml';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
+import { resolve, join, dirname, relative, basename, extname } from 'path';
 import { pathToFileURL, fileURLToPath } from 'url';
+import { parse, stringify } from 'yaml';
+import { z } from 'zod';
+import { randomBytes, createHash } from 'crypto';
 import fg from 'fast-glob';
 import ejs from 'ejs';
 import { Project, ModuleKind, ScriptTarget, SyntaxKind } from 'ts-morph';
@@ -25,6 +25,711 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
+function buildSynonymMap(glossary) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const entry of glossary.entries) {
+    map2.set(entry.canonical.toLowerCase(), entry.canonical);
+    for (const synonym of entry.synonyms) {
+      map2.set(synonym.toLowerCase(), entry.canonical);
+    }
+  }
+  return map2;
+}
+function loadGlossary(glossaryPath) {
+  const resolvedPath = resolve(glossaryPath);
+  if (!existsSync(resolvedPath)) {
+    console.warn(`Glossary file not found at ${resolvedPath}, using defaults`);
+    return defaultGlossary;
+  }
+  try {
+    const content = readFileSync(resolvedPath, "utf-8");
+    const parsed = parse(content);
+    const result = GlossarySchema.safeParse(parsed);
+    if (!result.success) {
+      console.warn(`Invalid glossary file at ${resolvedPath}, using defaults`);
+      return defaultGlossary;
+    }
+    return mergeGlossaries(defaultGlossary, result.data);
+  } catch {
+    console.warn(`Failed to load glossary from ${resolvedPath}, using defaults`);
+    return defaultGlossary;
+  }
+}
+function mergeGlossaries(base, extension) {
+  const merged = {
+    version: Math.max(base.version, extension.version),
+    entries: [...base.entries],
+    labelAliases: [...base.labelAliases ?? []],
+    moduleMethods: [...base.moduleMethods ?? []]
+  };
+  for (const extEntry of extension.entries) {
+    const existing = merged.entries.find(
+      (e) => e.canonical.toLowerCase() === extEntry.canonical.toLowerCase()
+    );
+    if (existing) {
+      const allSynonyms = /* @__PURE__ */ new Set([...existing.synonyms, ...extEntry.synonyms]);
+      existing.synonyms = Array.from(allSynonyms);
+    } else {
+      merged.entries.push(extEntry);
+    }
+  }
+  for (const extAlias of extension.labelAliases ?? []) {
+    const existing = merged.labelAliases.find(
+      (a) => a.label.toLowerCase() === extAlias.label.toLowerCase()
+    );
+    if (!existing) {
+      merged.labelAliases.push(extAlias);
+    } else {
+      Object.assign(existing, extAlias);
+    }
+  }
+  for (const extMethod of extension.moduleMethods ?? []) {
+    const existing = merged.moduleMethods.find(
+      (m) => m.phrase.toLowerCase() === extMethod.phrase.toLowerCase()
+    );
+    if (!existing) {
+      merged.moduleMethods.push(extMethod);
+    } else {
+      Object.assign(existing, extMethod);
+    }
+  }
+  return merged;
+}
+function initGlossary(glossaryPath) {
+  if (glossaryPath) {
+    glossaryCache = loadGlossary(glossaryPath);
+  } else {
+    glossaryCache = defaultGlossary;
+  }
+  synonymMap = buildSynonymMap(glossaryCache);
+}
+function getGlossary() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return glossaryCache;
+}
+function resolveCanonical(term) {
+  if (!synonymMap) {
+    initGlossary();
+  }
+  return synonymMap.get(term.toLowerCase()) ?? term;
+}
+function normalizeStepText(text) {
+  if (!synonymMap) {
+    initGlossary();
+  }
+  const parts = [];
+  const regex = /(['"][^'"]+['"])|(\S+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const part = match[0];
+    if (part.startsWith('"') || part.startsWith("'")) {
+      parts.push(part);
+    } else {
+      const lowerPart = part.toLowerCase();
+      const canonical = synonymMap.get(lowerPart);
+      parts.push(canonical ?? lowerPart);
+    }
+  }
+  return parts.join(" ");
+}
+function getSynonyms(canonical) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const entry = glossaryCache.entries.find(
+    (e) => e.canonical.toLowerCase() === canonical.toLowerCase()
+  );
+  return entry?.synonyms ?? [];
+}
+function isSynonymOf(term, canonical) {
+  const resolved = resolveCanonical(term);
+  return resolved.toLowerCase() === canonical.toLowerCase();
+}
+function resetGlossaryCache() {
+  glossaryCache = null;
+  synonymMap = null;
+}
+function findLabelAlias(label) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedLabel = label.toLowerCase().trim();
+  return glossaryCache.labelAliases?.find(
+    (alias) => alias.label.toLowerCase() === normalizedLabel
+  ) ?? null;
+}
+function getLocatorFromLabel(label) {
+  const alias = findLabelAlias(label);
+  if (!alias) return null;
+  if (alias.testid) {
+    return { strategy: "testid", value: alias.testid };
+  }
+  if (alias.role) {
+    return { strategy: "role", value: alias.role };
+  }
+  if (alias.selector) {
+    return { strategy: "css", value: alias.selector };
+  }
+  return null;
+}
+function findModuleMethod(text) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedText = text.toLowerCase().trim();
+  let bestMatch = null;
+  let bestMatchLength = 0;
+  for (const mapping of glossaryCache.moduleMethods ?? []) {
+    const phrase = mapping.phrase.toLowerCase();
+    if (normalizedText.includes(phrase) && phrase.length > bestMatchLength) {
+      bestMatch = mapping;
+      bestMatchLength = phrase.length;
+    }
+  }
+  return bestMatch;
+}
+function resolveModuleMethod(text) {
+  const mapping = findModuleMethod(text);
+  if (!mapping) return null;
+  return {
+    module: mapping.module,
+    method: mapping.method,
+    params: mapping.params
+  };
+}
+function getLabelAliases() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return glossaryCache.labelAliases ?? [];
+}
+function getModuleMethods() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return glossaryCache.moduleMethods ?? [];
+}
+async function loadExtendedGlossary(glossaryPath) {
+  try {
+    const resolvedPath = resolve(glossaryPath);
+    if (!existsSync(resolvedPath)) {
+      return {
+        loaded: false,
+        entryCount: 0,
+        exportedAt: null,
+        error: `Glossary file not found: ${resolvedPath}`
+      };
+    }
+    const fileUrl = pathToFileURL(resolvedPath).href;
+    const module = await import(fileUrl);
+    if (module.llkbGlossary instanceof Map) {
+      const glossaryMap = module.llkbGlossary;
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    if (module.llkbGlossary && typeof module.llkbGlossary === "object") {
+      const glossaryMap = new Map(
+        Object.entries(module.llkbGlossary)
+      );
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
+    };
+  } catch (err2) {
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: `Failed to load glossary: ${err2 instanceof Error ? err2.message : String(err2)}`
+    };
+  }
+}
+function clearExtendedGlossary() {
+  extendedGlossary = null;
+  extendedGlossaryMeta = null;
+}
+function isExactCoreMatch(term) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedTerm = term.toLowerCase().trim();
+  for (const mapping of glossaryCache.moduleMethods ?? []) {
+    if (mapping.phrase.toLowerCase() === normalizedTerm) {
+      return true;
+    }
+  }
+  return false;
+}
+function lookupGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  if (isExactCoreMatch(normalizedTerm)) {
+    const coreMapping2 = findModuleMethod(normalizedTerm);
+    if (coreMapping2) {
+      return {
+        type: "callModule",
+        module: coreMapping2.module,
+        method: coreMapping2.method,
+        args: coreMapping2.params ? [coreMapping2.params] : void 0
+      };
+    }
+  }
+  if (extendedGlossary) {
+    const extendedMatch = extendedGlossary.get(normalizedTerm);
+    if (extendedMatch) {
+      return extendedMatch;
+    }
+  }
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function lookupCoreGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function getGlossaryStats() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return {
+    coreEntries: glossaryCache.moduleMethods?.length ?? 0,
+    extendedEntries: extendedGlossary?.size ?? 0,
+    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+    extendedMeta: extendedGlossaryMeta
+  };
+}
+function hasExtendedGlossary() {
+  return extendedGlossary !== null && extendedGlossary.size > 0;
+}
+var GlossaryEntrySchema, LabelAliasSchema, ModuleMethodMappingSchema, GlossarySchema, defaultGlossary, glossaryCache, synonymMap, extendedGlossary, extendedGlossaryMeta;
+var init_glossary = __esm({
+  "src/mapping/glossary.ts"() {
+    GlossaryEntrySchema = z.object({
+      canonical: z.string(),
+      synonyms: z.array(z.string())
+    });
+    LabelAliasSchema = z.object({
+      label: z.string(),
+      testid: z.string().optional(),
+      role: z.string().optional(),
+      selector: z.string().optional()
+    });
+    ModuleMethodMappingSchema = z.object({
+      phrase: z.string(),
+      module: z.string(),
+      method: z.string(),
+      params: z.record(z.string()).optional()
+    });
+    GlossarySchema = z.object({
+      version: z.number().default(1),
+      entries: z.array(GlossaryEntrySchema),
+      labelAliases: z.array(LabelAliasSchema).default([]),
+      moduleMethods: z.array(ModuleMethodMappingSchema).default([])
+    });
+    defaultGlossary = {
+      version: 1,
+      labelAliases: [
+        // Common label-to-selector mappings
+        { label: "email", testid: "email-input", role: "textbox" },
+        { label: "password", testid: "password-input", role: "textbox" },
+        { label: "username", testid: "username-input", role: "textbox" },
+        { label: "search", testid: "search-input", role: "searchbox" },
+        { label: "submit", testid: "submit-button", role: "button" },
+        { label: "cancel", testid: "cancel-button", role: "button" },
+        { label: "close", testid: "close-button", role: "button" }
+      ],
+      moduleMethods: [
+        // Common phrase-to-module mappings
+        { phrase: "log in", module: "auth", method: "login" },
+        { phrase: "login", module: "auth", method: "login" },
+        { phrase: "sign in", module: "auth", method: "login" },
+        { phrase: "log out", module: "auth", method: "logout" },
+        { phrase: "logout", module: "auth", method: "logout" },
+        { phrase: "sign out", module: "auth", method: "logout" },
+        { phrase: "navigate to", module: "navigation", method: "goToPath" },
+        { phrase: "go to", module: "navigation", method: "goToPath" },
+        { phrase: "open", module: "navigation", method: "goToPath" },
+        { phrase: "fill form", module: "forms", method: "fillForm" },
+        { phrase: "submit form", module: "forms", method: "submitForm" },
+        { phrase: "wait for", module: "waits", method: "waitForSignal" }
+      ],
+      entries: [
+        {
+          canonical: "click",
+          synonyms: ["press", "tap", "select", "hit"]
+        },
+        {
+          canonical: "enter",
+          synonyms: ["type", "fill", "input", "write"]
+        },
+        {
+          canonical: "navigate",
+          synonyms: ["go", "open", "visit", "browse"]
+        },
+        {
+          canonical: "see",
+          synonyms: ["view", "observe", "notice", "find"]
+        },
+        {
+          canonical: "visible",
+          synonyms: ["displayed", "shown", "present"]
+        },
+        {
+          canonical: "button",
+          synonyms: ["btn", "action", "cta"]
+        },
+        {
+          canonical: "field",
+          synonyms: ["input", "textbox", "text field", "text input"]
+        },
+        {
+          canonical: "dropdown",
+          synonyms: ["select", "combo", "combobox", "selector", "picker"]
+        },
+        {
+          canonical: "checkbox",
+          synonyms: ["check", "tick", "toggle"]
+        },
+        {
+          canonical: "login",
+          synonyms: ["log in", "sign in", "authenticate"]
+        },
+        {
+          canonical: "logout",
+          synonyms: ["log out", "sign out", "exit"]
+        },
+        {
+          canonical: "submit",
+          synonyms: ["send", "save", "confirm", "ok"]
+        },
+        {
+          canonical: "cancel",
+          synonyms: ["close", "dismiss", "abort", "back"]
+        },
+        {
+          canonical: "success",
+          synonyms: ["passed", "completed", "done", "finished"]
+        },
+        {
+          canonical: "error",
+          synonyms: ["failure", "failed", "problem", "issue"]
+        },
+        {
+          canonical: "toast",
+          synonyms: ["notification", "message", "alert", "snackbar"]
+        },
+        {
+          canonical: "modal",
+          synonyms: ["dialog", "popup", "overlay", "lightbox"]
+        },
+        {
+          canonical: "user",
+          synonyms: ["customer", "visitor", "member", "client"]
+        },
+        {
+          canonical: "page",
+          synonyms: ["screen", "view", "section"]
+        },
+        {
+          canonical: "form",
+          synonyms: ["questionnaire", "survey", "wizard"]
+        }
+      ]
+    };
+    glossaryCache = null;
+    synonymMap = null;
+    extendedGlossary = null;
+    extendedGlossaryMeta = null;
+  }
+});
+
+// src/llkb/patternExtension.ts
+var patternExtension_exports = {};
+__export(patternExtension_exports, {
+  calculateConfidence: () => calculateConfidence,
+  clearLearnedPatterns: () => clearLearnedPatterns,
+  exportPatternsToConfig: () => exportPatternsToConfig,
+  generatePatternId: () => generatePatternId,
+  generateRegexFromText: () => generateRegexFromText,
+  getPatternStats: () => getPatternStats,
+  getPatternsFilePath: () => getPatternsFilePath,
+  getPromotablePatterns: () => getPromotablePatterns,
+  invalidatePatternCache: () => invalidatePatternCache,
+  loadLearnedPatterns: () => loadLearnedPatterns,
+  markPatternsPromoted: () => markPatternsPromoted,
+  matchLlkbPattern: () => matchLlkbPattern,
+  prunePatterns: () => prunePatterns,
+  recordPatternFailure: () => recordPatternFailure,
+  recordPatternSuccess: () => recordPatternSuccess,
+  saveLearnedPatterns: () => saveLearnedPatterns
+});
+function invalidatePatternCache() {
+  patternCache = null;
+}
+function getPatternsFilePath(llkbRoot) {
+  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  return join(root, PATTERNS_FILE);
+}
+function generatePatternId() {
+  return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+}
+function loadLearnedPatterns(options = {}) {
+  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const now = Date.now();
+  if (!options.bypassCache && patternCache && patternCache.llkbRoot === llkbRoot && now - patternCache.loadedAt < CACHE_TTL_MS) {
+    return patternCache.patterns;
+  }
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (!existsSync(filePath)) {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+    patternCache = { patterns, llkbRoot, loadedAt: now };
+    return patterns;
+  } catch {
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+}
+function saveLearnedPatterns(patterns, options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const data = {
+    version: "1.0.0",
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns
+  };
+  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  invalidatePatternCache();
+}
+function calculateConfidence(successCount, failCount) {
+  const total = successCount + failCount;
+  if (total === 0) return 0.5;
+  const p = successCount / total;
+  const z5 = 1.96;
+  const n = total;
+  const denominator = 1 + z5 * z5 / n;
+  const center = p + z5 * z5 / (2 * n);
+  const spread = z5 * Math.sqrt((p * (1 - p) + z5 * z5 / (4 * n)) / n);
+  return Math.max(0, Math.min(1, (center - spread) / denominator));
+}
+function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(originalText);
+  let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.successCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    if (!pattern.sourceJourneys.includes(journeyId)) {
+      pattern.sourceJourneys.push(journeyId);
+    }
+  } else {
+    pattern = {
+      id: generatePatternId(),
+      originalText,
+      normalizedText,
+      mappedPrimitive: primitive,
+      confidence: 0.5,
+      // Initial confidence
+      sourceJourneys: [journeyId],
+      successCount: 1,
+      failCount: 0,
+      lastUsed: (/* @__PURE__ */ new Date()).toISOString(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      promotedToCore: false
+    };
+    patterns.push(pattern);
+  }
+  saveLearnedPatterns(patterns, options);
+  return pattern;
+}
+function recordPatternFailure(originalText, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(originalText);
+  const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.failCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    saveLearnedPatterns(patterns, options);
+    return pattern;
+  }
+  return null;
+}
+function matchLlkbPattern(text, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepText(text);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const match = patterns.find(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  );
+  if (match) {
+    return {
+      patternId: match.id,
+      primitive: match.mappedPrimitive,
+      confidence: match.confidence
+    };
+  }
+  return null;
+}
+function generateRegexFromText(text) {
+  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  return `^${pattern}$`;
+}
+function getPromotablePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const promotable = patterns.filter(
+    (p) => p.confidence >= 0.9 && p.successCount >= 5 && p.sourceJourneys.length >= 2 && !p.promotedToCore
+  );
+  return promotable.map((pattern) => ({
+    pattern,
+    generatedRegex: generateRegexFromText(pattern.originalText),
+    priority: pattern.successCount * pattern.confidence
+  }));
+}
+function markPatternsPromoted(patternIds, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  for (const pattern of patterns) {
+    if (patternIds.includes(pattern.id)) {
+      pattern.promotedToCore = true;
+      pattern.promotedAt = now;
+    }
+  }
+  saveLearnedPatterns(patterns, options);
+}
+function prunePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = Date.now();
+  const maxAge = (options.maxAgeDays ?? 90) * 24 * 60 * 60 * 1e3;
+  const minConfidence = options.minConfidence ?? 0.3;
+  const minSuccess = options.minSuccess ?? 1;
+  const filtered = patterns.filter((p) => {
+    if (p.promotedToCore) return true;
+    if (p.confidence < minConfidence) return false;
+    if (minSuccess > 0 && p.successCount < minSuccess) return false;
+    const age = now - new Date(p.createdAt).getTime();
+    if (age > maxAge && p.successCount === 0) return false;
+    return true;
+  });
+  const removed = patterns.length - filtered.length;
+  if (removed > 0) {
+    saveLearnedPatterns(filtered, options);
+  }
+  return {
+    removed,
+    remaining: filtered.length
+  };
+}
+function getPatternStats(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  if (patterns.length === 0) {
+    return {
+      total: 0,
+      promoted: 0,
+      highConfidence: 0,
+      lowConfidence: 0,
+      avgConfidence: 0,
+      totalSuccesses: 0,
+      totalFailures: 0
+    };
+  }
+  const promoted = patterns.filter((p) => p.promotedToCore).length;
+  const highConfidence = patterns.filter((p) => p.confidence >= 0.7).length;
+  const lowConfidence = patterns.filter((p) => p.confidence < 0.3).length;
+  const totalConfidence = patterns.reduce((sum, p) => sum + p.confidence, 0);
+  const totalSuccesses = patterns.reduce((sum, p) => sum + p.successCount, 0);
+  const totalFailures = patterns.reduce((sum, p) => sum + p.failCount, 0);
+  return {
+    total: patterns.length,
+    promoted,
+    highConfidence,
+    lowConfidence,
+    avgConfidence: totalConfidence / patterns.length,
+    totalSuccesses,
+    totalFailures
+  };
+}
+function exportPatternsToConfig(options) {
+  const patterns = loadLearnedPatterns(options);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const exportable = patterns.filter((p) => p.confidence >= minConfidence && !p.promotedToCore);
+  const config = {
+    version: "1.0.0",
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns: exportable.map((p) => ({
+      id: p.id,
+      trigger: generateRegexFromText(p.originalText),
+      primitive: p.mappedPrimitive,
+      confidence: p.confidence,
+      sourceCount: p.sourceJourneys.length
+    }))
+  };
+  const outputPath = options.outputPath || join(dirname(getPatternsFilePath(options.llkbRoot)), "autogen-patterns.json");
+  writeFileSync(outputPath, JSON.stringify(config, null, 2), "utf-8");
+  return {
+    exported: exportable.length,
+    path: outputPath
+  };
+}
+function clearLearnedPatterns(options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
+  }
+  invalidatePatternCache();
+}
+var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
+var init_patternExtension = __esm({
+  "src/llkb/patternExtension.ts"() {
+    init_glossary();
+    PATTERNS_FILE = "learned-patterns.json";
+    DEFAULT_LLKB_ROOT = ".artk/llkb";
+    patternCache = null;
+    CACHE_TTL_MS = 5e3;
+  }
+});
 
 // src/heal/rules.ts
 function isCategoryHealable(category) {
@@ -2200,6 +2905,26 @@ function loadLLKBConfig(basePath) {
   }
   return null;
 }
+function loadConfigWithMigration(configPath) {
+  const config = loadConfig(configPath);
+  if (config.llkb === void 0) {
+    config.llkb = {
+      enabled: false,
+      level: "minimal"
+    };
+  }
+  return config;
+}
+function needsConfigMigration(config) {
+  if (typeof config !== "object" || config === null) {
+    return false;
+  }
+  const obj = config;
+  return obj.llkb === void 0;
+}
+function getSchemaVersion(config) {
+  return config.version;
+}
 var JourneyStatusSchema = z.enum([
   "proposed",
   "defined",
@@ -2365,6 +3090,7 @@ function validateForAutoGen(frontmatter) {
 }
 
 // src/mapping/patterns.ts
+var PATTERN_VERSION = "1.1.0";
 function createLocatorFromMatch(strategy, value, name) {
   const locator = { strategy, value };
   if (name) {
@@ -2769,18 +3495,361 @@ var structuredPatterns = [
     }
   }
 ];
+var extendedClickPatterns = [
+  {
+    name: "click-on-element",
+    // "Click on Submit" or "Click on the Submit button"
+    regex: /^(?:user\s+)?clicks?\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
+    primitiveType: "click",
+    extract: (match) => ({
+      type: "click",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "press-enter-key",
+    // "Press Enter" or "Press the Enter key" or "Hit Enter"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:enter|return)(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Enter"
+    })
+  },
+  {
+    name: "press-tab-key",
+    // "Press Tab" or "Press the Tab key"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?tab(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Tab"
+    })
+  },
+  {
+    name: "press-escape-key",
+    // "Press Escape" or "Press Esc"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:escape|esc)(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Escape"
+    })
+  },
+  {
+    name: "double-click",
+    // "Double click on" or "Double-click the"
+    regex: /^(?:user\s+)?double[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "dblclick",
+    extract: (match) => ({
+      type: "dblclick",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "right-click",
+    // "Right click on" or "Right-click the"
+    regex: /^(?:user\s+)?right[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "rightClick",
+    extract: (match) => ({
+      type: "rightClick",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "submit-form",
+    // "Submit the form" or "Submits form"
+    regex: /^(?:user\s+)?submits?\s+(?:the\s+)?form$/i,
+    primitiveType: "click",
+    extract: () => ({
+      type: "click",
+      locator: createLocatorFromMatch("role", "button", "Submit")
+    })
+  }
+];
+var extendedFillPatterns = [
+  {
+    name: "type-into-field",
+    // "Type 'password' into the Password field"
+    regex: /^(?:user\s+)?types?\s+['"](.+?)['"]\s+into\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("label", match[2]),
+      value: createValueFromText(match[1])
+    })
+  },
+  {
+    name: "fill-in-field-no-value",
+    // "Fill in the email address" (without explicit value - uses actor data)
+    regex: /^(?:user\s+)?fills?\s+in\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "fill",
+    extract: (match) => {
+      const fieldName = match[1].replace(/["']/g, "");
+      return {
+        type: "fill",
+        locator: createLocatorFromMatch("label", fieldName),
+        value: { type: "actor", value: fieldName.toLowerCase().replace(/\s+/g, "_") }
+      };
+    }
+  },
+  {
+    name: "clear-field",
+    // "Clear the email field" or "Clears the input"
+    regex: /^(?:user\s+)?clears?\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "clear",
+    extract: (match) => ({
+      type: "clear",
+      locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "set-value",
+    // "Set the value to 'test'" or "Sets field to 'value'"
+    regex: /^(?:user\s+)?sets?\s+(?:the\s+)?(?:value\s+)?(?:of\s+)?["']?(.+?)["']?\s+to\s+['"](.+?)['"]$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("label", match[1]),
+      value: createValueFromText(match[2])
+    })
+  }
+];
+var extendedAssertionPatterns = [
+  {
+    name: "verify-element-showing",
+    // "Verify the dashboard is showing/displayed"
+    regex: /^(?:verify|confirm|ensure)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:is\s+)?(?:showing|displayed|visible)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "page-should-show",
+    // "The page should show 'Welcome'" or "Page should display 'text'"
+    regex: /^(?:the\s+)?page\s+should\s+(?:show|display|contain)\s+['"](.+?)['"]$/i,
+    primitiveType: "expectText",
+    extract: (match) => ({
+      type: "expectText",
+      locator: { strategy: "role", value: "main" },
+      text: match[1]
+    })
+  },
+  {
+    name: "make-sure-assertion",
+    // "Make sure the button is visible" or "Make sure user sees 'text'"
+    regex: /^make\s+sure\s+(?:that\s+)?(?:the\s+)?(.+?)\s+(?:is\s+)?(?:visible|displayed|shown)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "confirm-that-assertion",
+    // "Confirm that the message appears" or "Confirm the error is shown"
+    regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "check-element-exists",
+    // "Check that the element exists" or "Check the button is present"
+    regex: /^check\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:exists?|is\s+present)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-should-not-be-visible",
+    // "The error should not be visible" or "Error message is not displayed"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+    primitiveType: "expectHidden",
+    extract: (match) => ({
+      type: "expectHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-contains-text",
+    // "The header contains 'Welcome'" or "Element should contain 'text'"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?contains?\s+['"](.+?)['"]$/i,
+    primitiveType: "expectText",
+    extract: (match) => ({
+      type: "expectText",
+      locator: createLocatorFromMatch("text", match[1]),
+      text: match[2]
+    })
+  }
+];
+var extendedWaitPatterns = [
+  {
+    name: "wait-for-element-visible",
+    // "Wait for the loading spinner to disappear"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:disappear|be\s+hidden)$/i,
+    primitiveType: "waitForHidden",
+    extract: (match) => ({
+      type: "waitForHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "wait-for-element-appear",
+    // "Wait for the modal to appear" or "Wait for dialog to show"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:appear|show|be\s+visible)$/i,
+    primitiveType: "waitForVisible",
+    extract: (match) => ({
+      type: "waitForVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "wait-until-loaded",
+    // "Wait until the page is loaded" or "Wait until content loads"
+    regex: /^(?:user\s+)?waits?\s+until\s+(?:the\s+)?(?:page|content|data)\s+(?:is\s+)?loaded$/i,
+    primitiveType: "waitForLoadingComplete",
+    extract: () => ({
+      type: "waitForLoadingComplete"
+    })
+  },
+  {
+    name: "wait-seconds",
+    // "Wait for 2 seconds" or "Wait 3 seconds"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(\d+)\s+seconds?$/i,
+    primitiveType: "waitForTimeout",
+    extract: (match) => ({
+      type: "waitForTimeout",
+      ms: parseInt(match[1], 10) * 1e3
+    })
+  },
+  {
+    name: "wait-for-network",
+    // "Wait for network to be idle" or "Wait for network idle"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?network\s+(?:to\s+be\s+)?idle$/i,
+    primitiveType: "waitForNetworkIdle",
+    extract: () => ({
+      type: "waitForNetworkIdle"
+    })
+  }
+];
+var extendedNavigationPatterns = [
+  {
+    name: "refresh-page",
+    // "Refresh the page" or "Reload the page"
+    regex: /^(?:user\s+)?(?:refresh(?:es)?|reloads?)\s+(?:the\s+)?page$/i,
+    primitiveType: "reload",
+    extract: () => ({
+      type: "reload"
+    })
+  },
+  {
+    name: "go-back",
+    // "Go back" or "Navigate back" or "User goes back"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+back$/i,
+    primitiveType: "goBack",
+    extract: () => ({
+      type: "goBack"
+    })
+  },
+  {
+    name: "go-forward",
+    // "Go forward" or "Navigate forward"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+forward$/i,
+    primitiveType: "goForward",
+    extract: () => ({
+      type: "goForward"
+    })
+  }
+];
+var extendedSelectPatterns = [
+  {
+    name: "select-from-dropdown",
+    // "Select 'Option' from dropdown" or "Choose 'Value' from the dropdown"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+['"](.+?)['"]\s+from\s+(?:the\s+)?dropdown$/i,
+    primitiveType: "select",
+    extract: (match) => ({
+      type: "select",
+      locator: { strategy: "role", value: "combobox" },
+      option: match[1]
+    })
+  },
+  {
+    name: "select-option-named",
+    // "Select option 'Value'" or "Choose the 'Option' option"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?['"](.+?)['"](?:\s+option)?$/i,
+    primitiveType: "select",
+    extract: (match) => ({
+      type: "select",
+      locator: { strategy: "role", value: "combobox" },
+      option: match[1]
+    })
+  }
+];
+var hoverPatterns = [
+  {
+    name: "hover-over-element",
+    // "Hover over the menu" or "User hovers on button"
+    regex: /^(?:user\s+)?hovers?\s+(?:over|on)\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "hover",
+    extract: (match) => ({
+      type: "hover",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "mouse-over",
+    // "Mouse over the element" or "Mouseover the button"
+    regex: /^(?:user\s+)?mouse\s*over\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "hover",
+    extract: (match) => ({
+      type: "hover",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  }
+];
+var focusPatterns = [
+  {
+    name: "focus-on-element",
+    // "Focus on the input" or "User focuses the field"
+    regex: /^(?:user\s+)?focus(?:es)?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "focus",
+    extract: (match) => ({
+      type: "focus",
+      locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+    })
+  }
+];
 var allPatterns = [
   ...structuredPatterns,
   ...authPatterns,
   ...toastPatterns,
+  // Extended patterns come BEFORE base patterns to match more specific cases first
+  ...extendedNavigationPatterns,
+  // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
   ...navigationPatterns,
+  ...extendedClickPatterns,
+  // Must be before clickPatterns (e.g., "Click on" vs "Click")
   ...clickPatterns,
+  ...extendedFillPatterns,
   ...fillPatterns,
+  ...extendedSelectPatterns,
   ...selectPatterns,
   ...checkPatterns,
+  ...extendedAssertionPatterns,
+  // Must be before visibilityPatterns (e.g., "not be visible")
   ...visibilityPatterns,
   ...urlPatterns,
-  ...waitPatterns
+  ...extendedWaitPatterns,
+  ...waitPatterns,
+  ...hoverPatterns,
+  ...focusPatterns
 ];
 function matchPattern(text) {
   const trimmedText = text.trim();
@@ -2808,6 +3877,39 @@ function getPatternMatches(text) {
     }
   }
   return matches;
+}
+function getAllPatternNames() {
+  return allPatterns.map((p) => p.name);
+}
+function getPatternCountByCategory() {
+  const counts = {};
+  for (const pattern of allPatterns) {
+    const category = pattern.name.split("-")[0] || "other";
+    counts[category] = (counts[category] || 0) + 1;
+  }
+  return counts;
+}
+function getPatternMetadata(patternName) {
+  const pattern = allPatterns.find((p) => p.name === patternName);
+  if (!pattern) return null;
+  const isExtended = patternName.includes("extended") || patternName.startsWith("hover") || patternName.startsWith("focus") || patternName.startsWith("press-") || patternName.startsWith("double-") || patternName.startsWith("right-");
+  return {
+    name: pattern.name,
+    version: isExtended ? "1.1.0" : "1.0.0",
+    addedDate: isExtended ? "2026-01-27" : "2026-01-02",
+    source: "core",
+    category: pattern.name.split("-")[0] || "other"
+  };
+}
+function findMatchingPatterns(text) {
+  const trimmedText = text.trim();
+  const matchingNames = [];
+  for (const pattern of allPatterns) {
+    if (pattern.regex.test(trimmedText)) {
+      matchingNames.push(pattern.name);
+    }
+  }
+  return matchingNames;
 }
 
 // src/utils/result.ts
@@ -3308,450 +4410,9 @@ function tryParseJourneyContent(content, virtualPath = "virtual.journey.md") {
     sourcePath: virtualPath
   });
 }
-var GlossaryEntrySchema = z.object({
-  canonical: z.string(),
-  synonyms: z.array(z.string())
-});
-var LabelAliasSchema = z.object({
-  label: z.string(),
-  testid: z.string().optional(),
-  role: z.string().optional(),
-  selector: z.string().optional()
-});
-var ModuleMethodMappingSchema = z.object({
-  phrase: z.string(),
-  module: z.string(),
-  method: z.string(),
-  params: z.record(z.string()).optional()
-});
-var GlossarySchema = z.object({
-  version: z.number().default(1),
-  entries: z.array(GlossaryEntrySchema),
-  labelAliases: z.array(LabelAliasSchema).default([]),
-  moduleMethods: z.array(ModuleMethodMappingSchema).default([])
-});
-var defaultGlossary = {
-  version: 1,
-  labelAliases: [
-    // Common label-to-selector mappings
-    { label: "email", testid: "email-input", role: "textbox" },
-    { label: "password", testid: "password-input", role: "textbox" },
-    { label: "username", testid: "username-input", role: "textbox" },
-    { label: "search", testid: "search-input", role: "searchbox" },
-    { label: "submit", testid: "submit-button", role: "button" },
-    { label: "cancel", testid: "cancel-button", role: "button" },
-    { label: "close", testid: "close-button", role: "button" }
-  ],
-  moduleMethods: [
-    // Common phrase-to-module mappings
-    { phrase: "log in", module: "auth", method: "login" },
-    { phrase: "login", module: "auth", method: "login" },
-    { phrase: "sign in", module: "auth", method: "login" },
-    { phrase: "log out", module: "auth", method: "logout" },
-    { phrase: "logout", module: "auth", method: "logout" },
-    { phrase: "sign out", module: "auth", method: "logout" },
-    { phrase: "navigate to", module: "navigation", method: "goToPath" },
-    { phrase: "go to", module: "navigation", method: "goToPath" },
-    { phrase: "open", module: "navigation", method: "goToPath" },
-    { phrase: "fill form", module: "forms", method: "fillForm" },
-    { phrase: "submit form", module: "forms", method: "submitForm" },
-    { phrase: "wait for", module: "waits", method: "waitForSignal" }
-  ],
-  entries: [
-    {
-      canonical: "click",
-      synonyms: ["press", "tap", "select", "hit"]
-    },
-    {
-      canonical: "enter",
-      synonyms: ["type", "fill", "input", "write"]
-    },
-    {
-      canonical: "navigate",
-      synonyms: ["go", "open", "visit", "browse"]
-    },
-    {
-      canonical: "see",
-      synonyms: ["view", "observe", "notice", "find"]
-    },
-    {
-      canonical: "visible",
-      synonyms: ["displayed", "shown", "present"]
-    },
-    {
-      canonical: "button",
-      synonyms: ["btn", "action", "cta"]
-    },
-    {
-      canonical: "field",
-      synonyms: ["input", "textbox", "text field", "text input"]
-    },
-    {
-      canonical: "dropdown",
-      synonyms: ["select", "combo", "combobox", "selector", "picker"]
-    },
-    {
-      canonical: "checkbox",
-      synonyms: ["check", "tick", "toggle"]
-    },
-    {
-      canonical: "login",
-      synonyms: ["log in", "sign in", "authenticate"]
-    },
-    {
-      canonical: "logout",
-      synonyms: ["log out", "sign out", "exit"]
-    },
-    {
-      canonical: "submit",
-      synonyms: ["send", "save", "confirm", "ok"]
-    },
-    {
-      canonical: "cancel",
-      synonyms: ["close", "dismiss", "abort", "back"]
-    },
-    {
-      canonical: "success",
-      synonyms: ["passed", "completed", "done", "finished"]
-    },
-    {
-      canonical: "error",
-      synonyms: ["failure", "failed", "problem", "issue"]
-    },
-    {
-      canonical: "toast",
-      synonyms: ["notification", "message", "alert", "snackbar"]
-    },
-    {
-      canonical: "modal",
-      synonyms: ["dialog", "popup", "overlay", "lightbox"]
-    },
-    {
-      canonical: "user",
-      synonyms: ["customer", "visitor", "member", "client"]
-    },
-    {
-      canonical: "page",
-      synonyms: ["screen", "view", "section"]
-    },
-    {
-      canonical: "form",
-      synonyms: ["questionnaire", "survey", "wizard"]
-    }
-  ]
-};
-var glossaryCache = null;
-var synonymMap = null;
-function buildSynonymMap(glossary) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const entry of glossary.entries) {
-    map2.set(entry.canonical.toLowerCase(), entry.canonical);
-    for (const synonym of entry.synonyms) {
-      map2.set(synonym.toLowerCase(), entry.canonical);
-    }
-  }
-  return map2;
-}
-function loadGlossary(glossaryPath) {
-  const resolvedPath = resolve(glossaryPath);
-  if (!existsSync(resolvedPath)) {
-    console.warn(`Glossary file not found at ${resolvedPath}, using defaults`);
-    return defaultGlossary;
-  }
-  try {
-    const content = readFileSync(resolvedPath, "utf-8");
-    const parsed = parse(content);
-    const result = GlossarySchema.safeParse(parsed);
-    if (!result.success) {
-      console.warn(`Invalid glossary file at ${resolvedPath}, using defaults`);
-      return defaultGlossary;
-    }
-    return mergeGlossaries(defaultGlossary, result.data);
-  } catch {
-    console.warn(`Failed to load glossary from ${resolvedPath}, using defaults`);
-    return defaultGlossary;
-  }
-}
-function mergeGlossaries(base, extension) {
-  const merged = {
-    version: Math.max(base.version, extension.version),
-    entries: [...base.entries],
-    labelAliases: [...base.labelAliases ?? []],
-    moduleMethods: [...base.moduleMethods ?? []]
-  };
-  for (const extEntry of extension.entries) {
-    const existing = merged.entries.find(
-      (e) => e.canonical.toLowerCase() === extEntry.canonical.toLowerCase()
-    );
-    if (existing) {
-      const allSynonyms = /* @__PURE__ */ new Set([...existing.synonyms, ...extEntry.synonyms]);
-      existing.synonyms = Array.from(allSynonyms);
-    } else {
-      merged.entries.push(extEntry);
-    }
-  }
-  for (const extAlias of extension.labelAliases ?? []) {
-    const existing = merged.labelAliases.find(
-      (a) => a.label.toLowerCase() === extAlias.label.toLowerCase()
-    );
-    if (!existing) {
-      merged.labelAliases.push(extAlias);
-    } else {
-      Object.assign(existing, extAlias);
-    }
-  }
-  for (const extMethod of extension.moduleMethods ?? []) {
-    const existing = merged.moduleMethods.find(
-      (m) => m.phrase.toLowerCase() === extMethod.phrase.toLowerCase()
-    );
-    if (!existing) {
-      merged.moduleMethods.push(extMethod);
-    } else {
-      Object.assign(existing, extMethod);
-    }
-  }
-  return merged;
-}
-function initGlossary(glossaryPath) {
-  if (glossaryPath) {
-    glossaryCache = loadGlossary(glossaryPath);
-  } else {
-    glossaryCache = defaultGlossary;
-  }
-  synonymMap = buildSynonymMap(glossaryCache);
-}
-function getGlossary() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return glossaryCache;
-}
-function resolveCanonical(term) {
-  if (!synonymMap) {
-    initGlossary();
-  }
-  return synonymMap.get(term.toLowerCase()) ?? term;
-}
-function normalizeStepText(text) {
-  if (!synonymMap) {
-    initGlossary();
-  }
-  const parts = [];
-  const regex = /(['"][^'"]+['"])|(\S+)/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const part = match[0];
-    if (part.startsWith('"') || part.startsWith("'")) {
-      parts.push(part);
-    } else {
-      const canonical = synonymMap.get(part.toLowerCase());
-      parts.push(canonical ?? part);
-    }
-  }
-  return parts.join(" ");
-}
-function getSynonyms(canonical) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const entry = glossaryCache.entries.find(
-    (e) => e.canonical.toLowerCase() === canonical.toLowerCase()
-  );
-  return entry?.synonyms ?? [];
-}
-function isSynonymOf(term, canonical) {
-  const resolved = resolveCanonical(term);
-  return resolved.toLowerCase() === canonical.toLowerCase();
-}
-function resetGlossaryCache() {
-  glossaryCache = null;
-  synonymMap = null;
-}
-function findLabelAlias(label) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const normalizedLabel = label.toLowerCase().trim();
-  return glossaryCache.labelAliases?.find(
-    (alias) => alias.label.toLowerCase() === normalizedLabel
-  ) ?? null;
-}
-function getLocatorFromLabel(label) {
-  const alias = findLabelAlias(label);
-  if (!alias) return null;
-  if (alias.testid) {
-    return { strategy: "testid", value: alias.testid };
-  }
-  if (alias.role) {
-    return { strategy: "role", value: alias.role };
-  }
-  if (alias.selector) {
-    return { strategy: "css", value: alias.selector };
-  }
-  return null;
-}
-function findModuleMethod(text) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const normalizedText = text.toLowerCase().trim();
-  let bestMatch = null;
-  let bestMatchLength = 0;
-  for (const mapping of glossaryCache.moduleMethods ?? []) {
-    const phrase = mapping.phrase.toLowerCase();
-    if (normalizedText.includes(phrase) && phrase.length > bestMatchLength) {
-      bestMatch = mapping;
-      bestMatchLength = phrase.length;
-    }
-  }
-  return bestMatch;
-}
-function resolveModuleMethod(text) {
-  const mapping = findModuleMethod(text);
-  if (!mapping) return null;
-  return {
-    module: mapping.module,
-    method: mapping.method,
-    params: mapping.params
-  };
-}
-function getLabelAliases() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return glossaryCache.labelAliases ?? [];
-}
-function getModuleMethods() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return glossaryCache.moduleMethods ?? [];
-}
-var extendedGlossary = null;
-var extendedGlossaryMeta = null;
-async function loadExtendedGlossary(glossaryPath) {
-  try {
-    const resolvedPath = resolve(glossaryPath);
-    if (!existsSync(resolvedPath)) {
-      return {
-        loaded: false,
-        entryCount: 0,
-        exportedAt: null,
-        error: `Glossary file not found: ${resolvedPath}`
-      };
-    }
-    const fileUrl = pathToFileURL(resolvedPath).href;
-    const module = await import(fileUrl);
-    if (module.llkbGlossary instanceof Map) {
-      const glossaryMap = module.llkbGlossary;
-      extendedGlossary = glossaryMap;
-      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
-      return {
-        loaded: true,
-        entryCount: glossaryMap.size,
-        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
-      };
-    }
-    if (module.llkbGlossary && typeof module.llkbGlossary === "object") {
-      const glossaryMap = new Map(
-        Object.entries(module.llkbGlossary)
-      );
-      extendedGlossary = glossaryMap;
-      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
-      return {
-        loaded: true,
-        entryCount: glossaryMap.size,
-        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
-      };
-    }
-    return {
-      loaded: false,
-      entryCount: 0,
-      exportedAt: null,
-      error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
-    };
-  } catch (err2) {
-    return {
-      loaded: false,
-      entryCount: 0,
-      exportedAt: null,
-      error: `Failed to load glossary: ${err2 instanceof Error ? err2.message : String(err2)}`
-    };
-  }
-}
-function clearExtendedGlossary() {
-  extendedGlossary = null;
-  extendedGlossaryMeta = null;
-}
-function isExactCoreMatch(term) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const normalizedTerm = term.toLowerCase().trim();
-  for (const mapping of glossaryCache.moduleMethods ?? []) {
-    if (mapping.phrase.toLowerCase() === normalizedTerm) {
-      return true;
-    }
-  }
-  return false;
-}
-function lookupGlossary(term) {
-  const normalizedTerm = term.toLowerCase().trim();
-  if (isExactCoreMatch(normalizedTerm)) {
-    const coreMapping2 = findModuleMethod(normalizedTerm);
-    if (coreMapping2) {
-      return {
-        type: "callModule",
-        module: coreMapping2.module,
-        method: coreMapping2.method,
-        args: coreMapping2.params ? [coreMapping2.params] : void 0
-      };
-    }
-  }
-  if (extendedGlossary) {
-    const extendedMatch = extendedGlossary.get(normalizedTerm);
-    if (extendedMatch) {
-      return extendedMatch;
-    }
-  }
-  const coreMapping = findModuleMethod(normalizedTerm);
-  if (coreMapping) {
-    return {
-      type: "callModule",
-      module: coreMapping.module,
-      method: coreMapping.method,
-      args: coreMapping.params ? [coreMapping.params] : void 0
-    };
-  }
-  return void 0;
-}
-function lookupCoreGlossary(term) {
-  const normalizedTerm = term.toLowerCase().trim();
-  const coreMapping = findModuleMethod(normalizedTerm);
-  if (coreMapping) {
-    return {
-      type: "callModule",
-      module: coreMapping.module,
-      method: coreMapping.method,
-      args: coreMapping.params ? [coreMapping.params] : void 0
-    };
-  }
-  return void 0;
-}
-function getGlossaryStats() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return {
-    coreEntries: glossaryCache.moduleMethods?.length ?? 0,
-    extendedEntries: extendedGlossary?.size ?? 0,
-    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
-    extendedMeta: extendedGlossaryMeta
-  };
-}
-function hasExtendedGlossary() {
-  return extendedGlossary !== null && extendedGlossary.size > 0;
-}
+
+// src/mapping/stepMapper.ts
+init_glossary();
 
 // src/journey/hintPatterns.ts
 var HINT_BLOCK_PATTERN = /\(([a-z]+)=(?:"([^"]+)"|'([^']+)'|([^,)\s]+))\)/gi;
@@ -4058,32 +4719,100 @@ function mergeWithInferred(hints, inferred) {
 }
 
 // src/mapping/stepMapper.ts
+var llkbModule = null;
+var llkbLoadAttempted = false;
+async function loadLlkbModule() {
+  if (llkbLoadAttempted) return llkbModule;
+  llkbLoadAttempted = true;
+  try {
+    const mod = await Promise.resolve().then(() => (init_patternExtension(), patternExtension_exports));
+    llkbModule = {
+      matchLlkbPattern: mod.matchLlkbPattern,
+      recordPatternSuccess: mod.recordPatternSuccess
+    };
+  } catch {
+    llkbModule = null;
+  }
+  return llkbModule;
+}
+function tryLlkbMatch(text, options) {
+  if (!llkbModule) {
+    if (!llkbLoadAttempted) {
+      void loadLlkbModule();
+    }
+    return null;
+  }
+  return llkbModule.matchLlkbPattern(text, options);
+}
 function isAssertion(primitive) {
   return primitive.type.startsWith("expect");
 }
 function mapStepText(text, options = {}) {
-  const { normalizeText = true } = options;
+  const {
+    normalizeText = true,
+    useLlkb = true,
+    llkbRoot,
+    llkbMinConfidence = 0.7
+  } = options;
   const hints = extractHints(text);
   const cleanText = hints.hasHints ? hints.cleanText : text;
   const processedText = normalizeText ? normalizeStepText(cleanText) : cleanText;
   let primitive = matchPattern(processedText);
+  let matchSource = primitive ? "pattern" : "none";
   if (primitive && hints.hasHints) {
     primitive = applyHintsToPrimitive(primitive, hints);
-  } else if (!primitive && hasLocatorHints(hints)) {
+  }
+  let llkbPatternId;
+  let llkbConfidence;
+  if (!primitive && useLlkb) {
+    const llkbMatch = tryLlkbMatch(processedText, {
+      llkbRoot,
+      minConfidence: llkbMinConfidence
+    });
+    if (llkbMatch) {
+      primitive = llkbMatch.primitive;
+      matchSource = "llkb";
+      llkbPatternId = llkbMatch.patternId;
+      llkbConfidence = llkbMatch.confidence;
+      if (llkbModule && options.journeyId) {
+        try {
+          llkbModule.recordPatternSuccess(
+            text,
+            // Original text, not processed
+            llkbMatch.primitive,
+            options.journeyId,
+            { llkbRoot }
+          );
+        } catch {
+        }
+      }
+      if (hints.hasHints) {
+        primitive = applyHintsToPrimitive(primitive, hints);
+      }
+    }
+  }
+  if (!primitive && hasLocatorHints(hints)) {
     primitive = createPrimitiveFromHints(processedText, hints);
+    if (primitive) {
+      matchSource = "hints";
+    }
   }
   if (primitive) {
     return {
       primitive,
       sourceText: text,
-      isAssertion: isAssertion(primitive)
+      isAssertion: isAssertion(primitive),
+      matchSource,
+      llkbPatternId,
+      llkbConfidence
     };
   }
   return {
     primitive: null,
     sourceText: text,
     isAssertion: false,
-    message: `Could not map step: "${text}"`
+    message: `Could not map step: "${text}"`,
+    matchSource: "none"
   };
 }
 function applyHintsToPrimitive(primitive, hints) {
@@ -4257,14 +4986,27 @@ function getMappingStats(mappings) {
   const blocked = mappings.filter((m) => m.primitive === null);
   const actions = mapped.filter((m) => !m.isAssertion);
   const assertions = mapped.filter((m) => m.isAssertion);
+  const patternMatches = mappings.filter((m) => m.matchSource === "pattern").length;
+  const llkbMatches = mappings.filter((m) => m.matchSource === "llkb").length;
+  const hintMatches = mappings.filter((m) => m.matchSource === "hints").length;
   return {
     total: mappings.length,
     mapped: mapped.length,
     blocked: blocked.length,
     actions: actions.length,
     assertions: assertions.length,
-    mappingRate: mappings.length > 0 ? mapped.length / mappings.length : 0
+    mappingRate: mappings.length > 0 ? mapped.length / mappings.length : 0,
+    patternMatches,
+    llkbMatches,
+    hintMatches
   };
+}
+async function initializeLlkb() {
+  const mod = await loadLlkbModule();
+  return mod !== null;
+}
+function isLlkbAvailable() {
+  return llkbModule !== null;
 }
 function suggestImprovements(blockedSteps) {
   const suggestions = [];
@@ -4574,6 +5316,9 @@ function validateJourneyForCodeGen(result) {
     errors
   };
 }
+
+// src/index.ts
+init_glossary();
 
 // src/selectors/priority.ts
 var DEFAULT_SELECTOR_PRIORITY = [
@@ -6079,7 +6824,78 @@ function getBrandingComment() {
   return `@artk/core-autogen v${version}`;
 }
 
+// src/variants/index.ts
+function detectVariant() {
+  const nodeVersionStr = process.version.slice(1);
+  const nodeVersion = parseInt(nodeVersionStr.split(".")[0], 10);
+  const isESM = typeof import.meta !== "undefined";
+  if (nodeVersion >= 18) {
+    return {
+      id: isESM ? "modern-esm" : "modern-cjs",
+      nodeVersion,
+      moduleSystem: isESM ? "esm" : "cjs",
+      playwrightVersion: "1.57.x",
+      features: {
+        ariaSnapshots: true,
+        clockApi: true,
+        topLevelAwait: true,
+        promiseAny: true
+      }
+    };
+  } else if (nodeVersion >= 16) {
+    return {
+      id: "legacy-16",
+      nodeVersion,
+      moduleSystem: "cjs",
+      playwrightVersion: "1.49.x",
+      features: {
+        ariaSnapshots: true,
+        clockApi: true,
+        topLevelAwait: true,
+        promiseAny: true
+      }
+    };
+  } else {
+    return {
+      id: "legacy-14",
+      nodeVersion,
+      moduleSystem: "cjs",
+      playwrightVersion: "1.33.x",
+      features: {
+        ariaSnapshots: false,
+        clockApi: false,
+        topLevelAwait: false,
+        promiseAny: false
+      }
+    };
+  }
+}
+
 // src/codegen/generateTest.ts
+function _checkFeature(ctx, feature, featureName, primitiveType) {
+  const available = ctx.variant.features[feature];
+  if (!available && ctx.warnOnIncompatible) {
+    ctx.warnings.push(
+      `Primitive '${primitiveType}' uses ${featureName} which requires ${getFeatureRequirement(feature)}. Current variant: ${ctx.variant.id} (Playwright ${ctx.variant.playwrightVersion})`
+    );
+  }
+  return available;
+}
+var __test_checkFeature = _checkFeature;
+function getFeatureRequirement(feature) {
+  switch (feature) {
+    case "ariaSnapshots":
+      return "Playwright 1.49+ (Node 16+)";
+    case "clockApi":
+      return "Playwright 1.45+ (Node 18+)";
+    case "topLevelAwait":
+      return "Node 14.8+ with ESM";
+    case "promiseAny":
+      return "Node 15+ or polyfill";
+    default:
+      return "unknown version";
+  }
+}
 function escapeString3(str) {
   return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
 }
@@ -6099,7 +6915,7 @@ function renderValue(value) {
       return `'${escapeString3(value.value)}'`;
   }
 }
-function renderPrimitive(primitive, indent = "") {
+function renderPrimitive(primitive, indent = "", _ctx) {
   switch (primitive.type) {
     // Navigation
     case "goto":
@@ -6111,9 +6927,31 @@ function renderPrimitive(primitive, indent = "") {
       return `${indent}await page.waitForResponse(resp => resp.url().includes('${escapeString3(primitive.urlPattern)}'));`;
     case "waitForLoadingComplete":
       return `${indent}await page.waitForLoadState('networkidle');`;
+    case "reload":
+      return `${indent}await page.reload();`;
+    case "goBack":
+      return `${indent}await page.goBack();`;
+    case "goForward":
+      return `${indent}await page.goForward();`;
+    // Wait primitives
+    case "waitForVisible":
+      const waitVisibleTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : "";
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'visible'${waitVisibleTimeout} });`;
+    case "waitForHidden":
+      const waitHiddenTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : "";
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'hidden'${waitHiddenTimeout} });`;
+    case "waitForTimeout":
+      return `${indent}await page.waitForTimeout(${primitive.ms});`;
+    case "waitForNetworkIdle":
+      const networkIdleOptions = primitive.timeout ? `, { timeout: ${primitive.timeout} }` : "";
+      return `${indent}await page.waitForLoadState('networkidle'${networkIdleOptions});`;
     // Interactions
     case "click":
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click();`;
+    case "dblclick":
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.dblclick();`;
+    case "rightClick":
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click({ button: 'right' });`;
     case "fill":
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.fill(${renderValue(primitive.value)});`;
     case "select":
@@ -6191,6 +7029,9 @@ ${indent}throw new Error('ARTK BLOCKED: ${escapeString3(primitive.reason)}');`;
       return `${indent}// Unknown primitive type: ${primitive.type}`;
   }
 }
+function createVariantAwareRenderer(ctx) {
+  return (primitive, indent = "") => renderPrimitive(primitive, indent);
+}
 function loadDefaultTemplate() {
   const templatePath = getTemplatePath("test.ejs");
   return readFileSync(templatePath, "utf-8");
@@ -6215,18 +7056,59 @@ function collectImports(journey) {
   }
   return imports;
 }
+function getLlkbInfo(llkbRoot) {
+  const analyticsPath = join(llkbRoot, "analytics.json");
+  if (!existsSync(analyticsPath)) {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+  try {
+    const content = readFileSync(analyticsPath, "utf-8");
+    const analytics = JSON.parse(content);
+    const llkbVersion = analytics.lastUpdated || (/* @__PURE__ */ new Date()).toISOString();
+    const totalLessons = analytics.overview?.totalLessons || 0;
+    const totalComponents = analytics.overview?.totalComponents || 0;
+    const llkbEntries = totalLessons + totalComponents;
+    return { llkbVersion, llkbEntries };
+  } catch {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+}
 function generateTest(journey, options = {}) {
-  const { templatePath, imports: additionalImports = [], strategy = "full", existingCode } = options;
+  const {
+    templatePath,
+    imports: additionalImports = [],
+    strategy = "full",
+    existingCode,
+    llkbRoot = ".artk/llkb",
+    includeLlkbVersion = true,
+    targetVariant,
+    warnOnIncompatible = true
+  } = options;
+  const variant = targetVariant || detectVariant();
+  const variantCtx = {
+    warnings: []};
   const template = templatePath ? readFileSync(templatePath, "utf-8") : loadDefaultTemplate();
   const imports = [...collectImports(journey), ...additionalImports];
+  let llkbVersion = null;
+  let llkbEntries = null;
+  if (includeLlkbVersion) {
+    const llkbInfo = getLlkbInfo(llkbRoot);
+    llkbVersion = llkbInfo.llkbVersion;
+    llkbEntries = llkbInfo.llkbEntries;
+  }
+  const variantAwareRenderPrimitive = createVariantAwareRenderer();
   let code = ejs.render(template, {
     journey,
     imports,
-    renderPrimitive,
+    renderPrimitive: variantAwareRenderPrimitive,
     escapeString: escapeString3,
     escapeRegex,
     version: getPackageVersion(),
-    timestamp: getGeneratedTimestamp()
+    timestamp: getGeneratedTimestamp(),
+    llkbVersion,
+    llkbEntries,
+    variant: variant.id,
+    playwrightVersion: variant.playwrightVersion
   });
   if (strategy === "blocks" && existingCode) {
     const testBlock = {
@@ -6265,7 +7147,9 @@ function generateTest(journey, options = {}) {
     code,
     journeyId: journey.id,
     filename,
-    imports
+    imports,
+    variant,
+    variantWarnings: variantCtx.warnings.length > 0 ? variantCtx.warnings : void 0
   };
 }
 function generateTestCode(journey) {
@@ -7448,7 +8332,7 @@ function scanResultsToIssues(results) {
     suggestion: result.pattern.suggestion
   }));
 }
-function getPatternStats(results) {
+function getPatternStats2(results) {
   const stats = {};
   for (const result of results) {
     stats[result.pattern.id] = (stats[result.pattern.id] || 0) + 1;
@@ -7467,7 +8351,7 @@ function getViolationSummary(results) {
     errors: filterBySeverity(results, "error").length,
     warnings: filterBySeverity(results, "warning").length,
     info: filterBySeverity(results, "info").length,
-    byPattern: getPatternStats(results)
+    byPattern: getPatternStats2(results)
   };
 }
 var PLAYWRIGHT_LINT_RULES = {
@@ -9255,8 +10139,6 @@ function generateEvidenceReport(evidence) {
   }
   return lines.join("\n");
 }
-
-// src/verify/summary.ts
 function generateVerifySummary(runnerResult, options = {}) {
   const summary = {
     status: "error",
@@ -9442,10 +10324,8 @@ function formatVerifySummary(summary) {
   return lines.join("\n");
 }
 function saveSummary(summary, outputPath) {
-  const { writeFileSync: writeFileSync12, mkdirSync: mkdirSync8 } = __require("fs");
-  const { dirname: dirname7 } = __require("path");
-  mkdirSync8(dirname7(outputPath), { recursive: true });
-  writeFileSync12(outputPath, JSON.stringify(summary, null, 2), "utf-8");
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, JSON.stringify(summary, null, 2), "utf-8");
 }
 
 // src/index.ts
@@ -9747,7 +10627,8 @@ async function generateJourneyTests(options) {
     config,
     generateModules = false,
     testOptions = {},
-    moduleOptions = {}
+    moduleOptions = {},
+    useLlkb = true
   } = options;
   const result = {
     tests: [],
@@ -9755,6 +10636,12 @@ async function generateJourneyTests(options) {
     warnings: [],
     errors: []
   };
+  if (useLlkb) {
+    const llkbLoaded = await initializeLlkb();
+    if (llkbLoaded) {
+      result.llkbEnabled = true;
+    }
+  }
   let resolvedConfig;
   if (config) {
     if (typeof config === "string") {
@@ -9950,6 +10837,6 @@ async function verifyJourneys(journeys, options = {}) {
   return results;
 }
 
-export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, LocatorBuilder, NAMEABLE_ROLES, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, clearDebt, clearExtendedGlossary, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllTestIds, getApplicableRules, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getGlossaryStats, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageVersion, getPatternMatches, getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSelectorPriority, getSummary, getSynonyms, getTestCount, getViolationSummary, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasExtendedGlossary, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadConfigs, loadEvidence, loadExtendedGlossary, loadGlossary, loadHealingLog, loadLLKBConfig, loadRegistry, loadSourceFile, lookupCoreGlossary, lookupGlossary, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeConfigs, mergeGlossaries, mergeModuleFiles, mergeWithInferred, namespaceEmail, namespaceName, navigationPatterns, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
+export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, LocatorBuilder, NAMEABLE_ROLES, PATTERN_VERSION, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, __test_checkFeature, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, clearDebt, clearExtendedGlossary, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMatchingPatterns, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, focusPatterns, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllPatternNames, getAllTestIds, getApplicableRules, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getGlossaryStats, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageVersion, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getPatternStats2 as getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSchemaVersion, getSelectorPriority, getSummary, getSynonyms, getTestCount, getViolationSummary, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasExtendedGlossary, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, hoverPatterns, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, initializeLlkb, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isLlkbAvailable, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadConfigWithMigration, loadConfigs, loadEvidence, loadExtendedGlossary, loadGlossary, loadHealingLog, loadLLKBConfig, loadRegistry, loadSourceFile, lookupCoreGlossary, lookupGlossary, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeConfigs, mergeGlossaries, mergeModuleFiles, mergeWithInferred, namespaceEmail, namespaceName, navigationPatterns, needsConfigMigration, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

@@ -194,11 +194,13 @@ If `dryRun=true`, output sections 1–2 only.
 
 ## Step 0 — Locate Journey and tests
 1) Resolve `ARTK_ROOT` (from `artkRoot=` or repo root heuristics).
-2) Load Journey file:
+2) Determine harness root (`harnessRoot`).
+3) **Set LLKB root path** (`LLKB_ROOT = ${harnessRoot}/.artk/llkb`).
+4) Load Journey file:
    - If `id=`: locate in `journeys/**/JRN-####*.md` and parse frontmatter.
    - If `file=`: open and parse.
-3) Determine the canonical tag: `@JRN-####`.
-4) Determine test set:
+5) Determine the canonical tag: `@JRN-####`.
+6) Determine test set:
    - Prefer Journey frontmatter `tests[]` if non-empty.
    - Else search under `<harnessRoot>/tests/` for files containing `@JRN-####`.
 
@@ -432,7 +434,7 @@ Do NOT silently change Journey `status` unless:
 
 **After tests pass (or after fixing and re-running), capture learnings and extract reusable patterns into the LLKB.**
 
-Check if `.artk/llkb/` exists and `config.yml` has `enabled: true`. If disabled or missing, skip this step.
+Check if `${LLKB_ROOT}/` exists and `config.yml` has `enabled: true`. If disabled or missing, skip this step.
 
 ### LLKB Library Reference (@artk/core/llkb)
 
@@ -538,10 +540,10 @@ FUNCTION updateJSONWithLock(path: string, updateFn: Function) -> UpdateResult:
 # ═══════════════════════════════════════════════════════════════
 
 # Simple save (no concurrent risk):
-saveJSONAtomic(".artk/llkb/app-profile.json", profileData)
+saveJSONAtomic("${LLKB_ROOT}/app-profile.json", profileData)
 
 # Concurrent update (lessons, components, analytics):
-updateJSONWithLock(".artk/llkb/lessons.json", (lessons) => {
+updateJSONWithLock("${LLKB_ROOT}/lessons.json", (lessons) => {
   lessons.lessons.push(newLesson)
   RETURN lessons
 })
@@ -692,7 +694,7 @@ After all tests pass, analyze test code for duplication and common patterns:
 ```
 FUNCTION scanForExtractionCandidates(harnessRoot: string) -> ExtractionCandidate[]:
   allTestSteps = []
-  existingComponents = loadComponents(".artk/llkb/components.json")
+  existingComponents = loadComponents("${LLKB_ROOT}/components.json")
 
   # ═══════════════════════════════════════════════════════════════
   # STEP 1: Extract all test.step() blocks from all test files
@@ -1177,7 +1179,7 @@ Call this function after modifying lessons or components to keep analytics.json 
 
 ```
 FUNCTION updateAnalytics(lessons: LessonsFile, components: ComponentsFile):
-  analytics = loadJSON(".artk/llkb/analytics.json")
+  analytics = loadJSON("${LLKB_ROOT}/analytics.json")
 
   # ═══════════════════════════════════════════════════════════════
   # STEP 1: Update overview totals
@@ -1289,7 +1291,7 @@ FUNCTION updateAnalytics(lessons: LessonsFile, components: ComponentsFile):
   # STEP 6: Save updated analytics
   # ═══════════════════════════════════════════════════════════════
   analytics.lastUpdated = now().toISO8601()
-  saveJSONAtomic(".artk/llkb/analytics.json", analytics)
+  saveJSONAtomic("${LLKB_ROOT}/analytics.json", analytics)
 ```
 
 ### 17.6 Learning Loop Integration (LLKB Learning API)
@@ -1379,13 +1381,13 @@ The learning API is also available via CLI:
 
 ```bash
 # Record component usage
-npx artk-llkb learn --type component --id COMP012 --journey JRN-0001 --success
+artk llkb learn --type component --id COMP012 --journey JRN-0001 --success
 
 # Record lesson application
-npx artk-llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "grid edit fix"
+artk llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "grid edit fix"
 
 # Record pattern learned
-npx artk-llkb learn --type pattern --journey JRN-0001 --step "Click Save" \
+artk llkb learn --type pattern --journey JRN-0001 --step "Click Save" \
   --selector-strategy testid --selector-value btn-save --success
 ```
 
@@ -1449,12 +1451,12 @@ FUNCTION appendToHistory(event: HistoryEvent) -> HistoryResult:
   TRY:
     # Determine file path
     today = formatDate(now(), "YYYY-MM-DD")
-    historyPath = ".artk/llkb/history/" + today + ".jsonl"
+    historyPath = "${LLKB_ROOT}/history/" + today + ".jsonl"
 
     # Ensure history directory exists
-    IF NOT exists(".artk/llkb/history/"):
+    IF NOT exists("${LLKB_ROOT}/history/"):
       TRY:
-        mkdir(".artk/llkb/history/")
+        mkdir("${LLKB_ROOT}/history/")
       CATCH mkdirError:
         RETURN { success: false, error: "Cannot create history directory: " + mkdirError.message }
 

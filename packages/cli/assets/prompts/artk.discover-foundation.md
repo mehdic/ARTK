@@ -1002,7 +1002,7 @@ FUNCTION registerComponentInRegistry(component: Component):
 ```
 
 **Sync between components.json and registry.json:**
-- `components.json` (in .artk/llkb/) is the source of truth for LLKB metadata
+- `components.json` (in ${HARNESS_ROOT}/.artk/llkb/) is the source of truth for LLKB metadata
 - `registry.json` (in src/modules/) links LLKB components to actual module files
 - When journey-implement needs a component, it queries registry for import path
 - When journey-verify extracts a component, it updates both files
@@ -1033,8 +1033,8 @@ FUNCTION detectLLKBMigration() -> MigrationResult:
   # ═══════════════════════════════════════════════════════════════
   # CHECK 1: Does LLKB already exist?
   # ═══════════════════════════════════════════════════════════════
-  IF exists(".artk/llkb/config.yml"):
-    existingConfig = loadYAML(".artk/llkb/config.yml")
+  IF exists("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml"):
+    existingConfig = loadYAML("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml")
     existingVersion = existingConfig.version || "0.0.0"
 
     CURRENT_VERSION = "1.0.0"  # Current schema version
@@ -1095,7 +1095,7 @@ FUNCTION detectLLKBMigration() -> MigrationResult:
 | Action | What to Do |
 |--------|------------|
 | `SKIP` | LLKB exists, skip initialization. Run health check instead. |
-| `MIGRATE` | Backup `.artk/llkb/`, run schema migration, preserve data. |
+| `MIGRATE` | Backup `${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/`, run schema migration, preserve data. |
 | `IMPORT_LEGACY` | Read legacy files, convert to new schema, create LLKB. |
 | `SEED_FROM_TESTS` | Analyze existing tests, extract patterns, seed LLKB. |
 | `FRESH_INSTALL` | Create new LLKB from scratch (Steps 11.1-11.7). |
@@ -1106,7 +1106,7 @@ FUNCTION detectLLKBMigration() -> MigrationResult:
 FUNCTION migrateLLKB(fromVersion: string, toVersion: string):
   # Step 1: Backup
   backupPath = ".artk/llkb-backup-" + formatDate(now(), "YYYY-MM-DD-HHmmss")
-  copyDir(".artk/llkb/", backupPath)
+  copyDir("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/", backupPath)
   logInfo("Backed up LLKB to " + backupPath)
 
   # Step 2: Apply migrations
@@ -1123,22 +1123,22 @@ FUNCTION migrateLLKB(fromVersion: string, toVersion: string):
       logInfo("Migrated from " + migration.from + " to " + migration.to)
 
   # Step 3: Update version
-  config = loadYAML(".artk/llkb/config.yml")
+  config = loadYAML("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml")
   config.version = toVersion
-  saveYAML(".artk/llkb/config.yml", config)
+  saveYAML("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml", config)
 
   RETURN { success: true, backupPath: backupPath }
 
 FUNCTION migrate_0_9_to_1_0():
   # Example migration: Add new required fields
-  lessons = loadJSON(".artk/llkb/lessons.json")
+  lessons = loadJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/lessons.json")
   IF NOT lessons.globalRules:
     lessons.globalRules = []
   IF NOT lessons.appQuirks:
     lessons.appQuirks = []
-  saveJSON(".artk/llkb/lessons.json", lessons)
+  saveJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/lessons.json", lessons)
 
-  components = loadJSON(".artk/llkb/components.json")
+  components = loadJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/components.json")
   IF NOT components.componentsByScope:
     components.componentsByScope = {
       "universal": [],
@@ -1146,7 +1146,7 @@ FUNCTION migrate_0_9_to_1_0():
       "framework:react": [],
       "app-specific": []
     }
-  saveJSON(".artk/llkb/components.json", components)
+  saveJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/components.json", components)
 ```
 
 **Output migration status:**
@@ -1177,7 +1177,7 @@ New features available:
 ### 11.1 Create LLKB Directory Structure
 
 ```
-.artk/llkb/
+${HARNESS_ROOT}/.artk/llkb/
 ├── config.yml                  # LLKB configuration
 ├── app-profile.json            # Application DNA
 ├── lessons.json                # Fixes, quirks, timing patterns
@@ -1468,10 +1468,10 @@ import {
 } from '@artk/core/llkb';
 
 // Atomic file writes (safe for concurrent access)
-await saveJSONAtomic('.artk/llkb/lessons.json', lessonsData);
+await saveJSONAtomic('${HARNESS_ROOT}/.artk/llkb/lessons.json', lessonsData);
 
 // Locked updates (prevents race conditions)
-await updateJSONWithLock('.artk/llkb/components.json', (data) => {
+await updateJSONWithLock('${HARNESS_ROOT}/.artk/llkb/components.json', (data) => {
   data.components.push(newComponent);
   return data;
 });
@@ -1499,7 +1499,7 @@ console.log(formatHealthCheck(result));
 
 **Create a utility script for common LLKB operations (uses @artk/core/llkb library):**
 
-Create `.artk/llkb/scripts/llkb-cli.ts`:
+Create `${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts`:
 
 ```typescript
 #!/usr/bin/env npx ts-node
@@ -1514,7 +1514,7 @@ Create `.artk/llkb/scripts/llkb-cli.ts`:
  *   prune     - Archive stale lessons/components
  *
  * Usage:
- *   npx ts-node .artk/llkb/scripts/llkb-cli.ts <command> [options]
+ *   npx ts-node ${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts <command> [options]
  */
 
 import * as path from 'path';
@@ -1556,9 +1556,9 @@ switch (command) {
   }
   default:
     console.log('LLKB CLI - Usage:');
-    console.log('  npx ts-node .artk/llkb/scripts/llkb-cli.ts health');
-    console.log('  npx ts-node .artk/llkb/scripts/llkb-cli.ts stats');
-    console.log('  npx ts-node .artk/llkb/scripts/llkb-cli.ts prune [--force]');
+    console.log('  npx ts-node ${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts health');
+    console.log('  npx ts-node ${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts stats');
+    console.log('  npx ts-node ${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts prune [--force]');
 }
 ```
 
@@ -1566,9 +1566,9 @@ switch (command) {
 ```json
 {
   "scripts": {
-    "llkb:health": "npx ts-node .artk/llkb/scripts/llkb-cli.ts health",
-    "llkb:stats": "npx ts-node .artk/llkb/scripts/llkb-cli.ts stats",
-    "llkb:prune": "npx ts-node .artk/llkb/scripts/llkb-cli.ts prune"
+    "llkb:health": "npx ts-node ${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts health",
+    "llkb:stats": "npx ts-node ${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts stats",
+    "llkb:prune": "npx ts-node ${HARNESS_ROOT}/.artk/llkb/scripts/llkb-cli.ts prune"
   },
   "devDependencies": {
     "yaml": "^2.0.0",
@@ -1583,13 +1583,32 @@ switch (command) {
 npm install --save-dev yaml ts-node typescript
 ```
 
-### 11.8 Output Summary
+### 11.9 Execute LLKB Initialization
+
+Run the LLKB initialization command:
+
+```bash
+artk llkb init --llkb-root ${HARNESS_ROOT}/.artk/llkb
+```
+
+**Expected output:**
+```
+✅ LLKB initialized successfully
+   Created: ${HARNESS_ROOT}/.artk/llkb/config.yml
+   Created: ${HARNESS_ROOT}/.artk/llkb/lessons.json
+   Created: ${HARNESS_ROOT}/.artk/llkb/components.json
+   Created: ${HARNESS_ROOT}/.artk/llkb/analytics.json
+   Created: ${HARNESS_ROOT}/.artk/llkb/patterns/
+   Created: ${HARNESS_ROOT}/.artk/llkb/history/
+```
+
+### 11.10 Output Summary
 
 After LLKB initialization, output:
 
 ```
 LLKB (Lessons Learned Knowledge Base) initialized:
-✓ Created .artk/llkb/ directory structure
+✓ Created ${HARNESS_ROOT}/.artk/llkb/ directory structure
 ✓ Generated app-profile.json from discovery data
 ✓ Initialized empty lessons.json and components.json
 ✓ Created patterns/*.json with app-specific defaults

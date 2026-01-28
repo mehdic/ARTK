@@ -5,14 +5,33 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js",
+      "require": "./dist-cjs/cli/index.js"
+    },
+    "./variants": {
+      "types": "./dist/variants/index.d.ts",
+      "import": "./dist/variants/index.js",
+      "require": "./dist-cjs/variants/index.js"
+    }
+  },
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
     "build": "tsup && npm run copy-templates",
+    "build:esm": "tsup && npm run copy-templates",
     "build:cjs": "tsup --format cjs --out-dir dist-cjs --no-dts && npm run copy-templates:cjs && npm run strip-esm:cjs && npm run copy-dts:cjs",
     "build:legacy-16": "tsup --format cjs --out-dir dist-legacy-16 --no-dts --target es2021 && npm run copy-templates:legacy-16 && npm run strip-esm:legacy-16 && npm run copy-dts:legacy-16",
     "build:legacy-14": "tsup --format cjs --out-dir dist-legacy-14 --no-dts --target es2020 && npm run copy-templates:legacy-14 && npm run strip-esm:legacy-14 && npm run copy-dts:legacy-14",
+    "build:variants": "npm run build:esm && npm run build:cjs && npm run build:legacy-16 && npm run build:legacy-14",
     "copy-dts:cjs": "node scripts/copy-dts.cjs dist-cjs",
     "copy-dts:legacy-16": "node scripts/copy-dts.cjs dist-legacy-16",
     "copy-dts:legacy-14": "node scripts/copy-dts.cjs dist-legacy-14",
@@ -76,7 +95,7 @@
   },
   "peerDependencies": {
     "@artk/core": ">=1.0.0",
-    "@playwright/test": ">=1.57.0"
+    "@playwright/test": ">=1.33.0"
   },
   "peerDependenciesMeta": {
     "@artk/core": {

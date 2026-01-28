@@ -3,12 +3,7 @@ import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
+// src/verify/runner.ts
 function isPlaywrightAvailable(cwd) {
   try {
     execSync("npx playwright --version", {
@@ -968,8 +963,6 @@ function generateEvidenceReport(evidence) {
   }
   return lines.join("\n");
 }
-
-// src/verify/summary.ts
 function generateVerifySummary(runnerResult, options = {}) {
   const summary = {
     status: "error",
@@ -1155,10 +1148,8 @@ function formatVerifySummary(summary) {
   return lines.join("\n");
 }
 function saveSummary(summary, outputPath) {
-  const { writeFileSync: writeFileSync3, mkdirSync: mkdirSync3 } = __require("fs");
-  const { dirname: dirname2 } = __require("path");
-  mkdirSync3(dirname2(outputPath), { recursive: true });
-  writeFileSync3(outputPath, JSON.stringify(summary, null, 2), "utf-8");
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, JSON.stringify(summary, null, 2), "utf-8");
 }
 
 export { buildPlaywrightArgs, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, compareARIASnapshots, createEvidenceDir, extractErrorMessages, extractErrorStacks, extractTestResults, findInSnapshot, findTestsByTag, findTestsByTitle, formatARIATree, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateEvidenceCaptureCode, generateEvidenceReport, generateMarkdownSummary, generateStabilityReport, generateSummaryFromReport, generateVerifySummary, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getHealableFailures, getPlaywrightVersion, getRecommendations, getSummary, getTestCount, hasFailures, isHealable, isPlaywrightAvailable, isReportSuccessful, isTestStable, isVerificationPassed, loadEvidence, parseReportContent, parseReportFile, quickStabilityCheck, reportHasFlaky, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveEvidence, saveSummary, shouldQuarantine, summaryHasFlaky, thoroughStabilityCheck, writeAndRunTest };

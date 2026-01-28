@@ -1,5 +1,5 @@
-import { A as AutogenConfig } from '../schema-BocNY0qp.js';
-export { d as AutogenConfigSchema, a as EslintRulesSchema, g as EslintSeverity, E as EslintSeveritySchema, j as Heal, H as HealSchema, m as LLKBIntegration, l as LLKBIntegrationLevel, L as LLKBIntegrationLevelSchema, c as LLKBIntegrationSchema, f as Paths, P as PathsSchema, k as RegenerationStrategy, R as RegenerationStrategySchema, h as SelectorPolicy, b as SelectorPolicySchema, e as SelectorStrategy, S as SelectorStrategySchema, i as Validation, V as ValidationSchema } from '../schema-BocNY0qp.js';
+import { A as AutogenConfig } from '../schema-BIeeAav7.js';
+export { a as AutogenConfigSchema, E as EslintRulesSchema, b as EslintSeverity, c as EslintSeveritySchema, H as Heal, d as HealSchema, L as LLKBIntegration, e as LLKBIntegrationLevel, f as LLKBIntegrationLevelSchema, g as LLKBIntegrationSchema, P as Paths, h as PathsSchema, R as RegenerationStrategy, i as RegenerationStrategySchema, S as SelectorPolicy, j as SelectorPolicySchema, k as SelectorStrategy, l as SelectorStrategySchema, V as Validation, m as ValidationSchema } from '../schema-BIeeAav7.js';
 import 'zod';
 
 /**
@@ -47,5 +47,40 @@ declare function loadConfigs(configPaths: string[]): AutogenConfig;
  * @returns Partial config or null if not found
  */
 declare function loadLLKBConfig(basePath: string): AutogenConfig | null;
+/**
+ * Load config with automatic migration for backward compatibility (T009)
+ *
+ * This function ensures backward compatibility when the llkb field was added
+ * to the AutogenConfig schema. Old configs without the llkb field will be
+ * migrated to include it with default values.
+ *
+ * @param configPath - Path to config file, or project root to auto-detect
+ * @returns Parsed config with llkb field guaranteed to exist
+ *
+ * @example
+ * ```typescript
+ * // Load config with automatic migration
+ * const config = loadConfigWithMigration();
+ * // config.llkb is guaranteed to exist (even for old configs)
+ * ```
+ */
+declare function loadConfigWithMigration(configPath?: string): AutogenConfig;
+/**
+ * Check if a config needs migration
+ *
+ * @param config - Config to check
+ * @returns True if migration is needed
+ */
+declare function needsConfigMigration(config: unknown): boolean;
+/**
+ * Get schema version from config
+ *
+ * This helps track which version of the schema a config file was created with.
+ * Future schema changes can use this for more sophisticated migrations.
+ *
+ * @param config - Config object
+ * @returns Schema version number
+ */
+declare function getSchemaVersion(config: AutogenConfig): number;
 
-export { AutogenConfig, ConfigLoadError, findConfigFile, getDefaultConfig, loadConfig, loadConfigs, loadLLKBConfig, mergeConfigs, resolveConfigPath };
+export { AutogenConfig, ConfigLoadError, findConfigFile, getDefaultConfig, getSchemaVersion, loadConfig, loadConfigWithMigration, loadConfigs, loadLLKBConfig, mergeConfigs, needsConfigMigration, resolveConfigPath };
