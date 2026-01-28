@@ -199,4 +199,96 @@ export function getTemplatePath(templateName: string): string {
 export function clearPathCache(): void {
   cachedPackageRoot = undefined;
   cachedModuleDir = undefined;
+  cachedHarnessRoot = undefined;
+}
+
+/**
+ * Cached harness root to avoid repeated lookups
+ */
+let cachedHarnessRoot: string | undefined;
+
+/**
+ * Get the ARTK harness root directory (artk-e2e/).
+ *
+ * This function infers the correct harness root by checking:
+ * 1. ARTK_HARNESS_ROOT environment variable (explicit override)
+ * 2. artk-e2e/ subdirectory from cwd (standard installation)
+ * 3. Current directory if it contains artk.config.yml (inside harness)
+ * 4. Fallback to cwd (backwards compatibility)
+ *
+ * @returns Path to the harness root directory
+ */
+export function getHarnessRoot(): string {
+  if (cachedHarnessRoot) {
+    return cachedHarnessRoot;
+  }
+
+  // 1. Check environment variable override
+  const envRoot = process.env['ARTK_HARNESS_ROOT'];
+  if (envRoot && existsSync(envRoot)) {
+    cachedHarnessRoot = envRoot;
+    return cachedHarnessRoot;
+  }
+
+  // 2. Check for artk-e2e/ in cwd (standard installation)
+  const artkE2eFromCwd = join(process.cwd(), 'artk-e2e');
+  if (existsSync(artkE2eFromCwd)) {
+    cachedHarnessRoot = artkE2eFromCwd;
+    return cachedHarnessRoot;
+  }
+
+  // 3. Check if we're already inside artk-e2e (cwd has artk.config.yml)
+  const configInCwd = join(process.cwd(), 'artk.config.yml');
+  if (existsSync(configInCwd)) {
+    cachedHarnessRoot = process.cwd();
+    return cachedHarnessRoot;
+  }
+
+  // 4. Walk up from cwd looking for artk-e2e/ or artk.config.yml
+  let searchDir = process.cwd();
+  const root = dirname(searchDir);
+  while (searchDir !== root) {
+    // Check if this is artk-e2e (has artk.config.yml)
+    if (existsSync(join(searchDir, 'artk.config.yml'))) {
+      cachedHarnessRoot = searchDir;
+      return cachedHarnessRoot;
+    }
+    // Check if artk-e2e is a sibling
+    const sibling = join(searchDir, 'artk-e2e');
+    if (existsSync(sibling)) {
+      cachedHarnessRoot = sibling;
+      return cachedHarnessRoot;
+    }
+    searchDir = dirname(searchDir);
+  }
+
+  // 5. Fallback to cwd (backwards compatibility)
+  cachedHarnessRoot = process.cwd();
+  return cachedHarnessRoot;
+}
+
+/**
+ * Get the LLKB root directory (.artk/llkb inside harness root).
+ *
+ * @param explicitRoot - Optional explicit path override
+ * @returns Path to the LLKB root directory
+ */
+export function getLlkbRoot(explicitRoot?: string): string {
+  if (explicitRoot) {
+    return explicitRoot;
+  }
+  return join(getHarnessRoot(), '.artk', 'llkb');
+}
+
+/**
+ * Get the .artk directory inside harness root.
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ * @returns Path to the .artk directory
+ */
+export function getArtkDir(explicitBaseDir?: string): string {
+  if (explicitBaseDir) {
+    return join(explicitBaseDir, '.artk');
+  }
+  return join(getHarnessRoot(), '.artk');
 }

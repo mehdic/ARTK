@@ -4,6 +4,7 @@
  */
 import { existsSync, readFileSync, appendFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { getArtkDir } from '../utils/paths.js';
 
 /**
  * Record for a blocked step
@@ -71,17 +72,24 @@ export interface TelemetryStats {
 }
 
 /**
- * Default telemetry file location
+ * Telemetry file name
  */
-const DEFAULT_TELEMETRY_DIR = '.artk';
 const TELEMETRY_FILE = 'blocked-steps-telemetry.jsonl';
 
 /**
- * Get the telemetry file path
+ * Get the telemetry file path.
+ *
+ * Automatically infers the correct .artk directory location by:
+ * 1. Using explicit baseDir if provided
+ * 2. Finding artk-e2e/.artk from project root
+ * 3. Finding .artk in current directory if inside harness
+ *
+ * @param baseDir - Optional explicit base directory override
+ * @returns Path to the telemetry file
  */
 export function getTelemetryPath(baseDir?: string): string {
-  const dir = baseDir || process.cwd();
-  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
+  const artkDir = getArtkDir(baseDir);
+  return join(artkDir, TELEMETRY_FILE);
 }
 
 /**
@@ -379,6 +387,7 @@ export function recordUserFix(
 
   if (matchingRecord) {
     // Record the user fix - timestamp and normalizedText will be set by recordBlockedStep
+    // eslint-disable-next-line no-unused-vars
     const { timestamp: _t, normalizedText: _n, ...recordWithoutTimestamp } = matchingRecord;
     recordBlockedStep(
       {

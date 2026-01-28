@@ -8,6 +8,7 @@ import type { IRPrimitive } from '../ir/types.js';
 // Use the same normalizer as stepMapper for consistent pattern matching
 // This ensures patterns learned during recording match during lookup
 import { normalizeStepText } from '../mapping/glossary.js';
+import { getLlkbRoot as getInferredLlkbRoot } from '../utils/paths.js';
 
 /**
  * A pattern learned from successful step mappings
@@ -79,7 +80,6 @@ export interface PruneOptions {
  * Storage file for learned patterns
  */
 const PATTERNS_FILE = 'learned-patterns.json';
-const DEFAULT_LLKB_ROOT = '.artk/llkb';
 
 /**
  * Pattern cache for performance optimization
@@ -103,10 +103,18 @@ export function invalidatePatternCache(): void {
 }
 
 /**
- * Get the path to the patterns file
+ * Get the path to the patterns file.
+ *
+ * Automatically infers the correct LLKB directory location by:
+ * 1. Using explicit llkbRoot if provided
+ * 2. Finding artk-e2e/.artk/llkb from project root
+ * 3. Finding .artk/llkb in current directory if inside harness
+ *
+ * @param llkbRoot - Optional explicit LLKB root directory override
+ * @returns Path to the patterns file
  */
 export function getPatternsFilePath(llkbRoot?: string): string {
-  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const root = getInferredLlkbRoot(llkbRoot);
   return join(root, PATTERNS_FILE);
 }
 
@@ -121,7 +129,7 @@ export function generatePatternId(): string {
  * Load learned patterns from storage (with caching for performance)
  */
 export function loadLearnedPatterns(options: { llkbRoot?: string; bypassCache?: boolean } = {}): LearnedPattern[] {
-  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const llkbRoot = getInferredLlkbRoot(options.llkbRoot);
   const now = Date.now();
 
   // Check cache validity (same llkbRoot and not expired)
@@ -304,7 +312,7 @@ export function matchLlkbPattern(
  * This is a heuristic approach - complex patterns may need manual refinement
  */
 export function generateRegexFromText(text: string): string {
-  let pattern = text
+  const pattern = text
     .toLowerCase()
     // Escape special regex chars
     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
