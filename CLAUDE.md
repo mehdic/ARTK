@@ -817,7 +817,7 @@ The integration follows the **Adapter Pattern** to bridge LLKB knowledge and Aut
 **In `/artk.journey-implement` (Step 2.5):**
 ```bash
 # MANDATORY: Export LLKB before running AutoGen
-npx artk-llkb export --for-autogen \
+artk llkb export --for-autogen \
   --output <harnessRoot>/ \
   --min-confidence 0.7
 
@@ -845,32 +845,34 @@ npx artk-autogen generate \
 
 ### LLKB CLI Commands
 
+LLKB commands are now integrated into the main `@artk/cli` package as subcommands:
+
 ```bash
 # Export for AutoGen consumption
-npx artk-llkb export --for-autogen --output artk-e2e/
-npx artk-llkb export --for-autogen --output artk-e2e/ --min-confidence 0.8
-npx artk-llkb export --for-autogen --output artk-e2e/ --dry-run
+artk llkb export --for-autogen --output artk-e2e/
+artk llkb export --for-autogen --output artk-e2e/ --min-confidence 0.8
+artk llkb export --for-autogen --output artk-e2e/ --dry-run
 
 # Check which tests have outdated LLKB versions
-npx artk-llkb check-updates --tests-dir artk-e2e/tests/
+artk llkb check-updates --tests-dir artk-e2e/tests/
 
 # Update specific test to latest LLKB version
-npx artk-llkb update-test --test artk-e2e/tests/login.spec.ts
-npx artk-llkb update-test --test artk-e2e/tests/login.spec.ts --dry-run
+artk llkb update-test --test artk-e2e/tests/login.spec.ts
+artk llkb update-test --test artk-e2e/tests/login.spec.ts --dry-run
 
 # Update all outdated tests (batch)
-npx artk-llkb update-tests --tests-dir artk-e2e/tests/
-npx artk-llkb update-tests --tests-dir artk-e2e/tests/ --dry-run
+artk llkb update-tests --tests-dir artk-e2e/tests/
+artk llkb update-tests --tests-dir artk-e2e/tests/ --dry-run
 
 # Record learning events (manual or automated)
-npx artk-llkb learn --type component --id COMP012 --journey JRN-0001 --success
-npx artk-llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "grid edit"
-npx artk-llkb learn --type pattern --journey JRN-0001 --success --context "Save button" --selector-strategy testid --selector-value btn-save
+artk llkb learn --type component --id COMP012 --journey JRN-0001 --success
+artk llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "grid edit"
+artk llkb learn --type pattern --journey JRN-0001 --success --context "Save button" --selector-strategy testid --selector-value btn-save
 
 # Health check and statistics
-npx artk-llkb health
-npx artk-llkb stats
-npx artk-llkb prune --history-retention-days 90
+artk llkb health
+artk llkb stats
+artk llkb prune --history-retention-days 90
 ```
 
 ### Test File Versioning
@@ -931,7 +933,7 @@ When implementing `/artk.journey-maintain`, ensure these 5 capabilities are incl
 
 4. **Batch Support**
    - Allow updating all outdated tests with single confirmation
-   - Use `npx artk-llkb update-tests --tests-dir artk-e2e/tests/` for batch operations
+   - Use `artk llkb update-tests --tests-dir artk-e2e/tests/` for batch operations
    - Support dry-run mode: `--dry-run` flag to preview without writing
    - Report summary after batch update (N updated, N skipped, N failed)
 
@@ -962,7 +964,7 @@ When implementing `/artk.journey-maintain`, ensure these 5 capabilities are incl
 ```
 1. Detect Outdated Tests
    ↓
-   npx artk-llkb check-updates --tests-dir artk-e2e/tests/
+   artk llkb check-updates --tests-dir artk-e2e/tests/
    ↓
    Output: "N tests need LLKB update (new patterns: X, new components: Y)"
 
@@ -978,7 +980,7 @@ When implementing `/artk.journey-maintain`, ensure these 5 capabilities are incl
    ↓
    For each outdated test:
      - Create backup: {testFile}.llkb-backup-{timestamp}
-     - Re-export LLKB: npx artk-llkb export --for-autogen
+     - Re-export LLKB: artk llkb export --for-autogen
      - Regenerate test with AutoGen (with --llkb-config, --llkb-glossary)
 
 4. Quick Verify
@@ -999,13 +1001,13 @@ Journey-Maintain should also support LLKB health operations:
 
 ```bash
 # Prune low-confidence lessons and old history
-npx artk-llkb prune --history-retention-days 90
+artk llkb prune --history-retention-days 90
 
 # Archive inactive components (unused for 180+ days)
-npx artk-llkb prune --archive-inactive-components --inactive-days 180
+artk llkb prune --archive-inactive-components --inactive-days 180
 
 # Regenerate analytics
-npx artk-llkb stats
+artk llkb stats
 ```
 
 ### Structural Change Detection

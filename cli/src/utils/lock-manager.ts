@@ -24,7 +24,7 @@ export class LockManager {
   private artkDir: string;
 
   constructor(targetPath: string) {
-    this.artkDir = path.join(targetPath, '.artk');
+    this.artkDir = path.join(targetPath, 'artk-e2e', '.artk');
     this.lockPath = path.join(this.artkDir, 'install.lock');
   }
 

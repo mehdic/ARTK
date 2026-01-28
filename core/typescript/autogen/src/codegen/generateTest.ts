@@ -1,6 +1,7 @@
 /**
  * Test Generator - Generate Playwright test files from IR
  * @see research/2026-01-02_autogen-refined-plan.md Section 12
+ * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md (variant-aware generation)
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,6 +13,10 @@ import { updateJourneyFrontmatter } from '../journey/updater.js';
 import { escapeRegex } from '../utils/escaping.js';
 import { getPackageVersion, getGeneratedTimestamp } from '../utils/version.js';
 import { getTemplatePath } from '../utils/paths.js';
+import { detectVariant, type VariantInfo, type VariantFeatures } from '../variants/index.js';
+
+// Re-export variant types for consumers
+export type { VariantInfo, VariantFeatures };
 
 /**
  * Import statement for generated test
@@ -52,6 +57,10 @@ export interface GenerateTestOptions {
   llkbRoot?: string;
   /** Whether to include LLKB version in generated test header (default: true if LLKB exists) */
   includeLlkbVersion?: boolean;
+  /** Target variant for code generation (auto-detected if not specified) */
+  targetVariant?: VariantInfo;
+  /** Whether to emit warnings for variant-incompatible features (default: true) */
+  warnOnIncompatible?: boolean;
 }
 
 /**
@@ -66,6 +75,63 @@ export interface GenerateTestResult {
   filename: string;
   /** Imports used */
   imports: ImportStatement[];
+  /** Variant used for generation */
+  variant?: VariantInfo;
+  /** Warnings about variant-incompatible features */
+  variantWarnings?: string[];
+}
+
+/**
+ * Context for variant-aware code generation
+ */
+interface VariantContext {
+  /** Variant info for the target environment */
+  variant: VariantInfo;
+  /** Collected warnings for incompatible features */
+  warnings: string[];
+  /** Whether to emit warnings */
+  warnOnIncompatible: boolean;
+}
+
+/**
+ * Check if a feature is available in the current variant
+ * @internal Reserved for future variant-specific primitive handling
+ */
+function _checkFeature(
+  ctx: VariantContext,
+  feature: keyof VariantFeatures,
+  featureName: string,
+  primitiveType: string
+): boolean {
+  const available = ctx.variant.features[feature];
+  if (!available && ctx.warnOnIncompatible) {
+    ctx.warnings.push(
+      `Primitive '${primitiveType}' uses ${featureName} which requires ${getFeatureRequirement(feature)}. ` +
+        `Current variant: ${ctx.variant.id} (Playwright ${ctx.variant.playwrightVersion})`
+    );
+  }
+  return available;
+}
+
+// Export for testing (prefixed to avoid unused warning in production)
+export const __test_checkFeature = _checkFeature;
+
+/**
+ * Get human-readable requirement for a feature
+ */
+function getFeatureRequirement(feature: keyof VariantFeatures): string {
+  switch (feature) {
+    case 'ariaSnapshots':
+      return 'Playwright 1.49+ (Node 16+)';
+    case 'clockApi':
+      return 'Playwright 1.45+ (Node 18+)';
+    case 'topLevelAwait':
+      return 'Node 14.8+ with ESM';
+    case 'promiseAny':
+      return 'Node 15+ or polyfill';
+    default:
+      return 'unknown version';
+  }
 }
 
 /**
@@ -102,8 +168,11 @@ function renderValue(value: ValueSpec): string {
 
 /**
  * Render an IR primitive to Playwright code
+ * @param primitive The IR primitive to render
+ * @param indent Indentation string
+ * @param _ctx Optional variant context for compatibility checking (reserved for future use)
  */
-function renderPrimitive(primitive: IRPrimitive, indent = ''): string {
+function renderPrimitive(primitive: IRPrimitive, indent = '', _ctx?: VariantContext): string {
   switch (primitive.type) {
     // Navigation
     case 'goto':
@@ -121,9 +190,40 @@ function renderPrimitive(primitive: IRPrimitive, indent = ''): string {
     case 'waitForLoadingComplete':
       return `${indent}await page.waitForLoadState('networkidle');`;
 
+    case 'reload':
+      return `${indent}await page.reload();`;
+
+    case 'goBack':
+      return `${indent}await page.goBack();`;
+
+    case 'goForward':
+      return `${indent}await page.goForward();`;
+
+    // Wait primitives
+    case 'waitForVisible':
+      const waitVisibleTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : '';
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'visible'${waitVisibleTimeout} });`;
+
+    case 'waitForHidden':
+      const waitHiddenTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : '';
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'hidden'${waitHiddenTimeout} });`;
+
+    case 'waitForTimeout':
+      return `${indent}await page.waitForTimeout(${primitive.ms});`;
+
+    case 'waitForNetworkIdle':
+      const networkIdleOptions = primitive.timeout ? `, { timeout: ${primitive.timeout} }` : '';
+      return `${indent}await page.waitForLoadState('networkidle'${networkIdleOptions});`;
+
     // Interactions
     case 'click':
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click();`;
+
+    case 'dblclick':
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.dblclick();`;
+
+    case 'rightClick':
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click({ button: 'right' });`;
 
     case 'fill':
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.fill(${renderValue(primitive.value)});`;
@@ -239,6 +339,16 @@ function renderPrimitive(primitive: IRPrimitive, indent = ''): string {
 }
 
 /**
+ * Create a variant-aware render function for use in templates
+ * @internal The ctx parameter is passed through for future variant-specific handling
+ */
+function createVariantAwareRenderer(ctx: VariantContext): (primitive: IRPrimitive, indent?: string) => string {
+  // Note: ctx is passed to renderPrimitive for future variant-specific code generation
+  // Currently no primitives require variant checking, but the infrastructure is in place
+  return (primitive: IRPrimitive, indent = '') => renderPrimitive(primitive, indent, ctx);
+}
+
+/**
  * Load the default test template
  */
 function loadDefaultTemplate(): string {
@@ -323,7 +433,19 @@ export function generateTest(
     existingCode,
     llkbRoot = '.artk/llkb',
     includeLlkbVersion = true,
+    targetVariant,
+    warnOnIncompatible = true,
   } = options;
+
+  // Detect or use provided variant for variant-aware generation
+  const variant = targetVariant || detectVariant();
+
+  // Create variant context for compatibility checking
+  const variantCtx: VariantContext = {
+    variant,
+    warnings: [],
+    warnOnIncompatible,
+  };
 
   // Load template
   const template = templatePath
@@ -343,17 +465,22 @@ export function generateTest(
     llkbEntries = llkbInfo.llkbEntries;
   }
 
-  // Render template with version branding
+  // Create variant-aware renderer
+  const variantAwareRenderPrimitive = createVariantAwareRenderer(variantCtx);
+
+  // Render template with version branding and variant info
   let code = ejs.render(template, {
     journey,
     imports,
-    renderPrimitive,
+    renderPrimitive: variantAwareRenderPrimitive,
     escapeString,
     escapeRegex,
     version: getPackageVersion(),
     timestamp: getGeneratedTimestamp(),
     llkbVersion,
     llkbEntries,
+    variant: variant.id,
+    playwrightVersion: variant.playwrightVersion,
   });
 
   // Apply strategy-specific processing
@@ -407,6 +534,8 @@ export function generateTest(
     journeyId: journey.id,
     filename,
     imports,
+    variant,
+    variantWarnings: variantCtx.warnings.length > 0 ? variantCtx.warnings : undefined,
   };
 }
 

@@ -10,6 +10,7 @@ import { checkCommand } from './commands/check.js';
 import { upgradeCommand } from './commands/upgrade.js';
 import { doctorCommand } from './commands/doctor.js';
 import { uninstallCommand } from './commands/uninstall.js';
+import { llkbCommand } from './commands/llkb/index.js';
 import { getVersion } from './lib/version.js';
 
 const version = getVersion();
@@ -67,6 +68,9 @@ program
   .action(async (targetPath: string, options) => {
     await uninstallCommand(targetPath, options);
   });
+
+// Register LLKB command group
+llkbCommand(program);
 
 // Error handling
 program.showHelpAfterError('(add --help for additional information)');

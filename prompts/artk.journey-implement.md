@@ -49,21 +49,21 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║  Before writing ANY test code, you MUST complete these gates IN ORDER:    ║
 # ║                                                                           ║
 # ║  GATE 1: Verify LLKB Exists (Step 2)                                      ║
-# ║    □ Check `.artk/llkb/` directory exists                                 ║
+# ║    □ Check `${LLKB_ROOT}/` directory exists                               ║
 # ║    □ If missing → STOP and tell user to run /artk.discover-foundation     ║
-# ║    □ Check `.artk/llkb/config.yml` has `enabled: true`                    ║
+# ║    □ Check `${LLKB_ROOT}/config.yml` has `enabled: true`                  ║
 # ║    □ If disabled → STOP and tell user to enable LLKB                      ║
 # ║                                                                           ║
 # ║  GATE 2: Load LLKB Context (WHERE depends on mode)                        ║
 # ║    Serial mode: Orchestrator loads LLKB and uses it directly              ║
 # ║    Subagent mode: Each SUBAGENT loads LLKB in their own context           ║
-# ║    □ Read `.artk/llkb/config.yml`                                         ║
-# ║    □ Read `.artk/llkb/components.json`                                    ║
-# ║    □ Read `.artk/llkb/lessons.json`                                       ║
+# ║    □ Read `${LLKB_ROOT}/config.yml`                                       ║
+# ║    □ Read `${LLKB_ROOT}/components.json`                                  ║
+# ║    □ Read `${LLKB_ROOT}/lessons.json`                                     ║
 # ║    □ Output "LLKB Context Loaded" section showing findings                ║
 # ║                                                                           ║
 # ║  GATE 2.5: Export LLKB for AutoGen (Step 2.5)                             ║
-# ║    □ Run `npx artk-llkb export --for-autogen`                             ║
+# ║    □ Run `artk llkb export --for-autogen --llkb-root ${LLKB_ROOT}`        ║
 # ║    □ Generates autogen-llkb.config.yml and llkb-glossary.ts               ║
 # ║    □ Output export statistics                                             ║
 # ║    □ In subagent mode: Orchestrator runs export ONCE (not per subagent)   ║
@@ -320,6 +320,7 @@ If `dryRun=true`, output sections 1–4 only.
 ## Step 0 — Locate ARTK_ROOT and detect harness language
 - Find `ARTK_ROOT` from `artk.config.yml` or `artkRoot=`.
 - Determine harness root (`harnessRoot`).
+- **Set LLKB root path** (`LLKB_ROOT = ${harnessRoot}/.artk/llkb`).
 - Detect TS vs JS from existing config and fixtures.
 - Detect existing module registry and existing tests.
 - **Initialize session state for batch tracking:**
@@ -328,7 +329,8 @@ If `dryRun=true`, output sections 1–4 only.
     journeysRequested: parseJourneyList(userInput),
     journeysCompleted: [],
     predictiveExtractionCount: 0,
-    startTime: now()
+    startTime: now(),
+    llkbRoot: `${harnessRoot}/.artk/llkb`
   }
   ```
 
@@ -519,7 +521,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     # STEP 2: Spawn subagents EXPLICITLY (NOT in a loop)
     #
     # NOTE: LLKB loading happens INSIDE each subagent, not here.
-    # Each subagent will read .artk/llkb/ files in their own context.
+    # Each subagent will read ${HARNESS_ROOT}/.artk/llkb/ files in their own context.
     #
     # YOU MUST OUTPUT EACH #runSubagent CALL SEPARATELY IN YOUR RESPONSE.
     # The LLM cannot loop - write each one explicitly.
@@ -534,7 +536,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - ARTK_ROOT: {artkRoot}
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[0]}
-    - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
+    - LLKB_ROOT: ${HARNESS_ROOT}/.artk/llkb/ (subagent MUST load LLKB first)
     - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
     - Timeout: {subagentTimeout}ms
     Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
@@ -546,7 +548,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - ARTK_ROOT: {artkRoot}
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[1]}
-    - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
+    - LLKB_ROOT: ${HARNESS_ROOT}/.artk/llkb/ (subagent MUST load LLKB first)
     - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
     - Timeout: {subagentTimeout}ms
     Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
@@ -558,7 +560,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - ARTK_ROOT: {artkRoot}
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[2]}
-    - LLKB_ROOT: .artk/llkb/ (subagent MUST load LLKB first)
+    - LLKB_ROOT: ${HARNESS_ROOT}/.artk/llkb/ (subagent MUST load LLKB first)
     - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
     - Timeout: {subagentTimeout}ms
     Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
@@ -731,7 +733,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
 
     IF newComponentsAdded > 0 OR mergedUsageUpdates > 0:
       # Persist components.json
-      writeJSON("<ARTK_ROOT>/.artk/llkb/components.json", {
+      writeJSON("${LLKB_ROOT}/components.json", {
         version: "1.0",
         components: llkbSnapshot.components
       })
@@ -739,7 +741,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
 
     IF newLessonsAdded > 0:
       # Persist lessons.json
-      writeJSON("<ARTK_ROOT>/.artk/llkb/lessons.json", {
+      writeJSON("${LLKB_ROOT}/lessons.json", {
         version: "1.0",
         lessons: llkbSnapshot.lessons
       })
@@ -747,7 +749,7 @@ IF batchMode == "subagent" AND totalJourneys > 1:
 
     IF historyEvents.length > 0:
       # Append all history events
-      historyPath = "<ARTK_ROOT>/.artk/llkb/history/{YYYY-MM-DD}.jsonl"
+      historyPath = "${LLKB_ROOT}/history/{YYYY-MM-DD}.jsonl"
       FOR event IN historyEvents:
         appendLine(historyPath, JSON.stringify(event))
       LOG: "✓ Persisted {historyEvents.length} history events"
@@ -864,17 +866,17 @@ If the Journey is not clarified:
 # LLKB STRUCTURE VALIDATION (not just directory existence)
 # ═══════════════════════════════════════════════════════════════
 # Required files for valid LLKB:
-#   - .artk/llkb/config.yml (configuration)
-#   - .artk/llkb/components.json (component registry)
-#   - .artk/llkb/lessons.json (lessons learned)
+#   - ${LLKB_ROOT}/config.yml (configuration)
+#   - ${LLKB_ROOT}/components.json (component registry)
+#   - ${LLKB_ROOT}/lessons.json (lessons learned)
 #
 # The directory alone is NOT sufficient - all core files must exist.
 # ═══════════════════════════════════════════════════════════════
 
 REQUIRED_LLKB_FILES = [
-  ".artk/llkb/config.yml",
-  ".artk/llkb/components.json",
-  ".artk/llkb/lessons.json"
+  "${LLKB_ROOT}/config.yml",
+  "${LLKB_ROOT}/components.json",
+  "${LLKB_ROOT}/lessons.json"
 ]
 
 missingFiles = []
@@ -882,7 +884,7 @@ FOR file IN REQUIRED_LLKB_FILES:
   IF NOT exists(file):
     missingFiles.push(file)
 
-IF NOT exists(".artk/llkb/") OR missingFiles.length > 0:
+IF NOT exists("${LLKB_ROOT}/") OR missingFiles.length > 0:
   # LLKB MUST exist with valid structure
   OUTPUT:
   ╔════════════════════════════════════════════════════════════════════╗
@@ -890,7 +892,7 @@ IF NOT exists(".artk/llkb/") OR missingFiles.length > 0:
   ╠════════════════════════════════════════════════════════════════════╣
   ║  The LLKB directory is missing or incomplete.                      ║
   ║                                                                    ║
-  ║  Directory exists: {exists(".artk/llkb/") ? "Yes" : "No"}          ║
+  ║  Directory exists: {exists("${LLKB_ROOT}/") ? "Yes" : "No"}        ║
   ║  Missing files:                                                    ║
   {FOR file IN missingFiles:
   ║    - {file}                                                        ║
@@ -913,13 +915,13 @@ IF NOT exists(".artk/llkb/") OR missingFiles.length > 0:
   ╚════════════════════════════════════════════════════════════════════╝
   STOP
 
-config = loadYAML(".artk/llkb/config.yml")
+config = loadYAML("${LLKB_ROOT}/config.yml")
 IF NOT config.enabled:
   OUTPUT:
   ╔════════════════════════════════════════════════════════════════════╗
   ║  ⚠️  LLKB IS DISABLED                                              ║
   ╠════════════════════════════════════════════════════════════════════╣
-  ║  LLKB is disabled in .artk/llkb/config.yml.                        ║
+  ║  LLKB is disabled in ${LLKB_ROOT}/config.yml.                      ║
   ║                                                                    ║
   ║  To enable LLKB, set `enabled: true` in config.yml.                ║
   ║  Or re-run: /artk.discover-foundation                              ║
@@ -931,9 +933,9 @@ IF NOT config.enabled:
 
 ### 2.2 Load LLKB Data Files
 ```
-components = loadJSON(".artk/llkb/components.json") OR { components: [] }
-lessons = loadJSON(".artk/llkb/lessons.json") OR { lessons: [], globalRules: [], appQuirks: [] }
-appProfile = loadJSON(".artk/llkb/app-profile.json") OR {}
+components = loadJSON("${LLKB_ROOT}/components.json") OR { components: [] }
+lessons = loadJSON("${LLKB_ROOT}/lessons.json") OR { lessons: [], globalRules: [], appQuirks: [] }
+appProfile = loadJSON("${LLKB_ROOT}/app-profile.json") OR {}
 ```
 
 ### 2.3 Filter by Journey Scope (Context Injection Algorithm)
@@ -1117,7 +1119,7 @@ Before running AutoGen, export LLKB knowledge to AutoGen-compatible format:
 cd <ARTK_ROOT>/<harnessRoot>
 
 # Export LLKB for AutoGen
-npx artk-llkb export --for-autogen \
+artk llkb export --for-autogen --llkb-root ${LLKB_ROOT} \
   --output ./ \
   --min-confidence 0.7
 ```
@@ -1222,7 +1224,7 @@ The LLKB export happens ONCE at the orchestrator level, NOT per subagent:
 IF batchMode == "subagent":
   # Orchestrator runs export BEFORE spawning subagents
   OUTPUT: "Running LLKB export (once for all subagents)..."
-  RUN: npx artk-llkb export --for-autogen --output {harnessRoot}/
+  RUN: artk llkb export --for-autogen --llkb-root ${LLKB_ROOT} --output {harnessRoot}/
 
   # Then spawn subagents
   # Subagents will find and use the exported files
@@ -1238,7 +1240,7 @@ The LLKB export happens ONCE before processing journeys:
 IF batchMode == "serial":
   # Orchestrator runs export ONCE
   OUTPUT: "Running LLKB export (once for all journeys)..."
-  RUN: npx artk-llkb export --for-autogen --output {harnessRoot}/
+  RUN: artk llkb export --for-autogen --llkb-root ${LLKB_ROOT} --output {harnessRoot}/
 
   # Then process journeys serially
   FOR journey IN journeyList:
@@ -2593,7 +2595,7 @@ ELSE IF batchMode == "serial":
 1. **Update `components.json`** if any components were created or used:
    ```
    # Read current file
-   components = loadJSON("<ARTK_ROOT>/.artk/llkb/components.json")
+   components = loadJSON("${LLKB_ROOT}/components.json")
 
    # Add new components created during this journey
    FOR each newComponent:
@@ -2607,12 +2609,12 @@ ELSE IF batchMode == "serial":
      component.lastUsed = now().toISO8601()
 
    # Write back to disk
-   writeJSON("<ARTK_ROOT>/.artk/llkb/components.json", components)
+   writeJSON("${LLKB_ROOT}/components.json", components)
    ```
 
 2. **Append to history log** (creates file if missing):
    ```
-   historyPath = "<ARTK_ROOT>/.artk/llkb/history/{YYYY-MM-DD}.jsonl"
+   historyPath = "${LLKB_ROOT}/history/{YYYY-MM-DD}.jsonl"
 
    FOR each event (component_created, component_used, lesson_applied):
      appendLine(historyPath, JSON.stringify({
@@ -2626,14 +2628,14 @@ ELSE IF batchMode == "serial":
 
 3. **Update `lessons.json`** if lessons were applied:
    ```
-   lessons = loadJSON("<ARTK_ROOT>/.artk/llkb/lessons.json")
+   lessons = loadJSON("${LLKB_ROOT}/lessons.json")
 
    FOR each lessonApplied:
      lesson = findById(lessonApplied.id)
      lesson.metrics.successRate = recalculateSuccessRate(lesson)
      lesson.metrics.lastApplied = now().toISO8601()
 
-   writeJSON("<ARTK_ROOT>/.artk/llkb/lessons.json", lessons)
+   writeJSON("${LLKB_ROOT}/lessons.json", lessons)
    ```
 
 **Verification checklist (before proceeding):**

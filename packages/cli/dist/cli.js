@@ -4,16 +4,19 @@ import { program } from 'commander';
 import { execSync, spawn } from 'child_process';
 import fs6 from 'fs-extra';
 import * as path5 from 'path';
+import { join } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
 import * as fs2 from 'fs';
+import { existsSync } from 'fs';
 import * as https from 'https';
 import * as crypto from 'crypto';
 import { z } from 'zod';
 import yaml from 'yaml';
 import * as semver from 'semver';
 import * as readline from 'readline';
+import { initializeLLKB, runExportForAutogen, formatExportResultForConsole, runHealthCheck, formatHealthCheck, getStats, formatStats, prune, formatPruneResult, runLearnCommand, formatLearnResult, runCheckUpdates, formatCheckUpdatesResult, runUpdateTest, formatUpdateTestResult, runUpdateTests, formatUpdateTestsResult } from '@artk/core/llkb';
 
 createRequire(import.meta.url);
 var Logger = class {
@@ -2866,6 +2869,214 @@ function confirmUninstall() {
     });
   });
 }
+function initCommand2(program2) {
+  program2.command("init").description("Initialize LLKB directory structure").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").option("--force", "Reinitialize even if already exists").action(async (options) => {
+    const llkbRoot = options.llkbRoot;
+    if (existsSync(join(llkbRoot, "config.yml")) && !options.force) {
+      console.log(`\u2713 LLKB already initialized at ${llkbRoot}`);
+      console.log("  Use --force to reinitialize");
+      return;
+    }
+    console.log(`Initializing LLKB at ${llkbRoot}...`);
+    try {
+      const result = await initializeLLKB(llkbRoot);
+      if (result.success) {
+        console.log("\u2705 LLKB initialized successfully");
+        console.log(`   Created: ${llkbRoot}/config.yml`);
+        console.log(`   Created: ${llkbRoot}/lessons.json`);
+        console.log(`   Created: ${llkbRoot}/components.json`);
+        console.log(`   Created: ${llkbRoot}/analytics.json`);
+        console.log(`   Created: ${llkbRoot}/patterns/`);
+        console.log(`   Created: ${llkbRoot}/history/`);
+      } else {
+        console.error(`\u274C Failed to initialize LLKB: ${result.error}`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error(`\u274C Failed to initialize LLKB: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function exportCommand(program2) {
+  program2.command("export").description("Export LLKB for AutoGen consumption").option("--for-autogen", "Export for AutoGen (default mode)", true).option("-o, --output <dir>", "Output directory", process.cwd()).option("--min-confidence <value>", "Minimum confidence threshold", "0.7").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").option("--dry-run", "Show what would be exported without writing files").action((options) => {
+    try {
+      const result = runExportForAutogen({
+        llkbRoot: options.llkbRoot,
+        outputDir: options.output,
+        minConfidence: parseFloat(options.minConfidence),
+        generateGlossary: true,
+        generateConfig: true,
+        configFormat: "yaml"
+      });
+      console.log(formatExportResultForConsole(result));
+      if (result.stats.totalExported === 0) {
+        console.log("\n\u26A0\uFE0F  No entries exported. Check minimum confidence threshold.");
+      }
+      process.exit(0);
+    } catch (error) {
+      console.error(`\u274C Export failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function healthCommand(program2) {
+  program2.command("health").description("Check LLKB health status").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").action((options) => {
+    try {
+      const result = runHealthCheck(options.llkbRoot);
+      console.log(formatHealthCheck(result));
+      process.exit(result.status === "error" ? 1 : 0);
+    } catch (error) {
+      console.error(`\u274C Health check failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function statsCommand(program2) {
+  program2.command("stats").description("Show LLKB statistics").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").action((options) => {
+    try {
+      const stats = getStats(options.llkbRoot);
+      console.log(formatStats(stats));
+      process.exit(0);
+    } catch (error) {
+      console.error(`\u274C Stats command failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function pruneCommand(program2) {
+  program2.command("prune").description("Clean old data from LLKB").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").option("--history-retention-days <days>", "Days to retain history files", "365").option("--archive-inactive-lessons", "Archive inactive lessons").option("--archive-inactive-components", "Archive inactive components").option("--inactive-days <days>", "Days of inactivity before archiving", "180").action((options) => {
+    try {
+      const result = prune({
+        llkbRoot: options.llkbRoot,
+        historyRetentionDays: parseInt(options.historyRetentionDays, 10),
+        archiveInactiveLessons: options.archiveInactiveLessons ?? false,
+        archiveInactiveComponents: options.archiveInactiveComponents ?? false,
+        inactiveDays: parseInt(options.inactiveDays, 10)
+      });
+      console.log(formatPruneResult(result));
+      if (result.errors.length > 0) {
+        process.exit(1);
+      } else {
+        process.exit(0);
+      }
+    } catch (error) {
+      console.error(`\u274C Prune command failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function learnCommand(program2) {
+  program2.command("learn").description("Record a learning event (pattern, component, lesson)").requiredOption("--type <type>", "Learning event type: pattern, component, or lesson").requiredOption("--journey <id>", "Journey ID where the learning occurred").option("--id <id>", "Entity ID (component or lesson ID)").option("--success", "Mark as successful", true).option("--failure", "Mark as failure").option("--context <text>", "Additional context or step text").option("--test-file <path>", "Test file path").option("--selector-strategy <strategy>", "Selector strategy (for pattern type)").option("--selector-value <value>", "Selector value (for pattern type)").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").action((options) => {
+    try {
+      const validTypes = ["pattern", "component", "lesson"];
+      if (!validTypes.includes(options.type)) {
+        console.error(`\u274C Invalid type: ${options.type}. Must be one of: ${validTypes.join(", ")}`);
+        process.exit(1);
+      }
+      const success = options.failure ? false : true;
+      const result = runLearnCommand({
+        type: options.type,
+        journeyId: options.journey,
+        id: options.id,
+        success,
+        context: options.context,
+        testFile: options.testFile,
+        selectorStrategy: options.selectorStrategy,
+        selectorValue: options.selectorValue,
+        llkbRoot: options.llkbRoot
+      });
+      console.log(formatLearnResult(result));
+      if (!result.success) {
+        process.exit(1);
+      }
+      process.exit(0);
+    } catch (error) {
+      console.error(`\u274C Learn command failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function checkUpdatesCommand(program2) {
+  program2.command("check-updates").description("Check which tests need LLKB updates").requiredOption("--tests-dir <path>", "Directory containing test files").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").option("--pattern <pattern>", "File pattern to match", "*.spec.ts").action((options) => {
+    try {
+      const result = runCheckUpdates({
+        testsDir: options.testsDir,
+        llkbRoot: options.llkbRoot,
+        pattern: options.pattern
+      });
+      console.log(formatCheckUpdatesResult(result));
+      if (result.summary.outdated > 0) {
+        console.log(`
+\u{1F4A1} Run 'artk llkb update-tests --tests-dir ${options.testsDir}' to update all tests`);
+      }
+      process.exit(0);
+    } catch (error) {
+      console.error(`\u274C Check updates failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function updateTestCommand(program2) {
+  program2.command("update-test").description("Update a single test file with current LLKB version").requiredOption("--test <path>", "Path to the test file to update").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").option("--dry-run", "Show changes without writing").action((options) => {
+    try {
+      const result = runUpdateTest({
+        testPath: options.test,
+        llkbRoot: options.llkbRoot,
+        dryRun: options.dryRun ?? false
+      });
+      console.log(formatUpdateTestResult(result));
+      if (!result.success) {
+        process.exit(1);
+      }
+      if (result.dryRun && result.modified) {
+        console.log("\n\u{1F4A1} Run without --dry-run to apply changes");
+      }
+      process.exit(0);
+    } catch (error) {
+      console.error(`\u274C Update test failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function updateTestsCommand(program2) {
+  program2.command("update-tests").description("Batch update multiple test files with current LLKB version").requiredOption("--tests-dir <path>", "Directory containing test files").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").option("--pattern <pattern>", "File pattern to match", "*.spec.ts").option("--dry-run", "Show changes without writing").action((options) => {
+    try {
+      const result = runUpdateTests({
+        testsDir: options.testsDir,
+        llkbRoot: options.llkbRoot,
+        pattern: options.pattern,
+        dryRun: options.dryRun ?? false
+      });
+      console.log(formatUpdateTestsResult(result));
+      if (result.summary.failed > 0) {
+        process.exit(1);
+      }
+      if (options.dryRun && result.summary.updated > 0) {
+        console.log("\n\u{1F4A1} Run without --dry-run to apply changes");
+      }
+      process.exit(0);
+    } catch (error) {
+      console.error(`\u274C Batch update failed: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+
+// src/commands/llkb/index.ts
+function llkbCommand(program2) {
+  const llkb = program2.command("llkb").description("LLKB (Lessons Learned Knowledge Base) operations");
+  initCommand2(llkb);
+  exportCommand(llkb);
+  healthCommand(llkb);
+  statsCommand(llkb);
+  pruneCommand(llkb);
+  learnCommand(llkb);
+  checkUpdatesCommand(llkb);
+  updateTestCommand(llkb);
+  updateTestsCommand(llkb);
+  return llkb;
+}
 
 // src/cli.ts
 var version = getVersion();
@@ -2885,6 +3096,7 @@ program.command("doctor [path]").description("Diagnose and fix common issues in 
 program.command("uninstall <path>").description("Remove ARTK from a project").option("--keep-tests", "Keep test files in artk-e2e/").option("--keep-prompts", "Keep AI prompts in .github/prompts/").option("-f, --force", "Skip confirmation prompt").action(async (targetPath, options) => {
   await uninstallCommand(targetPath, options);
 });
+llkbCommand(program);
 program.showHelpAfterError("(add --help for additional information)");
 program.parse();
 //# sourceMappingURL=cli.js.map

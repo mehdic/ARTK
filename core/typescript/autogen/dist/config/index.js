@@ -254,7 +254,27 @@ function loadLLKBConfig(basePath) {
   }
   return null;
 }
+function loadConfigWithMigration(configPath) {
+  const config = loadConfig(configPath);
+  if (config.llkb === void 0) {
+    config.llkb = {
+      enabled: false,
+      level: "minimal"
+    };
+  }
+  return config;
+}
+function needsConfigMigration(config) {
+  if (typeof config !== "object" || config === null) {
+    return false;
+  }
+  const obj = config;
+  return obj.llkb === void 0;
+}
+function getSchemaVersion(config) {
+  return config.version;
+}
 
-export { AutogenConfigSchema, ConfigLoadError, EslintRulesSchema, EslintSeveritySchema, HealSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, PathsSchema, RegenerationStrategySchema, SelectorPolicySchema, SelectorStrategySchema, ValidationSchema, findConfigFile, getDefaultConfig, loadConfig, loadConfigs, loadLLKBConfig, mergeConfigs, resolveConfigPath };
+export { AutogenConfigSchema, ConfigLoadError, EslintRulesSchema, EslintSeveritySchema, HealSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, PathsSchema, RegenerationStrategySchema, SelectorPolicySchema, SelectorStrategySchema, ValidationSchema, findConfigFile, getDefaultConfig, getSchemaVersion, loadConfig, loadConfigWithMigration, loadConfigs, loadLLKBConfig, mergeConfigs, needsConfigMigration, resolveConfigPath };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

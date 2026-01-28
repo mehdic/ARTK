@@ -1,8 +1,8 @@
 import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { basename, dirname, relative, join } from 'path';
 import ejs from 'ejs';
 import { parse, stringify } from 'yaml';
 import { createHash } from 'crypto';
-import { basename, dirname, relative, join } from 'path';
 import { fileURLToPath } from 'url';
 import { Project, ModuleKind, ScriptTarget, SyntaxKind } from 'ts-morph';
 
@@ -456,7 +456,78 @@ function getGeneratedTimestamp() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }
 
+// src/variants/index.ts
+function detectVariant() {
+  const nodeVersionStr = process.version.slice(1);
+  const nodeVersion = parseInt(nodeVersionStr.split(".")[0], 10);
+  const isESM = typeof import.meta !== "undefined";
+  if (nodeVersion >= 18) {
+    return {
+      id: isESM ? "modern-esm" : "modern-cjs",
+      nodeVersion,
+      moduleSystem: isESM ? "esm" : "cjs",
+      playwrightVersion: "1.57.x",
+      features: {
+        ariaSnapshots: true,
+        clockApi: true,
+        topLevelAwait: true,
+        promiseAny: true
+      }
+    };
+  } else if (nodeVersion >= 16) {
+    return {
+      id: "legacy-16",
+      nodeVersion,
+      moduleSystem: "cjs",
+      playwrightVersion: "1.49.x",
+      features: {
+        ariaSnapshots: true,
+        clockApi: true,
+        topLevelAwait: true,
+        promiseAny: true
+      }
+    };
+  } else {
+    return {
+      id: "legacy-14",
+      nodeVersion,
+      moduleSystem: "cjs",
+      playwrightVersion: "1.33.x",
+      features: {
+        ariaSnapshots: false,
+        clockApi: false,
+        topLevelAwait: false,
+        promiseAny: false
+      }
+    };
+  }
+}
+
 // src/codegen/generateTest.ts
+function _checkFeature(ctx, feature, featureName, primitiveType) {
+  const available = ctx.variant.features[feature];
+  if (!available && ctx.warnOnIncompatible) {
+    ctx.warnings.push(
+      `Primitive '${primitiveType}' uses ${featureName} which requires ${getFeatureRequirement(feature)}. Current variant: ${ctx.variant.id} (Playwright ${ctx.variant.playwrightVersion})`
+    );
+  }
+  return available;
+}
+var __test_checkFeature = _checkFeature;
+function getFeatureRequirement(feature) {
+  switch (feature) {
+    case "ariaSnapshots":
+      return "Playwright 1.49+ (Node 16+)";
+    case "clockApi":
+      return "Playwright 1.45+ (Node 18+)";
+    case "topLevelAwait":
+      return "Node 14.8+ with ESM";
+    case "promiseAny":
+      return "Node 15+ or polyfill";
+    default:
+      return "unknown version";
+  }
+}
 function escapeString2(str) {
   return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
 }
@@ -476,7 +547,7 @@ function renderValue(value) {
       return `'${escapeString2(value.value)}'`;
   }
 }
-function renderPrimitive(primitive, indent = "") {
+function renderPrimitive(primitive, indent = "", _ctx) {
   switch (primitive.type) {
     // Navigation
     case "goto":
@@ -488,9 +559,31 @@ function renderPrimitive(primitive, indent = "") {
       return `${indent}await page.waitForResponse(resp => resp.url().includes('${escapeString2(primitive.urlPattern)}'));`;
     case "waitForLoadingComplete":
       return `${indent}await page.waitForLoadState('networkidle');`;
+    case "reload":
+      return `${indent}await page.reload();`;
+    case "goBack":
+      return `${indent}await page.goBack();`;
+    case "goForward":
+      return `${indent}await page.goForward();`;
+    // Wait primitives
+    case "waitForVisible":
+      const waitVisibleTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : "";
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'visible'${waitVisibleTimeout} });`;
+    case "waitForHidden":
+      const waitHiddenTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : "";
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'hidden'${waitHiddenTimeout} });`;
+    case "waitForTimeout":
+      return `${indent}await page.waitForTimeout(${primitive.ms});`;
+    case "waitForNetworkIdle":
+      const networkIdleOptions = primitive.timeout ? `, { timeout: ${primitive.timeout} }` : "";
+      return `${indent}await page.waitForLoadState('networkidle'${networkIdleOptions});`;
     // Interactions
     case "click":
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click();`;
+    case "dblclick":
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.dblclick();`;
+    case "rightClick":
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click({ button: 'right' });`;
     case "fill":
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.fill(${renderValue(primitive.value)});`;
     case "select":
@@ -568,6 +661,9 @@ ${indent}throw new Error('ARTK BLOCKED: ${escapeString2(primitive.reason)}');`;
       return `${indent}// Unknown primitive type: ${primitive.type}`;
   }
 }
+function createVariantAwareRenderer(ctx) {
+  return (primitive, indent = "") => renderPrimitive(primitive, indent);
+}
 function loadDefaultTemplate() {
   const templatePath = getTemplatePath("test.ejs");
   return readFileSync(templatePath, "utf-8");
@@ -592,18 +688,59 @@ function collectImports(journey) {
   }
   return imports;
 }
+function getLlkbInfo(llkbRoot) {
+  const analyticsPath = join(llkbRoot, "analytics.json");
+  if (!existsSync(analyticsPath)) {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+  try {
+    const content = readFileSync(analyticsPath, "utf-8");
+    const analytics = JSON.parse(content);
+    const llkbVersion = analytics.lastUpdated || (/* @__PURE__ */ new Date()).toISOString();
+    const totalLessons = analytics.overview?.totalLessons || 0;
+    const totalComponents = analytics.overview?.totalComponents || 0;
+    const llkbEntries = totalLessons + totalComponents;
+    return { llkbVersion, llkbEntries };
+  } catch {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+}
 function generateTest(journey, options = {}) {
-  const { templatePath, imports: additionalImports = [], strategy = "full", existingCode } = options;
+  const {
+    templatePath,
+    imports: additionalImports = [],
+    strategy = "full",
+    existingCode,
+    llkbRoot = ".artk/llkb",
+    includeLlkbVersion = true,
+    targetVariant,
+    warnOnIncompatible = true
+  } = options;
+  const variant = targetVariant || detectVariant();
+  const variantCtx = {
+    warnings: []};
   const template = templatePath ? readFileSync(templatePath, "utf-8") : loadDefaultTemplate();
   const imports = [...collectImports(journey), ...additionalImports];
+  let llkbVersion = null;
+  let llkbEntries = null;
+  if (includeLlkbVersion) {
+    const llkbInfo = getLlkbInfo(llkbRoot);
+    llkbVersion = llkbInfo.llkbVersion;
+    llkbEntries = llkbInfo.llkbEntries;
+  }
+  const variantAwareRenderPrimitive = createVariantAwareRenderer();
   let code = ejs.render(template, {
     journey,
     imports,
-    renderPrimitive,
+    renderPrimitive: variantAwareRenderPrimitive,
     escapeString: escapeString2,
     escapeRegex,
     version: getPackageVersion(),
-    timestamp: getGeneratedTimestamp()
+    timestamp: getGeneratedTimestamp(),
+    llkbVersion,
+    llkbEntries,
+    variant: variant.id,
+    playwrightVersion: variant.playwrightVersion
   });
   if (strategy === "blocks" && existingCode) {
     const testBlock = {
@@ -642,7 +779,9 @@ function generateTest(journey, options = {}) {
     code,
     journeyId: journey.id,
     filename,
-    imports
+    imports,
+    variant,
+    variantWarnings: variantCtx.warnings.length > 0 ? variantCtx.warnings : void 0
   };
 }
 function generateTestCode(journey) {
@@ -1396,6 +1535,6 @@ function getRegistryStats(registry) {
   };
 }
 
-export { addLocatorProperty, addMethod, addNamedImport, addToRegistry, createProject, createRegistry, extractClassStructure, extractModuleDefinition, findClass, findEntriesByScope, findEntry, findMethod, findProperty, generateIndexContent, generateModule, generateModuleCode, generateTest, generateTestCode, getImport, getModuleNames, getRegistryStats, hasImport, hasModule, loadRegistry, loadSourceFile, mergeModuleFiles, parseIndexFile, removeFromRegistry, saveRegistry, scanModulesDirectory, updateIndexFile, updateModuleFile, validateSyntax };
+export { __test_checkFeature, addLocatorProperty, addMethod, addNamedImport, addToRegistry, createProject, createRegistry, extractClassStructure, extractModuleDefinition, findClass, findEntriesByScope, findEntry, findMethod, findProperty, generateIndexContent, generateModule, generateModuleCode, generateTest, generateTestCode, getImport, getModuleNames, getRegistryStats, hasImport, hasModule, loadRegistry, loadSourceFile, mergeModuleFiles, parseIndexFile, removeFromRegistry, saveRegistry, scanModulesDirectory, updateIndexFile, updateModuleFile, validateSyntax };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

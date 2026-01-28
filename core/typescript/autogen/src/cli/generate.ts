@@ -2,14 +2,17 @@
  * CLI Generate Command - Generate Playwright tests from Journey files
  * @see T094 - Create CLI entry point for generation
  * @see research/2026-01-23_llkb-autogen-integration-specification.md (LLKB integration)
+ * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md (telemetry)
  */
 import { parseArgs } from 'node:util';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import fg from 'fast-glob';
 import { generateJourneyTests, type GenerateJourneyTestsOptions } from '../index.js';
 import { loadConfigs } from '../config/loader.js';
 import { loadExtendedGlossary, getGlossaryStats } from '../mapping/glossary.js';
+import { recordBlockedStep } from '../mapping/telemetry.js';
+import { analyzeBlockedStep, formatBlockedStepAnalysis } from '../mapping/blockedStepAnalysis.js';
 
 const USAGE = `
 Usage: artk-autogen generate [options] <journey-files...>
@@ -140,6 +143,59 @@ export async function runGenerate(args: string[]): Promise<void> {
 
   const result = await generateJourneyTests(options);
 
+  // Analyze and record blocked steps for telemetry
+  // Extract blocked steps from warnings (they contain "BLOCKED:" prefix)
+  const blockedStepWarnings = result.warnings.filter((w) => w.includes('BLOCKED:'));
+  const blockedStepAnalyses: ReturnType<typeof analyzeBlockedStep>[] = [];
+
+  if (blockedStepWarnings.length > 0) {
+    if (!quiet) {
+      console.log(`\n🔧 Blocked Step Analysis (${blockedStepWarnings.length} blocked steps):\n`);
+    }
+
+    for (const warning of blockedStepWarnings) {
+      // Extract step text and reason from warning (format: "BLOCKED: stepText - reason")
+      const match = warning.match(/BLOCKED:\s*(.+?)(?:\s*-\s*(.+))?$/);
+      if (match) {
+        const stepText = match[1] || warning;
+        const reason = match[2] || 'Unknown reason';
+
+        // Analyze the blocked step
+        const analysis = analyzeBlockedStep(stepText, reason);
+        blockedStepAnalyses.push(analysis);
+
+        // Record to telemetry (for pattern gap analysis)
+        const journeyId = journeyFiles.length === 1 ? basename(journeyFiles[0]!, '.md') : 'multiple';
+        recordBlockedStep({
+          journeyId,
+          stepText,
+          reason,
+          suggestedFix: analysis.suggestions[0]?.text,
+          nearestPattern: analysis.nearestPattern?.name,
+          nearestDistance: analysis.nearestPattern?.distance,
+        });
+
+        // Print analysis (unless quiet)
+        if (!quiet) {
+          console.log(formatBlockedStepAnalysis(analysis));
+          console.log();
+        }
+      }
+    }
+
+    // Write blocked step analysis JSON for AI consumption
+    // Write when ARTK_JSON_OUTPUT is set (even in dry-run) or when not in dry-run
+    if (process.env.ARTK_JSON_OUTPUT || !dryRun) {
+      const analysisPath = join(outputDir, 'blocked-steps-analysis.json');
+      mkdirSync(dirname(analysisPath), { recursive: true });
+      writeFileSync(analysisPath, JSON.stringify(blockedStepAnalyses, null, 2), 'utf-8');
+      if (!quiet) {
+        console.log(`\n💡 Blocked step analysis saved to: ${analysisPath}`);
+        console.log('   Use this file to auto-fix journey steps.\n');
+      }
+    }
+  }
+
   // Output results
   if (result.errors.length > 0) {
     console.error('\nErrors:');
@@ -148,9 +204,11 @@ export async function runGenerate(args: string[]): Promise<void> {
     }
   }
 
-  if (result.warnings.length > 0 && !quiet) {
+  // Filter out blocked step warnings from display (already shown above)
+  const otherWarnings = result.warnings.filter((w) => !w.includes('BLOCKED:'));
+  if (otherWarnings.length > 0 && !quiet) {
     console.warn('\nWarnings:');
-    for (const warning of result.warnings) {
+    for (const warning of otherWarnings) {
       console.warn(`  - ${warning}`);
     }
   }
@@ -198,8 +256,13 @@ export async function runGenerate(args: string[]): Promise<void> {
     console.log(`\nSummary:`);
     console.log(`  Tests: ${result.tests.length}`);
     console.log(`  Modules: ${result.modules.length}`);
+    console.log(`  Blocked steps: ${blockedStepAnalyses.length}`);
     console.log(`  Errors: ${result.errors.length}`);
-    console.log(`  Warnings: ${result.warnings.length}`);
+    console.log(`  Warnings: ${otherWarnings.length}`);
+
+    if (blockedStepAnalyses.length > 0) {
+      console.log(`\n💡 Run 'artk-autogen patterns gaps' to see pattern improvement suggestions.`);
+    }
   }
 
   // Exit with error if there were errors

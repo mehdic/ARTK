@@ -69,6 +69,7 @@ import { normalizeJourney } from './journey/normalize.js';
 import { generateTest, type GenerateTestOptions, type GenerateTestResult } from './codegen/generateTest.js';
 import { generateModule, type GenerateModuleOptions, type GenerateModuleResult } from './codegen/generateModule.js';
 import { loadConfig } from './config/loader.js';
+import { initializeLlkb, isLlkbAvailable } from './mapping/stepMapper.js';
 import type { AutogenConfig } from './config/schema.js';
 import type { IRJourney } from './ir/types.js';
 
@@ -90,6 +91,10 @@ export interface GenerateJourneyTestsOptions {
   testOptions?: GenerateTestOptions;
   /** Module generation options */
   moduleOptions?: GenerateModuleOptions;
+  /** Whether to use LLKB patterns for step mapping (default: true) */
+  useLlkb?: boolean;
+  /** LLKB root directory (default: .artk/llkb) */
+  llkbRoot?: string;
 }
 
 /**
@@ -112,7 +117,12 @@ export interface GenerateJourneyTestsResult {
   warnings: string[];
   /** Errors encountered (generation continues on non-fatal errors) */
   errors: string[];
+  /** Whether LLKB patterns were used */
+  llkbEnabled?: boolean;
 }
+
+// Re-export LLKB availability check
+export { initializeLlkb, isLlkbAvailable };
 
 /**
  * Main API: Generate Playwright tests from Journey files
@@ -142,6 +152,7 @@ export async function generateJourneyTests(
     generateModules = false,
     testOptions = {},
     moduleOptions = {},
+    useLlkb = true,
   } = options;
 
   const result: GenerateJourneyTestsResult = {
@@ -150,6 +161,14 @@ export async function generateJourneyTests(
     warnings: [],
     errors: [],
   };
+
+  // Initialize LLKB if enabled (Phase 4 integration)
+  if (useLlkb) {
+    const llkbLoaded = await initializeLlkb();
+    if (llkbLoaded) {
+      result.llkbEnabled = true;
+    }
+  }
 
   // Load config if provided (reserved for future use)
   let resolvedConfig: AutogenConfig | undefined;

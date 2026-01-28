@@ -11,7 +11,8 @@ const entries = [
   'src/mapping/index.ts',
   'src/selectors/index.ts',
   'src/validate/index.ts',
-  'src/verify/index.ts'
+  'src/verify/index.ts',
+  'src/variants/index.ts'
 ];
 
 // Default ESM build
