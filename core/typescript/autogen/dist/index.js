@@ -716,9 +716,9 @@ function exportPatternsToConfig(options) {
 function clearLearnedPatterns(options = {}) {
   const filePath = getPatternsFilePath(options.llkbRoot);
   if (existsSync(filePath)) {
-    const { unlinkSync: unlinkSync2 } = __require("fs");
-    unlinkSync2(filePath);
+    unlinkSync(filePath);
   }
+  invalidatePatternCache();
 }
 var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
@@ -10139,8 +10139,6 @@ function generateEvidenceReport(evidence) {
   }
   return lines.join("\n");
 }
-
-// src/verify/summary.ts
 function generateVerifySummary(runnerResult, options = {}) {
   const summary = {
     status: "error",
@@ -10326,10 +10324,8 @@ function formatVerifySummary(summary) {
   return lines.join("\n");
 }
 function saveSummary(summary, outputPath) {
-  const { writeFileSync: writeFileSync13, mkdirSync: mkdirSync9 } = __require("fs");
-  const { dirname: dirname8 } = __require("path");
-  mkdirSync9(dirname8(outputPath), { recursive: true });
-  writeFileSync13(outputPath, JSON.stringify(summary, null, 2), "utf-8");
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, JSON.stringify(summary, null, 2), "utf-8");
 }
 
 // src/index.ts
@@ -10643,7 +10639,7 @@ async function generateJourneyTests(options) {
   if (useLlkb) {
     const llkbLoaded = await initializeLlkb();
     if (llkbLoaded) {
-      result.warnings.push("LLKB patterns enabled for step mapping");
+      result.llkbEnabled = true;
     }
   }
   let resolvedConfig;

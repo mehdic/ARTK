@@ -404,11 +404,6 @@ declare function shouldQuarantine(result: StabilityResult, threshold?: number): 
 declare function generateStabilityReport(result: StabilityResult): string;
 
 /**
- * Verify Summary Generator - Generate structured JSON summary of test runs
- * @see T055 - Implement verify summary JSON generator
- */
-
-/**
  * Verification summary
  */
 interface VerifySummary {

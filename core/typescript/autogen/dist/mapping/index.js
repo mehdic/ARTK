@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync, appendFileSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, appendFileSync } from 'fs';
 import { resolve, join, dirname } from 'path';
 import { pathToFileURL } from 'url';
 import { parse } from 'yaml';
@@ -6,12 +6,6 @@ import { z } from 'zod';
 
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -710,9 +704,9 @@ function exportPatternsToConfig(options) {
 function clearLearnedPatterns(options = {}) {
   const filePath = getPatternsFilePath(options.llkbRoot);
   if (existsSync(filePath)) {
-    const { unlinkSync } = __require("fs");
     unlinkSync(filePath);
   }
+  invalidatePatternCache();
 }
 var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
@@ -2154,7 +2148,7 @@ function findNearestPattern(text, patterns) {
       return nearest;
     }
   }
-  return nearest;
+  return null;
 }
 function explainMismatch(text, pattern) {
   const reasons = [];
@@ -2550,7 +2544,6 @@ function recordUserFix(originalStepText, userFixedText, options = {}) {
 function clearTelemetry(options = {}) {
   const telemetryPath = getTelemetryPath(options.baseDir);
   if (existsSync(telemetryPath)) {
-    const { unlinkSync } = __require("fs");
     unlinkSync(telemetryPath);
   }
 }

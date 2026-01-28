@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { existsSync, readFileSync, mkdirSync, writeFileSync, appendFileSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, appendFileSync } from 'fs';
 import { join, dirname, basename, resolve } from 'path';
 import { stringify, parse } from 'yaml';
 import { pathToFileURL, fileURLToPath } from 'url';
@@ -11,6 +11,7 @@ import 'ts-morph';
 import { execSync } from 'child_process';
 import { tmpdir } from 'os';
 import { parseArgs } from 'util';
+import { createInterface } from 'readline';
 
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -2416,9 +2417,9 @@ function exportPatternsToConfig(options) {
 function clearLearnedPatterns(options = {}) {
   const filePath = getPatternsFilePath(options.llkbRoot);
   if (existsSync(filePath)) {
-    const { unlinkSync: unlinkSync2 } = __require("fs");
-    unlinkSync2(filePath);
+    unlinkSync(filePath);
   }
+  invalidatePatternCache();
 }
 var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
@@ -5246,8 +5247,6 @@ var init_evidence = __esm({
   "src/verify/evidence.ts"() {
   }
 });
-
-// src/verify/summary.ts
 function generateVerifySummary(runnerResult, options = {}) {
   const summary = {
     status: "error",
@@ -7139,7 +7138,7 @@ async function generateJourneyTests(options) {
   if (useLlkb) {
     const llkbLoaded = await initializeLlkb();
     if (llkbLoaded) {
-      result.warnings.push("LLKB patterns enabled for step mapping");
+      result.llkbEnabled = true;
     }
   }
   let resolvedConfig;
@@ -7629,8 +7628,7 @@ function getTelemetryStats(options = {}) {
 function clearTelemetry(options = {}) {
   const telemetryPath = getTelemetryPath(options.baseDir);
   if (existsSync(telemetryPath)) {
-    const { unlinkSync: unlinkSync2 } = __require("fs");
-    unlinkSync2(telemetryPath);
+    unlinkSync(telemetryPath);
   }
 }
 var DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE;
@@ -7919,8 +7917,8 @@ async function runGenerate(args) {
     for (const warning of blockedStepWarnings) {
       const match = warning.match(/BLOCKED:\s*(.+?)(?:\s*-\s*(.+))?$/);
       if (match) {
-        const reason = match[1] || "Unknown reason";
-        const stepText = match[2] || match[1] || warning;
+        const stepText = match[1] || warning;
+        const reason = match[2] || "Unknown reason";
         const analysis = analyzeBlockedStep(stepText, reason);
         blockedStepAnalyses.push(analysis);
         const journeyId = journeyFiles.length === 1 ? basename(journeyFiles[0], ".md") : "multiple";
@@ -8694,6 +8692,18 @@ async function runPrune(options) {
   console.log(`   Remaining: ${result.remaining} patterns.
 `);
 }
+async function confirmAction(message) {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  return new Promise((resolve6) => {
+    rl.question(`${message} (y/N): `, (answer) => {
+      rl.close();
+      resolve6(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+    });
+  });
+}
 async function runClear2(options) {
   const stats = getPatternStats({ llkbRoot: options.llkbRoot });
   if (stats.total === 0) {
@@ -8703,6 +8713,13 @@ async function runClear2(options) {
   console.log(`
 \u26A0\uFE0F  This will delete ${stats.total} learned patterns.`);
   console.log("   This action cannot be undone.\n");
+  if (!options.force) {
+    const confirmed = await confirmAction("Are you sure you want to proceed?");
+    if (!confirmed) {
+      console.log("Operation cancelled.\n");
+      return;
+    }
+  }
   clearLearnedPatterns({ llkbRoot: options.llkbRoot });
   console.log("\u2705 All learned patterns cleared.\n");
 }
@@ -8718,6 +8735,7 @@ async function runLlkbPatterns(args) {
       output: { type: "string", short: "o" },
       json: { type: "boolean", default: false },
       apply: { type: "boolean", default: false },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h" }
     },
     allowPositionals: true
@@ -8763,7 +8781,7 @@ async function runLlkbPatterns(args) {
       });
       break;
     case "clear":
-      await runClear2({ llkbRoot: baseOptions.llkbRoot });
+      await runClear2({ llkbRoot: baseOptions.llkbRoot, force: values.force });
       break;
     default:
       console.error(`Unknown subcommand: ${subcommand}`);
@@ -8791,6 +8809,7 @@ Options:
   --limit, -n <num>         Limit number of results (default: 20)
   --min-confidence <num>    Minimum confidence threshold (default: varies by command)
   --json                    Output as JSON
+  --force, -f               Skip confirmation prompts (for clear command)
   -h, --help                Show this help message
 
 Examples:
@@ -8800,6 +8819,8 @@ Examples:
   artk-autogen llkb-patterns promote                 # Show promotable patterns
   artk-autogen llkb-patterns export                  # Export to config file
   artk-autogen llkb-patterns prune --min-confidence 0.3  # Remove low-confidence patterns
+  artk-autogen llkb-patterns clear                   # Clear all patterns (with confirmation)
+  artk-autogen llkb-patterns clear --force           # Clear all patterns (no confirmation)
 `;
   }
 });
