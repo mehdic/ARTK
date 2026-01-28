@@ -7938,14 +7938,12 @@ async function runGenerate(args) {
     }
     if (process.env.ARTK_JSON_OUTPUT || !dryRun) {
       const analysisPath = join(outputDir, "blocked-steps-analysis.json");
-      if (!dryRun) {
-        mkdirSync(dirname(analysisPath), { recursive: true });
-        writeFileSync(analysisPath, JSON.stringify(blockedStepAnalyses, null, 2), "utf-8");
-        if (!quiet) {
-          console.log(`
+      mkdirSync(dirname(analysisPath), { recursive: true });
+      writeFileSync(analysisPath, JSON.stringify(blockedStepAnalyses, null, 2), "utf-8");
+      if (!quiet) {
+        console.log(`
 \u{1F4A1} Blocked step analysis saved to: ${analysisPath}`);
-          console.log("   Use this file to auto-fix journey steps.\n");
-        }
+        console.log("   Use this file to auto-fix journey steps.\n");
       }
     }
   }
@@ -8488,6 +8486,18 @@ async function runExport(options) {
   };
   console.log(JSON.stringify(exportData, null, 2));
 }
+async function confirmAction(message) {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  return new Promise((resolve6) => {
+    rl.question(`${message} (y/N): `, (answer) => {
+      rl.close();
+      resolve6(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+    });
+  });
+}
 async function runClear(options) {
   const stats = getTelemetryStats({ baseDir: options.baseDir });
   if (stats.totalRecords === 0) {
@@ -8497,6 +8507,13 @@ async function runClear(options) {
   console.log(`
 \u26A0\uFE0F  This will delete ${stats.totalRecords} blocked step records.`);
   console.log("   This action cannot be undone.\n");
+  if (!options.force) {
+    const confirmed = await confirmAction("Are you sure you want to proceed?");
+    if (!confirmed) {
+      console.log("Operation cancelled.\n");
+      return;
+    }
+  }
   clearTelemetry({ baseDir: options.baseDir });
   console.log("\u2705 Telemetry data cleared.\n");
 }
@@ -8508,6 +8525,7 @@ async function runPatterns(args) {
       limit: { type: "string", short: "n", default: "20" },
       json: { type: "boolean", default: false },
       category: { type: "string", short: "c" },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h" }
     },
     allowPositionals: true
@@ -8537,7 +8555,7 @@ async function runPatterns(args) {
       await runExport(options);
       break;
     case "clear":
-      await runClear(options);
+      await runClear({ baseDir: options.baseDir, force: values.force });
       break;
     default:
       console.error(`Unknown subcommand: ${subcommand}`);
@@ -8565,15 +8583,18 @@ Options:
   --limit, -n <num>   Limit number of results (default: 20)
   --json              Output as JSON
   --category, -c      Filter by category (navigation|interaction|assertion|wait|unknown)
+  --force, -f         Skip confirmation prompts (for clear command)
   -h, --help          Show this help message
 
 Examples:
   artk-autogen patterns gaps                    # Show top 20 pattern gaps
   artk-autogen patterns gaps --limit 50         # Show top 50 pattern gaps
-  artk-autogen patterns gaps --category click   # Show only click-related gaps
+  artk-autogen patterns gaps --category interaction  # Show only interaction-related gaps
   artk-autogen patterns stats                   # Show telemetry statistics
   artk-autogen patterns list                    # List all patterns
   artk-autogen patterns export --json           # Export gaps as JSON
+  artk-autogen patterns clear                   # Clear telemetry (with confirmation)
+  artk-autogen patterns clear --force           # Clear telemetry (no confirmation)
 `;
   }
 });
@@ -8692,7 +8713,7 @@ async function runPrune(options) {
   console.log(`   Remaining: ${result.remaining} patterns.
 `);
 }
-async function confirmAction(message) {
+async function confirmAction2(message) {
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout
@@ -8714,7 +8735,7 @@ async function runClear2(options) {
 \u26A0\uFE0F  This will delete ${stats.total} learned patterns.`);
   console.log("   This action cannot be undone.\n");
   if (!options.force) {
-    const confirmed = await confirmAction("Are you sure you want to proceed?");
+    const confirmed = await confirmAction2("Are you sure you want to proceed?");
     if (!confirmed) {
       console.log("Operation cancelled.\n");
       return;
