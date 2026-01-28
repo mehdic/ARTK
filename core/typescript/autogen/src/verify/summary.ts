@@ -2,6 +2,8 @@
  * Verify Summary Generator - Generate structured JSON summary of test runs
  * @see T055 - Implement verify summary JSON generator
  */
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { RunnerResult } from './runner.js';
 import type { PlaywrightReport } from './parser.js';
 import type { FailureClassification } from './classifier.js';
@@ -337,9 +339,6 @@ export function formatVerifySummary(summary: VerifySummary): string {
  * Save summary to JSON file
  */
 export function saveSummary(summary: VerifySummary, outputPath: string): void {
-  const { writeFileSync, mkdirSync } = require('node:fs');
-  const { dirname } = require('node:path');
-
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, JSON.stringify(summary, null, 2), 'utf-8');
 }

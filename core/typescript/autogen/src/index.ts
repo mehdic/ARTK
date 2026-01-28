@@ -166,7 +166,7 @@ export async function generateJourneyTests(
   if (useLlkb) {
     const llkbLoaded = await initializeLlkb();
     if (llkbLoaded) {
-      result.warnings.push('LLKB patterns enabled for step mapping');
+      result.llkbEnabled = true;
     }
   }
 

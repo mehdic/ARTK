@@ -144,7 +144,7 @@ export function findNearestPattern(
     }
   }
 
-  return nearest;
+  return null;
 }
 
 /**

@@ -2,7 +2,7 @@
  * LLKB Pattern Extension - Learning and promotion of patterns from LLKB
  * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 4
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type { IRPrimitive } from '../ir/types.js';
 // Use the same normalizer as stepMapper for consistent pattern matching
@@ -495,7 +495,8 @@ export function exportPatternsToConfig(options: {
 export function clearLearnedPatterns(options: { llkbRoot?: string } = {}): void {
   const filePath = getPatternsFilePath(options.llkbRoot);
   if (existsSync(filePath)) {
-    const { unlinkSync } = require('node:fs');
     unlinkSync(filePath);
   }
+  // Invalidate cache when clearing patterns
+  invalidatePatternCache();
 }

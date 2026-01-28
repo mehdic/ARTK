@@ -5,6 +5,7 @@
  * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 4
  */
 import { parseArgs } from 'node:util';
+import { createInterface } from 'node:readline';
 import {
   loadLearnedPatterns,
   getPromotablePatterns,
@@ -33,6 +34,7 @@ Options:
   --limit, -n <num>         Limit number of results (default: 20)
   --min-confidence <num>    Minimum confidence threshold (default: varies by command)
   --json                    Output as JSON
+  --force, -f               Skip confirmation prompts (for clear command)
   -h, --help                Show this help message
 
 Examples:
@@ -42,6 +44,8 @@ Examples:
   artk-autogen llkb-patterns promote                 # Show promotable patterns
   artk-autogen llkb-patterns export                  # Export to config file
   artk-autogen llkb-patterns prune --min-confidence 0.3  # Remove low-confidence patterns
+  artk-autogen llkb-patterns clear                   # Clear all patterns (with confirmation)
+  artk-autogen llkb-patterns clear --force           # Clear all patterns (no confirmation)
 `;
 
 /**
@@ -208,9 +212,26 @@ async function runPrune(options: {
 }
 
 /**
+ * Prompt user for confirmation
+ */
+async function confirmAction(message: string): Promise<boolean> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`${message} (y/N): `, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
+    });
+  });
+}
+
+/**
  * Run the clear subcommand
  */
-async function runClear(options: { llkbRoot?: string }): Promise<void> {
+async function runClear(options: { llkbRoot?: string; force?: boolean }): Promise<void> {
   const stats = getPatternStats({ llkbRoot: options.llkbRoot });
 
   if (stats.total === 0) {
@@ -220,6 +241,15 @@ async function runClear(options: { llkbRoot?: string }): Promise<void> {
 
   console.log(`\n⚠️  This will delete ${stats.total} learned patterns.`);
   console.log('   This action cannot be undone.\n');
+
+  // Require confirmation unless --force is specified
+  if (!options.force) {
+    const confirmed = await confirmAction('Are you sure you want to proceed?');
+    if (!confirmed) {
+      console.log('Operation cancelled.\n');
+      return;
+    }
+  }
 
   clearLearnedPatterns({ llkbRoot: options.llkbRoot });
   console.log('✅ All learned patterns cleared.\n');
@@ -240,6 +270,7 @@ export async function runLlkbPatterns(args: string[]): Promise<void> {
       output: { type: 'string', short: 'o' },
       json: { type: 'boolean', default: false },
       apply: { type: 'boolean', default: false },
+      force: { type: 'boolean', short: 'f', default: false },
       help: { type: 'boolean', short: 'h' },
     },
     allowPositionals: true,
@@ -293,7 +324,7 @@ export async function runLlkbPatterns(args: string[]): Promise<void> {
       break;
 
     case 'clear':
-      await runClear({ llkbRoot: baseOptions.llkbRoot });
+      await runClear({ llkbRoot: baseOptions.llkbRoot, force: values.force as boolean });
       break;
 
     default:

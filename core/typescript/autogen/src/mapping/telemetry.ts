@@ -2,7 +2,7 @@
  * Telemetry for blocked steps - Records blocked steps for pattern analysis
  * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 3
  */
-import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, appendFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 /**
@@ -396,7 +396,6 @@ export function recordUserFix(
 export function clearTelemetry(options: { baseDir?: string } = {}): void {
   const telemetryPath = getTelemetryPath(options.baseDir);
   if (existsSync(telemetryPath)) {
-    const { unlinkSync } = require('node:fs');
     unlinkSync(telemetryPath);
   }
 }

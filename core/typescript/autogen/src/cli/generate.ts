@@ -154,11 +154,11 @@ export async function runGenerate(args: string[]): Promise<void> {
     }
 
     for (const warning of blockedStepWarnings) {
-      // Extract step text and reason from warning
+      // Extract step text and reason from warning (format: "BLOCKED: stepText - reason")
       const match = warning.match(/BLOCKED:\s*(.+?)(?:\s*-\s*(.+))?$/);
       if (match) {
-        const reason = match[1] || 'Unknown reason';
-        const stepText = match[2] || match[1] || warning;
+        const stepText = match[1] || warning;
+        const reason = match[2] || 'Unknown reason';
 
         // Analyze the blocked step
         const analysis = analyzeBlockedStep(stepText, reason);
