@@ -82,6 +82,27 @@ const PATTERNS_FILE = 'learned-patterns.json';
 const DEFAULT_LLKB_ROOT = '.artk/llkb';
 
 /**
+ * Pattern cache for performance optimization
+ * Avoids repeated file reads during step mapping
+ */
+interface PatternCache {
+  patterns: LearnedPattern[];
+  llkbRoot: string;
+  loadedAt: number;
+}
+
+let patternCache: PatternCache | null = null;
+const CACHE_TTL_MS = 5000; // 5 second cache TTL
+
+/**
+ * Invalidate the pattern cache
+ * Call this after any write operation
+ */
+export function invalidatePatternCache(): void {
+  patternCache = null;
+}
+
+/**
  * Get the path to the patterns file
  */
 export function getPatternsFilePath(llkbRoot?: string): string {
@@ -97,20 +118,41 @@ export function generatePatternId(): string {
 }
 
 /**
- * Load learned patterns from storage
+ * Load learned patterns from storage (with caching for performance)
  */
-export function loadLearnedPatterns(options: { llkbRoot?: string } = {}): LearnedPattern[] {
+export function loadLearnedPatterns(options: { llkbRoot?: string; bypassCache?: boolean } = {}): LearnedPattern[] {
+  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const now = Date.now();
+
+  // Check cache validity (same llkbRoot and not expired)
+  if (
+    !options.bypassCache &&
+    patternCache &&
+    patternCache.llkbRoot === llkbRoot &&
+    now - patternCache.loadedAt < CACHE_TTL_MS
+  ) {
+    return patternCache.patterns;
+  }
+
   const filePath = getPatternsFilePath(options.llkbRoot);
 
   if (!existsSync(filePath)) {
+    // Cache empty result
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
     return [];
   }
 
   try {
     const content = readFileSync(filePath, 'utf-8');
     const data = JSON.parse(content);
-    return Array.isArray(data.patterns) ? data.patterns : [];
+    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+
+    // Update cache
+    patternCache = { patterns, llkbRoot, loadedAt: now };
+    return patterns;
   } catch {
+    // Cache empty result on error
+    patternCache = { patterns: [], llkbRoot, loadedAt: now };
     return [];
   }
 }
@@ -136,6 +178,9 @@ export function saveLearnedPatterns(
   };
 
   writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+
+  // Invalidate cache after write
+  invalidatePatternCache();
 }
 
 /**

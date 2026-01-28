@@ -59,10 +59,20 @@ async function loadLlkbModule(): Promise<typeof llkbModule> {
 
 /**
  * Synchronously check LLKB (for non-async contexts)
- * Uses previously loaded module if available
+ * Uses previously loaded module if available.
+ *
+ * NOTE: initializeLlkb() should be called before using mapStepText with useLlkb=true.
+ * If not initialized, LLKB matching will be skipped silently (graceful degradation).
  */
 function tryLlkbMatch(text: string, options?: { llkbRoot?: string; minConfidence?: number }): LlkbPatternMatch | null {
-  if (!llkbModule) return null;
+  if (!llkbModule) {
+    // If module not loaded, attempt lazy initialization (non-blocking)
+    // This won't block, but will start loading for future calls
+    if (!llkbLoadAttempted) {
+      void loadLlkbModule();
+    }
+    return null;
+  }
   return llkbModule.matchLlkbPattern(text, options);
 }
 
