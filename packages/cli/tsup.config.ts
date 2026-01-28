@@ -14,7 +14,7 @@ export default defineConfig({
   treeshake: true,
   minify: false,
   // Mark node built-ins and problematic packages as external
-  external: ['fs-extra'],
+  external: ['fs-extra', '@artk/core', '@artk/core/llkb'],
   banner: {
     js: '#!/usr/bin/env node',
   },

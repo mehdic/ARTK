@@ -2,6 +2,7 @@
  * Step Mapper - Convert step text to IR primitives
  * @see research/2026-01-02_autogen-refined-plan.md Section 10
  * @see T073 - Update step mapper to prioritize explicit hints over inference
+ * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 4 - LLKB integration
  */
 import type {
   IRPrimitive,
@@ -19,6 +20,52 @@ import {
   type ExtractedHints,
 } from '../journey/parseHints.js';
 
+// LLKB integration types - imported dynamically to avoid hard dependency
+type LlkbPatternMatch = {
+  patternId: string;
+  primitive: IRPrimitive;
+  confidence: number;
+};
+
+// LLKB module reference - loaded lazily
+let llkbModule: {
+  matchLlkbPattern: (text: string, options?: { llkbRoot?: string; minConfidence?: number }) => LlkbPatternMatch | null;
+  recordPatternSuccess: (text: string, primitive: IRPrimitive, journeyId: string, options?: { llkbRoot?: string }) => void;
+} | null = null;
+
+// Track if we've attempted to load LLKB
+let llkbLoadAttempted = false;
+
+/**
+ * Lazily load LLKB module (graceful degradation if not available)
+ */
+async function loadLlkbModule(): Promise<typeof llkbModule> {
+  if (llkbLoadAttempted) return llkbModule;
+  llkbLoadAttempted = true;
+
+  try {
+    const mod = await import('../llkb/patternExtension.js');
+    llkbModule = {
+      matchLlkbPattern: mod.matchLlkbPattern,
+      recordPatternSuccess: mod.recordPatternSuccess,
+    };
+  } catch {
+    // LLKB not available - this is fine, graceful degradation
+    llkbModule = null;
+  }
+
+  return llkbModule;
+}
+
+/**
+ * Synchronously check LLKB (for non-async contexts)
+ * Uses previously loaded module if available
+ */
+function tryLlkbMatch(text: string, options?: { llkbRoot?: string; minConfidence?: number }): LlkbPatternMatch | null {
+  if (!llkbModule) return null;
+  return llkbModule.matchLlkbPattern(text, options);
+}
+
 /**
  * Options for step mapping
  */
@@ -29,6 +76,14 @@ export interface StepMapperOptions {
   includeBlocked?: boolean;
   /** Default timeout for assertions */
   defaultTimeout?: number;
+  /** Whether to use LLKB patterns as fallback (default: true) */
+  useLlkb?: boolean;
+  /** LLKB root directory (default: .artk/llkb) */
+  llkbRoot?: string;
+  /** Minimum confidence for LLKB pattern matches (default: 0.7) */
+  llkbMinConfidence?: number;
+  /** Journey ID for LLKB recording (optional) */
+  journeyId?: string;
 }
 
 /**
@@ -43,6 +98,12 @@ export interface StepMappingResult {
   isAssertion: boolean;
   /** Warning or error message if any */
   message?: string;
+  /** Source of the match */
+  matchSource?: 'pattern' | 'llkb' | 'hints' | 'none';
+  /** LLKB pattern ID if matched via LLKB */
+  llkbPatternId?: string;
+  /** LLKB match confidence if matched via LLKB */
+  llkbConfidence?: number;
 }
 
 /**
@@ -73,7 +134,12 @@ export function mapStepText(
   text: string,
   options: StepMapperOptions = {}
 ): StepMappingResult {
-  const { normalizeText = true } = options;
+  const {
+    normalizeText = true,
+    useLlkb = true,
+    llkbRoot,
+    llkbMinConfidence = 0.7,
+  } = options;
 
   // Extract machine hints first (T073 - hints take priority)
   const hints = extractHints(text);
@@ -82,15 +148,59 @@ export function mapStepText(
   // Normalize text if enabled
   const processedText = normalizeText ? normalizeStepText(cleanText) : cleanText;
 
-  // Try to match against patterns
+  // Try to match against core patterns first
   let primitive = matchPattern(processedText);
+  let matchSource: 'pattern' | 'llkb' | 'hints' | 'none' = primitive ? 'pattern' : 'none';
 
   // If we have hints, enhance or override the primitive
   if (primitive && hints.hasHints) {
     primitive = applyHintsToPrimitive(primitive, hints);
-  } else if (!primitive && hasLocatorHints(hints)) {
-    // If no pattern match but we have locator hints, try to create primitive from hints
+  }
+
+  // If no core pattern match, try LLKB patterns (Phase 4 integration)
+  let llkbPatternId: string | undefined;
+  let llkbConfidence: number | undefined;
+
+  if (!primitive && useLlkb) {
+    const llkbMatch = tryLlkbMatch(processedText, {
+      llkbRoot,
+      minConfidence: llkbMinConfidence,
+    });
+
+    if (llkbMatch) {
+      primitive = llkbMatch.primitive;
+      matchSource = 'llkb';
+      llkbPatternId = llkbMatch.patternId;
+      llkbConfidence = llkbMatch.confidence;
+
+      // Record successful pattern match to close the learning loop
+      // This increases confidence for future matches
+      if (llkbModule && options.journeyId) {
+        try {
+          llkbModule.recordPatternSuccess(
+            text, // Original text, not processed
+            llkbMatch.primitive,
+            options.journeyId,
+            { llkbRoot }
+          );
+        } catch {
+          // Don't fail mapping if recording fails - graceful degradation
+        }
+      }
+
+      // Apply hints to LLKB-matched primitive if available
+      if (hints.hasHints) {
+        primitive = applyHintsToPrimitive(primitive, hints);
+      }
+    }
+  }
+
+  // If still no match but we have locator hints, try to create primitive from hints
+  if (!primitive && hasLocatorHints(hints)) {
     primitive = createPrimitiveFromHints(processedText, hints);
+    if (primitive) {
+      matchSource = 'hints';
+    }
   }
 
   if (primitive) {
@@ -98,6 +208,9 @@ export function mapStepText(
       primitive,
       sourceText: text,
       isAssertion: isAssertion(primitive),
+      matchSource,
+      llkbPatternId,
+      llkbConfidence,
     };
   }
 
@@ -107,6 +220,7 @@ export function mapStepText(
     sourceText: text,
     isAssertion: false,
     message: `Could not map step: "${text}"`,
+    matchSource: 'none',
   };
 }
 
@@ -348,7 +462,7 @@ export function mapSteps(
 }
 
 /**
- * Get mapping statistics
+ * Get mapping statistics (enhanced with LLKB stats)
  */
 export function getMappingStats(mappings: StepMappingResult[]): {
   total: number;
@@ -357,11 +471,21 @@ export function getMappingStats(mappings: StepMappingResult[]): {
   actions: number;
   assertions: number;
   mappingRate: number;
+  /** Steps matched by core patterns */
+  patternMatches: number;
+  /** Steps matched by LLKB patterns */
+  llkbMatches: number;
+  /** Steps matched by hints */
+  hintMatches: number;
 } {
   const mapped = mappings.filter((m) => m.primitive !== null);
   const blocked = mappings.filter((m) => m.primitive === null);
   const actions = mapped.filter((m) => !m.isAssertion);
   const assertions = mapped.filter((m) => m.isAssertion);
+
+  const patternMatches = mappings.filter((m) => m.matchSource === 'pattern').length;
+  const llkbMatches = mappings.filter((m) => m.matchSource === 'llkb').length;
+  const hintMatches = mappings.filter((m) => m.matchSource === 'hints').length;
 
   return {
     total: mappings.length,
@@ -370,7 +494,26 @@ export function getMappingStats(mappings: StepMappingResult[]): {
     actions: actions.length,
     assertions: assertions.length,
     mappingRate: mappings.length > 0 ? mapped.length / mappings.length : 0,
+    patternMatches,
+    llkbMatches,
+    hintMatches,
   };
+}
+
+/**
+ * Initialize LLKB module for use with step mapping
+ * Call this once at the start of generation to enable LLKB patterns
+ */
+export async function initializeLlkb(): Promise<boolean> {
+  const mod = await loadLlkbModule();
+  return mod !== null;
+}
+
+/**
+ * Check if LLKB is available for use
+ */
+export function isLlkbAvailable(): boolean {
+  return llkbModule !== null;
 }
 
 /**

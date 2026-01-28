@@ -341,8 +341,10 @@ export function normalizeStepText(text: string): string {
       parts.push(part);
     } else {
       // Check if this word has a canonical form
-      const canonical = synonymMap!.get(part.toLowerCase());
-      parts.push(canonical ?? part);
+      // Lowercase for consistent matching (LLKB pattern matching requires this)
+      const lowerPart = part.toLowerCase();
+      const canonical = synonymMap!.get(lowerPart);
+      parts.push(canonical ?? lowerPart);
     }
   }
 

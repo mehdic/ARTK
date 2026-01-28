@@ -380,7 +380,7 @@ set_artk_config_browsers_channel() {
 
 log_browser_metadata() {
     local browser_info="$1"
-    local context_file="$TARGET_PROJECT/.artk/context.json"
+    local context_file="$ARTK_E2E/.artk/context.json"
 
     local channel
     channel=$(echo "$browser_info" | sed -n 's/.*"channel":"\([^"]*\)".*/\1/p' | head -1)
@@ -679,8 +679,8 @@ elif [ -n "$TEMPLATE_VARIANT" ]; then
         commonjs|cjs) SELECTED_VARIANT="modern-cjs" ;;
         *) SELECTED_VARIANT=$(select_variant "$NODE_MAJOR" "$MODULE_SYSTEM") ;;
     esac
-elif [ -f "$TARGET_PROJECT/.artk/context.json" ] && [ "$FORCE_DETECT" != true ]; then
-    SELECTED_VARIANT=$(grep -o '"variant":"[^"]*"' "$TARGET_PROJECT/.artk/context.json" | cut -d'"' -f4 || echo "")
+elif [ -f "$ARTK_E2E/.artk/context.json" ] && [ "$FORCE_DETECT" != true ]; then
+    SELECTED_VARIANT=$(grep -o '"variant":"[^"]*"' "$ARTK_E2E/.artk/context.json" | cut -d'"' -f4 || echo "")
     if [ -z "$SELECTED_VARIANT" ]; then
         SELECTED_VARIANT=$(select_variant "$NODE_MAJOR" "$MODULE_SYSTEM")
     fi
@@ -1279,7 +1279,7 @@ else
 fi
 
 # Create context file (variant already detected at script start)
-mkdir -p "$TARGET_PROJECT/.artk"
+mkdir -p "$ARTK_E2E/.artk"
 
 # Map variant to legacy templateVariant for backwards compatibility
 TEMPLATE_MODULE_SYSTEM="commonjs"
@@ -1287,7 +1287,7 @@ if [ "$SELECTED_VARIANT" = "modern-esm" ]; then
     TEMPLATE_MODULE_SYSTEM="esm"
 fi
 
-cat > "$TARGET_PROJECT/.artk/context.json" << CONTEXT
+cat > "$ARTK_E2E/.artk/context.json" << CONTEXT
 {
   "version": "1.0",
   "variant": "$SELECTED_VARIANT",
@@ -1480,7 +1480,7 @@ else
 
     # Run generation script
     set +e
-    GENERATION_LOG="$TARGET_PROJECT/.artk/logs/template-generation.log"
+    GENERATION_LOG="$ARTK_E2E/.artk/logs/template-generation.log"
     mkdir -p "$(dirname "$GENERATION_LOG")"
 
     node "$GENERATION_SCRIPT" \
@@ -1517,7 +1517,7 @@ else
 fi
 
 # .artk/.gitignore
-cat > "$TARGET_PROJECT/.artk/.gitignore" << 'ARTKIGNORE'
+cat > "$ARTK_E2E/.artk/.gitignore" << 'ARTKIGNORE'
 # ARTK temporary files
 browsers/
 heal-logs/
@@ -1568,7 +1568,7 @@ if [ "$SKIP_NPM" = false ]; then
 
     setup_rollback_trap
 
-    LOGS_DIR="$TARGET_PROJECT/.artk/logs"
+    LOGS_DIR="$ARTK_E2E/.artk/logs"
     mkdir -p "$LOGS_DIR"
     NPM_INSTALL_LOG="$LOGS_DIR/npm-install.log"
 
@@ -1588,7 +1588,7 @@ if [ "$SKIP_NPM" = false ]; then
 
     echo -e "${YELLOW}[7/7] Configuring browsers...${NC}"
 
-    BROWSERS_CACHE_DIR="$TARGET_PROJECT/.artk/browsers"
+    BROWSERS_CACHE_DIR="$ARTK_E2E/.artk/browsers"
     mkdir -p "$BROWSERS_CACHE_DIR"
     export PLAYWRIGHT_BROWSERS_PATH="$BROWSERS_CACHE_DIR"
 
@@ -1729,9 +1729,9 @@ echo "  artk-e2e/tsconfig.json                - TypeScript configuration"
 echo "  artk-e2e/artk.config.yml              - ARTK configuration"
 echo "  .github/prompts/                      - Copilot prompts"
 echo "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
-echo "  .artk/context.json                    - ARTK context"
-echo "  .artk/browsers/                       - Playwright browsers cache (repo-local)"
-echo "  .artk/logs/                           - Bootstrap logs (npm + Playwright)"
+echo "  artk-e2e/.artk/context.json           - ARTK context"
+echo "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"
+echo "  artk-e2e/.artk/logs/                  - Bootstrap logs (npm + Playwright)"
 echo ""
 echo -e "${CYAN}Next steps:${NC}"
 echo "  1. cd artk-e2e"

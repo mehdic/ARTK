@@ -1,5 +1,5 @@
-import { L as LocatorStrategy, c as LocatorSpec } from '../types-CDhy20ih.js';
-import { A as AutogenConfig } from '../schema-BocNY0qp.js';
+import { L as LocatorStrategy, b as LocatorSpec } from '../types-CBcw78BQ.js';
+import { A as AutogenConfig } from '../schema-BIeeAav7.js';
 import 'zod';
 
 /**

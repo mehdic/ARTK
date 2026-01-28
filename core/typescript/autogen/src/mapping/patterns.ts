@@ -1,8 +1,29 @@
 /**
  * Step Mapping Patterns - Regex patterns for parsing step text into IR primitives
  * @see research/2026-01-02_autogen-refined-plan.md Section 10
+ * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 3
  */
 import type { IRPrimitive, LocatorSpec, ValueSpec, LocatorStrategy } from '../ir/types.js';
+
+/**
+ * Pattern version - increment when patterns change
+ * Format: MAJOR.MINOR.PATCH
+ * - MAJOR: Breaking changes to pattern behavior
+ * - MINOR: New patterns added
+ * - PATCH: Bug fixes to existing patterns
+ */
+export const PATTERN_VERSION = '1.1.0';
+
+/**
+ * Pattern metadata for tracking
+ */
+export interface PatternMetadata {
+  name: string;
+  version: string;
+  addedDate: string;
+  source: 'core' | 'llkb' | 'telemetry';
+  category: string;
+}
 
 /**
  * Pattern result with match groups
@@ -523,6 +544,378 @@ export const structuredPatterns: StepPattern[] = [
 ];
 
 /**
+ * Extended click patterns - Common variations missed by core patterns
+ * Added in v1.1.0 based on telemetry analysis
+ * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 3
+ */
+export const extendedClickPatterns: StepPattern[] = [
+  {
+    name: 'click-on-element',
+    // "Click on Submit" or "Click on the Submit button"
+    regex: /^(?:user\s+)?clicks?\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
+    primitiveType: 'click',
+    extract: (match) => ({
+      type: 'click',
+      locator: createLocatorFromMatch('text', match[1]!.replace(/["']/g, '')),
+    }),
+  },
+  {
+    name: 'press-enter-key',
+    // "Press Enter" or "Press the Enter key" or "Hit Enter"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:enter|return)(?:\s+key)?$/i,
+    primitiveType: 'press',
+    extract: () => ({
+      type: 'press',
+      key: 'Enter',
+    }),
+  },
+  {
+    name: 'press-tab-key',
+    // "Press Tab" or "Press the Tab key"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?tab(?:\s+key)?$/i,
+    primitiveType: 'press',
+    extract: () => ({
+      type: 'press',
+      key: 'Tab',
+    }),
+  },
+  {
+    name: 'press-escape-key',
+    // "Press Escape" or "Press Esc"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:escape|esc)(?:\s+key)?$/i,
+    primitiveType: 'press',
+    extract: () => ({
+      type: 'press',
+      key: 'Escape',
+    }),
+  },
+  {
+    name: 'double-click',
+    // "Double click on" or "Double-click the"
+    regex: /^(?:user\s+)?double[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: 'dblclick',
+    extract: (match) => ({
+      type: 'dblclick',
+      locator: createLocatorFromMatch('text', match[1]!.replace(/["']/g, '')),
+    }),
+  },
+  {
+    name: 'right-click',
+    // "Right click on" or "Right-click the"
+    regex: /^(?:user\s+)?right[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: 'rightClick',
+    extract: (match) => ({
+      type: 'rightClick',
+      locator: createLocatorFromMatch('text', match[1]!.replace(/["']/g, '')),
+    }),
+  },
+  {
+    name: 'submit-form',
+    // "Submit the form" or "Submits form"
+    regex: /^(?:user\s+)?submits?\s+(?:the\s+)?form$/i,
+    primitiveType: 'click',
+    extract: () => ({
+      type: 'click',
+      locator: createLocatorFromMatch('role', 'button', 'Submit'),
+    }),
+  },
+];
+
+/**
+ * Extended fill patterns - Common variations missed by core patterns
+ * Added in v1.1.0 based on telemetry analysis
+ */
+export const extendedFillPatterns: StepPattern[] = [
+  {
+    name: 'type-into-field',
+    // "Type 'password' into the Password field"
+    regex: /^(?:user\s+)?types?\s+['"](.+?)['"]\s+into\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: 'fill',
+    extract: (match) => ({
+      type: 'fill',
+      locator: createLocatorFromMatch('label', match[2]!),
+      value: createValueFromText(match[1]!),
+    }),
+  },
+  {
+    name: 'fill-in-field-no-value',
+    // "Fill in the email address" (without explicit value - uses actor data)
+    regex: /^(?:user\s+)?fills?\s+in\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: 'fill',
+    extract: (match) => {
+      const fieldName = match[1]!.replace(/["']/g, '');
+      return {
+        type: 'fill',
+        locator: createLocatorFromMatch('label', fieldName),
+        value: { type: 'actor', value: fieldName.toLowerCase().replace(/\s+/g, '_') },
+      };
+    },
+  },
+  {
+    name: 'clear-field',
+    // "Clear the email field" or "Clears the input"
+    regex: /^(?:user\s+)?clears?\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: 'clear',
+    extract: (match) => ({
+      type: 'clear',
+      locator: createLocatorFromMatch('label', match[1]!.replace(/["']/g, '')),
+    }),
+  },
+  {
+    name: 'set-value',
+    // "Set the value to 'test'" or "Sets field to 'value'"
+    regex: /^(?:user\s+)?sets?\s+(?:the\s+)?(?:value\s+)?(?:of\s+)?["']?(.+?)["']?\s+to\s+['"](.+?)['"]$/i,
+    primitiveType: 'fill',
+    extract: (match) => ({
+      type: 'fill',
+      locator: createLocatorFromMatch('label', match[1]!),
+      value: createValueFromText(match[2]!),
+    }),
+  },
+];
+
+/**
+ * Extended assertion patterns - Common variations missed by core patterns
+ * Added in v1.1.0 based on telemetry analysis
+ */
+export const extendedAssertionPatterns: StepPattern[] = [
+  {
+    name: 'verify-element-showing',
+    // "Verify the dashboard is showing/displayed"
+    regex: /^(?:verify|confirm|ensure)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:is\s+)?(?:showing|displayed|visible)$/i,
+    primitiveType: 'expectVisible',
+    extract: (match) => ({
+      type: 'expectVisible',
+      locator: createLocatorFromMatch('text', match[1]!),
+    }),
+  },
+  {
+    name: 'page-should-show',
+    // "The page should show 'Welcome'" or "Page should display 'text'"
+    regex: /^(?:the\s+)?page\s+should\s+(?:show|display|contain)\s+['"](.+?)['"]$/i,
+    primitiveType: 'expectText',
+    extract: (match) => ({
+      type: 'expectText',
+      locator: { strategy: 'role', value: 'main' },
+      text: match[1]!,
+    }),
+  },
+  {
+    name: 'make-sure-assertion',
+    // "Make sure the button is visible" or "Make sure user sees 'text'"
+    regex: /^make\s+sure\s+(?:that\s+)?(?:the\s+)?(.+?)\s+(?:is\s+)?(?:visible|displayed|shown)$/i,
+    primitiveType: 'expectVisible',
+    extract: (match) => ({
+      type: 'expectVisible',
+      locator: createLocatorFromMatch('text', match[1]!),
+    }),
+  },
+  {
+    name: 'confirm-that-assertion',
+    // "Confirm that the message appears" or "Confirm the error is shown"
+    regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+    primitiveType: 'expectVisible',
+    extract: (match) => ({
+      type: 'expectVisible',
+      locator: createLocatorFromMatch('text', match[1]!),
+    }),
+  },
+  {
+    name: 'check-element-exists',
+    // "Check that the element exists" or "Check the button is present"
+    regex: /^check\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:exists?|is\s+present)$/i,
+    primitiveType: 'expectVisible',
+    extract: (match) => ({
+      type: 'expectVisible',
+      locator: createLocatorFromMatch('text', match[1]!),
+    }),
+  },
+  {
+    name: 'element-should-not-be-visible',
+    // "The error should not be visible" or "Error message is not displayed"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+    primitiveType: 'expectHidden',
+    extract: (match) => ({
+      type: 'expectHidden',
+      locator: createLocatorFromMatch('text', match[1]!),
+    }),
+  },
+  {
+    name: 'element-contains-text',
+    // "The header contains 'Welcome'" or "Element should contain 'text'"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?contains?\s+['"](.+?)['"]$/i,
+    primitiveType: 'expectText',
+    extract: (match) => ({
+      type: 'expectText',
+      locator: createLocatorFromMatch('text', match[1]!),
+      text: match[2]!,
+    }),
+  },
+];
+
+/**
+ * Extended wait patterns - Common variations missed by core patterns
+ * Added in v1.1.0 based on telemetry analysis
+ */
+export const extendedWaitPatterns: StepPattern[] = [
+  {
+    name: 'wait-for-element-visible',
+    // "Wait for the loading spinner to disappear"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:disappear|be\s+hidden)$/i,
+    primitiveType: 'waitForHidden',
+    extract: (match) => ({
+      type: 'waitForHidden',
+      locator: createLocatorFromMatch('text', match[1]!),
+    }),
+  },
+  {
+    name: 'wait-for-element-appear',
+    // "Wait for the modal to appear" or "Wait for dialog to show"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:appear|show|be\s+visible)$/i,
+    primitiveType: 'waitForVisible',
+    extract: (match) => ({
+      type: 'waitForVisible',
+      locator: createLocatorFromMatch('text', match[1]!),
+    }),
+  },
+  {
+    name: 'wait-until-loaded',
+    // "Wait until the page is loaded" or "Wait until content loads"
+    regex: /^(?:user\s+)?waits?\s+until\s+(?:the\s+)?(?:page|content|data)\s+(?:is\s+)?loaded$/i,
+    primitiveType: 'waitForLoadingComplete',
+    extract: () => ({
+      type: 'waitForLoadingComplete',
+    }),
+  },
+  {
+    name: 'wait-seconds',
+    // "Wait for 2 seconds" or "Wait 3 seconds"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(\d+)\s+seconds?$/i,
+    primitiveType: 'waitForTimeout',
+    extract: (match) => ({
+      type: 'waitForTimeout',
+      ms: parseInt(match[1]!, 10) * 1000,
+    }),
+  },
+  {
+    name: 'wait-for-network',
+    // "Wait for network to be idle" or "Wait for network idle"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?network\s+(?:to\s+be\s+)?idle$/i,
+    primitiveType: 'waitForNetworkIdle',
+    extract: () => ({
+      type: 'waitForNetworkIdle',
+    }),
+  },
+];
+
+/**
+ * Extended navigation patterns - Common variations missed by core patterns
+ * Added in v1.1.0 based on telemetry analysis
+ */
+export const extendedNavigationPatterns: StepPattern[] = [
+  {
+    name: 'refresh-page',
+    // "Refresh the page" or "Reload the page"
+    regex: /^(?:user\s+)?(?:refresh(?:es)?|reloads?)\s+(?:the\s+)?page$/i,
+    primitiveType: 'reload',
+    extract: () => ({
+      type: 'reload',
+    }),
+  },
+  {
+    name: 'go-back',
+    // "Go back" or "Navigate back" or "User goes back"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+back$/i,
+    primitiveType: 'goBack',
+    extract: () => ({
+      type: 'goBack',
+    }),
+  },
+  {
+    name: 'go-forward',
+    // "Go forward" or "Navigate forward"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+forward$/i,
+    primitiveType: 'goForward',
+    extract: () => ({
+      type: 'goForward',
+    }),
+  },
+];
+
+/**
+ * Extended select/dropdown patterns
+ * Added in v1.1.0 based on telemetry analysis
+ */
+export const extendedSelectPatterns: StepPattern[] = [
+  {
+    name: 'select-from-dropdown',
+    // "Select 'Option' from dropdown" or "Choose 'Value' from the dropdown"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+['"](.+?)['"]\s+from\s+(?:the\s+)?dropdown$/i,
+    primitiveType: 'select',
+    extract: (match) => ({
+      type: 'select',
+      locator: { strategy: 'role', value: 'combobox' },
+      option: match[1]!,
+    }),
+  },
+  {
+    name: 'select-option-named',
+    // "Select option 'Value'" or "Choose the 'Option' option"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?['"](.+?)['"](?:\s+option)?$/i,
+    primitiveType: 'select',
+    extract: (match) => ({
+      type: 'select',
+      locator: { strategy: 'role', value: 'combobox' },
+      option: match[1]!,
+    }),
+  },
+];
+
+/**
+ * Hover patterns
+ * Added in v1.1.0 based on telemetry analysis
+ */
+export const hoverPatterns: StepPattern[] = [
+  {
+    name: 'hover-over-element',
+    // "Hover over the menu" or "User hovers on button"
+    regex: /^(?:user\s+)?hovers?\s+(?:over|on)\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: 'hover',
+    extract: (match) => ({
+      type: 'hover',
+      locator: createLocatorFromMatch('text', match[1]!.replace(/["']/g, '')),
+    }),
+  },
+  {
+    name: 'mouse-over',
+    // "Mouse over the element" or "Mouseover the button"
+    regex: /^(?:user\s+)?mouse\s*over\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: 'hover',
+    extract: (match) => ({
+      type: 'hover',
+      locator: createLocatorFromMatch('text', match[1]!.replace(/["']/g, '')),
+    }),
+  },
+];
+
+/**
+ * Focus patterns
+ * Added in v1.1.0 based on telemetry analysis
+ */
+export const focusPatterns: StepPattern[] = [
+  {
+    name: 'focus-on-element',
+    // "Focus on the input" or "User focuses the field"
+    regex: /^(?:user\s+)?focus(?:es)?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: 'focus',
+    extract: (match) => ({
+      type: 'focus',
+      locator: createLocatorFromMatch('label', match[1]!.replace(/["']/g, '')),
+    }),
+  },
+];
+
+/**
  * All patterns in priority order (more specific patterns first)
  * Structured patterns come first to prioritize the Journey markdown format
  */
@@ -530,14 +923,23 @@ export const allPatterns: StepPattern[] = [
   ...structuredPatterns,
   ...authPatterns,
   ...toastPatterns,
+  // Extended patterns come BEFORE base patterns to match more specific cases first
+  ...extendedNavigationPatterns, // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
   ...navigationPatterns,
+  ...extendedClickPatterns, // Must be before clickPatterns (e.g., "Click on" vs "Click")
   ...clickPatterns,
+  ...extendedFillPatterns,
   ...fillPatterns,
+  ...extendedSelectPatterns,
   ...selectPatterns,
   ...checkPatterns,
+  ...extendedAssertionPatterns, // Must be before visibilityPatterns (e.g., "not be visible")
   ...visibilityPatterns,
   ...urlPatterns,
+  ...extendedWaitPatterns,
   ...waitPatterns,
+  ...hoverPatterns,
+  ...focusPatterns,
 ];
 
 /**
@@ -577,4 +979,66 @@ export function getPatternMatches(text: string): Array<{ pattern: string; match:
   }
 
   return matches;
+}
+
+/**
+ * Get all pattern names for CLI listing
+ */
+export function getAllPatternNames(): string[] {
+  return allPatterns.map((p) => p.name);
+}
+
+/**
+ * Get pattern count by category
+ */
+export function getPatternCountByCategory(): Record<string, number> {
+  const counts: Record<string, number> = {};
+
+  for (const pattern of allPatterns) {
+    const category = pattern.name.split('-')[0] || 'other';
+    counts[category] = (counts[category] || 0) + 1;
+  }
+
+  return counts;
+}
+
+/**
+ * Get pattern metadata for a specific pattern
+ */
+export function getPatternMetadata(patternName: string): PatternMetadata | null {
+  const pattern = allPatterns.find((p) => p.name === patternName);
+  if (!pattern) return null;
+
+  // Determine version based on pattern name prefix
+  const isExtended =
+    patternName.includes('extended') ||
+    patternName.startsWith('hover') ||
+    patternName.startsWith('focus') ||
+    patternName.startsWith('press-') ||
+    patternName.startsWith('double-') ||
+    patternName.startsWith('right-');
+
+  return {
+    name: pattern.name,
+    version: isExtended ? '1.1.0' : '1.0.0',
+    addedDate: isExtended ? '2026-01-27' : '2026-01-02',
+    source: 'core',
+    category: pattern.name.split('-')[0] || 'other',
+  };
+}
+
+/**
+ * Find patterns that match a given text (for debugging)
+ */
+export function findMatchingPatterns(text: string): string[] {
+  const trimmedText = text.trim();
+  const matchingNames: string[] = [];
+
+  for (const pattern of allPatterns) {
+    if (pattern.regex.test(trimmedText)) {
+      matchingNames.push(pattern.name);
+    }
+  }
+
+  return matchingNames;
 }
