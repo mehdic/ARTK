@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
-import { join, dirname, resolve } from 'path';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, appendFileSync, unlinkSync } from 'fs';
+import { join, dirname, basename, resolve } from 'path';
 import { stringify, parse } from 'yaml';
 import { pathToFileURL, fileURLToPath } from 'url';
 import fg2 from 'fast-glob';
@@ -779,9 +779,13 @@ function matchPattern(text) {
   }
   return null;
 }
-var navigationPatterns, clickPatterns, fillPatterns, selectPatterns, checkPatterns, visibilityPatterns, toastPatterns, urlPatterns, authPatterns, waitPatterns, structuredPatterns, allPatterns;
+function getAllPatternNames() {
+  return allPatterns.map((p) => p.name);
+}
+var PATTERN_VERSION, navigationPatterns, clickPatterns, fillPatterns, selectPatterns, checkPatterns, visibilityPatterns, toastPatterns, urlPatterns, authPatterns, waitPatterns, structuredPatterns, extendedClickPatterns, extendedFillPatterns, extendedAssertionPatterns, extendedWaitPatterns, extendedNavigationPatterns, extendedSelectPatterns, hoverPatterns, focusPatterns, allPatterns;
 var init_patterns = __esm({
   "src/mapping/patterns.ts"() {
+    PATTERN_VERSION = "1.1.0";
     navigationPatterns = [
       {
         name: "navigate-to-url",
@@ -1150,18 +1154,361 @@ var init_patterns = __esm({
         }
       }
     ];
+    extendedClickPatterns = [
+      {
+        name: "click-on-element",
+        // "Click on Submit" or "Click on the Submit button"
+        regex: /^(?:user\s+)?clicks?\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
+        primitiveType: "click",
+        extract: (match) => ({
+          type: "click",
+          locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+        })
+      },
+      {
+        name: "press-enter-key",
+        // "Press Enter" or "Press the Enter key" or "Hit Enter"
+        regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:enter|return)(?:\s+key)?$/i,
+        primitiveType: "press",
+        extract: () => ({
+          type: "press",
+          key: "Enter"
+        })
+      },
+      {
+        name: "press-tab-key",
+        // "Press Tab" or "Press the Tab key"
+        regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?tab(?:\s+key)?$/i,
+        primitiveType: "press",
+        extract: () => ({
+          type: "press",
+          key: "Tab"
+        })
+      },
+      {
+        name: "press-escape-key",
+        // "Press Escape" or "Press Esc"
+        regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:escape|esc)(?:\s+key)?$/i,
+        primitiveType: "press",
+        extract: () => ({
+          type: "press",
+          key: "Escape"
+        })
+      },
+      {
+        name: "double-click",
+        // "Double click on" or "Double-click the"
+        regex: /^(?:user\s+)?double[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+        primitiveType: "dblclick",
+        extract: (match) => ({
+          type: "dblclick",
+          locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+        })
+      },
+      {
+        name: "right-click",
+        // "Right click on" or "Right-click the"
+        regex: /^(?:user\s+)?right[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+        primitiveType: "rightClick",
+        extract: (match) => ({
+          type: "rightClick",
+          locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+        })
+      },
+      {
+        name: "submit-form",
+        // "Submit the form" or "Submits form"
+        regex: /^(?:user\s+)?submits?\s+(?:the\s+)?form$/i,
+        primitiveType: "click",
+        extract: () => ({
+          type: "click",
+          locator: createLocatorFromMatch("role", "button", "Submit")
+        })
+      }
+    ];
+    extendedFillPatterns = [
+      {
+        name: "type-into-field",
+        // "Type 'password' into the Password field"
+        regex: /^(?:user\s+)?types?\s+['"](.+?)['"]\s+into\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+        primitiveType: "fill",
+        extract: (match) => ({
+          type: "fill",
+          locator: createLocatorFromMatch("label", match[2]),
+          value: createValueFromText(match[1])
+        })
+      },
+      {
+        name: "fill-in-field-no-value",
+        // "Fill in the email address" (without explicit value - uses actor data)
+        regex: /^(?:user\s+)?fills?\s+in\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+        primitiveType: "fill",
+        extract: (match) => {
+          const fieldName = match[1].replace(/["']/g, "");
+          return {
+            type: "fill",
+            locator: createLocatorFromMatch("label", fieldName),
+            value: { type: "actor", value: fieldName.toLowerCase().replace(/\s+/g, "_") }
+          };
+        }
+      },
+      {
+        name: "clear-field",
+        // "Clear the email field" or "Clears the input"
+        regex: /^(?:user\s+)?clears?\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+        primitiveType: "clear",
+        extract: (match) => ({
+          type: "clear",
+          locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+        })
+      },
+      {
+        name: "set-value",
+        // "Set the value to 'test'" or "Sets field to 'value'"
+        regex: /^(?:user\s+)?sets?\s+(?:the\s+)?(?:value\s+)?(?:of\s+)?["']?(.+?)["']?\s+to\s+['"](.+?)['"]$/i,
+        primitiveType: "fill",
+        extract: (match) => ({
+          type: "fill",
+          locator: createLocatorFromMatch("label", match[1]),
+          value: createValueFromText(match[2])
+        })
+      }
+    ];
+    extendedAssertionPatterns = [
+      {
+        name: "verify-element-showing",
+        // "Verify the dashboard is showing/displayed"
+        regex: /^(?:verify|confirm|ensure)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:is\s+)?(?:showing|displayed|visible)$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "page-should-show",
+        // "The page should show 'Welcome'" or "Page should display 'text'"
+        regex: /^(?:the\s+)?page\s+should\s+(?:show|display|contain)\s+['"](.+?)['"]$/i,
+        primitiveType: "expectText",
+        extract: (match) => ({
+          type: "expectText",
+          locator: { strategy: "role", value: "main" },
+          text: match[1]
+        })
+      },
+      {
+        name: "make-sure-assertion",
+        // "Make sure the button is visible" or "Make sure user sees 'text'"
+        regex: /^make\s+sure\s+(?:that\s+)?(?:the\s+)?(.+?)\s+(?:is\s+)?(?:visible|displayed|shown)$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "confirm-that-assertion",
+        // "Confirm that the message appears" or "Confirm the error is shown"
+        regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "check-element-exists",
+        // "Check that the element exists" or "Check the button is present"
+        regex: /^check\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:exists?|is\s+present)$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "element-should-not-be-visible",
+        // "The error should not be visible" or "Error message is not displayed"
+        regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+        primitiveType: "expectHidden",
+        extract: (match) => ({
+          type: "expectHidden",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "element-contains-text",
+        // "The header contains 'Welcome'" or "Element should contain 'text'"
+        regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?contains?\s+['"](.+?)['"]$/i,
+        primitiveType: "expectText",
+        extract: (match) => ({
+          type: "expectText",
+          locator: createLocatorFromMatch("text", match[1]),
+          text: match[2]
+        })
+      }
+    ];
+    extendedWaitPatterns = [
+      {
+        name: "wait-for-element-visible",
+        // "Wait for the loading spinner to disappear"
+        regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:disappear|be\s+hidden)$/i,
+        primitiveType: "waitForHidden",
+        extract: (match) => ({
+          type: "waitForHidden",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "wait-for-element-appear",
+        // "Wait for the modal to appear" or "Wait for dialog to show"
+        regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:appear|show|be\s+visible)$/i,
+        primitiveType: "waitForVisible",
+        extract: (match) => ({
+          type: "waitForVisible",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "wait-until-loaded",
+        // "Wait until the page is loaded" or "Wait until content loads"
+        regex: /^(?:user\s+)?waits?\s+until\s+(?:the\s+)?(?:page|content|data)\s+(?:is\s+)?loaded$/i,
+        primitiveType: "waitForLoadingComplete",
+        extract: () => ({
+          type: "waitForLoadingComplete"
+        })
+      },
+      {
+        name: "wait-seconds",
+        // "Wait for 2 seconds" or "Wait 3 seconds"
+        regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(\d+)\s+seconds?$/i,
+        primitiveType: "waitForTimeout",
+        extract: (match) => ({
+          type: "waitForTimeout",
+          ms: parseInt(match[1], 10) * 1e3
+        })
+      },
+      {
+        name: "wait-for-network",
+        // "Wait for network to be idle" or "Wait for network idle"
+        regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?network\s+(?:to\s+be\s+)?idle$/i,
+        primitiveType: "waitForNetworkIdle",
+        extract: () => ({
+          type: "waitForNetworkIdle"
+        })
+      }
+    ];
+    extendedNavigationPatterns = [
+      {
+        name: "refresh-page",
+        // "Refresh the page" or "Reload the page"
+        regex: /^(?:user\s+)?(?:refresh(?:es)?|reloads?)\s+(?:the\s+)?page$/i,
+        primitiveType: "reload",
+        extract: () => ({
+          type: "reload"
+        })
+      },
+      {
+        name: "go-back",
+        // "Go back" or "Navigate back" or "User goes back"
+        regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+back$/i,
+        primitiveType: "goBack",
+        extract: () => ({
+          type: "goBack"
+        })
+      },
+      {
+        name: "go-forward",
+        // "Go forward" or "Navigate forward"
+        regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+forward$/i,
+        primitiveType: "goForward",
+        extract: () => ({
+          type: "goForward"
+        })
+      }
+    ];
+    extendedSelectPatterns = [
+      {
+        name: "select-from-dropdown",
+        // "Select 'Option' from dropdown" or "Choose 'Value' from the dropdown"
+        regex: /^(?:user\s+)?(?:selects?|chooses?)\s+['"](.+?)['"]\s+from\s+(?:the\s+)?dropdown$/i,
+        primitiveType: "select",
+        extract: (match) => ({
+          type: "select",
+          locator: { strategy: "role", value: "combobox" },
+          option: match[1]
+        })
+      },
+      {
+        name: "select-option-named",
+        // "Select option 'Value'" or "Choose the 'Option' option"
+        regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?['"](.+?)['"](?:\s+option)?$/i,
+        primitiveType: "select",
+        extract: (match) => ({
+          type: "select",
+          locator: { strategy: "role", value: "combobox" },
+          option: match[1]
+        })
+      }
+    ];
+    hoverPatterns = [
+      {
+        name: "hover-over-element",
+        // "Hover over the menu" or "User hovers on button"
+        regex: /^(?:user\s+)?hovers?\s+(?:over|on)\s+(?:the\s+)?["']?(.+?)["']?$/i,
+        primitiveType: "hover",
+        extract: (match) => ({
+          type: "hover",
+          locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+        })
+      },
+      {
+        name: "mouse-over",
+        // "Mouse over the element" or "Mouseover the button"
+        regex: /^(?:user\s+)?mouse\s*over\s+(?:the\s+)?["']?(.+?)["']?$/i,
+        primitiveType: "hover",
+        extract: (match) => ({
+          type: "hover",
+          locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+        })
+      }
+    ];
+    focusPatterns = [
+      {
+        name: "focus-on-element",
+        // "Focus on the input" or "User focuses the field"
+        regex: /^(?:user\s+)?focus(?:es)?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+        primitiveType: "focus",
+        extract: (match) => ({
+          type: "focus",
+          locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+        })
+      }
+    ];
     allPatterns = [
       ...structuredPatterns,
       ...authPatterns,
       ...toastPatterns,
+      // Extended patterns come BEFORE base patterns to match more specific cases first
+      ...extendedNavigationPatterns,
+      // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
       ...navigationPatterns,
+      ...extendedClickPatterns,
+      // Must be before clickPatterns (e.g., "Click on" vs "Click")
       ...clickPatterns,
+      ...extendedFillPatterns,
       ...fillPatterns,
+      ...extendedSelectPatterns,
       ...selectPatterns,
       ...checkPatterns,
+      ...extendedAssertionPatterns,
+      // Must be before visibilityPatterns (e.g., "not be visible")
       ...visibilityPatterns,
       ...urlPatterns,
-      ...waitPatterns
+      ...extendedWaitPatterns,
+      ...waitPatterns,
+      ...hoverPatterns,
+      ...focusPatterns
     ];
   }
 });
@@ -1827,34 +2174,490 @@ var init_parseHints = __esm({
     init_hintPatterns();
   }
 });
+function getTelemetryPath(baseDir) {
+  const dir = baseDir || process.cwd();
+  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
+}
+function ensureTelemetryDir(telemetryPath) {
+  const dir = dirname(telemetryPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+function normalizeStepTextForTelemetry(text) {
+  return text.toLowerCase().trim().replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''").trim();
+}
+function categorizeStepText(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes("navigate") || lower.includes("go to") || lower.includes("open") || lower.includes("visit")) {
+    return "navigation";
+  }
+  if (lower.includes("click") || lower.includes("fill") || lower.includes("enter") || lower.includes("type") || lower.includes("select") || lower.includes("check") || lower.includes("press") || lower.includes("submit") || lower.includes("input")) {
+    return "interaction";
+  }
+  if (lower.includes("see") || lower.includes("visible") || lower.includes("verify") || lower.includes("assert") || lower.includes("confirm") || lower.includes("should") || lower.includes("ensure") || lower.includes("expect") || lower.includes("display")) {
+    return "assertion";
+  }
+  if (lower.includes("wait") || lower.includes("load") || lower.includes("until")) {
+    return "wait";
+  }
+  return "unknown";
+}
+function recordBlockedStep(record, options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  ensureTelemetryDir(telemetryPath);
+  const fullRecord = {
+    ...record,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    normalizedText: normalizeStepTextForTelemetry(record.stepText),
+    category: record.category || categorizeStepText(record.stepText)
+  };
+  appendFileSync(telemetryPath, JSON.stringify(fullRecord) + "\n");
+}
+function readBlockedStepRecords(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (!existsSync(telemetryPath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(telemetryPath, "utf-8");
+    return content.split("\n").filter(Boolean).map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    }).filter((record) => record !== null);
+  } catch {
+    return [];
+  }
+}
+function calculateTokenSimilarity(a, b) {
+  const tokensA = new Set(a.split(" ").filter(Boolean));
+  const tokensB = new Set(b.split(" ").filter(Boolean));
+  if (tokensA.size === 0 && tokensB.size === 0) return 1;
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  const intersection = new Set([...tokensA].filter((x) => tokensB.has(x)));
+  const union = /* @__PURE__ */ new Set([...tokensA, ...tokensB]);
+  return intersection.size / union.size;
+}
+function groupBySimilarity(records, threshold = 0.7) {
+  const groups = /* @__PURE__ */ new Map();
+  const processed = /* @__PURE__ */ new Set();
+  for (let i = 0; i < records.length; i++) {
+    if (processed.has(i)) continue;
+    const record = records[i];
+    const normalized = record.normalizedText;
+    const group = [record];
+    processed.add(i);
+    for (let j = i + 1; j < records.length; j++) {
+      if (processed.has(j)) continue;
+      const other = records[j];
+      const similarity = calculateTokenSimilarity(normalized, other.normalizedText);
+      if (similarity >= threshold) {
+        group.push(other);
+        processed.add(j);
+      }
+    }
+    groups.set(normalized, group);
+  }
+  return groups;
+}
+function analyzeBlockedPatterns(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return [];
+  }
+  const groups = groupBySimilarity(records);
+  const gaps = [];
+  for (const [normalizedText, groupRecords] of groups) {
+    const timestamps = groupRecords.map((r) => r.timestamp).sort();
+    const variants = [...new Set(groupRecords.map((r) => r.stepText))];
+    gaps.push({
+      exampleText: groupRecords[0].stepText,
+      normalizedText,
+      count: groupRecords.length,
+      category: groupRecords[0].category,
+      variants,
+      suggestedPattern: generateSuggestedPattern(variants),
+      firstSeen: timestamps[0],
+      lastSeen: timestamps[timestamps.length - 1]
+    });
+  }
+  gaps.sort((a, b) => b.count - a.count);
+  return options.limit ? gaps.slice(0, options.limit) : gaps;
+}
+function generateSuggestedPattern(variants) {
+  if (variants.length === 0) return void 0;
+  const example = variants[0].toLowerCase();
+  const pattern = example.replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/[.*+?^${}()|[\]\\]/g, (char) => {
+    if (char === "(" || char === ")" || char === "[" || char === "]" || char === "+") {
+      return char;
+    }
+    return "\\" + char;
+  });
+  return `^(?:user\\s+)?${pattern}$`;
+}
+function getTelemetryStats(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return {
+      totalRecords: 0,
+      uniquePatterns: 0,
+      byCategory: {},
+      dateRange: {
+        earliest: "",
+        latest: ""
+      }
+    };
+  }
+  const byCategory = {};
+  const normalizedSet = /* @__PURE__ */ new Set();
+  const timestamps = records.map((r) => r.timestamp).sort();
+  for (const record of records) {
+    byCategory[record.category] = (byCategory[record.category] || 0) + 1;
+    normalizedSet.add(record.normalizedText);
+  }
+  return {
+    totalRecords: records.length,
+    uniquePatterns: normalizedSet.size,
+    byCategory,
+    dateRange: {
+      earliest: timestamps[0],
+      latest: timestamps[timestamps.length - 1]
+    }
+  };
+}
+function clearTelemetry(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (existsSync(telemetryPath)) {
+    const { unlinkSync: unlinkSync2 } = __require("fs");
+    unlinkSync2(telemetryPath);
+  }
+}
+var DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE;
+var init_telemetry = __esm({
+  "src/mapping/telemetry.ts"() {
+    DEFAULT_TELEMETRY_DIR = ".artk";
+    TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
+  }
+});
+
+// src/llkb/patternExtension.ts
+var patternExtension_exports = {};
+__export(patternExtension_exports, {
+  calculateConfidence: () => calculateConfidence,
+  clearLearnedPatterns: () => clearLearnedPatterns,
+  exportPatternsToConfig: () => exportPatternsToConfig,
+  generatePatternId: () => generatePatternId,
+  generateRegexFromText: () => generateRegexFromText,
+  getPatternStats: () => getPatternStats,
+  getPatternsFilePath: () => getPatternsFilePath,
+  getPromotablePatterns: () => getPromotablePatterns,
+  loadLearnedPatterns: () => loadLearnedPatterns,
+  markPatternsPromoted: () => markPatternsPromoted,
+  matchLlkbPattern: () => matchLlkbPattern,
+  prunePatterns: () => prunePatterns,
+  recordPatternFailure: () => recordPatternFailure,
+  recordPatternSuccess: () => recordPatternSuccess,
+  saveLearnedPatterns: () => saveLearnedPatterns
+});
+function getPatternsFilePath(llkbRoot) {
+  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  return join(root, PATTERNS_FILE);
+}
+function generatePatternId() {
+  return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+}
+function loadLearnedPatterns(options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (!existsSync(filePath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+    return Array.isArray(data.patterns) ? data.patterns : [];
+  } catch {
+    return [];
+  }
+}
+function saveLearnedPatterns(patterns, options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const data = {
+    version: "1.0.0",
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns
+  };
+  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+function calculateConfidence(successCount, failCount) {
+  const total = successCount + failCount;
+  if (total === 0) return 0.5;
+  const p = successCount / total;
+  const z5 = 1.96;
+  const n = total;
+  const denominator = 1 + z5 * z5 / n;
+  const center = p + z5 * z5 / (2 * n);
+  const spread = z5 * Math.sqrt((p * (1 - p) + z5 * z5 / (4 * n)) / n);
+  return Math.max(0, Math.min(1, (center - spread) / denominator));
+}
+function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.successCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    if (!pattern.sourceJourneys.includes(journeyId)) {
+      pattern.sourceJourneys.push(journeyId);
+    }
+  } else {
+    pattern = {
+      id: generatePatternId(),
+      originalText,
+      normalizedText,
+      mappedPrimitive: primitive,
+      confidence: 0.5,
+      // Initial confidence
+      sourceJourneys: [journeyId],
+      successCount: 1,
+      failCount: 0,
+      lastUsed: (/* @__PURE__ */ new Date()).toISOString(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      promotedToCore: false
+    };
+    patterns.push(pattern);
+  }
+  saveLearnedPatterns(patterns, options);
+  return pattern;
+}
+function recordPatternFailure(originalText, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.failCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    saveLearnedPatterns(patterns, options);
+    return pattern;
+  }
+  return null;
+}
+function matchLlkbPattern(text, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepTextForTelemetry(text);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const match = patterns.find(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  );
+  if (match) {
+    return {
+      patternId: match.id,
+      primitive: match.mappedPrimitive,
+      confidence: match.confidence
+    };
+  }
+  return null;
+}
+function generateRegexFromText(text) {
+  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  return `^${pattern}$`;
+}
+function getPromotablePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const promotable = patterns.filter(
+    (p) => p.confidence >= 0.9 && p.successCount >= 5 && p.sourceJourneys.length >= 2 && !p.promotedToCore
+  );
+  return promotable.map((pattern) => ({
+    pattern,
+    generatedRegex: generateRegexFromText(pattern.originalText),
+    priority: pattern.successCount * pattern.confidence
+  }));
+}
+function markPatternsPromoted(patternIds, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  for (const pattern of patterns) {
+    if (patternIds.includes(pattern.id)) {
+      pattern.promotedToCore = true;
+      pattern.promotedAt = now;
+    }
+  }
+  saveLearnedPatterns(patterns, options);
+}
+function prunePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = Date.now();
+  const maxAge = (options.maxAgeDays ?? 90) * 24 * 60 * 60 * 1e3;
+  const minConfidence = options.minConfidence ?? 0.3;
+  const minSuccess = options.minSuccess ?? 1;
+  const filtered = patterns.filter((p) => {
+    if (p.promotedToCore) return true;
+    if (p.confidence < minConfidence) return false;
+    if (minSuccess > 0 && p.successCount < minSuccess) return false;
+    const age = now - new Date(p.createdAt).getTime();
+    if (age > maxAge && p.successCount === 0) return false;
+    return true;
+  });
+  const removed = patterns.length - filtered.length;
+  if (removed > 0) {
+    saveLearnedPatterns(filtered, options);
+  }
+  return {
+    removed,
+    remaining: filtered.length
+  };
+}
+function getPatternStats(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  if (patterns.length === 0) {
+    return {
+      total: 0,
+      promoted: 0,
+      highConfidence: 0,
+      lowConfidence: 0,
+      avgConfidence: 0,
+      totalSuccesses: 0,
+      totalFailures: 0
+    };
+  }
+  const promoted = patterns.filter((p) => p.promotedToCore).length;
+  const highConfidence = patterns.filter((p) => p.confidence >= 0.7).length;
+  const lowConfidence = patterns.filter((p) => p.confidence < 0.3).length;
+  const totalConfidence = patterns.reduce((sum, p) => sum + p.confidence, 0);
+  const totalSuccesses = patterns.reduce((sum, p) => sum + p.successCount, 0);
+  const totalFailures = patterns.reduce((sum, p) => sum + p.failCount, 0);
+  return {
+    total: patterns.length,
+    promoted,
+    highConfidence,
+    lowConfidence,
+    avgConfidence: totalConfidence / patterns.length,
+    totalSuccesses,
+    totalFailures
+  };
+}
+function exportPatternsToConfig(options) {
+  const patterns = loadLearnedPatterns(options);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const exportable = patterns.filter((p) => p.confidence >= minConfidence && !p.promotedToCore);
+  const config = {
+    version: "1.0.0",
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns: exportable.map((p) => ({
+      id: p.id,
+      trigger: generateRegexFromText(p.originalText),
+      primitive: p.mappedPrimitive,
+      confidence: p.confidence,
+      sourceCount: p.sourceJourneys.length
+    }))
+  };
+  const outputPath = options.outputPath || join(dirname(getPatternsFilePath(options.llkbRoot)), "autogen-patterns.json");
+  writeFileSync(outputPath, JSON.stringify(config, null, 2), "utf-8");
+  return {
+    exported: exportable.length,
+    path: outputPath
+  };
+}
+function clearLearnedPatterns(options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (existsSync(filePath)) {
+    const { unlinkSync: unlinkSync2 } = __require("fs");
+    unlinkSync2(filePath);
+  }
+}
+var PATTERNS_FILE, DEFAULT_LLKB_ROOT;
+var init_patternExtension = __esm({
+  "src/llkb/patternExtension.ts"() {
+    init_telemetry();
+    PATTERNS_FILE = "learned-patterns.json";
+    DEFAULT_LLKB_ROOT = ".artk/llkb";
+  }
+});
 
 // src/mapping/stepMapper.ts
+async function loadLlkbModule() {
+  if (llkbLoadAttempted) return llkbModule;
+  llkbLoadAttempted = true;
+  try {
+    const mod = await Promise.resolve().then(() => (init_patternExtension(), patternExtension_exports));
+    llkbModule = {
+      matchLlkbPattern: mod.matchLlkbPattern,
+      recordPatternSuccess: mod.recordPatternSuccess
+    };
+  } catch {
+    llkbModule = null;
+  }
+  return llkbModule;
+}
+function tryLlkbMatch(text, options) {
+  if (!llkbModule) return null;
+  return llkbModule.matchLlkbPattern(text, options);
+}
 function isAssertion(primitive) {
   return primitive.type.startsWith("expect");
 }
 function mapStepText(text, options = {}) {
-  const { normalizeText = true } = options;
+  const {
+    normalizeText = true,
+    useLlkb = true,
+    llkbRoot,
+    llkbMinConfidence = 0.7
+  } = options;
   const hints = extractHints(text);
   const cleanText = hints.hasHints ? hints.cleanText : text;
   const processedText = normalizeText ? normalizeStepText(cleanText) : cleanText;
   let primitive = matchPattern(processedText);
+  let matchSource = primitive ? "pattern" : "none";
   if (primitive && hints.hasHints) {
     primitive = applyHintsToPrimitive(primitive, hints);
-  } else if (!primitive && hasLocatorHints(hints)) {
+  }
+  let llkbPatternId;
+  let llkbConfidence;
+  if (!primitive && useLlkb) {
+    const llkbMatch = tryLlkbMatch(processedText, {
+      llkbRoot,
+      minConfidence: llkbMinConfidence
+    });
+    if (llkbMatch) {
+      primitive = llkbMatch.primitive;
+      matchSource = "llkb";
+      llkbPatternId = llkbMatch.patternId;
+      llkbConfidence = llkbMatch.confidence;
+      if (hints.hasHints) {
+        primitive = applyHintsToPrimitive(primitive, hints);
+      }
+    }
+  }
+  if (!primitive && hasLocatorHints(hints)) {
     primitive = createPrimitiveFromHints(processedText, hints);
+    if (primitive) {
+      matchSource = "hints";
+    }
   }
   if (primitive) {
     return {
       primitive,
       sourceText: text,
-      isAssertion: isAssertion(primitive)
+      isAssertion: isAssertion(primitive),
+      matchSource,
+      llkbPatternId,
+      llkbConfidence
     };
   }
   return {
     primitive: null,
     sourceText: text,
     isAssertion: false,
-    message: `Could not map step: "${text}"`
+    message: `Could not map step: "${text}"`,
+    matchSource: "none"
   };
 }
 function applyHintsToPrimitive(primitive, hints) {
@@ -1937,11 +2740,18 @@ function createPrimitiveFromHints(text, hints) {
   }
   return { type: "click", locator };
 }
+async function initializeLlkb() {
+  const mod = await loadLlkbModule();
+  return mod !== null;
+}
+var llkbModule, llkbLoadAttempted;
 var init_stepMapper = __esm({
   "src/mapping/stepMapper.ts"() {
     init_patterns();
     init_glossary();
     init_parseHints();
+    llkbModule = null;
+    llkbLoadAttempted = false;
   }
 });
 
@@ -2719,6 +3529,57 @@ var init_version = __esm({
     init_paths();
   }
 });
+
+// src/variants/index.ts
+function detectVariant() {
+  const nodeVersionStr = process.version.slice(1);
+  const nodeVersion = parseInt(nodeVersionStr.split(".")[0], 10);
+  const isESM = typeof import.meta !== "undefined";
+  if (nodeVersion >= 18) {
+    return {
+      id: isESM ? "modern-esm" : "modern-cjs",
+      nodeVersion,
+      moduleSystem: isESM ? "esm" : "cjs",
+      playwrightVersion: "1.57.x",
+      features: {
+        ariaSnapshots: true,
+        clockApi: true,
+        topLevelAwait: true,
+        promiseAny: true
+      }
+    };
+  } else if (nodeVersion >= 16) {
+    return {
+      id: "legacy-16",
+      nodeVersion,
+      moduleSystem: "cjs",
+      playwrightVersion: "1.49.x",
+      features: {
+        ariaSnapshots: true,
+        clockApi: true,
+        topLevelAwait: true,
+        promiseAny: true
+      }
+    };
+  } else {
+    return {
+      id: "legacy-14",
+      nodeVersion,
+      moduleSystem: "cjs",
+      playwrightVersion: "1.33.x",
+      features: {
+        ariaSnapshots: false,
+        clockApi: false,
+        topLevelAwait: false,
+        promiseAny: false
+      }
+    };
+  }
+}
+var init_variants = __esm({
+  "src/variants/index.ts"() {
+  }
+});
 function escapeString2(str) {
   return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
 }
@@ -2738,7 +3599,7 @@ function renderValue(value) {
       return `'${escapeString2(value.value)}'`;
   }
 }
-function renderPrimitive(primitive, indent = "") {
+function renderPrimitive(primitive, indent = "", _ctx) {
   switch (primitive.type) {
     // Navigation
     case "goto":
@@ -2750,9 +3611,31 @@ function renderPrimitive(primitive, indent = "") {
       return `${indent}await page.waitForResponse(resp => resp.url().includes('${escapeString2(primitive.urlPattern)}'));`;
     case "waitForLoadingComplete":
       return `${indent}await page.waitForLoadState('networkidle');`;
+    case "reload":
+      return `${indent}await page.reload();`;
+    case "goBack":
+      return `${indent}await page.goBack();`;
+    case "goForward":
+      return `${indent}await page.goForward();`;
+    // Wait primitives
+    case "waitForVisible":
+      const waitVisibleTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : "";
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'visible'${waitVisibleTimeout} });`;
+    case "waitForHidden":
+      const waitHiddenTimeout = primitive.timeout ? `, timeout: ${primitive.timeout}` : "";
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.waitFor({ state: 'hidden'${waitHiddenTimeout} });`;
+    case "waitForTimeout":
+      return `${indent}await page.waitForTimeout(${primitive.ms});`;
+    case "waitForNetworkIdle":
+      const networkIdleOptions = primitive.timeout ? `, { timeout: ${primitive.timeout} }` : "";
+      return `${indent}await page.waitForLoadState('networkidle'${networkIdleOptions});`;
     // Interactions
     case "click":
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click();`;
+    case "dblclick":
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.dblclick();`;
+    case "rightClick":
+      return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.click({ button: 'right' });`;
     case "fill":
       return `${indent}await page.${toPlaywrightLocator(primitive.locator)}.fill(${renderValue(primitive.value)});`;
     case "select":
@@ -2830,6 +3713,9 @@ ${indent}throw new Error('ARTK BLOCKED: ${escapeString2(primitive.reason)}');`;
       return `${indent}// Unknown primitive type: ${primitive.type}`;
   }
 }
+function createVariantAwareRenderer(ctx) {
+  return (primitive, indent = "") => renderPrimitive(primitive, indent);
+}
 function loadDefaultTemplate() {
   const templatePath = getTemplatePath("test.ejs");
   return readFileSync(templatePath, "utf-8");
@@ -2854,18 +3740,59 @@ function collectImports(journey) {
   }
   return imports;
 }
+function getLlkbInfo(llkbRoot) {
+  const analyticsPath = join(llkbRoot, "analytics.json");
+  if (!existsSync(analyticsPath)) {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+  try {
+    const content = readFileSync(analyticsPath, "utf-8");
+    const analytics = JSON.parse(content);
+    const llkbVersion = analytics.lastUpdated || (/* @__PURE__ */ new Date()).toISOString();
+    const totalLessons = analytics.overview?.totalLessons || 0;
+    const totalComponents = analytics.overview?.totalComponents || 0;
+    const llkbEntries = totalLessons + totalComponents;
+    return { llkbVersion, llkbEntries };
+  } catch {
+    return { llkbVersion: null, llkbEntries: null };
+  }
+}
 function generateTest(journey, options = {}) {
-  const { templatePath, imports: additionalImports = [], strategy = "full", existingCode } = options;
+  const {
+    templatePath,
+    imports: additionalImports = [],
+    strategy = "full",
+    existingCode,
+    llkbRoot = ".artk/llkb",
+    includeLlkbVersion = true,
+    targetVariant,
+    warnOnIncompatible = true
+  } = options;
+  const variant = targetVariant || detectVariant();
+  const variantCtx = {
+    warnings: []};
   const template = templatePath ? readFileSync(templatePath, "utf-8") : loadDefaultTemplate();
   const imports = [...collectImports(journey), ...additionalImports];
+  let llkbVersion = null;
+  let llkbEntries = null;
+  if (includeLlkbVersion) {
+    const llkbInfo = getLlkbInfo(llkbRoot);
+    llkbVersion = llkbInfo.llkbVersion;
+    llkbEntries = llkbInfo.llkbEntries;
+  }
+  const variantAwareRenderPrimitive = createVariantAwareRenderer();
   let code = ejs.render(template, {
     journey,
     imports,
-    renderPrimitive,
+    renderPrimitive: variantAwareRenderPrimitive,
     escapeString: escapeString2,
     escapeRegex,
     version: getPackageVersion(),
-    timestamp: getGeneratedTimestamp()
+    timestamp: getGeneratedTimestamp(),
+    llkbVersion,
+    llkbEntries,
+    variant: variant.id,
+    playwrightVersion: variant.playwrightVersion
   });
   if (strategy === "blocks" && existingCode) {
     const testBlock = {
@@ -2904,7 +3831,9 @@ function generateTest(journey, options = {}) {
     code,
     journeyId: journey.id,
     filename,
-    imports
+    imports,
+    variant,
+    variantWarnings: variantCtx.warnings.length > 0 ? variantCtx.warnings : void 0
   };
 }
 var init_generateTest = __esm({
@@ -2915,6 +3844,7 @@ var init_generateTest = __esm({
     init_escaping();
     init_version();
     init_paths();
+    init_variants();
   }
 });
 function toPascalCase(str) {
@@ -3345,7 +4275,7 @@ function scanResultsToIssues(results) {
     suggestion: result.pattern.suggestion
   }));
 }
-function getPatternStats(results) {
+function getPatternStats2(results) {
   const stats = {};
   for (const result of results) {
     stats[result.pattern.id] = (stats[result.pattern.id] || 0) + 1;
@@ -3361,7 +4291,7 @@ function getViolationSummary(results) {
     errors: filterBySeverity(results, "error").length,
     warnings: filterBySeverity(results, "warning").length,
     info: filterBySeverity(results, "info").length,
-    byPattern: getPatternStats(results)
+    byPattern: getPatternStats2(results)
   };
 }
 var FORBIDDEN_PATTERNS;
@@ -6331,7 +7261,8 @@ async function generateJourneyTests(options) {
     config,
     generateModules = false,
     testOptions = {},
-    moduleOptions = {}
+    moduleOptions = {},
+    useLlkb = true
   } = options;
   const result = {
     tests: [],
@@ -6339,6 +7270,12 @@ async function generateJourneyTests(options) {
     warnings: [],
     errors: []
   };
+  if (useLlkb) {
+    const llkbLoaded = await initializeLlkb();
+    if (llkbLoaded) {
+      result.warnings.push("LLKB patterns enabled for step mapping");
+    }
+  }
   let resolvedConfig;
   if (config) {
     if (typeof config === "string") {
@@ -6551,6 +7488,7 @@ var init_index = __esm({
     init_generateTest();
     init_generateModule();
     init_loader();
+    init_stepMapper();
     init_code();
     init_runner();
     init_summary();
@@ -6668,6 +7606,190 @@ var init_upgrade2 = __esm({
     init_upgrade();
   }
 });
+var init_patternDistance = __esm({
+  "src/mapping/patternDistance.ts"() {
+  }
+});
+
+// src/mapping/blockedStepAnalysis.ts
+function categorizeStep(text) {
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes("navigate") || lowerText.includes("go to") || lowerText.includes("open") || lowerText.includes("visit")) {
+    return "navigation";
+  }
+  if (lowerText.includes("click") || lowerText.includes("fill") || lowerText.includes("enter") || lowerText.includes("type") || lowerText.includes("select") || lowerText.includes("check") || lowerText.includes("press")) {
+    return "interaction";
+  }
+  if (lowerText.includes("see") || lowerText.includes("visible") || lowerText.includes("verify") || lowerText.includes("assert") || lowerText.includes("confirm") || lowerText.includes("should") || lowerText.includes("expect")) {
+    return "assertion";
+  }
+  if (lowerText.includes("wait") || lowerText.includes("load") || lowerText.includes("until") || lowerText.includes("appear")) {
+    return "wait";
+  }
+  return "unknown";
+}
+function inferMachineHint(text) {
+  const lowerText = text.toLowerCase();
+  const quotedMatch = text.match(/['"]([^'"]+)['"]/);
+  const elementName = quotedMatch?.[1];
+  if (!elementName) return void 0;
+  if (lowerText.includes("link")) {
+    return `(role=link, name=${elementName})`;
+  }
+  if (lowerText.includes("button") || lowerText.includes("click")) {
+    return `(role=button, name=${elementName})`;
+  }
+  if (lowerText.includes("field") || lowerText.includes("input") || lowerText.includes("enter") || lowerText.includes("type")) {
+    return `(role=textbox, name=${elementName})`;
+  }
+  if (lowerText.includes("heading")) {
+    return `(role=heading, name=${elementName})`;
+  }
+  if (lowerText.includes("checkbox")) {
+    return `(role=checkbox, name=${elementName})`;
+  }
+  return `(text=${elementName})`;
+}
+function getNavigationSuggestions(text) {
+  const suggestions = [];
+  const urlMatch = text.match(/\/[a-zA-Z0-9/_-]+/);
+  if (urlMatch) {
+    suggestions.push({
+      priority: 1,
+      text: `User navigates to ${urlMatch[0]}`,
+      explanation: "Standard navigation pattern",
+      confidence: 0.9
+    });
+  } else {
+    suggestions.push({
+      priority: 1,
+      text: "User navigates to /[path]",
+      explanation: "Add explicit URL path",
+      confidence: 0.5
+    });
+  }
+  return suggestions;
+}
+function getInteractionSuggestions(text) {
+  const suggestions = [];
+  const quotedMatch = text.match(/['"]([^'"]+)['"]/);
+  const elementName = quotedMatch?.[1] || "[element]";
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes("click")) {
+    suggestions.push({
+      priority: 1,
+      text: `User clicks '${elementName}' button \`(role=button, name=${elementName})\``,
+      explanation: "Add role=button locator hint",
+      confidence: 0.85
+    });
+  }
+  if (lowerText.includes("fill") || lowerText.includes("enter") || lowerText.includes("type")) {
+    const valueMatch = text.match(/['"]([^'"]+)['"]/);
+    const value = valueMatch?.[1] || "value";
+    suggestions.push({
+      priority: 1,
+      text: `User enters '${value}' in '${elementName}' field \`(role=textbox, name=${elementName})\``,
+      explanation: "Add role=textbox locator hint",
+      confidence: 0.85
+    });
+  }
+  return suggestions;
+}
+function getAssertionSuggestions(text) {
+  const suggestions = [];
+  const quotedMatch = text.match(/['"]([^'"]+)['"]/);
+  const content = quotedMatch?.[1] || "[content]";
+  suggestions.push({
+    priority: 1,
+    text: `User should see '${content}' \`(text=${content})\``,
+    explanation: "Standard visibility assertion",
+    confidence: 0.8
+  });
+  suggestions.push({
+    priority: 2,
+    text: `**Assert**: '${content}' is visible \`(role=heading, name=${content})\``,
+    explanation: "Structured assertion format with heading role",
+    confidence: 0.7
+  });
+  return suggestions;
+}
+function getWaitSuggestions(_text) {
+  const suggestions = [];
+  suggestions.push({
+    priority: 1,
+    text: "Wait for network idle `(signal=networkidle)`",
+    explanation: "Standard network wait pattern",
+    confidence: 0.8
+  });
+  suggestions.push({
+    priority: 2,
+    text: "Wait for page to load `(signal=load)`",
+    explanation: "Wait for load event",
+    confidence: 0.7
+  });
+  return suggestions;
+}
+function getGenericSuggestions(text) {
+  return [{
+    priority: 1,
+    text: `**Action**: ${text}`,
+    explanation: "Use structured format with Action prefix",
+    confidence: 0.5
+  }];
+}
+function analyzeBlockedStep(step, reason, patterns) {
+  const category = categorizeStep(step);
+  const analysis = {
+    step,
+    reason,
+    suggestions: [],
+    category
+  };
+  switch (category) {
+    case "navigation":
+      analysis.suggestions = getNavigationSuggestions(step);
+      break;
+    case "interaction":
+      analysis.suggestions = getInteractionSuggestions(step);
+      analysis.machineHintSuggestion = inferMachineHint(step);
+      break;
+    case "assertion":
+      analysis.suggestions = getAssertionSuggestions(step);
+      break;
+    case "wait":
+      analysis.suggestions = getWaitSuggestions();
+      break;
+    default:
+      analysis.suggestions = getGenericSuggestions(step);
+  }
+  return analysis;
+}
+function formatBlockedStepAnalysis(analysis) {
+  const lines = [];
+  lines.push(`
+  Step: "${analysis.step}"`);
+  lines.push(`  Category: ${analysis.category}`);
+  lines.push(`  Reason: ${analysis.reason}`);
+  if (analysis.nearestPattern) {
+    lines.push(`  Nearest pattern: ${analysis.nearestPattern.name}`);
+    lines.push(`  Example that works: "${analysis.nearestPattern.exampleMatch}"`);
+    lines.push(`  Why it didn't match: ${analysis.nearestPattern.mismatchReason}`);
+  }
+  lines.push("  Suggestions:");
+  for (const suggestion of analysis.suggestions) {
+    lines.push(`    ${suggestion.priority}. ${suggestion.text}`);
+    lines.push(`       (${suggestion.explanation}, confidence: ${(suggestion.confidence * 100).toFixed(0)}%)`);
+  }
+  if (analysis.machineHintSuggestion) {
+    lines.push(`  Suggested hint: ${analysis.machineHintSuggestion}`);
+  }
+  return lines.join("\n");
+}
+var init_blockedStepAnalysis = __esm({
+  "src/mapping/blockedStepAnalysis.ts"() {
+    init_patternDistance();
+  }
+});
 
 // src/cli/generate.ts
 var generate_exports = {};
@@ -6752,15 +7874,59 @@ async function runGenerate(args) {
     options.config = configPath;
   }
   const result = await generateJourneyTests(options);
+  const blockedStepWarnings = result.warnings.filter((w) => w.includes("BLOCKED:"));
+  const blockedStepAnalyses = [];
+  if (blockedStepWarnings.length > 0) {
+    if (!quiet) {
+      console.log(`
+\u{1F527} Blocked Step Analysis (${blockedStepWarnings.length} blocked steps):
+`);
+    }
+    for (const warning of blockedStepWarnings) {
+      const match = warning.match(/BLOCKED:\s*(.+?)(?:\s*-\s*(.+))?$/);
+      if (match) {
+        const reason = match[1] || "Unknown reason";
+        const stepText = match[2] || match[1] || warning;
+        const analysis = analyzeBlockedStep(stepText, reason);
+        blockedStepAnalyses.push(analysis);
+        const journeyId = journeyFiles.length === 1 ? basename(journeyFiles[0], ".md") : "multiple";
+        recordBlockedStep({
+          journeyId,
+          stepText,
+          reason,
+          suggestedFix: analysis.suggestions[0]?.text,
+          nearestPattern: analysis.nearestPattern?.name,
+          nearestDistance: analysis.nearestPattern?.distance
+        });
+        if (!quiet) {
+          console.log(formatBlockedStepAnalysis(analysis));
+          console.log();
+        }
+      }
+    }
+    if (process.env.ARTK_JSON_OUTPUT || !dryRun) {
+      const analysisPath = join(outputDir, "blocked-steps-analysis.json");
+      if (!dryRun) {
+        mkdirSync(dirname(analysisPath), { recursive: true });
+        writeFileSync(analysisPath, JSON.stringify(blockedStepAnalyses, null, 2), "utf-8");
+        if (!quiet) {
+          console.log(`
+\u{1F4A1} Blocked step analysis saved to: ${analysisPath}`);
+          console.log("   Use this file to auto-fix journey steps.\n");
+        }
+      }
+    }
+  }
   if (result.errors.length > 0) {
     console.error("\nErrors:");
     for (const error of result.errors) {
       console.error(`  - ${error}`);
     }
   }
-  if (result.warnings.length > 0 && !quiet) {
+  const otherWarnings = result.warnings.filter((w) => !w.includes("BLOCKED:"));
+  if (otherWarnings.length > 0 && !quiet) {
     console.warn("\nWarnings:");
-    for (const warning of result.warnings) {
+    for (const warning of otherWarnings) {
       console.warn(`  - ${warning}`);
     }
   }
@@ -6800,8 +7966,13 @@ async function runGenerate(args) {
 Summary:`);
     console.log(`  Tests: ${result.tests.length}`);
     console.log(`  Modules: ${result.modules.length}`);
+    console.log(`  Blocked steps: ${blockedStepAnalyses.length}`);
     console.log(`  Errors: ${result.errors.length}`);
-    console.log(`  Warnings: ${result.warnings.length}`);
+    console.log(`  Warnings: ${otherWarnings.length}`);
+    if (blockedStepAnalyses.length > 0) {
+      console.log(`
+\u{1F4A1} Run 'artk-autogen patterns gaps' to see pattern improvement suggestions.`);
+    }
   }
   if (result.errors.length > 0) {
     process.exit(1);
@@ -6813,6 +7984,8 @@ var init_generate = __esm({
     init_index();
     init_loader();
     init_glossary();
+    init_telemetry();
+    init_blockedStepAnalysis();
     USAGE = `
 Usage: artk-autogen generate [options] <journey-files...>
 
@@ -7150,17 +8323,466 @@ Examples:
   }
 });
 
+// src/cli/patterns.ts
+var patterns_exports = {};
+__export(patterns_exports, {
+  runPatterns: () => runPatterns
+});
+function formatPatternGap(gap, index) {
+  const lines = [];
+  lines.push(`  ${index + 1}. [${gap.count}x] "${gap.exampleText}"`);
+  lines.push(`     Category: ${gap.category}`);
+  lines.push(`     First seen: ${new Date(gap.firstSeen).toLocaleDateString()}`);
+  if (gap.variants.length > 1) {
+    lines.push(`     Variants: ${gap.variants.length} unique phrasings`);
+    for (const variant of gap.variants.slice(0, 3)) {
+      if (variant !== gap.exampleText) {
+        lines.push(`       - "${variant}"`);
+      }
+    }
+    if (gap.variants.length > 3) {
+      lines.push(`       ... and ${gap.variants.length - 3} more`);
+    }
+  }
+  if (gap.suggestedPattern) {
+    lines.push(`     Suggested pattern: ${gap.suggestedPattern}`);
+  }
+  return lines.join("\n");
+}
+function formatStats(stats) {
+  const lines = [];
+  lines.push("\n\u{1F4CA} Blocked Steps Telemetry Statistics\n");
+  lines.push(`  Total Records: ${stats.totalRecords}`);
+  lines.push(`  Unique Patterns: ${stats.uniquePatterns}`);
+  if (stats.totalRecords > 0) {
+    lines.push("\n  By Category:");
+    for (const [category, count] of Object.entries(stats.byCategory)) {
+      const percentage = (count / stats.totalRecords * 100).toFixed(1);
+      lines.push(`    ${category}: ${count} (${percentage}%)`);
+    }
+    lines.push("\n  Date Range:");
+    lines.push(`    Earliest: ${new Date(stats.dateRange.earliest).toLocaleString()}`);
+    lines.push(`    Latest: ${new Date(stats.dateRange.latest).toLocaleString()}`);
+  }
+  return lines.join("\n");
+}
+async function runGaps(options) {
+  let gaps = analyzeBlockedPatterns({
+    baseDir: options.baseDir,
+    limit: options.category ? void 0 : options.limit
+    // Don't limit before filtering
+  });
+  if (options.category) {
+    gaps = gaps.filter((g) => g.category.toLowerCase().includes(options.category.toLowerCase()));
+    gaps = gaps.slice(0, options.limit);
+  }
+  if (gaps.length === 0) {
+    console.log("\n\u2705 No blocked step gaps found. Either no blocked steps have been recorded,");
+    console.log("   or all steps have been successfully matched to patterns.\n");
+    return;
+  }
+  if (options.json) {
+    console.log(JSON.stringify(gaps, null, 2));
+    return;
+  }
+  console.log(`
+\u{1F50D} Top ${gaps.length} Pattern Gaps (from blocked steps)
+`);
+  console.log(`Pattern Version: ${PATTERN_VERSION}
+`);
+  for (let i = 0; i < gaps.length; i++) {
+    console.log(formatPatternGap(gaps[i], i));
+    console.log();
+  }
+  console.log("\u{1F4A1} To add these patterns, edit: autogen/src/mapping/patterns.ts");
+  console.log("   Use the suggested patterns as starting points.\n");
+}
+async function runStats(options) {
+  const stats = getTelemetryStats({ baseDir: options.baseDir });
+  if (options.json) {
+    console.log(JSON.stringify(stats, null, 2));
+    return;
+  }
+  console.log(formatStats(stats));
+  console.log();
+}
+async function runList(options) {
+  const patternNames = getAllPatternNames();
+  if (options.json) {
+    console.log(
+      JSON.stringify(
+        {
+          version: PATTERN_VERSION,
+          count: patternNames.length,
+          patterns: patternNames
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+  console.log(`
+\u{1F4CB} Available Patterns (v${PATTERN_VERSION})
+`);
+  console.log(`Total: ${patternNames.length} patterns
+`);
+  const groups = {};
+  for (const name of patternNames) {
+    const category = name.split("-")[0] || "other";
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+    groups[category].push(name);
+  }
+  for (const [category, names] of Object.entries(groups).sort()) {
+    console.log(`  ${category}:`);
+    for (const name of names) {
+      console.log(`    - ${name}`);
+    }
+    console.log();
+  }
+}
+async function runExport(options) {
+  const gaps = analyzeBlockedPatterns({ baseDir: options.baseDir });
+  const stats = getTelemetryStats({ baseDir: options.baseDir });
+  const records = readBlockedStepRecords({ baseDir: options.baseDir });
+  const exportData = {
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    patternVersion: PATTERN_VERSION,
+    statistics: stats,
+    gaps,
+    rawRecords: records
+  };
+  console.log(JSON.stringify(exportData, null, 2));
+}
+async function runClear(options) {
+  const stats = getTelemetryStats({ baseDir: options.baseDir });
+  if (stats.totalRecords === 0) {
+    console.log("\n\u2705 No telemetry data to clear.\n");
+    return;
+  }
+  console.log(`
+\u26A0\uFE0F  This will delete ${stats.totalRecords} blocked step records.`);
+  console.log("   This action cannot be undone.\n");
+  clearTelemetry({ baseDir: options.baseDir });
+  console.log("\u2705 Telemetry data cleared.\n");
+}
+async function runPatterns(args) {
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      dir: { type: "string", short: "d" },
+      limit: { type: "string", short: "n", default: "20" },
+      json: { type: "boolean", default: false },
+      category: { type: "string", short: "c" },
+      help: { type: "boolean", short: "h" }
+    },
+    allowPositionals: true
+  });
+  if (values.help || positionals.length === 0) {
+    console.log(PATTERNS_USAGE);
+    return;
+  }
+  const subcommand = positionals[0];
+  const options = {
+    baseDir: values.dir,
+    limit: parseInt(values.limit, 10) || 20,
+    json: values.json,
+    category: values.category
+  };
+  switch (subcommand) {
+    case "gaps":
+      await runGaps(options);
+      break;
+    case "stats":
+      await runStats(options);
+      break;
+    case "list":
+      await runList(options);
+      break;
+    case "export":
+      await runExport(options);
+      break;
+    case "clear":
+      await runClear(options);
+      break;
+    default:
+      console.error(`Unknown subcommand: ${subcommand}`);
+      console.log(PATTERNS_USAGE);
+      process.exit(1);
+  }
+}
+var PATTERNS_USAGE;
+var init_patterns3 = __esm({
+  "src/cli/patterns.ts"() {
+    init_telemetry();
+    init_patterns();
+    PATTERNS_USAGE = `
+Usage: artk-autogen patterns <subcommand> [options]
+
+Subcommands:
+  gaps        Analyze blocked steps and show pattern gaps
+  stats       Show telemetry statistics
+  list        List all available patterns
+  export      Export gaps as JSON for pattern development
+  clear       Clear telemetry data (use with caution)
+
+Options:
+  --dir, -d <path>    Base directory (default: current directory)
+  --limit, -n <num>   Limit number of results (default: 20)
+  --json              Output as JSON
+  --category, -c      Filter by category (navigation|interaction|assertion|wait|unknown)
+  -h, --help          Show this help message
+
+Examples:
+  artk-autogen patterns gaps                    # Show top 20 pattern gaps
+  artk-autogen patterns gaps --limit 50         # Show top 50 pattern gaps
+  artk-autogen patterns gaps --category click   # Show only click-related gaps
+  artk-autogen patterns stats                   # Show telemetry statistics
+  artk-autogen patterns list                    # List all patterns
+  artk-autogen patterns export --json           # Export gaps as JSON
+`;
+  }
+});
+
+// src/cli/llkb-patterns.ts
+var llkb_patterns_exports = {};
+__export(llkb_patterns_exports, {
+  runLlkbPatterns: () => runLlkbPatterns
+});
+function formatPattern(pattern, index) {
+  const lines = [];
+  const confidenceStr = (pattern.confidence * 100).toFixed(0);
+  const status = pattern.promotedToCore ? "[PROMOTED]" : "";
+  lines.push(`  ${index + 1}. [${confidenceStr}%] "${pattern.originalText}" ${status}`);
+  lines.push(`     ID: ${pattern.id}`);
+  lines.push(`     Type: ${pattern.mappedPrimitive.type}`);
+  lines.push(`     Success: ${pattern.successCount}, Fail: ${pattern.failCount}`);
+  lines.push(`     Sources: ${pattern.sourceJourneys.length} journey(s)`);
+  lines.push(`     Last used: ${new Date(pattern.lastUsed).toLocaleDateString()}`);
+  return lines.join("\n");
+}
+function formatPromotablePattern(promoted, index) {
+  const lines = [];
+  const { pattern } = promoted;
+  lines.push(`  ${index + 1}. "${pattern.originalText}"`);
+  lines.push(`     ID: ${pattern.id}`);
+  lines.push(`     Confidence: ${(pattern.confidence * 100).toFixed(0)}%`);
+  lines.push(`     Priority: ${promoted.priority.toFixed(1)}`);
+  lines.push(`     Generated regex: ${promoted.generatedRegex}`);
+  lines.push(`     Primitive: ${JSON.stringify(pattern.mappedPrimitive)}`);
+  return lines.join("\n");
+}
+async function runList2(options) {
+  const patterns = loadLearnedPatterns({ llkbRoot: options.llkbRoot });
+  if (patterns.length === 0) {
+    console.log("\n\u{1F4DA} No learned patterns found.");
+    console.log("   Patterns are learned when tests pass after manual fixes.\n");
+    return;
+  }
+  const sorted = patterns.sort((a, b) => b.confidence - a.confidence).slice(0, options.limit);
+  if (options.json) {
+    console.log(JSON.stringify(sorted, null, 2));
+    return;
+  }
+  console.log(`
+\u{1F4DA} Learned Patterns (${sorted.length} of ${patterns.length})
+`);
+  for (let i = 0; i < sorted.length; i++) {
+    console.log(formatPattern(sorted[i], i));
+    console.log();
+  }
+}
+async function runStats2(options) {
+  const stats = getPatternStats({ llkbRoot: options.llkbRoot });
+  if (options.json) {
+    console.log(JSON.stringify(stats, null, 2));
+    return;
+  }
+  console.log("\n\u{1F4CA} LLKB Pattern Statistics\n");
+  console.log(`  Total patterns: ${stats.total}`);
+  console.log(`  Promoted to core: ${stats.promoted}`);
+  console.log(`  High confidence (\u226570%): ${stats.highConfidence}`);
+  console.log(`  Low confidence (<30%): ${stats.lowConfidence}`);
+  console.log(`  Average confidence: ${(stats.avgConfidence * 100).toFixed(1)}%`);
+  console.log(`  Total successes: ${stats.totalSuccesses}`);
+  console.log(`  Total failures: ${stats.totalFailures}`);
+  console.log();
+}
+async function runPromote(options) {
+  const promotable = getPromotablePatterns({ llkbRoot: options.llkbRoot });
+  if (promotable.length === 0) {
+    console.log("\n\u2705 No patterns ready for promotion.");
+    console.log("   Patterns need \u226590% confidence, \u22655 successes, and \u22652 source journeys.\n");
+    return;
+  }
+  if (options.json) {
+    console.log(JSON.stringify(promotable, null, 2));
+    return;
+  }
+  console.log(`
+\u{1F680} Patterns Ready for Promotion (${promotable.length})
+`);
+  for (let i = 0; i < promotable.length; i++) {
+    console.log(formatPromotablePattern(promotable[i], i));
+    console.log();
+  }
+  if (options.apply) {
+    const ids = promotable.map((p) => p.pattern.id);
+    markPatternsPromoted(ids, { llkbRoot: options.llkbRoot });
+    console.log(`
+\u2705 Marked ${ids.length} patterns as promoted.
+`);
+  } else {
+    console.log("\u{1F4A1} Run with --apply to mark these patterns as promoted.\n");
+  }
+}
+async function runExport2(options) {
+  const result = exportPatternsToConfig({
+    llkbRoot: options.llkbRoot,
+    outputPath: options.outputPath,
+    minConfidence: options.minConfidence
+  });
+  console.log(`
+\u2705 Exported ${result.exported} patterns to: ${result.path}
+`);
+}
+async function runPrune(options) {
+  const result = prunePatterns({
+    llkbRoot: options.llkbRoot,
+    minConfidence: options.minConfidence,
+    minSuccess: options.minSuccess,
+    maxAgeDays: options.maxAgeDays
+  });
+  console.log(`
+\u{1F9F9} Pruned ${result.removed} low-quality patterns.`);
+  console.log(`   Remaining: ${result.remaining} patterns.
+`);
+}
+async function runClear2(options) {
+  const stats = getPatternStats({ llkbRoot: options.llkbRoot });
+  if (stats.total === 0) {
+    console.log("\n\u2705 No patterns to clear.\n");
+    return;
+  }
+  console.log(`
+\u26A0\uFE0F  This will delete ${stats.total} learned patterns.`);
+  console.log("   This action cannot be undone.\n");
+  clearLearnedPatterns({ llkbRoot: options.llkbRoot });
+  console.log("\u2705 All learned patterns cleared.\n");
+}
+async function runLlkbPatterns(args) {
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      "llkb-root": { type: "string", short: "r" },
+      limit: { type: "string", short: "n", default: "20" },
+      "min-confidence": { type: "string", default: "0.7" },
+      "min-success": { type: "string", default: "1" },
+      "max-age-days": { type: "string", default: "90" },
+      output: { type: "string", short: "o" },
+      json: { type: "boolean", default: false },
+      apply: { type: "boolean", default: false },
+      help: { type: "boolean", short: "h" }
+    },
+    allowPositionals: true
+  });
+  if (values.help || positionals.length === 0) {
+    console.log(LLKB_PATTERNS_USAGE);
+    return;
+  }
+  const subcommand = positionals[0];
+  const baseOptions = {
+    llkbRoot: values["llkb-root"],
+    json: values.json
+  };
+  switch (subcommand) {
+    case "list":
+      await runList2({
+        ...baseOptions,
+        limit: parseInt(values.limit, 10) || 20
+      });
+      break;
+    case "stats":
+      await runStats2(baseOptions);
+      break;
+    case "promote":
+      await runPromote({
+        ...baseOptions,
+        apply: values.apply
+      });
+      break;
+    case "export":
+      await runExport2({
+        llkbRoot: baseOptions.llkbRoot,
+        outputPath: values.output,
+        minConfidence: parseFloat(values["min-confidence"]) || 0.7
+      });
+      break;
+    case "prune":
+      await runPrune({
+        llkbRoot: baseOptions.llkbRoot,
+        minConfidence: parseFloat(values["min-confidence"]) || 0.3,
+        minSuccess: parseInt(values["min-success"], 10) || 1,
+        maxAgeDays: parseInt(values["max-age-days"], 10) || 90
+      });
+      break;
+    case "clear":
+      await runClear2({ llkbRoot: baseOptions.llkbRoot });
+      break;
+    default:
+      console.error(`Unknown subcommand: ${subcommand}`);
+      console.log(LLKB_PATTERNS_USAGE);
+      process.exit(1);
+  }
+}
+var LLKB_PATTERNS_USAGE;
+var init_llkb_patterns = __esm({
+  "src/cli/llkb-patterns.ts"() {
+    init_patternExtension();
+    LLKB_PATTERNS_USAGE = `
+Usage: artk-autogen llkb-patterns <subcommand> [options]
+
+Subcommands:
+  list        List all learned patterns
+  stats       Show pattern statistics
+  promote     Check and display patterns ready for promotion
+  export      Export patterns to LLKB config format
+  prune       Remove low-quality patterns
+  clear       Clear all learned patterns (use with caution)
+
+Options:
+  --llkb-root, -r <path>    LLKB root directory (default: .artk/llkb)
+  --limit, -n <num>         Limit number of results (default: 20)
+  --min-confidence <num>    Minimum confidence threshold (default: varies by command)
+  --json                    Output as JSON
+  -h, --help                Show this help message
+
+Examples:
+  artk-autogen llkb-patterns list                    # List top 20 learned patterns
+  artk-autogen llkb-patterns list --limit 50         # List top 50 patterns
+  artk-autogen llkb-patterns stats                   # Show statistics
+  artk-autogen llkb-patterns promote                 # Show promotable patterns
+  artk-autogen llkb-patterns export                  # Export to config file
+  artk-autogen llkb-patterns prune --min-confidence 0.3  # Remove low-confidence patterns
+`;
+  }
+});
+
 // src/cli/index.ts
 init_index();
 var USAGE4 = `
 Usage: artk-autogen <command> [options]
 
 Commands:
-  install     Install ARTK autogen instance in a project
-  upgrade     Upgrade ARTK autogen instance to new version
-  generate    Generate Playwright tests from Journey files
-  validate    Validate generated test code
-  verify      Run and verify generated tests
+  install        Install ARTK autogen instance in a project
+  upgrade        Upgrade ARTK autogen instance to new version
+  generate       Generate Playwright tests from Journey files
+  validate       Validate generated test code
+  verify         Run and verify generated tests
+  patterns       Analyze blocked step telemetry and pattern gaps
+  llkb-patterns  Manage learned patterns from LLKB integration
 
 Options:
   -h, --help      Show this help message
@@ -7172,6 +8794,10 @@ Examples:
   artk-autogen generate journeys/login.md
   artk-autogen validate tests/login.spec.ts
   artk-autogen verify journeys/login.md --heal
+  artk-autogen patterns gaps --limit 20
+  artk-autogen patterns stats
+  artk-autogen llkb-patterns list
+  artk-autogen llkb-patterns promote
 `;
 async function main() {
   const args = process.argv.slice(2);
@@ -7214,6 +8840,16 @@ async function main() {
       case "verify": {
         const { runVerify: runVerify2 } = await Promise.resolve().then(() => (init_verify2(), verify_exports));
         await runVerify2(subArgs);
+        break;
+      }
+      case "patterns": {
+        const { runPatterns: runPatterns2 } = await Promise.resolve().then(() => (init_patterns3(), patterns_exports));
+        await runPatterns2(subArgs);
+        break;
+      }
+      case "llkb-patterns": {
+        const { runLlkbPatterns: runLlkbPatterns2 } = await Promise.resolve().then(() => (init_llkb_patterns(), llkb_patterns_exports));
+        await runLlkbPatterns2(subArgs);
         break;
       }
       default:

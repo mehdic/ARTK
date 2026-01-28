@@ -1,5 +1,6 @@
-import { b as IRJourney, c as LocatorSpec } from '../types-CDhy20ih.js';
-import { Project, SourceFile, ClassDeclaration, MethodDeclaration, PropertyDeclaration, ImportDeclaration } from 'ts-morph';
+import { d as IRJourney, b as LocatorSpec } from '../types-CBcw78BQ.js';
+import { VariantInfo, VariantFeatures } from '../variants/index.js';
+import { ClassDeclaration, SourceFile, Project, MethodDeclaration, PropertyDeclaration, ImportDeclaration } from 'ts-morph';
 
 /**
  * Import statement for generated test
@@ -35,6 +36,14 @@ interface GenerateTestOptions {
     journeyPath?: string;
     /** Output path for the generated test file (for journey update) */
     outputPath?: string;
+    /** LLKB root directory for version tracking (default: .artk/llkb) */
+    llkbRoot?: string;
+    /** Whether to include LLKB version in generated test header (default: true if LLKB exists) */
+    includeLlkbVersion?: boolean;
+    /** Target variant for code generation (auto-detected if not specified) */
+    targetVariant?: VariantInfo;
+    /** Whether to emit warnings for variant-incompatible features (default: true) */
+    warnOnIncompatible?: boolean;
 }
 /**
  * Result of test generation
@@ -48,7 +57,28 @@ interface GenerateTestResult {
     filename: string;
     /** Imports used */
     imports: ImportStatement[];
+    /** Variant used for generation */
+    variant?: VariantInfo;
+    /** Warnings about variant-incompatible features */
+    variantWarnings?: string[];
 }
+/**
+ * Context for variant-aware code generation
+ */
+interface VariantContext {
+    /** Variant info for the target environment */
+    variant: VariantInfo;
+    /** Collected warnings for incompatible features */
+    warnings: string[];
+    /** Whether to emit warnings */
+    warnOnIncompatible: boolean;
+}
+/**
+ * Check if a feature is available in the current variant
+ * @internal Reserved for future variant-specific primitive handling
+ */
+declare function _checkFeature(ctx: VariantContext, feature: keyof VariantFeatures, featureName: string, primitiveType: string): boolean;
+declare const __test_checkFeature: typeof _checkFeature;
 /**
  * Generate Playwright test code from IR Journey
  */
@@ -369,4 +399,4 @@ declare function getRegistryStats(registry: ModuleRegistry): {
     byType: Record<string, number>;
 };
 
-export { type AddLocatorResult, type AstEditOptions, type AstEditResult, type GenerateModuleOptions, type GenerateModuleResult, type GenerateTestOptions, type GenerateTestResult, type ImportStatement, type MethodParam, type ModuleDefinition, type ModuleLocator, type ModuleMethod, type ModuleRegistry, type RegistryEntry, type RegistryOptions, type RegistryUpdateResult, addLocatorProperty, addMethod, addNamedImport, addToRegistry, createProject, createRegistry, extractClassStructure, extractModuleDefinition, findClass, findEntriesByScope, findEntry, findMethod, findProperty, generateIndexContent, generateModule, generateModuleCode, generateTest, generateTestCode, getImport, getModuleNames, getRegistryStats, hasImport, hasModule, loadRegistry, loadSourceFile, mergeModuleFiles, parseIndexFile, removeFromRegistry, saveRegistry, scanModulesDirectory, updateIndexFile, updateModuleFile, validateSyntax };
+export { type AddLocatorResult, type AstEditOptions, type AstEditResult, type GenerateModuleOptions, type GenerateModuleResult, type GenerateTestOptions, type GenerateTestResult, type ImportStatement, type MethodParam, type ModuleDefinition, type ModuleLocator, type ModuleMethod, type ModuleRegistry, type RegistryEntry, type RegistryOptions, type RegistryUpdateResult, VariantFeatures, VariantInfo, __test_checkFeature, addLocatorProperty, addMethod, addNamedImport, addToRegistry, createProject, createRegistry, extractClassStructure, extractModuleDefinition, findClass, findEntriesByScope, findEntry, findMethod, findProperty, generateIndexContent, generateModule, generateModuleCode, generateTest, generateTestCode, getImport, getModuleNames, getRegistryStats, hasImport, hasModule, loadRegistry, loadSourceFile, mergeModuleFiles, parseIndexFile, removeFromRegistry, saveRegistry, scanModulesDirectory, updateIndexFile, updateModuleFile, validateSyntax };

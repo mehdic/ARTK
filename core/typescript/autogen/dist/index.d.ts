@@ -1,22 +1,23 @@
-import { b as IRJourney } from './types-CDhy20ih.js';
-export { i as AccessibilityConfig, A as AccessibilityTiming, e as CleanupStrategy, C as CompletionSignal, f as CompletionSignalType, D as DataStrategy, I as IRMappingResult, a as IRPrimitive, d as IRStep, g as JourneyDataConfig, J as JourneyTier, c as LocatorSpec, L as LocatorStrategy, M as ModuleDependencies, N as NegativePath, P as PerformanceConfig, T as TestDataSet, V as ValueSpec, h as VisualRegressionConfig } from './types-CDhy20ih.js';
+import { d as IRJourney } from './types-CBcw78BQ.js';
+export { A as AccessibilityConfig, e as AccessibilityTiming, f as CleanupStrategy, C as CompletionSignal, g as CompletionSignalType, D as DataStrategy, a as IRMappingResult, I as IRPrimitive, c as IRStep, J as JourneyDataConfig, h as JourneyTier, b as LocatorSpec, L as LocatorStrategy, M as ModuleDependencies, N as NegativePath, P as PerformanceConfig, T as TestDataSet, V as ValueSpec, i as VisualRegressionConfig } from './types-CBcw78BQ.js';
 export { IR, JourneyBuilder, LocatorBuilder, SerializeOptions, StepBuilder, ValueBuilder, describeLocator, describePrimitive, serializeJourney, serializePrimitive, serializeStep, summarizeJourney } from './ir/index.js';
-import { A as AutogenConfig } from './schema-BocNY0qp.js';
-export { d as AutogenConfigSchema, a as EslintRulesSchema, g as EslintSeverity, E as EslintSeveritySchema, j as Heal, H as HealSchema, m as LLKBIntegration, l as LLKBIntegrationLevel, L as LLKBIntegrationLevelSchema, c as LLKBIntegrationSchema, f as Paths, P as PathsSchema, k as RegenerationStrategy, R as RegenerationStrategySchema, h as SelectorPolicy, b as SelectorPolicySchema, e as SelectorStrategy, S as SelectorStrategySchema, i as Validation, V as ValidationSchema } from './schema-BocNY0qp.js';
-export { ConfigLoadError, findConfigFile, getDefaultConfig, loadConfig, loadConfigs, loadLLKBConfig, mergeConfigs, resolveConfigPath } from './config/index.js';
-export { F as AcceptanceCriterion, a9 as CodedError, x as JourneyFrontmatter, g as JourneyFrontmatterSchema, z as JourneyParseError, i as JourneyStatus, J as JourneyStatusSchema, B as ParsedJourney, G as ProceduralStep, X as Result, H as StructuredStep, S as StructuredStepAction, a4 as andThen, aa as codedError, a5 as collect, Z as err, $ as isErr, _ as isOk, a2 as map, a3 as mapErr, Y as ok, O as parseJourney, U as parseJourneyContent, R as parseJourneyForAutoGen, K as parseStructuredSteps, a6 as partition, a7 as tryCatch, a8 as tryCatchAsync, W as tryParseJourneyContent, a0 as unwrap, a1 as unwrapOr } from './parseJourney-BY3R1Dwj.js';
-export { N as NormalizeOptions, c as completionSignalsToAssertions, n as normalizeJourney, v as validateJourneyForCodeGen } from './normalize-Cx5keI1P.js';
-export { ACMappingResult, ExtendedGlossaryMeta, Glossary, GlossaryEntry, LabelAlias, ModuleMethodMapping, PatternMatch, StepMapperOptions, StepMappingResult, StepPattern, allPatterns, authPatterns, checkPatterns, clearExtendedGlossary, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getGlossaryStats, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, hasExtendedGlossary, initGlossary, isSynonymOf, loadExtendedGlossary, loadGlossary, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns } from './mapping/index.js';
+import { A as AutogenConfig } from './schema-BIeeAav7.js';
+export { a as AutogenConfigSchema, E as EslintRulesSchema, b as EslintSeverity, c as EslintSeveritySchema, H as Heal, d as HealSchema, L as LLKBIntegration, e as LLKBIntegrationLevel, f as LLKBIntegrationLevelSchema, g as LLKBIntegrationSchema, P as Paths, h as PathsSchema, R as RegenerationStrategy, i as RegenerationStrategySchema, S as SelectorPolicy, j as SelectorPolicySchema, k as SelectorStrategy, l as SelectorStrategySchema, V as Validation, m as ValidationSchema } from './schema-BIeeAav7.js';
+export { ConfigLoadError, findConfigFile, getDefaultConfig, getSchemaVersion, loadConfig, loadConfigWithMigration, loadConfigs, loadLLKBConfig, mergeConfigs, needsConfigMigration, resolveConfigPath } from './config/index.js';
+export { A as AcceptanceCriterion, X as CodedError, J as JourneyFrontmatter, m as JourneyFrontmatterSchema, n as JourneyParseError, o as JourneyStatus, p as JourneyStatusSchema, P as ParsedJourney, x as ProceduralStep, Y as Result, S as StructuredStep, y as StructuredStepAction, Z as andThen, _ as codedError, $ as collect, a0 as err, a1 as isErr, a2 as isOk, a3 as map, a4 as mapErr, a5 as ok, H as parseJourney, K as parseJourneyContent, O as parseJourneyForAutoGen, R as parseStructuredSteps, a6 as partition, a7 as tryCatch, a8 as tryCatchAsync, U as tryParseJourneyContent, a9 as unwrap, aa as unwrapOr } from './parseJourney-pVvnO7Mc.js';
+export { N as NormalizeOptions, c as completionSignalsToAssertions, n as normalizeJourney, v as validateJourneyForCodeGen } from './normalize-CTo3B0Th.js';
+export { A as ACMappingResult, E as ExtendedGlossaryMeta, G as Glossary, a as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, c as PatternMetadata, d as StepMapperOptions, e as StepMappingResult, S as StepPattern, f as allPatterns, g as authPatterns, h as checkPatterns, i as clearExtendedGlossary, j as clickPatterns, k as createLocatorFromMatch, l as createValueFromText, m as defaultGlossary, n as extendedAssertionPatterns, o as extendedClickPatterns, p as extendedFillPatterns, q as extendedNavigationPatterns, r as extendedSelectPatterns, s as extendedWaitPatterns, t as fillPatterns, u as findLabelAlias, v as findMatchingPatterns, w as findModuleMethod, x as focusPatterns, y as getAllPatternNames, z as getGlossary, B as getGlossaryStats, C as getLabelAliases, D as getLocatorFromLabel, F as getMappingStats, H as getModuleMethods, I as getPatternCountByCategory, J as getPatternMatches, K as getPatternMetadata, N as getSynonyms, O as hasExtendedGlossary, Q as hoverPatterns, R as initGlossary, T as initializeLlkb, U as isLlkbAvailable, V as isSynonymOf, W as loadExtendedGlossary, X as loadGlossary, Y as lookupCoreGlossary, Z as lookupGlossary, _ as mapAcceptanceCriterion, $ as mapProceduralStep, a0 as mapStepText, a1 as mapSteps, a2 as matchPattern, a3 as mergeGlossaries, a4 as navigationPatterns, a5 as normalizeStepText, a6 as parseSelectorToLocator, a7 as resetGlossaryCache, a8 as resolveCanonical, a9 as resolveModuleMethod, aa as selectPatterns, ab as structuredPatterns, ac as suggestImprovements, ad as toastPatterns, ae as urlPatterns, af as visibilityPatterns, ag as waitPatterns } from './stepMapper-CK4Zixeq.js';
 export { DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, NAMEABLE_ROLES, compareLocators, createCssSelector, extractName, getRecommendedStrategies, getSelectorPriority, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, isCssLocator, isForbiddenSelector, isRoleLocator, isSemanticLocator, isTestIdLocator, scoreLocator, selectBestLocator, suggestSelectorApproach, toPlaywrightLocator, validateLocator } from './selectors/index.js';
 import { z } from 'zod';
-import { GenerateTestOptions, GenerateModuleOptions, GenerateTestResult, GenerateModuleResult } from './codegen/index.js';
-export { AddLocatorResult, AstEditOptions, AstEditResult, ImportStatement, MethodParam, ModuleDefinition, ModuleLocator, ModuleMethod, ModuleRegistry, RegistryEntry, RegistryOptions, RegistryUpdateResult, addLocatorProperty, addMethod, addNamedImport, addToRegistry, createProject, createRegistry, extractClassStructure, extractModuleDefinition, findClass, findEntriesByScope, findEntry, findMethod, findProperty, generateIndexContent, generateModule, generateModuleCode, generateTest, generateTestCode, getImport, getModuleNames, getRegistryStats, hasImport, hasModule, loadRegistry, loadSourceFile, mergeModuleFiles, parseIndexFile, removeFromRegistry, saveRegistry, scanModulesDirectory, updateIndexFile, updateModuleFile, validateSyntax } from './codegen/index.js';
+import { GenerateTestOptions, GenerateModuleOptions, GenerateModuleResult, GenerateTestResult } from './codegen/index.js';
+export { AddLocatorResult, AstEditOptions, AstEditResult, ImportStatement, MethodParam, ModuleDefinition, ModuleLocator, ModuleMethod, ModuleRegistry, RegistryEntry, RegistryOptions, RegistryUpdateResult, __test_checkFeature, addLocatorProperty, addMethod, addNamedImport, addToRegistry, createProject, createRegistry, extractClassStructure, extractModuleDefinition, findClass, findEntriesByScope, findEntry, findMethod, findProperty, generateIndexContent, generateModule, generateModuleCode, generateTest, generateTestCode, getImport, getModuleNames, getRegistryStats, hasImport, hasModule, loadRegistry, loadSourceFile, mergeModuleFiles, parseIndexFile, removeFromRegistry, saveRegistry, scanModulesDirectory, updateIndexFile, updateModuleFile, validateSyntax } from './codegen/index.js';
 import { CodeValidationOptions, CodeValidationResult } from './validate/index.js';
 export { ACCoverageResult, CoverageOptions, CoverageResult, FORBIDDEN_PATTERNS, ForbiddenPattern, JourneyValidationOptions, JourneyValidationResult, LintOptions, LintResult, PLAYWRIGHT_LINT_RULES, PatternScanResult, TAG_PATTERNS, TagValidationOptions, TagValidationResult, ValidationIssue, ValidationSeverity, categorizeTags, filterBySeverity, findACReferences, findTestSteps, generateCoverageReport, generateESLintConfig, generateExpectedTags, generateValidationReport, getPatternStats, getViolationSummary, hasErrorViolations, hasLintErrors, isCodeValid, isESLintAvailable, isJourneyReady, isPlaywrightPluginAvailable, lintCode, lintFile, parseESLintOutput, parseTagsFromCode, parseTagsFromFrontmatter, scanForbiddenPatterns, scanResultsToIssues, validateCode, validateCodeCoverage, validateCodeSync, validateIRCoverage, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateTags, validateTagsInCode } from './validate/index.js';
-import { R as RunnerOptions, V as VerifySummary } from './summary-7GlyMXkF.js';
-export { E as ErrorAttachment, H as FailureCategory, I as FailureClassification, o as ParsedSummary, P as PlaywrightReport, k as ReportStep, a as RunnerResult, S as StabilityOptions, U as StabilityResult, a1 as SummaryOptions, j as TestError, l as TestResult, n as TestSpec, T as TestStatus, m as TestSuite, b as buildPlaywrightArgs, W as checkStability, f as checkTestSyntax, J as classifyError, K as classifyTestResult, L as classifyTestResults, z as extractErrorMessages, A as extractErrorStacks, s as extractTestResults, y as findTestsByTag, x as findTestsByTitle, F as formatTestResult, a8 as formatVerifySummary, Q as generateClassificationReport, G as generateMarkdownSummary, a0 as generateStabilityReport, a3 as generateSummaryFromReport, a2 as generateVerifySummary, B as getFailedStep, u as getFailedTests, M as getFailureStats, _ as getFlakinessScore, v as getFlakyTests, O as getHealableFailures, g as getPlaywrightVersion, a7 as getRecommendations, t as getSummary, h as getTestCount, a5 as hasFailures, N as isHealable, i as isPlaywrightAvailable, C as isReportSuccessful, Z as isTestStable, a4 as isVerificationPassed, q as parseReportContent, p as parseReportFile, X as quickStabilityCheck, D as reportHasFlaky, e as runJourneyTests, c as runPlaywrightAsync, r as runPlaywrightSync, d as runTestFile, a9 as saveSummary, $ as shouldQuarantine, a6 as summaryHasFlaky, Y as thoroughStabilityCheck, w as writeAndRunTest } from './summary-7GlyMXkF.js';
+import { R as RunnerOptions, V as VerifySummary } from './summary-0k8uEcy0.js';
+export { E as ErrorAttachment, F as FailureCategory, a as FailureClassification, P as ParsedSummary, b as PlaywrightReport, c as ReportStep, d as RunnerResult, S as StabilityOptions, e as StabilityResult, f as SummaryOptions, T as TestError, g as TestResult, h as TestSpec, i as TestStatus, j as TestSuite, k as buildPlaywrightArgs, l as checkStability, m as checkTestSyntax, n as classifyError, o as classifyTestResult, p as classifyTestResults, q as extractErrorMessages, r as extractErrorStacks, s as extractTestResults, t as findTestsByTag, u as findTestsByTitle, v as formatTestResult, w as formatVerifySummary, x as generateClassificationReport, y as generateMarkdownSummary, z as generateStabilityReport, A as generateSummaryFromReport, B as generateVerifySummary, C as getFailedStep, D as getFailedTests, G as getFailureStats, H as getFlakinessScore, I as getFlakyTests, J as getHealableFailures, K as getPlaywrightVersion, L as getRecommendations, M as getSummary, N as getTestCount, O as hasFailures, Q as isHealable, U as isPlaywrightAvailable, W as isReportSuccessful, X as isTestStable, Y as isVerificationPassed, Z as parseReportContent, _ as parseReportFile, $ as quickStabilityCheck, a0 as reportHasFlaky, a1 as runJourneyTests, a2 as runPlaywrightAsync, a3 as runPlaywrightSync, a4 as runTestFile, a5 as saveSummary, a6 as shouldQuarantine, a7 as summaryHasFlaky, a8 as thoroughStabilityCheck, a9 as writeAndRunTest } from './summary-0k8uEcy0.js';
 export { ARIASnapshot, Evidence, EvidenceOptions, compareARIASnapshots, createEvidenceDir, findInSnapshot, formatARIATree, generateARIACaptureCode, generateEvidenceCaptureCode, generateEvidenceReport, loadEvidence, saveEvidence } from './verify/index.js';
 export { ARIANodeInfo, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DataFixContext, DataFixResult, ForbiddenFixType, HealFixType, HealingAttempt, HealingConfig, HealingLog, HealingLogger, HealingLoopOptions, HealingLoopResult, HealingRule, HealingRuleResult, HealingSummary, NavigationFixContext, NavigationFixResult, SelectorFixContext, SelectorFixResult, TimingFixContext, TimingFixResult, UNHEALABLE_CATEGORIES, addCleanupHook, addExactToLocator, addNavigationWaitAfterClick, addRunIdVariable, addTimeout, aggregateHealingLogs, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, containsCSSSelector, convertToWebFirstAssertion, createHealingReport, evaluateHealing, extractCSSSelector, extractNameFromSelector, extractTestDataPatterns, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fixMissingAwait, fixMissingGotoAwait, formatHealingLog, generateLabelLocator, generateRoleLocator, generateRunId, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateWaitForURL, getApplicableRules, getHealingRecommendation, getNextFix, getPostHealingRecommendation, hasDataIsolation, hasNavigationWait, inferRoleFromSelector, inferUrlPattern, insertNavigationWait, isCategoryHealable, isFixAllowed, isFixForbidden, loadHealingLog, namespaceEmail, namespaceName, previewHealingFixes, replaceHardcodedEmail, replaceHardcodedTestData, runHealingLoop, suggestTimeoutIncrease, wouldFixApply, wrapWithExpectPoll, wrapWithExpectToPass } from './heal/index.js';
+export { VariantFeatures, VariantInfo } from './variants/index.js';
 import 'ts-morph';
 
 /**
@@ -342,11 +343,11 @@ declare const CSSDebtEntrySchema: z.ZodObject<{
         file: string;
         line: number;
     }[];
+    reason?: string | undefined;
     suggestedReplacement?: {
         value: string;
         strategy: string;
     } | undefined;
-    reason?: string | undefined;
 }, {
     selector: string;
     usages: {
@@ -354,11 +355,11 @@ declare const CSSDebtEntrySchema: z.ZodObject<{
         line: number;
     }[];
     priority?: "low" | "medium" | "high" | undefined;
+    reason?: string | undefined;
     suggestedReplacement?: {
         value: string;
         strategy: string;
     } | undefined;
-    reason?: string | undefined;
 }>;
 /**
  * Complete selector catalog schema
@@ -524,11 +525,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             file: string;
             line: number;
         }[];
+        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
-        reason?: string | undefined;
     }, {
         selector: string;
         usages: {
@@ -536,11 +537,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             line: number;
         }[];
         priority?: "low" | "medium" | "high" | undefined;
+        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
-        reason?: string | undefined;
     }>, "many">>;
     /** Statistics */
     stats: z.ZodOptional<z.ZodObject<{
@@ -603,11 +604,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             file: string;
             line: number;
         }[];
+        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
-        reason?: string | undefined;
     }[];
     sourceDir?: string | undefined;
     stats?: {
@@ -659,11 +660,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             line: number;
         }[];
         priority?: "low" | "medium" | "high" | undefined;
+        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
-        reason?: string | undefined;
     }[] | undefined;
     stats?: {
         totalSelectors: number;
@@ -1263,6 +1264,10 @@ interface GenerateJourneyTestsOptions {
     testOptions?: GenerateTestOptions;
     /** Module generation options */
     moduleOptions?: GenerateModuleOptions;
+    /** Whether to use LLKB patterns for step mapping (default: true) */
+    useLlkb?: boolean;
+    /** LLKB root directory (default: .artk/llkb) */
+    llkbRoot?: string;
 }
 /**
  * Result of the generation pipeline
@@ -1284,7 +1289,10 @@ interface GenerateJourneyTestsResult {
     warnings: string[];
     /** Errors encountered (generation continues on non-fatal errors) */
     errors: string[];
+    /** Whether LLKB patterns were used */
+    llkbEnabled?: boolean;
 }
+
 /**
  * Main API: Generate Playwright tests from Journey files
  *

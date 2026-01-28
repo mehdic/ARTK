@@ -1,10 +1,449 @@
-import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
+import { appendFileSync, existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
+import { join, dirname, resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+function getTelemetryPath(baseDir) {
+  const dir = baseDir || process.cwd();
+  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
+}
+function ensureTelemetryDir(telemetryPath) {
+  const dir = dirname(telemetryPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+function normalizeStepTextForTelemetry(text) {
+  return text.toLowerCase().trim().replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''").trim();
+}
+function categorizeStepText(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes("navigate") || lower.includes("go to") || lower.includes("open") || lower.includes("visit")) {
+    return "navigation";
+  }
+  if (lower.includes("click") || lower.includes("fill") || lower.includes("enter") || lower.includes("type") || lower.includes("select") || lower.includes("check") || lower.includes("press") || lower.includes("submit") || lower.includes("input")) {
+    return "interaction";
+  }
+  if (lower.includes("see") || lower.includes("visible") || lower.includes("verify") || lower.includes("assert") || lower.includes("confirm") || lower.includes("should") || lower.includes("ensure") || lower.includes("expect") || lower.includes("display")) {
+    return "assertion";
+  }
+  if (lower.includes("wait") || lower.includes("load") || lower.includes("until")) {
+    return "wait";
+  }
+  return "unknown";
+}
+function recordBlockedStep(record, options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  ensureTelemetryDir(telemetryPath);
+  const fullRecord = {
+    ...record,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    normalizedText: normalizeStepTextForTelemetry(record.stepText),
+    category: record.category || categorizeStepText(record.stepText)
+  };
+  appendFileSync(telemetryPath, JSON.stringify(fullRecord) + "\n");
+}
+function readBlockedStepRecords(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (!existsSync(telemetryPath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(telemetryPath, "utf-8");
+    return content.split("\n").filter(Boolean).map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    }).filter((record) => record !== null);
+  } catch {
+    return [];
+  }
+}
+function calculateTokenSimilarity(a, b) {
+  const tokensA = new Set(a.split(" ").filter(Boolean));
+  const tokensB = new Set(b.split(" ").filter(Boolean));
+  if (tokensA.size === 0 && tokensB.size === 0) return 1;
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  const intersection = new Set([...tokensA].filter((x) => tokensB.has(x)));
+  const union = /* @__PURE__ */ new Set([...tokensA, ...tokensB]);
+  return intersection.size / union.size;
+}
+function groupBySimilarity(records, threshold = 0.7) {
+  const groups = /* @__PURE__ */ new Map();
+  const processed = /* @__PURE__ */ new Set();
+  for (let i = 0; i < records.length; i++) {
+    if (processed.has(i)) continue;
+    const record = records[i];
+    const normalized = record.normalizedText;
+    const group = [record];
+    processed.add(i);
+    for (let j = i + 1; j < records.length; j++) {
+      if (processed.has(j)) continue;
+      const other = records[j];
+      const similarity = calculateTokenSimilarity(normalized, other.normalizedText);
+      if (similarity >= threshold) {
+        group.push(other);
+        processed.add(j);
+      }
+    }
+    groups.set(normalized, group);
+  }
+  return groups;
+}
+function analyzeBlockedPatterns(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return [];
+  }
+  const groups = groupBySimilarity(records);
+  const gaps = [];
+  for (const [normalizedText, groupRecords] of groups) {
+    const timestamps = groupRecords.map((r) => r.timestamp).sort();
+    const variants = [...new Set(groupRecords.map((r) => r.stepText))];
+    gaps.push({
+      exampleText: groupRecords[0].stepText,
+      normalizedText,
+      count: groupRecords.length,
+      category: groupRecords[0].category,
+      variants,
+      suggestedPattern: generateSuggestedPattern(variants),
+      firstSeen: timestamps[0],
+      lastSeen: timestamps[timestamps.length - 1]
+    });
+  }
+  gaps.sort((a, b) => b.count - a.count);
+  return options.limit ? gaps.slice(0, options.limit) : gaps;
+}
+function generateSuggestedPattern(variants) {
+  if (variants.length === 0) return void 0;
+  const example = variants[0].toLowerCase();
+  const pattern = example.replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/[.*+?^${}()|[\]\\]/g, (char) => {
+    if (char === "(" || char === ")" || char === "[" || char === "]" || char === "+") {
+      return char;
+    }
+    return "\\" + char;
+  });
+  return `^(?:user\\s+)?${pattern}$`;
+}
+function getTelemetryStats(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return {
+      totalRecords: 0,
+      uniquePatterns: 0,
+      byCategory: {},
+      dateRange: {
+        earliest: "",
+        latest: ""
+      }
+    };
+  }
+  const byCategory = {};
+  const normalizedSet = /* @__PURE__ */ new Set();
+  const timestamps = records.map((r) => r.timestamp).sort();
+  for (const record of records) {
+    byCategory[record.category] = (byCategory[record.category] || 0) + 1;
+    normalizedSet.add(record.normalizedText);
+  }
+  return {
+    totalRecords: records.length,
+    uniquePatterns: normalizedSet.size,
+    byCategory,
+    dateRange: {
+      earliest: timestamps[0],
+      latest: timestamps[timestamps.length - 1]
+    }
+  };
+}
+function recordUserFix(originalStepText, userFixedText, options = {}) {
+  const records = readBlockedStepRecords(options);
+  const normalizedOriginal = normalizeStepTextForTelemetry(originalStepText);
+  const matchingRecord = records.find((r) => r.normalizedText === normalizedOriginal && !r.userFix);
+  if (matchingRecord) {
+    const { timestamp: _t, normalizedText: _n, ...recordWithoutTimestamp } = matchingRecord;
+    recordBlockedStep(
+      {
+        ...recordWithoutTimestamp,
+        userFix: userFixedText
+      },
+      options
+    );
+  }
+}
+function clearTelemetry(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (existsSync(telemetryPath)) {
+    const { unlinkSync } = __require("fs");
+    unlinkSync(telemetryPath);
+  }
+}
+var DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE;
+var init_telemetry = __esm({
+  "src/mapping/telemetry.ts"() {
+    DEFAULT_TELEMETRY_DIR = ".artk";
+    TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
+  }
+});
+
+// src/llkb/patternExtension.ts
+var patternExtension_exports = {};
+__export(patternExtension_exports, {
+  calculateConfidence: () => calculateConfidence,
+  clearLearnedPatterns: () => clearLearnedPatterns,
+  exportPatternsToConfig: () => exportPatternsToConfig,
+  generatePatternId: () => generatePatternId,
+  generateRegexFromText: () => generateRegexFromText,
+  getPatternStats: () => getPatternStats,
+  getPatternsFilePath: () => getPatternsFilePath,
+  getPromotablePatterns: () => getPromotablePatterns,
+  loadLearnedPatterns: () => loadLearnedPatterns,
+  markPatternsPromoted: () => markPatternsPromoted,
+  matchLlkbPattern: () => matchLlkbPattern,
+  prunePatterns: () => prunePatterns,
+  recordPatternFailure: () => recordPatternFailure,
+  recordPatternSuccess: () => recordPatternSuccess,
+  saveLearnedPatterns: () => saveLearnedPatterns
+});
+function getPatternsFilePath(llkbRoot) {
+  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  return join(root, PATTERNS_FILE);
+}
+function generatePatternId() {
+  return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+}
+function loadLearnedPatterns(options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (!existsSync(filePath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+    return Array.isArray(data.patterns) ? data.patterns : [];
+  } catch {
+    return [];
+  }
+}
+function saveLearnedPatterns(patterns, options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const data = {
+    version: "1.0.0",
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns
+  };
+  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+function calculateConfidence(successCount, failCount) {
+  const total = successCount + failCount;
+  if (total === 0) return 0.5;
+  const p = successCount / total;
+  const z2 = 1.96;
+  const n = total;
+  const denominator = 1 + z2 * z2 / n;
+  const center = p + z2 * z2 / (2 * n);
+  const spread = z2 * Math.sqrt((p * (1 - p) + z2 * z2 / (4 * n)) / n);
+  return Math.max(0, Math.min(1, (center - spread) / denominator));
+}
+function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.successCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    if (!pattern.sourceJourneys.includes(journeyId)) {
+      pattern.sourceJourneys.push(journeyId);
+    }
+  } else {
+    pattern = {
+      id: generatePatternId(),
+      originalText,
+      normalizedText,
+      mappedPrimitive: primitive,
+      confidence: 0.5,
+      // Initial confidence
+      sourceJourneys: [journeyId],
+      successCount: 1,
+      failCount: 0,
+      lastUsed: (/* @__PURE__ */ new Date()).toISOString(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      promotedToCore: false
+    };
+    patterns.push(pattern);
+  }
+  saveLearnedPatterns(patterns, options);
+  return pattern;
+}
+function recordPatternFailure(originalText, journeyId, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  if (pattern) {
+    pattern.failCount++;
+    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+    saveLearnedPatterns(patterns, options);
+    return pattern;
+  }
+  return null;
+}
+function matchLlkbPattern(text, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const normalizedText = normalizeStepTextForTelemetry(text);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const match = patterns.find(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  );
+  if (match) {
+    return {
+      patternId: match.id,
+      primitive: match.mappedPrimitive,
+      confidence: match.confidence
+    };
+  }
+  return null;
+}
+function generateRegexFromText(text) {
+  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  return `^${pattern}$`;
+}
+function getPromotablePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const promotable = patterns.filter(
+    (p) => p.confidence >= 0.9 && p.successCount >= 5 && p.sourceJourneys.length >= 2 && !p.promotedToCore
+  );
+  return promotable.map((pattern) => ({
+    pattern,
+    generatedRegex: generateRegexFromText(pattern.originalText),
+    priority: pattern.successCount * pattern.confidence
+  }));
+}
+function markPatternsPromoted(patternIds, options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  for (const pattern of patterns) {
+    if (patternIds.includes(pattern.id)) {
+      pattern.promotedToCore = true;
+      pattern.promotedAt = now;
+    }
+  }
+  saveLearnedPatterns(patterns, options);
+}
+function prunePatterns(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  const now = Date.now();
+  const maxAge = (options.maxAgeDays ?? 90) * 24 * 60 * 60 * 1e3;
+  const minConfidence = options.minConfidence ?? 0.3;
+  const minSuccess = options.minSuccess ?? 1;
+  const filtered = patterns.filter((p) => {
+    if (p.promotedToCore) return true;
+    if (p.confidence < minConfidence) return false;
+    if (minSuccess > 0 && p.successCount < minSuccess) return false;
+    const age = now - new Date(p.createdAt).getTime();
+    if (age > maxAge && p.successCount === 0) return false;
+    return true;
+  });
+  const removed = patterns.length - filtered.length;
+  if (removed > 0) {
+    saveLearnedPatterns(filtered, options);
+  }
+  return {
+    removed,
+    remaining: filtered.length
+  };
+}
+function getPatternStats(options = {}) {
+  const patterns = loadLearnedPatterns(options);
+  if (patterns.length === 0) {
+    return {
+      total: 0,
+      promoted: 0,
+      highConfidence: 0,
+      lowConfidence: 0,
+      avgConfidence: 0,
+      totalSuccesses: 0,
+      totalFailures: 0
+    };
+  }
+  const promoted = patterns.filter((p) => p.promotedToCore).length;
+  const highConfidence = patterns.filter((p) => p.confidence >= 0.7).length;
+  const lowConfidence = patterns.filter((p) => p.confidence < 0.3).length;
+  const totalConfidence = patterns.reduce((sum, p) => sum + p.confidence, 0);
+  const totalSuccesses = patterns.reduce((sum, p) => sum + p.successCount, 0);
+  const totalFailures = patterns.reduce((sum, p) => sum + p.failCount, 0);
+  return {
+    total: patterns.length,
+    promoted,
+    highConfidence,
+    lowConfidence,
+    avgConfidence: totalConfidence / patterns.length,
+    totalSuccesses,
+    totalFailures
+  };
+}
+function exportPatternsToConfig(options) {
+  const patterns = loadLearnedPatterns(options);
+  const minConfidence = options.minConfidence ?? 0.7;
+  const exportable = patterns.filter((p) => p.confidence >= minConfidence && !p.promotedToCore);
+  const config = {
+    version: "1.0.0",
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns: exportable.map((p) => ({
+      id: p.id,
+      trigger: generateRegexFromText(p.originalText),
+      primitive: p.mappedPrimitive,
+      confidence: p.confidence,
+      sourceCount: p.sourceJourneys.length
+    }))
+  };
+  const outputPath = options.outputPath || join(dirname(getPatternsFilePath(options.llkbRoot)), "autogen-patterns.json");
+  writeFileSync(outputPath, JSON.stringify(config, null, 2), "utf-8");
+  return {
+    exported: exportable.length,
+    path: outputPath
+  };
+}
+function clearLearnedPatterns(options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  if (existsSync(filePath)) {
+    const { unlinkSync } = __require("fs");
+    unlinkSync(filePath);
+  }
+}
+var PATTERNS_FILE, DEFAULT_LLKB_ROOT;
+var init_patternExtension = __esm({
+  "src/llkb/patternExtension.ts"() {
+    init_telemetry();
+    PATTERNS_FILE = "learned-patterns.json";
+    DEFAULT_LLKB_ROOT = ".artk/llkb";
+  }
+});
+
 // src/mapping/patterns.ts
+var PATTERN_VERSION = "1.1.0";
 function createLocatorFromMatch(strategy, value, name) {
   const locator = { strategy, value };
   if (name) {
@@ -409,18 +848,361 @@ var structuredPatterns = [
     }
   }
 ];
+var extendedClickPatterns = [
+  {
+    name: "click-on-element",
+    // "Click on Submit" or "Click on the Submit button"
+    regex: /^(?:user\s+)?clicks?\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
+    primitiveType: "click",
+    extract: (match) => ({
+      type: "click",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "press-enter-key",
+    // "Press Enter" or "Press the Enter key" or "Hit Enter"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:enter|return)(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Enter"
+    })
+  },
+  {
+    name: "press-tab-key",
+    // "Press Tab" or "Press the Tab key"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?tab(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Tab"
+    })
+  },
+  {
+    name: "press-escape-key",
+    // "Press Escape" or "Press Esc"
+    regex: /^(?:user\s+)?(?:press(?:es)?|hits?)\s+(?:the\s+)?(?:escape|esc)(?:\s+key)?$/i,
+    primitiveType: "press",
+    extract: () => ({
+      type: "press",
+      key: "Escape"
+    })
+  },
+  {
+    name: "double-click",
+    // "Double click on" or "Double-click the"
+    regex: /^(?:user\s+)?double[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "dblclick",
+    extract: (match) => ({
+      type: "dblclick",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "right-click",
+    // "Right click on" or "Right-click the"
+    regex: /^(?:user\s+)?right[-\s]?clicks?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "rightClick",
+    extract: (match) => ({
+      type: "rightClick",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "submit-form",
+    // "Submit the form" or "Submits form"
+    regex: /^(?:user\s+)?submits?\s+(?:the\s+)?form$/i,
+    primitiveType: "click",
+    extract: () => ({
+      type: "click",
+      locator: createLocatorFromMatch("role", "button", "Submit")
+    })
+  }
+];
+var extendedFillPatterns = [
+  {
+    name: "type-into-field",
+    // "Type 'password' into the Password field"
+    regex: /^(?:user\s+)?types?\s+['"](.+?)['"]\s+into\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("label", match[2]),
+      value: createValueFromText(match[1])
+    })
+  },
+  {
+    name: "fill-in-field-no-value",
+    // "Fill in the email address" (without explicit value - uses actor data)
+    regex: /^(?:user\s+)?fills?\s+in\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "fill",
+    extract: (match) => {
+      const fieldName = match[1].replace(/["']/g, "");
+      return {
+        type: "fill",
+        locator: createLocatorFromMatch("label", fieldName),
+        value: { type: "actor", value: fieldName.toLowerCase().replace(/\s+/g, "_") }
+      };
+    }
+  },
+  {
+    name: "clear-field",
+    // "Clear the email field" or "Clears the input"
+    regex: /^(?:user\s+)?clears?\s+(?:the\s+)?["']?(.+?)["']?\s*(?:field|input)?$/i,
+    primitiveType: "clear",
+    extract: (match) => ({
+      type: "clear",
+      locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "set-value",
+    // "Set the value to 'test'" or "Sets field to 'value'"
+    regex: /^(?:user\s+)?sets?\s+(?:the\s+)?(?:value\s+)?(?:of\s+)?["']?(.+?)["']?\s+to\s+['"](.+?)['"]$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("label", match[1]),
+      value: createValueFromText(match[2])
+    })
+  }
+];
+var extendedAssertionPatterns = [
+  {
+    name: "verify-element-showing",
+    // "Verify the dashboard is showing/displayed"
+    regex: /^(?:verify|confirm|ensure)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:is\s+)?(?:showing|displayed|visible)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "page-should-show",
+    // "The page should show 'Welcome'" or "Page should display 'text'"
+    regex: /^(?:the\s+)?page\s+should\s+(?:show|display|contain)\s+['"](.+?)['"]$/i,
+    primitiveType: "expectText",
+    extract: (match) => ({
+      type: "expectText",
+      locator: { strategy: "role", value: "main" },
+      text: match[1]
+    })
+  },
+  {
+    name: "make-sure-assertion",
+    // "Make sure the button is visible" or "Make sure user sees 'text'"
+    regex: /^make\s+sure\s+(?:that\s+)?(?:the\s+)?(.+?)\s+(?:is\s+)?(?:visible|displayed|shown)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "confirm-that-assertion",
+    // "Confirm that the message appears" or "Confirm the error is shown"
+    regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "check-element-exists",
+    // "Check that the element exists" or "Check the button is present"
+    regex: /^check\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:exists?|is\s+present)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-should-not-be-visible",
+    // "The error should not be visible" or "Error message is not displayed"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+    primitiveType: "expectHidden",
+    extract: (match) => ({
+      type: "expectHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-contains-text",
+    // "The header contains 'Welcome'" or "Element should contain 'text'"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?contains?\s+['"](.+?)['"]$/i,
+    primitiveType: "expectText",
+    extract: (match) => ({
+      type: "expectText",
+      locator: createLocatorFromMatch("text", match[1]),
+      text: match[2]
+    })
+  }
+];
+var extendedWaitPatterns = [
+  {
+    name: "wait-for-element-visible",
+    // "Wait for the loading spinner to disappear"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:disappear|be\s+hidden)$/i,
+    primitiveType: "waitForHidden",
+    extract: (match) => ({
+      type: "waitForHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "wait-for-element-appear",
+    // "Wait for the modal to appear" or "Wait for dialog to show"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?["']?(.+?)["']?\s+to\s+(?:appear|show|be\s+visible)$/i,
+    primitiveType: "waitForVisible",
+    extract: (match) => ({
+      type: "waitForVisible",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "wait-until-loaded",
+    // "Wait until the page is loaded" or "Wait until content loads"
+    regex: /^(?:user\s+)?waits?\s+until\s+(?:the\s+)?(?:page|content|data)\s+(?:is\s+)?loaded$/i,
+    primitiveType: "waitForLoadingComplete",
+    extract: () => ({
+      type: "waitForLoadingComplete"
+    })
+  },
+  {
+    name: "wait-seconds",
+    // "Wait for 2 seconds" or "Wait 3 seconds"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(\d+)\s+seconds?$/i,
+    primitiveType: "waitForTimeout",
+    extract: (match) => ({
+      type: "waitForTimeout",
+      ms: parseInt(match[1], 10) * 1e3
+    })
+  },
+  {
+    name: "wait-for-network",
+    // "Wait for network to be idle" or "Wait for network idle"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?network\s+(?:to\s+be\s+)?idle$/i,
+    primitiveType: "waitForNetworkIdle",
+    extract: () => ({
+      type: "waitForNetworkIdle"
+    })
+  }
+];
+var extendedNavigationPatterns = [
+  {
+    name: "refresh-page",
+    // "Refresh the page" or "Reload the page"
+    regex: /^(?:user\s+)?(?:refresh(?:es)?|reloads?)\s+(?:the\s+)?page$/i,
+    primitiveType: "reload",
+    extract: () => ({
+      type: "reload"
+    })
+  },
+  {
+    name: "go-back",
+    // "Go back" or "Navigate back" or "User goes back"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+back$/i,
+    primitiveType: "goBack",
+    extract: () => ({
+      type: "goBack"
+    })
+  },
+  {
+    name: "go-forward",
+    // "Go forward" or "Navigate forward"
+    regex: /^(?:user\s+)?(?:go(?:es)?|navigates?)\s+forward$/i,
+    primitiveType: "goForward",
+    extract: () => ({
+      type: "goForward"
+    })
+  }
+];
+var extendedSelectPatterns = [
+  {
+    name: "select-from-dropdown",
+    // "Select 'Option' from dropdown" or "Choose 'Value' from the dropdown"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+['"](.+?)['"]\s+from\s+(?:the\s+)?dropdown$/i,
+    primitiveType: "select",
+    extract: (match) => ({
+      type: "select",
+      locator: { strategy: "role", value: "combobox" },
+      option: match[1]
+    })
+  },
+  {
+    name: "select-option-named",
+    // "Select option 'Value'" or "Choose the 'Option' option"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?['"](.+?)['"](?:\s+option)?$/i,
+    primitiveType: "select",
+    extract: (match) => ({
+      type: "select",
+      locator: { strategy: "role", value: "combobox" },
+      option: match[1]
+    })
+  }
+];
+var hoverPatterns = [
+  {
+    name: "hover-over-element",
+    // "Hover over the menu" or "User hovers on button"
+    regex: /^(?:user\s+)?hovers?\s+(?:over|on)\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "hover",
+    extract: (match) => ({
+      type: "hover",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  },
+  {
+    name: "mouse-over",
+    // "Mouse over the element" or "Mouseover the button"
+    regex: /^(?:user\s+)?mouse\s*over\s+(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "hover",
+    extract: (match) => ({
+      type: "hover",
+      locator: createLocatorFromMatch("text", match[1].replace(/["']/g, ""))
+    })
+  }
+];
+var focusPatterns = [
+  {
+    name: "focus-on-element",
+    // "Focus on the input" or "User focuses the field"
+    regex: /^(?:user\s+)?focus(?:es)?\s+(?:on\s+)?(?:the\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "focus",
+    extract: (match) => ({
+      type: "focus",
+      locator: createLocatorFromMatch("label", match[1].replace(/["']/g, ""))
+    })
+  }
+];
 var allPatterns = [
   ...structuredPatterns,
   ...authPatterns,
   ...toastPatterns,
+  // Extended patterns come BEFORE base patterns to match more specific cases first
+  ...extendedNavigationPatterns,
+  // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
   ...navigationPatterns,
+  ...extendedClickPatterns,
+  // Must be before clickPatterns (e.g., "Click on" vs "Click")
   ...clickPatterns,
+  ...extendedFillPatterns,
   ...fillPatterns,
+  ...extendedSelectPatterns,
   ...selectPatterns,
   ...checkPatterns,
+  ...extendedAssertionPatterns,
+  // Must be before visibilityPatterns (e.g., "not be visible")
   ...visibilityPatterns,
   ...urlPatterns,
-  ...waitPatterns
+  ...extendedWaitPatterns,
+  ...waitPatterns,
+  ...hoverPatterns,
+  ...focusPatterns
 ];
 function matchPattern(text) {
   const trimmedText = text.trim();
@@ -448,6 +1230,39 @@ function getPatternMatches(text) {
     }
   }
   return matches;
+}
+function getAllPatternNames() {
+  return allPatterns.map((p) => p.name);
+}
+function getPatternCountByCategory() {
+  const counts = {};
+  for (const pattern of allPatterns) {
+    const category = pattern.name.split("-")[0] || "other";
+    counts[category] = (counts[category] || 0) + 1;
+  }
+  return counts;
+}
+function getPatternMetadata(patternName) {
+  const pattern = allPatterns.find((p) => p.name === patternName);
+  if (!pattern) return null;
+  const isExtended = patternName.includes("extended") || patternName.startsWith("hover") || patternName.startsWith("focus") || patternName.startsWith("press-") || patternName.startsWith("double-") || patternName.startsWith("right-");
+  return {
+    name: pattern.name,
+    version: isExtended ? "1.1.0" : "1.0.0",
+    addedDate: isExtended ? "2026-01-27" : "2026-01-02",
+    source: "core",
+    category: pattern.name.split("-")[0] || "other"
+  };
+}
+function findMatchingPatterns(text) {
+  const trimmedText = text.trim();
+  const matchingNames = [];
+  for (const pattern of allPatterns) {
+    if (pattern.regex.test(trimmedText)) {
+      matchingNames.push(pattern.name);
+    }
+  }
+  return matchingNames;
 }
 var GlossaryEntrySchema = z.object({
   canonical: z.string(),
@@ -1098,32 +1913,83 @@ function parseModuleHint(moduleHint) {
 }
 
 // src/mapping/stepMapper.ts
+var llkbModule = null;
+var llkbLoadAttempted = false;
+async function loadLlkbModule() {
+  if (llkbLoadAttempted) return llkbModule;
+  llkbLoadAttempted = true;
+  try {
+    const mod = await Promise.resolve().then(() => (init_patternExtension(), patternExtension_exports));
+    llkbModule = {
+      matchLlkbPattern: mod.matchLlkbPattern,
+      recordPatternSuccess: mod.recordPatternSuccess
+    };
+  } catch {
+    llkbModule = null;
+  }
+  return llkbModule;
+}
+function tryLlkbMatch(text, options) {
+  if (!llkbModule) return null;
+  return llkbModule.matchLlkbPattern(text, options);
+}
 function isAssertion(primitive) {
   return primitive.type.startsWith("expect");
 }
 function mapStepText(text, options = {}) {
-  const { normalizeText = true } = options;
+  const {
+    normalizeText = true,
+    useLlkb = true,
+    llkbRoot,
+    llkbMinConfidence = 0.7
+  } = options;
   const hints = extractHints(text);
   const cleanText = hints.hasHints ? hints.cleanText : text;
   const processedText = normalizeText ? normalizeStepText(cleanText) : cleanText;
   let primitive = matchPattern(processedText);
+  let matchSource = primitive ? "pattern" : "none";
   if (primitive && hints.hasHints) {
     primitive = applyHintsToPrimitive(primitive, hints);
-  } else if (!primitive && hasLocatorHints(hints)) {
+  }
+  let llkbPatternId;
+  let llkbConfidence;
+  if (!primitive && useLlkb) {
+    const llkbMatch = tryLlkbMatch(processedText, {
+      llkbRoot,
+      minConfidence: llkbMinConfidence
+    });
+    if (llkbMatch) {
+      primitive = llkbMatch.primitive;
+      matchSource = "llkb";
+      llkbPatternId = llkbMatch.patternId;
+      llkbConfidence = llkbMatch.confidence;
+      if (hints.hasHints) {
+        primitive = applyHintsToPrimitive(primitive, hints);
+      }
+    }
+  }
+  if (!primitive && hasLocatorHints(hints)) {
     primitive = createPrimitiveFromHints(processedText, hints);
+    if (primitive) {
+      matchSource = "hints";
+    }
   }
   if (primitive) {
     return {
       primitive,
       sourceText: text,
-      isAssertion: isAssertion(primitive)
+      isAssertion: isAssertion(primitive),
+      matchSource,
+      llkbPatternId,
+      llkbConfidence
     };
   }
   return {
     primitive: null,
     sourceText: text,
     isAssertion: false,
-    message: `Could not map step: "${text}"`
+    message: `Could not map step: "${text}"`,
+    matchSource: "none"
   };
 }
 function applyHintsToPrimitive(primitive, hints) {
@@ -1297,14 +2163,27 @@ function getMappingStats(mappings) {
   const blocked = mappings.filter((m) => m.primitive === null);
   const actions = mapped.filter((m) => !m.isAssertion);
   const assertions = mapped.filter((m) => m.isAssertion);
+  const patternMatches = mappings.filter((m) => m.matchSource === "pattern").length;
+  const llkbMatches = mappings.filter((m) => m.matchSource === "llkb").length;
+  const hintMatches = mappings.filter((m) => m.matchSource === "hints").length;
   return {
     total: mappings.length,
     mapped: mapped.length,
     blocked: blocked.length,
     actions: actions.length,
     assertions: assertions.length,
-    mappingRate: mappings.length > 0 ? mapped.length / mappings.length : 0
+    mappingRate: mappings.length > 0 ? mapped.length / mappings.length : 0,
+    patternMatches,
+    llkbMatches,
+    hintMatches
   };
+}
+async function initializeLlkb() {
+  const mod = await loadLlkbModule();
+  return mod !== null;
+}
+function isLlkbAvailable() {
+  return llkbModule !== null;
 }
 function suggestImprovements(blockedSteps) {
   const suggestions = [];
@@ -1335,6 +2214,310 @@ function suggestImprovements(blockedSteps) {
   return suggestions;
 }
 
-export { allPatterns, authPatterns, checkPatterns, clearExtendedGlossary, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, fillPatterns, findLabelAlias, findModuleMethod, getGlossary, getGlossaryStats, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getPatternMatches, getSynonyms, hasExtendedGlossary, initGlossary, isSynonymOf, loadExtendedGlossary, loadGlossary, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, parseSelectorToLocator, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns };
+// src/mapping/patternDistance.ts
+function levenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          // substitution
+          matrix[i][j - 1] + 1,
+          // insertion
+          matrix[i - 1][j] + 1
+          // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+function calculateSimilarity(a, b) {
+  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1;
+  return 1 - distance / maxLength;
+}
+function generateExampleFromRegex(regex, patternName) {
+  void regex.source;
+  if (patternName.includes("navigate")) {
+    return "User navigates to /path";
+  }
+  if (patternName.includes("click")) {
+    return 'User clicks "Button" button';
+  }
+  if (patternName.includes("fill") || patternName.includes("enter") || patternName.includes("type")) {
+    return 'User enters "value" in "Field" field';
+  }
+  if (patternName.includes("see") || patternName.includes("visible") || patternName.includes("expect")) {
+    return 'User should see "Content"';
+  }
+  if (patternName.includes("wait")) {
+    return "Wait for network idle";
+  }
+  return `Step matching ${patternName}`;
+}
+function findNearestPattern(text, patterns) {
+  let nearest = null;
+  let minDistance = Infinity;
+  const normalizedText = text.toLowerCase().trim();
+  const patternArray = patterns instanceof Map ? Array.from(patterns.entries()) : patterns.map((p) => [p.name, p]);
+  for (const [name, pattern] of patternArray) {
+    const examples = "examples" in pattern && pattern.examples ? pattern.examples : [generateExampleFromRegex(pattern.regex, pattern.name)];
+    for (const example of examples) {
+      const distance = levenshteinDistance(normalizedText, example.toLowerCase());
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = {
+          name,
+          distance,
+          exampleMatch: example,
+          mismatchReason: explainMismatch(text, pattern)
+        };
+      }
+    }
+  }
+  if (nearest && nearest.exampleMatch) {
+    const similarity = calculateSimilarity(text, nearest.exampleMatch);
+    if (similarity > 0.5) {
+      return nearest;
+    }
+  }
+  return nearest;
+}
+function explainMismatch(text, pattern) {
+  const reasons = [];
+  const lowerText = text.toLowerCase();
+  const requiredKeywords = "requiredKeywords" in pattern ? pattern.requiredKeywords : inferRequiredKeywords(pattern);
+  if (requiredKeywords) {
+    const missing = requiredKeywords.filter(
+      (kw) => !lowerText.includes(kw.toLowerCase())
+    );
+    if (missing.length > 0) {
+      reasons.push(`Missing keywords: ${missing.join(", ")}`);
+    }
+  }
+  if (!text.includes("(") && !text.includes("testid=") && !text.includes("role=")) {
+    reasons.push("Missing locator hint (e.g., testid=..., role=button)");
+  }
+  if (pattern.primitiveType === "click" && !text.match(/['"].+?['"]/)) {
+    reasons.push("Target element name not quoted");
+  }
+  return reasons.length > 0 ? reasons.join("; ") : "Pattern format mismatch";
+}
+function inferRequiredKeywords(pattern) {
+  const name = pattern.name.toLowerCase();
+  if (name.includes("navigate")) {
+    return ["navigate", "go", "open"];
+  }
+  if (name.includes("click")) {
+    return ["click", "press", "tap"];
+  }
+  if (name.includes("fill") || name.includes("enter")) {
+    return ["enter", "type", "fill", "input"];
+  }
+  if (name.includes("see") || name.includes("visible")) {
+    return ["see", "visible", "shown"];
+  }
+  if (name.includes("wait")) {
+    return ["wait"];
+  }
+  return void 0;
+}
+
+// src/mapping/blockedStepAnalysis.ts
+function categorizeStep(text) {
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes("navigate") || lowerText.includes("go to") || lowerText.includes("open") || lowerText.includes("visit")) {
+    return "navigation";
+  }
+  if (lowerText.includes("click") || lowerText.includes("fill") || lowerText.includes("enter") || lowerText.includes("type") || lowerText.includes("select") || lowerText.includes("check") || lowerText.includes("press")) {
+    return "interaction";
+  }
+  if (lowerText.includes("see") || lowerText.includes("visible") || lowerText.includes("verify") || lowerText.includes("assert") || lowerText.includes("confirm") || lowerText.includes("should") || lowerText.includes("expect")) {
+    return "assertion";
+  }
+  if (lowerText.includes("wait") || lowerText.includes("load") || lowerText.includes("until") || lowerText.includes("appear")) {
+    return "wait";
+  }
+  return "unknown";
+}
+function inferMachineHint(text) {
+  const lowerText = text.toLowerCase();
+  const quotedMatch = text.match(/['"]([^'"]+)['"]/);
+  const elementName = quotedMatch?.[1];
+  if (!elementName) return void 0;
+  if (lowerText.includes("link")) {
+    return `(role=link, name=${elementName})`;
+  }
+  if (lowerText.includes("button") || lowerText.includes("click")) {
+    return `(role=button, name=${elementName})`;
+  }
+  if (lowerText.includes("field") || lowerText.includes("input") || lowerText.includes("enter") || lowerText.includes("type")) {
+    return `(role=textbox, name=${elementName})`;
+  }
+  if (lowerText.includes("heading")) {
+    return `(role=heading, name=${elementName})`;
+  }
+  if (lowerText.includes("checkbox")) {
+    return `(role=checkbox, name=${elementName})`;
+  }
+  return `(text=${elementName})`;
+}
+function getNavigationSuggestions(text) {
+  const suggestions = [];
+  const urlMatch = text.match(/\/[a-zA-Z0-9/_-]+/);
+  if (urlMatch) {
+    suggestions.push({
+      priority: 1,
+      text: `User navigates to ${urlMatch[0]}`,
+      explanation: "Standard navigation pattern",
+      confidence: 0.9
+    });
+  } else {
+    suggestions.push({
+      priority: 1,
+      text: "User navigates to /[path]",
+      explanation: "Add explicit URL path",
+      confidence: 0.5
+    });
+  }
+  return suggestions;
+}
+function getInteractionSuggestions(text) {
+  const suggestions = [];
+  const quotedMatch = text.match(/['"]([^'"]+)['"]/);
+  const elementName = quotedMatch?.[1] || "[element]";
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes("click")) {
+    suggestions.push({
+      priority: 1,
+      text: `User clicks '${elementName}' button \`(role=button, name=${elementName})\``,
+      explanation: "Add role=button locator hint",
+      confidence: 0.85
+    });
+  }
+  if (lowerText.includes("fill") || lowerText.includes("enter") || lowerText.includes("type")) {
+    const valueMatch = text.match(/['"]([^'"]+)['"]/);
+    const value = valueMatch?.[1] || "value";
+    suggestions.push({
+      priority: 1,
+      text: `User enters '${value}' in '${elementName}' field \`(role=textbox, name=${elementName})\``,
+      explanation: "Add role=textbox locator hint",
+      confidence: 0.85
+    });
+  }
+  return suggestions;
+}
+function getAssertionSuggestions(text) {
+  const suggestions = [];
+  const quotedMatch = text.match(/['"]([^'"]+)['"]/);
+  const content = quotedMatch?.[1] || "[content]";
+  suggestions.push({
+    priority: 1,
+    text: `User should see '${content}' \`(text=${content})\``,
+    explanation: "Standard visibility assertion",
+    confidence: 0.8
+  });
+  suggestions.push({
+    priority: 2,
+    text: `**Assert**: '${content}' is visible \`(role=heading, name=${content})\``,
+    explanation: "Structured assertion format with heading role",
+    confidence: 0.7
+  });
+  return suggestions;
+}
+function getWaitSuggestions(_text) {
+  const suggestions = [];
+  suggestions.push({
+    priority: 1,
+    text: "Wait for network idle `(signal=networkidle)`",
+    explanation: "Standard network wait pattern",
+    confidence: 0.8
+  });
+  suggestions.push({
+    priority: 2,
+    text: "Wait for page to load `(signal=load)`",
+    explanation: "Wait for load event",
+    confidence: 0.7
+  });
+  return suggestions;
+}
+function getGenericSuggestions(text) {
+  return [{
+    priority: 1,
+    text: `**Action**: ${text}`,
+    explanation: "Use structured format with Action prefix",
+    confidence: 0.5
+  }];
+}
+function analyzeBlockedStep(step, reason, patterns) {
+  const category = categorizeStep(step);
+  const analysis = {
+    step,
+    reason,
+    suggestions: [],
+    category
+  };
+  if (patterns) {
+    const nearest = findNearestPattern(step, patterns);
+    if (nearest) {
+      analysis.nearestPattern = nearest;
+    }
+  }
+  switch (category) {
+    case "navigation":
+      analysis.suggestions = getNavigationSuggestions(step);
+      break;
+    case "interaction":
+      analysis.suggestions = getInteractionSuggestions(step);
+      analysis.machineHintSuggestion = inferMachineHint(step);
+      break;
+    case "assertion":
+      analysis.suggestions = getAssertionSuggestions(step);
+      break;
+    case "wait":
+      analysis.suggestions = getWaitSuggestions();
+      break;
+    default:
+      analysis.suggestions = getGenericSuggestions(step);
+  }
+  return analysis;
+}
+function formatBlockedStepAnalysis(analysis) {
+  const lines = [];
+  lines.push(`
+  Step: "${analysis.step}"`);
+  lines.push(`  Category: ${analysis.category}`);
+  lines.push(`  Reason: ${analysis.reason}`);
+  if (analysis.nearestPattern) {
+    lines.push(`  Nearest pattern: ${analysis.nearestPattern.name}`);
+    lines.push(`  Example that works: "${analysis.nearestPattern.exampleMatch}"`);
+    lines.push(`  Why it didn't match: ${analysis.nearestPattern.mismatchReason}`);
+  }
+  lines.push("  Suggestions:");
+  for (const suggestion of analysis.suggestions) {
+    lines.push(`    ${suggestion.priority}. ${suggestion.text}`);
+    lines.push(`       (${suggestion.explanation}, confidence: ${(suggestion.confidence * 100).toFixed(0)}%)`);
+  }
+  if (analysis.machineHintSuggestion) {
+    lines.push(`  Suggested hint: ${analysis.machineHintSuggestion}`);
+  }
+  return lines.join("\n");
+}
+
+// src/mapping/index.ts
+init_telemetry();
+
+export { PATTERN_VERSION, allPatterns, analyzeBlockedPatterns, analyzeBlockedStep, authPatterns, calculateSimilarity, categorizeStep, categorizeStepText, checkPatterns, clearExtendedGlossary, clearTelemetry, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, explainMismatch, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, fillPatterns, findLabelAlias, findMatchingPatterns, findModuleMethod, findNearestPattern, focusPatterns, formatBlockedStepAnalysis, getAllPatternNames, getAssertionSuggestions, getGenericSuggestions, getGlossary, getGlossaryStats, getInteractionSuggestions, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getNavigationSuggestions, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getSynonyms, getTelemetryPath, getTelemetryStats, getWaitSuggestions, hasExtendedGlossary, hoverPatterns, inferMachineHint, initGlossary, initializeLlkb, isLlkbAvailable, isSynonymOf, levenshteinDistance, loadExtendedGlossary, loadGlossary, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, normalizeStepTextForTelemetry, parseSelectorToLocator, readBlockedStepRecords, recordBlockedStep, recordUserFix, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
