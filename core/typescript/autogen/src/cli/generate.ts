@@ -184,15 +184,14 @@ export async function runGenerate(args: string[]): Promise<void> {
     }
 
     // Write blocked step analysis JSON for AI consumption
+    // Write when ARTK_JSON_OUTPUT is set (even in dry-run) or when not in dry-run
     if (process.env.ARTK_JSON_OUTPUT || !dryRun) {
       const analysisPath = join(outputDir, 'blocked-steps-analysis.json');
-      if (!dryRun) {
-        mkdirSync(dirname(analysisPath), { recursive: true });
-        writeFileSync(analysisPath, JSON.stringify(blockedStepAnalyses, null, 2), 'utf-8');
-        if (!quiet) {
-          console.log(`\n💡 Blocked step analysis saved to: ${analysisPath}`);
-          console.log('   Use this file to auto-fix journey steps.\n');
-        }
+      mkdirSync(dirname(analysisPath), { recursive: true });
+      writeFileSync(analysisPath, JSON.stringify(blockedStepAnalyses, null, 2), 'utf-8');
+      if (!quiet) {
+        console.log(`\n💡 Blocked step analysis saved to: ${analysisPath}`);
+        console.log('   Use this file to auto-fix journey steps.\n');
       }
     }
   }

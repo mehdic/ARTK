@@ -5,6 +5,7 @@
  * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 3
  */
 import { parseArgs } from 'node:util';
+import { createInterface } from 'node:readline';
 import {
   analyzeBlockedPatterns,
   getTelemetryStats,
@@ -30,15 +31,18 @@ Options:
   --limit, -n <num>   Limit number of results (default: 20)
   --json              Output as JSON
   --category, -c      Filter by category (navigation|interaction|assertion|wait|unknown)
+  --force, -f         Skip confirmation prompts (for clear command)
   -h, --help          Show this help message
 
 Examples:
   artk-autogen patterns gaps                    # Show top 20 pattern gaps
   artk-autogen patterns gaps --limit 50         # Show top 50 pattern gaps
-  artk-autogen patterns gaps --category click   # Show only click-related gaps
+  artk-autogen patterns gaps --category interaction  # Show only interaction-related gaps
   artk-autogen patterns stats                   # Show telemetry statistics
   artk-autogen patterns list                    # List all patterns
   artk-autogen patterns export --json           # Export gaps as JSON
+  artk-autogen patterns clear                   # Clear telemetry (with confirmation)
+  artk-autogen patterns clear --force           # Clear telemetry (no confirmation)
 `;
 
 /**
@@ -215,9 +219,26 @@ async function runExport(options: { baseDir?: string }): Promise<void> {
 }
 
 /**
+ * Prompt user for confirmation
+ */
+async function confirmAction(message: string): Promise<boolean> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`${message} (y/N): `, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
+    });
+  });
+}
+
+/**
  * Run the patterns clear subcommand
  */
-async function runClear(options: { baseDir?: string }): Promise<void> {
+async function runClear(options: { baseDir?: string; force?: boolean }): Promise<void> {
   const stats = getTelemetryStats({ baseDir: options.baseDir });
 
   if (stats.totalRecords === 0) {
@@ -228,7 +249,15 @@ async function runClear(options: { baseDir?: string }): Promise<void> {
   console.log(`\n⚠️  This will delete ${stats.totalRecords} blocked step records.`);
   console.log('   This action cannot be undone.\n');
 
-  // In CLI context, we proceed (user should have been warned by the help)
+  // Require confirmation unless --force is specified
+  if (!options.force) {
+    const confirmed = await confirmAction('Are you sure you want to proceed?');
+    if (!confirmed) {
+      console.log('Operation cancelled.\n');
+      return;
+    }
+  }
+
   clearTelemetry({ baseDir: options.baseDir });
   console.log('✅ Telemetry data cleared.\n');
 }
@@ -245,6 +274,7 @@ export async function runPatterns(args: string[]): Promise<void> {
       limit: { type: 'string', short: 'n', default: '20' },
       json: { type: 'boolean', default: false },
       category: { type: 'string', short: 'c' },
+      force: { type: 'boolean', short: 'f', default: false },
       help: { type: 'boolean', short: 'h' },
     },
     allowPositionals: true,
@@ -277,7 +307,7 @@ export async function runPatterns(args: string[]): Promise<void> {
       await runExport(options);
       break;
     case 'clear':
-      await runClear(options);
+      await runClear({ baseDir: options.baseDir, force: values.force as boolean });
       break;
     default:
       console.error(`Unknown subcommand: ${subcommand}`);
