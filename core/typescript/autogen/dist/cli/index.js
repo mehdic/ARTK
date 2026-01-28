@@ -1753,8 +1753,9 @@ function normalizeStepText(text) {
     if (part.startsWith('"') || part.startsWith("'")) {
       parts.push(part);
     } else {
-      const canonical = synonymMap.get(part.toLowerCase());
-      parts.push(canonical ?? part);
+      const lowerPart = part.toLowerCase();
+      const canonical = synonymMap.get(lowerPart);
+      parts.push(canonical ?? lowerPart);
     }
   }
   return parts.join(" ");
@@ -2174,174 +2175,6 @@ var init_parseHints = __esm({
     init_hintPatterns();
   }
 });
-function getTelemetryPath(baseDir) {
-  const dir = baseDir || process.cwd();
-  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
-}
-function ensureTelemetryDir(telemetryPath) {
-  const dir = dirname(telemetryPath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
-function normalizeStepTextForTelemetry(text) {
-  return text.toLowerCase().trim().replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''").trim();
-}
-function categorizeStepText(text) {
-  const lower = text.toLowerCase();
-  if (lower.includes("navigate") || lower.includes("go to") || lower.includes("open") || lower.includes("visit")) {
-    return "navigation";
-  }
-  if (lower.includes("click") || lower.includes("fill") || lower.includes("enter") || lower.includes("type") || lower.includes("select") || lower.includes("check") || lower.includes("press") || lower.includes("submit") || lower.includes("input")) {
-    return "interaction";
-  }
-  if (lower.includes("see") || lower.includes("visible") || lower.includes("verify") || lower.includes("assert") || lower.includes("confirm") || lower.includes("should") || lower.includes("ensure") || lower.includes("expect") || lower.includes("display")) {
-    return "assertion";
-  }
-  if (lower.includes("wait") || lower.includes("load") || lower.includes("until")) {
-    return "wait";
-  }
-  return "unknown";
-}
-function recordBlockedStep(record, options = {}) {
-  const telemetryPath = getTelemetryPath(options.baseDir);
-  ensureTelemetryDir(telemetryPath);
-  const fullRecord = {
-    ...record,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    normalizedText: normalizeStepTextForTelemetry(record.stepText),
-    category: record.category || categorizeStepText(record.stepText)
-  };
-  appendFileSync(telemetryPath, JSON.stringify(fullRecord) + "\n");
-}
-function readBlockedStepRecords(options = {}) {
-  const telemetryPath = getTelemetryPath(options.baseDir);
-  if (!existsSync(telemetryPath)) {
-    return [];
-  }
-  try {
-    const content = readFileSync(telemetryPath, "utf-8");
-    return content.split("\n").filter(Boolean).map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    }).filter((record) => record !== null);
-  } catch {
-    return [];
-  }
-}
-function calculateTokenSimilarity(a, b) {
-  const tokensA = new Set(a.split(" ").filter(Boolean));
-  const tokensB = new Set(b.split(" ").filter(Boolean));
-  if (tokensA.size === 0 && tokensB.size === 0) return 1;
-  if (tokensA.size === 0 || tokensB.size === 0) return 0;
-  const intersection = new Set([...tokensA].filter((x) => tokensB.has(x)));
-  const union = /* @__PURE__ */ new Set([...tokensA, ...tokensB]);
-  return intersection.size / union.size;
-}
-function groupBySimilarity(records, threshold = 0.7) {
-  const groups = /* @__PURE__ */ new Map();
-  const processed = /* @__PURE__ */ new Set();
-  for (let i = 0; i < records.length; i++) {
-    if (processed.has(i)) continue;
-    const record = records[i];
-    const normalized = record.normalizedText;
-    const group = [record];
-    processed.add(i);
-    for (let j = i + 1; j < records.length; j++) {
-      if (processed.has(j)) continue;
-      const other = records[j];
-      const similarity = calculateTokenSimilarity(normalized, other.normalizedText);
-      if (similarity >= threshold) {
-        group.push(other);
-        processed.add(j);
-      }
-    }
-    groups.set(normalized, group);
-  }
-  return groups;
-}
-function analyzeBlockedPatterns(options = {}) {
-  const records = readBlockedStepRecords(options);
-  if (records.length === 0) {
-    return [];
-  }
-  const groups = groupBySimilarity(records);
-  const gaps = [];
-  for (const [normalizedText, groupRecords] of groups) {
-    const timestamps = groupRecords.map((r) => r.timestamp).sort();
-    const variants = [...new Set(groupRecords.map((r) => r.stepText))];
-    gaps.push({
-      exampleText: groupRecords[0].stepText,
-      normalizedText,
-      count: groupRecords.length,
-      category: groupRecords[0].category,
-      variants,
-      suggestedPattern: generateSuggestedPattern(variants),
-      firstSeen: timestamps[0],
-      lastSeen: timestamps[timestamps.length - 1]
-    });
-  }
-  gaps.sort((a, b) => b.count - a.count);
-  return options.limit ? gaps.slice(0, options.limit) : gaps;
-}
-function generateSuggestedPattern(variants) {
-  if (variants.length === 0) return void 0;
-  const example = variants[0].toLowerCase();
-  const pattern = example.replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/[.*+?^${}()|[\]\\]/g, (char) => {
-    if (char === "(" || char === ")" || char === "[" || char === "]" || char === "+") {
-      return char;
-    }
-    return "\\" + char;
-  });
-  return `^(?:user\\s+)?${pattern}$`;
-}
-function getTelemetryStats(options = {}) {
-  const records = readBlockedStepRecords(options);
-  if (records.length === 0) {
-    return {
-      totalRecords: 0,
-      uniquePatterns: 0,
-      byCategory: {},
-      dateRange: {
-        earliest: "",
-        latest: ""
-      }
-    };
-  }
-  const byCategory = {};
-  const normalizedSet = /* @__PURE__ */ new Set();
-  const timestamps = records.map((r) => r.timestamp).sort();
-  for (const record of records) {
-    byCategory[record.category] = (byCategory[record.category] || 0) + 1;
-    normalizedSet.add(record.normalizedText);
-  }
-  return {
-    totalRecords: records.length,
-    uniquePatterns: normalizedSet.size,
-    byCategory,
-    dateRange: {
-      earliest: timestamps[0],
-      latest: timestamps[timestamps.length - 1]
-    }
-  };
-}
-function clearTelemetry(options = {}) {
-  const telemetryPath = getTelemetryPath(options.baseDir);
-  if (existsSync(telemetryPath)) {
-    const { unlinkSync: unlinkSync2 } = __require("fs");
-    unlinkSync2(telemetryPath);
-  }
-}
-var DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE;
-var init_telemetry = __esm({
-  "src/mapping/telemetry.ts"() {
-    DEFAULT_TELEMETRY_DIR = ".artk";
-    TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
-  }
-});
 
 // src/llkb/patternExtension.ts
 var patternExtension_exports = {};
@@ -2408,7 +2241,7 @@ function calculateConfidence(successCount, failCount) {
 }
 function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
   const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  const normalizedText = normalizeStepText(originalText);
   let pattern = patterns.find((p) => p.normalizedText === normalizedText);
   if (pattern) {
     pattern.successCount++;
@@ -2439,7 +2272,7 @@ function recordPatternSuccess(originalText, primitive, journeyId, options = {}) 
 }
 function recordPatternFailure(originalText, journeyId, options = {}) {
   const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  const normalizedText = normalizeStepText(originalText);
   const pattern = patterns.find((p) => p.normalizedText === normalizedText);
   if (pattern) {
     pattern.failCount++;
@@ -2452,7 +2285,7 @@ function recordPatternFailure(originalText, journeyId, options = {}) {
 }
 function matchLlkbPattern(text, options = {}) {
   const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepTextForTelemetry(text);
+  const normalizedText = normalizeStepText(text);
   const minConfidence = options.minConfidence ?? 0.7;
   const match = patterns.find(
     (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
@@ -2576,7 +2409,7 @@ function clearLearnedPatterns(options = {}) {
 var PATTERNS_FILE, DEFAULT_LLKB_ROOT;
 var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
-    init_telemetry();
+    init_glossary();
     PATTERNS_FILE = "learned-patterns.json";
     DEFAULT_LLKB_ROOT = ".artk/llkb";
   }
@@ -2631,6 +2464,18 @@ function mapStepText(text, options = {}) {
       matchSource = "llkb";
       llkbPatternId = llkbMatch.patternId;
       llkbConfidence = llkbMatch.confidence;
+      if (llkbModule && options.journeyId) {
+        try {
+          llkbModule.recordPatternSuccess(
+            text,
+            // Original text, not processed
+            llkbMatch.primitive,
+            options.journeyId,
+            { llkbRoot }
+          );
+        } catch {
+        }
+      }
       if (hints.hasHints) {
         primitive = applyHintsToPrimitive(primitive, hints);
       }
@@ -7604,6 +7449,174 @@ Backup: ${result.backupPath}`);
 var init_upgrade2 = __esm({
   "src/cli/upgrade.ts"() {
     init_upgrade();
+  }
+});
+function getTelemetryPath(baseDir) {
+  const dir = baseDir || process.cwd();
+  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
+}
+function ensureTelemetryDir(telemetryPath) {
+  const dir = dirname(telemetryPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+function normalizeStepTextForTelemetry(text) {
+  return text.toLowerCase().trim().replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''").trim();
+}
+function categorizeStepText(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes("navigate") || lower.includes("go to") || lower.includes("open") || lower.includes("visit")) {
+    return "navigation";
+  }
+  if (lower.includes("click") || lower.includes("fill") || lower.includes("enter") || lower.includes("type") || lower.includes("select") || lower.includes("check") || lower.includes("press") || lower.includes("submit") || lower.includes("input")) {
+    return "interaction";
+  }
+  if (lower.includes("see") || lower.includes("visible") || lower.includes("verify") || lower.includes("assert") || lower.includes("confirm") || lower.includes("should") || lower.includes("ensure") || lower.includes("expect") || lower.includes("display")) {
+    return "assertion";
+  }
+  if (lower.includes("wait") || lower.includes("load") || lower.includes("until")) {
+    return "wait";
+  }
+  return "unknown";
+}
+function recordBlockedStep(record, options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  ensureTelemetryDir(telemetryPath);
+  const fullRecord = {
+    ...record,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    normalizedText: normalizeStepTextForTelemetry(record.stepText),
+    category: record.category || categorizeStepText(record.stepText)
+  };
+  appendFileSync(telemetryPath, JSON.stringify(fullRecord) + "\n");
+}
+function readBlockedStepRecords(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (!existsSync(telemetryPath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(telemetryPath, "utf-8");
+    return content.split("\n").filter(Boolean).map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    }).filter((record) => record !== null);
+  } catch {
+    return [];
+  }
+}
+function calculateTokenSimilarity(a, b) {
+  const tokensA = new Set(a.split(" ").filter(Boolean));
+  const tokensB = new Set(b.split(" ").filter(Boolean));
+  if (tokensA.size === 0 && tokensB.size === 0) return 1;
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  const intersection = new Set([...tokensA].filter((x) => tokensB.has(x)));
+  const union = /* @__PURE__ */ new Set([...tokensA, ...tokensB]);
+  return intersection.size / union.size;
+}
+function groupBySimilarity(records, threshold = 0.7) {
+  const groups = /* @__PURE__ */ new Map();
+  const processed = /* @__PURE__ */ new Set();
+  for (let i = 0; i < records.length; i++) {
+    if (processed.has(i)) continue;
+    const record = records[i];
+    const normalized = record.normalizedText;
+    const group = [record];
+    processed.add(i);
+    for (let j = i + 1; j < records.length; j++) {
+      if (processed.has(j)) continue;
+      const other = records[j];
+      const similarity = calculateTokenSimilarity(normalized, other.normalizedText);
+      if (similarity >= threshold) {
+        group.push(other);
+        processed.add(j);
+      }
+    }
+    groups.set(normalized, group);
+  }
+  return groups;
+}
+function analyzeBlockedPatterns(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return [];
+  }
+  const groups = groupBySimilarity(records);
+  const gaps = [];
+  for (const [normalizedText, groupRecords] of groups) {
+    const timestamps = groupRecords.map((r) => r.timestamp).sort();
+    const variants = [...new Set(groupRecords.map((r) => r.stepText))];
+    gaps.push({
+      exampleText: groupRecords[0].stepText,
+      normalizedText,
+      count: groupRecords.length,
+      category: groupRecords[0].category,
+      variants,
+      suggestedPattern: generateSuggestedPattern(variants),
+      firstSeen: timestamps[0],
+      lastSeen: timestamps[timestamps.length - 1]
+    });
+  }
+  gaps.sort((a, b) => b.count - a.count);
+  return options.limit ? gaps.slice(0, options.limit) : gaps;
+}
+function generateSuggestedPattern(variants) {
+  if (variants.length === 0) return void 0;
+  const example = variants[0].toLowerCase();
+  const pattern = example.replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/[.*+?^${}()|[\]\\]/g, (char) => {
+    if (char === "(" || char === ")" || char === "[" || char === "]" || char === "+") {
+      return char;
+    }
+    return "\\" + char;
+  });
+  return `^(?:user\\s+)?${pattern}$`;
+}
+function getTelemetryStats(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return {
+      totalRecords: 0,
+      uniquePatterns: 0,
+      byCategory: {},
+      dateRange: {
+        earliest: "",
+        latest: ""
+      }
+    };
+  }
+  const byCategory = {};
+  const normalizedSet = /* @__PURE__ */ new Set();
+  const timestamps = records.map((r) => r.timestamp).sort();
+  for (const record of records) {
+    byCategory[record.category] = (byCategory[record.category] || 0) + 1;
+    normalizedSet.add(record.normalizedText);
+  }
+  return {
+    totalRecords: records.length,
+    uniquePatterns: normalizedSet.size,
+    byCategory,
+    dateRange: {
+      earliest: timestamps[0],
+      latest: timestamps[timestamps.length - 1]
+    }
+  };
+}
+function clearTelemetry(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (existsSync(telemetryPath)) {
+    const { unlinkSync: unlinkSync2 } = __require("fs");
+    unlinkSync2(telemetryPath);
+  }
+}
+var DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE;
+var init_telemetry = __esm({
+  "src/mapping/telemetry.ts"() {
+    DEFAULT_TELEMETRY_DIR = ".artk";
+    TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
   }
 });
 var init_patternDistance = __esm({

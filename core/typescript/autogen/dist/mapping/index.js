@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
-import { join, dirname, resolve } from 'path';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, appendFileSync } from 'fs';
+import { resolve, join, dirname } from 'path';
 import { pathToFileURL } from 'url';
 import { parse } from 'yaml';
 import { z } from 'zod';
@@ -19,187 +19,454 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-function getTelemetryPath(baseDir) {
-  const dir = baseDir || process.cwd();
-  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
-}
-function ensureTelemetryDir(telemetryPath) {
-  const dir = dirname(telemetryPath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+function buildSynonymMap(glossary) {
+  const map = /* @__PURE__ */ new Map();
+  for (const entry of glossary.entries) {
+    map.set(entry.canonical.toLowerCase(), entry.canonical);
+    for (const synonym of entry.synonyms) {
+      map.set(synonym.toLowerCase(), entry.canonical);
+    }
   }
+  return map;
 }
-function normalizeStepTextForTelemetry(text) {
-  return text.toLowerCase().trim().replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''").trim();
-}
-function categorizeStepText(text) {
-  const lower = text.toLowerCase();
-  if (lower.includes("navigate") || lower.includes("go to") || lower.includes("open") || lower.includes("visit")) {
-    return "navigation";
-  }
-  if (lower.includes("click") || lower.includes("fill") || lower.includes("enter") || lower.includes("type") || lower.includes("select") || lower.includes("check") || lower.includes("press") || lower.includes("submit") || lower.includes("input")) {
-    return "interaction";
-  }
-  if (lower.includes("see") || lower.includes("visible") || lower.includes("verify") || lower.includes("assert") || lower.includes("confirm") || lower.includes("should") || lower.includes("ensure") || lower.includes("expect") || lower.includes("display")) {
-    return "assertion";
-  }
-  if (lower.includes("wait") || lower.includes("load") || lower.includes("until")) {
-    return "wait";
-  }
-  return "unknown";
-}
-function recordBlockedStep(record, options = {}) {
-  const telemetryPath = getTelemetryPath(options.baseDir);
-  ensureTelemetryDir(telemetryPath);
-  const fullRecord = {
-    ...record,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    normalizedText: normalizeStepTextForTelemetry(record.stepText),
-    category: record.category || categorizeStepText(record.stepText)
-  };
-  appendFileSync(telemetryPath, JSON.stringify(fullRecord) + "\n");
-}
-function readBlockedStepRecords(options = {}) {
-  const telemetryPath = getTelemetryPath(options.baseDir);
-  if (!existsSync(telemetryPath)) {
-    return [];
+function loadGlossary(glossaryPath) {
+  const resolvedPath = resolve(glossaryPath);
+  if (!existsSync(resolvedPath)) {
+    console.warn(`Glossary file not found at ${resolvedPath}, using defaults`);
+    return defaultGlossary;
   }
   try {
-    const content = readFileSync(telemetryPath, "utf-8");
-    return content.split("\n").filter(Boolean).map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    }).filter((record) => record !== null);
+    const content = readFileSync(resolvedPath, "utf-8");
+    const parsed = parse(content);
+    const result = GlossarySchema.safeParse(parsed);
+    if (!result.success) {
+      console.warn(`Invalid glossary file at ${resolvedPath}, using defaults`);
+      return defaultGlossary;
+    }
+    return mergeGlossaries(defaultGlossary, result.data);
   } catch {
-    return [];
+    console.warn(`Failed to load glossary from ${resolvedPath}, using defaults`);
+    return defaultGlossary;
   }
 }
-function calculateTokenSimilarity(a, b) {
-  const tokensA = new Set(a.split(" ").filter(Boolean));
-  const tokensB = new Set(b.split(" ").filter(Boolean));
-  if (tokensA.size === 0 && tokensB.size === 0) return 1;
-  if (tokensA.size === 0 || tokensB.size === 0) return 0;
-  const intersection = new Set([...tokensA].filter((x) => tokensB.has(x)));
-  const union = /* @__PURE__ */ new Set([...tokensA, ...tokensB]);
-  return intersection.size / union.size;
-}
-function groupBySimilarity(records, threshold = 0.7) {
-  const groups = /* @__PURE__ */ new Map();
-  const processed = /* @__PURE__ */ new Set();
-  for (let i = 0; i < records.length; i++) {
-    if (processed.has(i)) continue;
-    const record = records[i];
-    const normalized = record.normalizedText;
-    const group = [record];
-    processed.add(i);
-    for (let j = i + 1; j < records.length; j++) {
-      if (processed.has(j)) continue;
-      const other = records[j];
-      const similarity = calculateTokenSimilarity(normalized, other.normalizedText);
-      if (similarity >= threshold) {
-        group.push(other);
-        processed.add(j);
-      }
+function mergeGlossaries(base, extension) {
+  const merged = {
+    version: Math.max(base.version, extension.version),
+    entries: [...base.entries],
+    labelAliases: [...base.labelAliases ?? []],
+    moduleMethods: [...base.moduleMethods ?? []]
+  };
+  for (const extEntry of extension.entries) {
+    const existing = merged.entries.find(
+      (e) => e.canonical.toLowerCase() === extEntry.canonical.toLowerCase()
+    );
+    if (existing) {
+      const allSynonyms = /* @__PURE__ */ new Set([...existing.synonyms, ...extEntry.synonyms]);
+      existing.synonyms = Array.from(allSynonyms);
+    } else {
+      merged.entries.push(extEntry);
     }
-    groups.set(normalized, group);
   }
-  return groups;
-}
-function analyzeBlockedPatterns(options = {}) {
-  const records = readBlockedStepRecords(options);
-  if (records.length === 0) {
-    return [];
-  }
-  const groups = groupBySimilarity(records);
-  const gaps = [];
-  for (const [normalizedText, groupRecords] of groups) {
-    const timestamps = groupRecords.map((r) => r.timestamp).sort();
-    const variants = [...new Set(groupRecords.map((r) => r.stepText))];
-    gaps.push({
-      exampleText: groupRecords[0].stepText,
-      normalizedText,
-      count: groupRecords.length,
-      category: groupRecords[0].category,
-      variants,
-      suggestedPattern: generateSuggestedPattern(variants),
-      firstSeen: timestamps[0],
-      lastSeen: timestamps[timestamps.length - 1]
-    });
-  }
-  gaps.sort((a, b) => b.count - a.count);
-  return options.limit ? gaps.slice(0, options.limit) : gaps;
-}
-function generateSuggestedPattern(variants) {
-  if (variants.length === 0) return void 0;
-  const example = variants[0].toLowerCase();
-  const pattern = example.replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/[.*+?^${}()|[\]\\]/g, (char) => {
-    if (char === "(" || char === ")" || char === "[" || char === "]" || char === "+") {
-      return char;
+  for (const extAlias of extension.labelAliases ?? []) {
+    const existing = merged.labelAliases.find(
+      (a) => a.label.toLowerCase() === extAlias.label.toLowerCase()
+    );
+    if (!existing) {
+      merged.labelAliases.push(extAlias);
+    } else {
+      Object.assign(existing, extAlias);
     }
-    return "\\" + char;
-  });
-  return `^(?:user\\s+)?${pattern}$`;
+  }
+  for (const extMethod of extension.moduleMethods ?? []) {
+    const existing = merged.moduleMethods.find(
+      (m) => m.phrase.toLowerCase() === extMethod.phrase.toLowerCase()
+    );
+    if (!existing) {
+      merged.moduleMethods.push(extMethod);
+    } else {
+      Object.assign(existing, extMethod);
+    }
+  }
+  return merged;
 }
-function getTelemetryStats(options = {}) {
-  const records = readBlockedStepRecords(options);
-  if (records.length === 0) {
-    return {
-      totalRecords: 0,
-      uniquePatterns: 0,
-      byCategory: {},
-      dateRange: {
-        earliest: "",
-        latest: ""
-      }
-    };
+function initGlossary(glossaryPath) {
+  if (glossaryPath) {
+    glossaryCache = loadGlossary(glossaryPath);
+  } else {
+    glossaryCache = defaultGlossary;
   }
-  const byCategory = {};
-  const normalizedSet = /* @__PURE__ */ new Set();
-  const timestamps = records.map((r) => r.timestamp).sort();
-  for (const record of records) {
-    byCategory[record.category] = (byCategory[record.category] || 0) + 1;
-    normalizedSet.add(record.normalizedText);
+  synonymMap = buildSynonymMap(glossaryCache);
+}
+function getGlossary() {
+  if (!glossaryCache) {
+    initGlossary();
   }
+  return glossaryCache;
+}
+function resolveCanonical(term) {
+  if (!synonymMap) {
+    initGlossary();
+  }
+  return synonymMap.get(term.toLowerCase()) ?? term;
+}
+function normalizeStepText(text) {
+  if (!synonymMap) {
+    initGlossary();
+  }
+  const parts = [];
+  const regex = /(['"][^'"]+['"])|(\S+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const part = match[0];
+    if (part.startsWith('"') || part.startsWith("'")) {
+      parts.push(part);
+    } else {
+      const lowerPart = part.toLowerCase();
+      const canonical = synonymMap.get(lowerPart);
+      parts.push(canonical ?? lowerPart);
+    }
+  }
+  return parts.join(" ");
+}
+function getSynonyms(canonical) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const entry = glossaryCache.entries.find(
+    (e) => e.canonical.toLowerCase() === canonical.toLowerCase()
+  );
+  return entry?.synonyms ?? [];
+}
+function isSynonymOf(term, canonical) {
+  const resolved = resolveCanonical(term);
+  return resolved.toLowerCase() === canonical.toLowerCase();
+}
+function resetGlossaryCache() {
+  glossaryCache = null;
+  synonymMap = null;
+}
+function findLabelAlias(label) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedLabel = label.toLowerCase().trim();
+  return glossaryCache.labelAliases?.find(
+    (alias) => alias.label.toLowerCase() === normalizedLabel
+  ) ?? null;
+}
+function getLocatorFromLabel(label) {
+  const alias = findLabelAlias(label);
+  if (!alias) return null;
+  if (alias.testid) {
+    return { strategy: "testid", value: alias.testid };
+  }
+  if (alias.role) {
+    return { strategy: "role", value: alias.role };
+  }
+  if (alias.selector) {
+    return { strategy: "css", value: alias.selector };
+  }
+  return null;
+}
+function findModuleMethod(text) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedText = text.toLowerCase().trim();
+  let bestMatch = null;
+  let bestMatchLength = 0;
+  for (const mapping of glossaryCache.moduleMethods ?? []) {
+    const phrase = mapping.phrase.toLowerCase();
+    if (normalizedText.includes(phrase) && phrase.length > bestMatchLength) {
+      bestMatch = mapping;
+      bestMatchLength = phrase.length;
+    }
+  }
+  return bestMatch;
+}
+function resolveModuleMethod(text) {
+  const mapping = findModuleMethod(text);
+  if (!mapping) return null;
   return {
-    totalRecords: records.length,
-    uniquePatterns: normalizedSet.size,
-    byCategory,
-    dateRange: {
-      earliest: timestamps[0],
-      latest: timestamps[timestamps.length - 1]
-    }
+    module: mapping.module,
+    method: mapping.method,
+    params: mapping.params
   };
 }
-function recordUserFix(originalStepText, userFixedText, options = {}) {
-  const records = readBlockedStepRecords(options);
-  const normalizedOriginal = normalizeStepTextForTelemetry(originalStepText);
-  const matchingRecord = records.find((r) => r.normalizedText === normalizedOriginal && !r.userFix);
-  if (matchingRecord) {
-    const { timestamp: _t, normalizedText: _n, ...recordWithoutTimestamp } = matchingRecord;
-    recordBlockedStep(
-      {
-        ...recordWithoutTimestamp,
-        userFix: userFixedText
-      },
-      options
-    );
+function getLabelAliases() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return glossaryCache.labelAliases ?? [];
+}
+function getModuleMethods() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return glossaryCache.moduleMethods ?? [];
+}
+async function loadExtendedGlossary(glossaryPath) {
+  try {
+    const resolvedPath = resolve(glossaryPath);
+    if (!existsSync(resolvedPath)) {
+      return {
+        loaded: false,
+        entryCount: 0,
+        exportedAt: null,
+        error: `Glossary file not found: ${resolvedPath}`
+      };
+    }
+    const fileUrl = pathToFileURL(resolvedPath).href;
+    const module = await import(fileUrl);
+    if (module.llkbGlossary instanceof Map) {
+      const glossaryMap = module.llkbGlossary;
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    if (module.llkbGlossary && typeof module.llkbGlossary === "object") {
+      const glossaryMap = new Map(
+        Object.entries(module.llkbGlossary)
+      );
+      extendedGlossary = glossaryMap;
+      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
+      return {
+        loaded: true,
+        entryCount: glossaryMap.size,
+        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
+      };
+    }
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
+    };
+  } catch (err) {
+    return {
+      loaded: false,
+      entryCount: 0,
+      exportedAt: null,
+      error: `Failed to load glossary: ${err instanceof Error ? err.message : String(err)}`
+    };
   }
 }
-function clearTelemetry(options = {}) {
-  const telemetryPath = getTelemetryPath(options.baseDir);
-  if (existsSync(telemetryPath)) {
-    const { unlinkSync } = __require("fs");
-    unlinkSync(telemetryPath);
-  }
+function clearExtendedGlossary() {
+  extendedGlossary = null;
+  extendedGlossaryMeta = null;
 }
-var DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE;
-var init_telemetry = __esm({
-  "src/mapping/telemetry.ts"() {
-    DEFAULT_TELEMETRY_DIR = ".artk";
-    TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
+function isExactCoreMatch(term) {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  const normalizedTerm = term.toLowerCase().trim();
+  for (const mapping of glossaryCache.moduleMethods ?? []) {
+    if (mapping.phrase.toLowerCase() === normalizedTerm) {
+      return true;
+    }
+  }
+  return false;
+}
+function lookupGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  if (isExactCoreMatch(normalizedTerm)) {
+    const coreMapping2 = findModuleMethod(normalizedTerm);
+    if (coreMapping2) {
+      return {
+        type: "callModule",
+        module: coreMapping2.module,
+        method: coreMapping2.method,
+        args: coreMapping2.params ? [coreMapping2.params] : void 0
+      };
+    }
+  }
+  if (extendedGlossary) {
+    const extendedMatch = extendedGlossary.get(normalizedTerm);
+    if (extendedMatch) {
+      return extendedMatch;
+    }
+  }
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function lookupCoreGlossary(term) {
+  const normalizedTerm = term.toLowerCase().trim();
+  const coreMapping = findModuleMethod(normalizedTerm);
+  if (coreMapping) {
+    return {
+      type: "callModule",
+      module: coreMapping.module,
+      method: coreMapping.method,
+      args: coreMapping.params ? [coreMapping.params] : void 0
+    };
+  }
+  return void 0;
+}
+function getGlossaryStats() {
+  if (!glossaryCache) {
+    initGlossary();
+  }
+  return {
+    coreEntries: glossaryCache.moduleMethods?.length ?? 0,
+    extendedEntries: extendedGlossary?.size ?? 0,
+    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
+    extendedMeta: extendedGlossaryMeta
+  };
+}
+function hasExtendedGlossary() {
+  return extendedGlossary !== null && extendedGlossary.size > 0;
+}
+var GlossaryEntrySchema, LabelAliasSchema, ModuleMethodMappingSchema, GlossarySchema, defaultGlossary, glossaryCache, synonymMap, extendedGlossary, extendedGlossaryMeta;
+var init_glossary = __esm({
+  "src/mapping/glossary.ts"() {
+    GlossaryEntrySchema = z.object({
+      canonical: z.string(),
+      synonyms: z.array(z.string())
+    });
+    LabelAliasSchema = z.object({
+      label: z.string(),
+      testid: z.string().optional(),
+      role: z.string().optional(),
+      selector: z.string().optional()
+    });
+    ModuleMethodMappingSchema = z.object({
+      phrase: z.string(),
+      module: z.string(),
+      method: z.string(),
+      params: z.record(z.string()).optional()
+    });
+    GlossarySchema = z.object({
+      version: z.number().default(1),
+      entries: z.array(GlossaryEntrySchema),
+      labelAliases: z.array(LabelAliasSchema).default([]),
+      moduleMethods: z.array(ModuleMethodMappingSchema).default([])
+    });
+    defaultGlossary = {
+      version: 1,
+      labelAliases: [
+        // Common label-to-selector mappings
+        { label: "email", testid: "email-input", role: "textbox" },
+        { label: "password", testid: "password-input", role: "textbox" },
+        { label: "username", testid: "username-input", role: "textbox" },
+        { label: "search", testid: "search-input", role: "searchbox" },
+        { label: "submit", testid: "submit-button", role: "button" },
+        { label: "cancel", testid: "cancel-button", role: "button" },
+        { label: "close", testid: "close-button", role: "button" }
+      ],
+      moduleMethods: [
+        // Common phrase-to-module mappings
+        { phrase: "log in", module: "auth", method: "login" },
+        { phrase: "login", module: "auth", method: "login" },
+        { phrase: "sign in", module: "auth", method: "login" },
+        { phrase: "log out", module: "auth", method: "logout" },
+        { phrase: "logout", module: "auth", method: "logout" },
+        { phrase: "sign out", module: "auth", method: "logout" },
+        { phrase: "navigate to", module: "navigation", method: "goToPath" },
+        { phrase: "go to", module: "navigation", method: "goToPath" },
+        { phrase: "open", module: "navigation", method: "goToPath" },
+        { phrase: "fill form", module: "forms", method: "fillForm" },
+        { phrase: "submit form", module: "forms", method: "submitForm" },
+        { phrase: "wait for", module: "waits", method: "waitForSignal" }
+      ],
+      entries: [
+        {
+          canonical: "click",
+          synonyms: ["press", "tap", "select", "hit"]
+        },
+        {
+          canonical: "enter",
+          synonyms: ["type", "fill", "input", "write"]
+        },
+        {
+          canonical: "navigate",
+          synonyms: ["go", "open", "visit", "browse"]
+        },
+        {
+          canonical: "see",
+          synonyms: ["view", "observe", "notice", "find"]
+        },
+        {
+          canonical: "visible",
+          synonyms: ["displayed", "shown", "present"]
+        },
+        {
+          canonical: "button",
+          synonyms: ["btn", "action", "cta"]
+        },
+        {
+          canonical: "field",
+          synonyms: ["input", "textbox", "text field", "text input"]
+        },
+        {
+          canonical: "dropdown",
+          synonyms: ["select", "combo", "combobox", "selector", "picker"]
+        },
+        {
+          canonical: "checkbox",
+          synonyms: ["check", "tick", "toggle"]
+        },
+        {
+          canonical: "login",
+          synonyms: ["log in", "sign in", "authenticate"]
+        },
+        {
+          canonical: "logout",
+          synonyms: ["log out", "sign out", "exit"]
+        },
+        {
+          canonical: "submit",
+          synonyms: ["send", "save", "confirm", "ok"]
+        },
+        {
+          canonical: "cancel",
+          synonyms: ["close", "dismiss", "abort", "back"]
+        },
+        {
+          canonical: "success",
+          synonyms: ["passed", "completed", "done", "finished"]
+        },
+        {
+          canonical: "error",
+          synonyms: ["failure", "failed", "problem", "issue"]
+        },
+        {
+          canonical: "toast",
+          synonyms: ["notification", "message", "alert", "snackbar"]
+        },
+        {
+          canonical: "modal",
+          synonyms: ["dialog", "popup", "overlay", "lightbox"]
+        },
+        {
+          canonical: "user",
+          synonyms: ["customer", "visitor", "member", "client"]
+        },
+        {
+          canonical: "page",
+          synonyms: ["screen", "view", "section"]
+        },
+        {
+          canonical: "form",
+          synonyms: ["questionnaire", "survey", "wizard"]
+        }
+      ]
+    };
+    glossaryCache = null;
+    synonymMap = null;
+    extendedGlossary = null;
+    extendedGlossaryMeta = null;
   }
 });
 
@@ -268,7 +535,7 @@ function calculateConfidence(successCount, failCount) {
 }
 function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
   const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  const normalizedText = normalizeStepText(originalText);
   let pattern = patterns.find((p) => p.normalizedText === normalizedText);
   if (pattern) {
     pattern.successCount++;
@@ -299,7 +566,7 @@ function recordPatternSuccess(originalText, primitive, journeyId, options = {}) 
 }
 function recordPatternFailure(originalText, journeyId, options = {}) {
   const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepTextForTelemetry(originalText);
+  const normalizedText = normalizeStepText(originalText);
   const pattern = patterns.find((p) => p.normalizedText === normalizedText);
   if (pattern) {
     pattern.failCount++;
@@ -312,7 +579,7 @@ function recordPatternFailure(originalText, journeyId, options = {}) {
 }
 function matchLlkbPattern(text, options = {}) {
   const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepTextForTelemetry(text);
+  const normalizedText = normalizeStepText(text);
   const minConfidence = options.minConfidence ?? 0.7;
   const match = patterns.find(
     (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
@@ -436,7 +703,7 @@ function clearLearnedPatterns(options = {}) {
 var PATTERNS_FILE, DEFAULT_LLKB_ROOT;
 var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
-    init_telemetry();
+    init_glossary();
     PATTERNS_FILE = "learned-patterns.json";
     DEFAULT_LLKB_ROOT = ".artk/llkb";
   }
@@ -1264,450 +1531,12 @@ function findMatchingPatterns(text) {
   }
   return matchingNames;
 }
-var GlossaryEntrySchema = z.object({
-  canonical: z.string(),
-  synonyms: z.array(z.string())
-});
-var LabelAliasSchema = z.object({
-  label: z.string(),
-  testid: z.string().optional(),
-  role: z.string().optional(),
-  selector: z.string().optional()
-});
-var ModuleMethodMappingSchema = z.object({
-  phrase: z.string(),
-  module: z.string(),
-  method: z.string(),
-  params: z.record(z.string()).optional()
-});
-var GlossarySchema = z.object({
-  version: z.number().default(1),
-  entries: z.array(GlossaryEntrySchema),
-  labelAliases: z.array(LabelAliasSchema).default([]),
-  moduleMethods: z.array(ModuleMethodMappingSchema).default([])
-});
-var defaultGlossary = {
-  version: 1,
-  labelAliases: [
-    // Common label-to-selector mappings
-    { label: "email", testid: "email-input", role: "textbox" },
-    { label: "password", testid: "password-input", role: "textbox" },
-    { label: "username", testid: "username-input", role: "textbox" },
-    { label: "search", testid: "search-input", role: "searchbox" },
-    { label: "submit", testid: "submit-button", role: "button" },
-    { label: "cancel", testid: "cancel-button", role: "button" },
-    { label: "close", testid: "close-button", role: "button" }
-  ],
-  moduleMethods: [
-    // Common phrase-to-module mappings
-    { phrase: "log in", module: "auth", method: "login" },
-    { phrase: "login", module: "auth", method: "login" },
-    { phrase: "sign in", module: "auth", method: "login" },
-    { phrase: "log out", module: "auth", method: "logout" },
-    { phrase: "logout", module: "auth", method: "logout" },
-    { phrase: "sign out", module: "auth", method: "logout" },
-    { phrase: "navigate to", module: "navigation", method: "goToPath" },
-    { phrase: "go to", module: "navigation", method: "goToPath" },
-    { phrase: "open", module: "navigation", method: "goToPath" },
-    { phrase: "fill form", module: "forms", method: "fillForm" },
-    { phrase: "submit form", module: "forms", method: "submitForm" },
-    { phrase: "wait for", module: "waits", method: "waitForSignal" }
-  ],
-  entries: [
-    {
-      canonical: "click",
-      synonyms: ["press", "tap", "select", "hit"]
-    },
-    {
-      canonical: "enter",
-      synonyms: ["type", "fill", "input", "write"]
-    },
-    {
-      canonical: "navigate",
-      synonyms: ["go", "open", "visit", "browse"]
-    },
-    {
-      canonical: "see",
-      synonyms: ["view", "observe", "notice", "find"]
-    },
-    {
-      canonical: "visible",
-      synonyms: ["displayed", "shown", "present"]
-    },
-    {
-      canonical: "button",
-      synonyms: ["btn", "action", "cta"]
-    },
-    {
-      canonical: "field",
-      synonyms: ["input", "textbox", "text field", "text input"]
-    },
-    {
-      canonical: "dropdown",
-      synonyms: ["select", "combo", "combobox", "selector", "picker"]
-    },
-    {
-      canonical: "checkbox",
-      synonyms: ["check", "tick", "toggle"]
-    },
-    {
-      canonical: "login",
-      synonyms: ["log in", "sign in", "authenticate"]
-    },
-    {
-      canonical: "logout",
-      synonyms: ["log out", "sign out", "exit"]
-    },
-    {
-      canonical: "submit",
-      synonyms: ["send", "save", "confirm", "ok"]
-    },
-    {
-      canonical: "cancel",
-      synonyms: ["close", "dismiss", "abort", "back"]
-    },
-    {
-      canonical: "success",
-      synonyms: ["passed", "completed", "done", "finished"]
-    },
-    {
-      canonical: "error",
-      synonyms: ["failure", "failed", "problem", "issue"]
-    },
-    {
-      canonical: "toast",
-      synonyms: ["notification", "message", "alert", "snackbar"]
-    },
-    {
-      canonical: "modal",
-      synonyms: ["dialog", "popup", "overlay", "lightbox"]
-    },
-    {
-      canonical: "user",
-      synonyms: ["customer", "visitor", "member", "client"]
-    },
-    {
-      canonical: "page",
-      synonyms: ["screen", "view", "section"]
-    },
-    {
-      canonical: "form",
-      synonyms: ["questionnaire", "survey", "wizard"]
-    }
-  ]
-};
-var glossaryCache = null;
-var synonymMap = null;
-function buildSynonymMap(glossary) {
-  const map = /* @__PURE__ */ new Map();
-  for (const entry of glossary.entries) {
-    map.set(entry.canonical.toLowerCase(), entry.canonical);
-    for (const synonym of entry.synonyms) {
-      map.set(synonym.toLowerCase(), entry.canonical);
-    }
-  }
-  return map;
-}
-function loadGlossary(glossaryPath) {
-  const resolvedPath = resolve(glossaryPath);
-  if (!existsSync(resolvedPath)) {
-    console.warn(`Glossary file not found at ${resolvedPath}, using defaults`);
-    return defaultGlossary;
-  }
-  try {
-    const content = readFileSync(resolvedPath, "utf-8");
-    const parsed = parse(content);
-    const result = GlossarySchema.safeParse(parsed);
-    if (!result.success) {
-      console.warn(`Invalid glossary file at ${resolvedPath}, using defaults`);
-      return defaultGlossary;
-    }
-    return mergeGlossaries(defaultGlossary, result.data);
-  } catch {
-    console.warn(`Failed to load glossary from ${resolvedPath}, using defaults`);
-    return defaultGlossary;
-  }
-}
-function mergeGlossaries(base, extension) {
-  const merged = {
-    version: Math.max(base.version, extension.version),
-    entries: [...base.entries],
-    labelAliases: [...base.labelAliases ?? []],
-    moduleMethods: [...base.moduleMethods ?? []]
-  };
-  for (const extEntry of extension.entries) {
-    const existing = merged.entries.find(
-      (e) => e.canonical.toLowerCase() === extEntry.canonical.toLowerCase()
-    );
-    if (existing) {
-      const allSynonyms = /* @__PURE__ */ new Set([...existing.synonyms, ...extEntry.synonyms]);
-      existing.synonyms = Array.from(allSynonyms);
-    } else {
-      merged.entries.push(extEntry);
-    }
-  }
-  for (const extAlias of extension.labelAliases ?? []) {
-    const existing = merged.labelAliases.find(
-      (a) => a.label.toLowerCase() === extAlias.label.toLowerCase()
-    );
-    if (!existing) {
-      merged.labelAliases.push(extAlias);
-    } else {
-      Object.assign(existing, extAlias);
-    }
-  }
-  for (const extMethod of extension.moduleMethods ?? []) {
-    const existing = merged.moduleMethods.find(
-      (m) => m.phrase.toLowerCase() === extMethod.phrase.toLowerCase()
-    );
-    if (!existing) {
-      merged.moduleMethods.push(extMethod);
-    } else {
-      Object.assign(existing, extMethod);
-    }
-  }
-  return merged;
-}
-function initGlossary(glossaryPath) {
-  if (glossaryPath) {
-    glossaryCache = loadGlossary(glossaryPath);
-  } else {
-    glossaryCache = defaultGlossary;
-  }
-  synonymMap = buildSynonymMap(glossaryCache);
-}
-function getGlossary() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return glossaryCache;
-}
-function resolveCanonical(term) {
-  if (!synonymMap) {
-    initGlossary();
-  }
-  return synonymMap.get(term.toLowerCase()) ?? term;
-}
-function normalizeStepText(text) {
-  if (!synonymMap) {
-    initGlossary();
-  }
-  const parts = [];
-  const regex = /(['"][^'"]+['"])|(\S+)/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const part = match[0];
-    if (part.startsWith('"') || part.startsWith("'")) {
-      parts.push(part);
-    } else {
-      const canonical = synonymMap.get(part.toLowerCase());
-      parts.push(canonical ?? part);
-    }
-  }
-  return parts.join(" ");
-}
-function getSynonyms(canonical) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const entry = glossaryCache.entries.find(
-    (e) => e.canonical.toLowerCase() === canonical.toLowerCase()
-  );
-  return entry?.synonyms ?? [];
-}
-function isSynonymOf(term, canonical) {
-  const resolved = resolveCanonical(term);
-  return resolved.toLowerCase() === canonical.toLowerCase();
-}
-function resetGlossaryCache() {
-  glossaryCache = null;
-  synonymMap = null;
-}
-function findLabelAlias(label) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const normalizedLabel = label.toLowerCase().trim();
-  return glossaryCache.labelAliases?.find(
-    (alias) => alias.label.toLowerCase() === normalizedLabel
-  ) ?? null;
-}
-function getLocatorFromLabel(label) {
-  const alias = findLabelAlias(label);
-  if (!alias) return null;
-  if (alias.testid) {
-    return { strategy: "testid", value: alias.testid };
-  }
-  if (alias.role) {
-    return { strategy: "role", value: alias.role };
-  }
-  if (alias.selector) {
-    return { strategy: "css", value: alias.selector };
-  }
-  return null;
-}
-function findModuleMethod(text) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const normalizedText = text.toLowerCase().trim();
-  let bestMatch = null;
-  let bestMatchLength = 0;
-  for (const mapping of glossaryCache.moduleMethods ?? []) {
-    const phrase = mapping.phrase.toLowerCase();
-    if (normalizedText.includes(phrase) && phrase.length > bestMatchLength) {
-      bestMatch = mapping;
-      bestMatchLength = phrase.length;
-    }
-  }
-  return bestMatch;
-}
-function resolveModuleMethod(text) {
-  const mapping = findModuleMethod(text);
-  if (!mapping) return null;
-  return {
-    module: mapping.module,
-    method: mapping.method,
-    params: mapping.params
-  };
-}
-function getLabelAliases() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return glossaryCache.labelAliases ?? [];
-}
-function getModuleMethods() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return glossaryCache.moduleMethods ?? [];
-}
-var extendedGlossary = null;
-var extendedGlossaryMeta = null;
-async function loadExtendedGlossary(glossaryPath) {
-  try {
-    const resolvedPath = resolve(glossaryPath);
-    if (!existsSync(resolvedPath)) {
-      return {
-        loaded: false,
-        entryCount: 0,
-        exportedAt: null,
-        error: `Glossary file not found: ${resolvedPath}`
-      };
-    }
-    const fileUrl = pathToFileURL(resolvedPath).href;
-    const module = await import(fileUrl);
-    if (module.llkbGlossary instanceof Map) {
-      const glossaryMap = module.llkbGlossary;
-      extendedGlossary = glossaryMap;
-      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
-      return {
-        loaded: true,
-        entryCount: glossaryMap.size,
-        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
-      };
-    }
-    if (module.llkbGlossary && typeof module.llkbGlossary === "object") {
-      const glossaryMap = new Map(
-        Object.entries(module.llkbGlossary)
-      );
-      extendedGlossary = glossaryMap;
-      extendedGlossaryMeta = module.llkbGlossaryMeta ?? null;
-      return {
-        loaded: true,
-        entryCount: glossaryMap.size,
-        exportedAt: extendedGlossaryMeta?.exportedAt ?? null
-      };
-    }
-    return {
-      loaded: false,
-      entryCount: 0,
-      exportedAt: null,
-      error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
-    };
-  } catch (err) {
-    return {
-      loaded: false,
-      entryCount: 0,
-      exportedAt: null,
-      error: `Failed to load glossary: ${err instanceof Error ? err.message : String(err)}`
-    };
-  }
-}
-function clearExtendedGlossary() {
-  extendedGlossary = null;
-  extendedGlossaryMeta = null;
-}
-function isExactCoreMatch(term) {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  const normalizedTerm = term.toLowerCase().trim();
-  for (const mapping of glossaryCache.moduleMethods ?? []) {
-    if (mapping.phrase.toLowerCase() === normalizedTerm) {
-      return true;
-    }
-  }
-  return false;
-}
-function lookupGlossary(term) {
-  const normalizedTerm = term.toLowerCase().trim();
-  if (isExactCoreMatch(normalizedTerm)) {
-    const coreMapping2 = findModuleMethod(normalizedTerm);
-    if (coreMapping2) {
-      return {
-        type: "callModule",
-        module: coreMapping2.module,
-        method: coreMapping2.method,
-        args: coreMapping2.params ? [coreMapping2.params] : void 0
-      };
-    }
-  }
-  if (extendedGlossary) {
-    const extendedMatch = extendedGlossary.get(normalizedTerm);
-    if (extendedMatch) {
-      return extendedMatch;
-    }
-  }
-  const coreMapping = findModuleMethod(normalizedTerm);
-  if (coreMapping) {
-    return {
-      type: "callModule",
-      module: coreMapping.module,
-      method: coreMapping.method,
-      args: coreMapping.params ? [coreMapping.params] : void 0
-    };
-  }
-  return void 0;
-}
-function lookupCoreGlossary(term) {
-  const normalizedTerm = term.toLowerCase().trim();
-  const coreMapping = findModuleMethod(normalizedTerm);
-  if (coreMapping) {
-    return {
-      type: "callModule",
-      module: coreMapping.module,
-      method: coreMapping.method,
-      args: coreMapping.params ? [coreMapping.params] : void 0
-    };
-  }
-  return void 0;
-}
-function getGlossaryStats() {
-  if (!glossaryCache) {
-    initGlossary();
-  }
-  return {
-    coreEntries: glossaryCache.moduleMethods?.length ?? 0,
-    extendedEntries: extendedGlossary?.size ?? 0,
-    extendedExportedAt: extendedGlossaryMeta?.exportedAt ?? null,
-    extendedMeta: extendedGlossaryMeta
-  };
-}
-function hasExtendedGlossary() {
-  return extendedGlossary !== null && extendedGlossary.size > 0;
-}
+
+// src/mapping/index.ts
+init_glossary();
+
+// src/mapping/stepMapper.ts
+init_glossary();
 
 // src/journey/hintPatterns.ts
 var HINT_BLOCK_PATTERN = /\(([a-z]+)=(?:"([^"]+)"|'([^']+)'|([^,)\s]+))\)/gi;
@@ -1963,6 +1792,18 @@ function mapStepText(text, options = {}) {
       matchSource = "llkb";
       llkbPatternId = llkbMatch.patternId;
       llkbConfidence = llkbMatch.confidence;
+      if (llkbModule && options.journeyId) {
+        try {
+          llkbModule.recordPatternSuccess(
+            text,
+            // Original text, not processed
+            llkbMatch.primitive,
+            options.journeyId,
+            { llkbRoot }
+          );
+        } catch {
+        }
+      }
       if (hints.hasHints) {
         primitive = applyHintsToPrimitive(primitive, hints);
       }
@@ -2514,9 +2355,184 @@ function formatBlockedStepAnalysis(analysis) {
   }
   return lines.join("\n");
 }
-
-// src/mapping/index.ts
-init_telemetry();
+var DEFAULT_TELEMETRY_DIR = ".artk";
+var TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
+function getTelemetryPath(baseDir) {
+  const dir = baseDir || process.cwd();
+  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
+}
+function ensureTelemetryDir(telemetryPath) {
+  const dir = dirname(telemetryPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+function normalizeStepTextForTelemetry(text) {
+  return text.toLowerCase().trim().replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''").trim();
+}
+function categorizeStepText(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes("navigate") || lower.includes("go to") || lower.includes("open") || lower.includes("visit")) {
+    return "navigation";
+  }
+  if (lower.includes("click") || lower.includes("fill") || lower.includes("enter") || lower.includes("type") || lower.includes("select") || lower.includes("check") || lower.includes("press") || lower.includes("submit") || lower.includes("input")) {
+    return "interaction";
+  }
+  if (lower.includes("see") || lower.includes("visible") || lower.includes("verify") || lower.includes("assert") || lower.includes("confirm") || lower.includes("should") || lower.includes("ensure") || lower.includes("expect") || lower.includes("display")) {
+    return "assertion";
+  }
+  if (lower.includes("wait") || lower.includes("load") || lower.includes("until")) {
+    return "wait";
+  }
+  return "unknown";
+}
+function recordBlockedStep(record, options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  ensureTelemetryDir(telemetryPath);
+  const fullRecord = {
+    ...record,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    normalizedText: normalizeStepTextForTelemetry(record.stepText),
+    category: record.category || categorizeStepText(record.stepText)
+  };
+  appendFileSync(telemetryPath, JSON.stringify(fullRecord) + "\n");
+}
+function readBlockedStepRecords(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (!existsSync(telemetryPath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(telemetryPath, "utf-8");
+    return content.split("\n").filter(Boolean).map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    }).filter((record) => record !== null);
+  } catch {
+    return [];
+  }
+}
+function calculateTokenSimilarity(a, b) {
+  const tokensA = new Set(a.split(" ").filter(Boolean));
+  const tokensB = new Set(b.split(" ").filter(Boolean));
+  if (tokensA.size === 0 && tokensB.size === 0) return 1;
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  const intersection = new Set([...tokensA].filter((x) => tokensB.has(x)));
+  const union = /* @__PURE__ */ new Set([...tokensA, ...tokensB]);
+  return intersection.size / union.size;
+}
+function groupBySimilarity(records, threshold = 0.7) {
+  const groups = /* @__PURE__ */ new Map();
+  const processed = /* @__PURE__ */ new Set();
+  for (let i = 0; i < records.length; i++) {
+    if (processed.has(i)) continue;
+    const record = records[i];
+    const normalized = record.normalizedText;
+    const group = [record];
+    processed.add(i);
+    for (let j = i + 1; j < records.length; j++) {
+      if (processed.has(j)) continue;
+      const other = records[j];
+      const similarity = calculateTokenSimilarity(normalized, other.normalizedText);
+      if (similarity >= threshold) {
+        group.push(other);
+        processed.add(j);
+      }
+    }
+    groups.set(normalized, group);
+  }
+  return groups;
+}
+function analyzeBlockedPatterns(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return [];
+  }
+  const groups = groupBySimilarity(records);
+  const gaps = [];
+  for (const [normalizedText, groupRecords] of groups) {
+    const timestamps = groupRecords.map((r) => r.timestamp).sort();
+    const variants = [...new Set(groupRecords.map((r) => r.stepText))];
+    gaps.push({
+      exampleText: groupRecords[0].stepText,
+      normalizedText,
+      count: groupRecords.length,
+      category: groupRecords[0].category,
+      variants,
+      suggestedPattern: generateSuggestedPattern(variants),
+      firstSeen: timestamps[0],
+      lastSeen: timestamps[timestamps.length - 1]
+    });
+  }
+  gaps.sort((a, b) => b.count - a.count);
+  return options.limit ? gaps.slice(0, options.limit) : gaps;
+}
+function generateSuggestedPattern(variants) {
+  if (variants.length === 0) return void 0;
+  const example = variants[0].toLowerCase();
+  const pattern = example.replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/[.*+?^${}()|[\]\\]/g, (char) => {
+    if (char === "(" || char === ")" || char === "[" || char === "]" || char === "+") {
+      return char;
+    }
+    return "\\" + char;
+  });
+  return `^(?:user\\s+)?${pattern}$`;
+}
+function getTelemetryStats(options = {}) {
+  const records = readBlockedStepRecords(options);
+  if (records.length === 0) {
+    return {
+      totalRecords: 0,
+      uniquePatterns: 0,
+      byCategory: {},
+      dateRange: {
+        earliest: "",
+        latest: ""
+      }
+    };
+  }
+  const byCategory = {};
+  const normalizedSet = /* @__PURE__ */ new Set();
+  const timestamps = records.map((r) => r.timestamp).sort();
+  for (const record of records) {
+    byCategory[record.category] = (byCategory[record.category] || 0) + 1;
+    normalizedSet.add(record.normalizedText);
+  }
+  return {
+    totalRecords: records.length,
+    uniquePatterns: normalizedSet.size,
+    byCategory,
+    dateRange: {
+      earliest: timestamps[0],
+      latest: timestamps[timestamps.length - 1]
+    }
+  };
+}
+function recordUserFix(originalStepText, userFixedText, options = {}) {
+  const records = readBlockedStepRecords(options);
+  const normalizedOriginal = normalizeStepTextForTelemetry(originalStepText);
+  const matchingRecord = records.find((r) => r.normalizedText === normalizedOriginal && !r.userFix);
+  if (matchingRecord) {
+    const { timestamp: _t, normalizedText: _n, ...recordWithoutTimestamp } = matchingRecord;
+    recordBlockedStep(
+      {
+        ...recordWithoutTimestamp,
+        userFix: userFixedText
+      },
+      options
+    );
+  }
+}
+function clearTelemetry(options = {}) {
+  const telemetryPath = getTelemetryPath(options.baseDir);
+  if (existsSync(telemetryPath)) {
+    const { unlinkSync } = __require("fs");
+    unlinkSync(telemetryPath);
+  }
+}
 
 export { PATTERN_VERSION, allPatterns, analyzeBlockedPatterns, analyzeBlockedStep, authPatterns, calculateSimilarity, categorizeStep, categorizeStepText, checkPatterns, clearExtendedGlossary, clearTelemetry, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, explainMismatch, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, fillPatterns, findLabelAlias, findMatchingPatterns, findModuleMethod, findNearestPattern, focusPatterns, formatBlockedStepAnalysis, getAllPatternNames, getAssertionSuggestions, getGenericSuggestions, getGlossary, getGlossaryStats, getInteractionSuggestions, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getNavigationSuggestions, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getSynonyms, getTelemetryPath, getTelemetryStats, getWaitSuggestions, hasExtendedGlossary, hoverPatterns, inferMachineHint, initGlossary, initializeLlkb, isLlkbAvailable, isSynonymOf, levenshteinDistance, loadExtendedGlossary, loadGlossary, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeGlossaries, navigationPatterns, normalizeStepText, normalizeStepTextForTelemetry, parseSelectorToLocator, readBlockedStepRecords, recordBlockedStep, recordUserFix, resetGlossaryCache, resolveCanonical, resolveModuleMethod, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, urlPatterns, visibilityPatterns, waitPatterns };
 //# sourceMappingURL=index.js.map

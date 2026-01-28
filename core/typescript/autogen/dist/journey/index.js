@@ -1,11 +1,188 @@
-import { z } from 'zod';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { parse, stringify } from 'yaml';
 import 'url';
+import { parse, stringify } from 'yaml';
+import { z } from 'zod';
 import { createHash } from 'crypto';
 
-// src/journey/schema.ts
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+function buildSynonymMap(glossary) {
+  const map = /* @__PURE__ */ new Map();
+  for (const entry of glossary.entries) {
+    map.set(entry.canonical.toLowerCase(), entry.canonical);
+    for (const synonym of entry.synonyms) {
+      map.set(synonym.toLowerCase(), entry.canonical);
+    }
+  }
+  return map;
+}
+function initGlossary(glossaryPath) {
+  {
+    glossaryCache = defaultGlossary;
+  }
+  synonymMap = buildSynonymMap(glossaryCache);
+}
+function normalizeStepText(text) {
+  if (!synonymMap) {
+    initGlossary();
+  }
+  const parts = [];
+  const regex = /(['"][^'"]+['"])|(\S+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const part = match[0];
+    if (part.startsWith('"') || part.startsWith("'")) {
+      parts.push(part);
+    } else {
+      const lowerPart = part.toLowerCase();
+      const canonical = synonymMap.get(lowerPart);
+      parts.push(canonical ?? lowerPart);
+    }
+  }
+  return parts.join(" ");
+}
+var GlossaryEntrySchema, LabelAliasSchema, ModuleMethodMappingSchema, defaultGlossary, glossaryCache, synonymMap;
+var init_glossary = __esm({
+  "src/mapping/glossary.ts"() {
+    GlossaryEntrySchema = z.object({
+      canonical: z.string(),
+      synonyms: z.array(z.string())
+    });
+    LabelAliasSchema = z.object({
+      label: z.string(),
+      testid: z.string().optional(),
+      role: z.string().optional(),
+      selector: z.string().optional()
+    });
+    ModuleMethodMappingSchema = z.object({
+      phrase: z.string(),
+      module: z.string(),
+      method: z.string(),
+      params: z.record(z.string()).optional()
+    });
+    z.object({
+      version: z.number().default(1),
+      entries: z.array(GlossaryEntrySchema),
+      labelAliases: z.array(LabelAliasSchema).default([]),
+      moduleMethods: z.array(ModuleMethodMappingSchema).default([])
+    });
+    defaultGlossary = {
+      version: 1,
+      labelAliases: [
+        // Common label-to-selector mappings
+        { label: "email", testid: "email-input", role: "textbox" },
+        { label: "password", testid: "password-input", role: "textbox" },
+        { label: "username", testid: "username-input", role: "textbox" },
+        { label: "search", testid: "search-input", role: "searchbox" },
+        { label: "submit", testid: "submit-button", role: "button" },
+        { label: "cancel", testid: "cancel-button", role: "button" },
+        { label: "close", testid: "close-button", role: "button" }
+      ],
+      moduleMethods: [
+        // Common phrase-to-module mappings
+        { phrase: "log in", module: "auth", method: "login" },
+        { phrase: "login", module: "auth", method: "login" },
+        { phrase: "sign in", module: "auth", method: "login" },
+        { phrase: "log out", module: "auth", method: "logout" },
+        { phrase: "logout", module: "auth", method: "logout" },
+        { phrase: "sign out", module: "auth", method: "logout" },
+        { phrase: "navigate to", module: "navigation", method: "goToPath" },
+        { phrase: "go to", module: "navigation", method: "goToPath" },
+        { phrase: "open", module: "navigation", method: "goToPath" },
+        { phrase: "fill form", module: "forms", method: "fillForm" },
+        { phrase: "submit form", module: "forms", method: "submitForm" },
+        { phrase: "wait for", module: "waits", method: "waitForSignal" }
+      ],
+      entries: [
+        {
+          canonical: "click",
+          synonyms: ["press", "tap", "select", "hit"]
+        },
+        {
+          canonical: "enter",
+          synonyms: ["type", "fill", "input", "write"]
+        },
+        {
+          canonical: "navigate",
+          synonyms: ["go", "open", "visit", "browse"]
+        },
+        {
+          canonical: "see",
+          synonyms: ["view", "observe", "notice", "find"]
+        },
+        {
+          canonical: "visible",
+          synonyms: ["displayed", "shown", "present"]
+        },
+        {
+          canonical: "button",
+          synonyms: ["btn", "action", "cta"]
+        },
+        {
+          canonical: "field",
+          synonyms: ["input", "textbox", "text field", "text input"]
+        },
+        {
+          canonical: "dropdown",
+          synonyms: ["select", "combo", "combobox", "selector", "picker"]
+        },
+        {
+          canonical: "checkbox",
+          synonyms: ["check", "tick", "toggle"]
+        },
+        {
+          canonical: "login",
+          synonyms: ["log in", "sign in", "authenticate"]
+        },
+        {
+          canonical: "logout",
+          synonyms: ["log out", "sign out", "exit"]
+        },
+        {
+          canonical: "submit",
+          synonyms: ["send", "save", "confirm", "ok"]
+        },
+        {
+          canonical: "cancel",
+          synonyms: ["close", "dismiss", "abort", "back"]
+        },
+        {
+          canonical: "success",
+          synonyms: ["passed", "completed", "done", "finished"]
+        },
+        {
+          canonical: "error",
+          synonyms: ["failure", "failed", "problem", "issue"]
+        },
+        {
+          canonical: "toast",
+          synonyms: ["notification", "message", "alert", "snackbar"]
+        },
+        {
+          canonical: "modal",
+          synonyms: ["dialog", "popup", "overlay", "lightbox"]
+        },
+        {
+          canonical: "user",
+          synonyms: ["customer", "visitor", "member", "client"]
+        },
+        {
+          canonical: "page",
+          synonyms: ["screen", "view", "section"]
+        },
+        {
+          canonical: "form",
+          synonyms: ["questionnaire", "survey", "wizard"]
+        }
+      ]
+    };
+    glossaryCache = null;
+    synonymMap = null;
+  }
+});
 var JourneyStatusSchema = z.enum([
   "proposed",
   "defined",
@@ -1355,174 +1532,9 @@ function tryParseJourneyContent(content, virtualPath = "virtual.journey.md") {
     sourcePath: virtualPath
   });
 }
-var GlossaryEntrySchema = z.object({
-  canonical: z.string(),
-  synonyms: z.array(z.string())
-});
-var LabelAliasSchema = z.object({
-  label: z.string(),
-  testid: z.string().optional(),
-  role: z.string().optional(),
-  selector: z.string().optional()
-});
-var ModuleMethodMappingSchema = z.object({
-  phrase: z.string(),
-  module: z.string(),
-  method: z.string(),
-  params: z.record(z.string()).optional()
-});
-z.object({
-  version: z.number().default(1),
-  entries: z.array(GlossaryEntrySchema),
-  labelAliases: z.array(LabelAliasSchema).default([]),
-  moduleMethods: z.array(ModuleMethodMappingSchema).default([])
-});
-var defaultGlossary = {
-  version: 1,
-  labelAliases: [
-    // Common label-to-selector mappings
-    { label: "email", testid: "email-input", role: "textbox" },
-    { label: "password", testid: "password-input", role: "textbox" },
-    { label: "username", testid: "username-input", role: "textbox" },
-    { label: "search", testid: "search-input", role: "searchbox" },
-    { label: "submit", testid: "submit-button", role: "button" },
-    { label: "cancel", testid: "cancel-button", role: "button" },
-    { label: "close", testid: "close-button", role: "button" }
-  ],
-  moduleMethods: [
-    // Common phrase-to-module mappings
-    { phrase: "log in", module: "auth", method: "login" },
-    { phrase: "login", module: "auth", method: "login" },
-    { phrase: "sign in", module: "auth", method: "login" },
-    { phrase: "log out", module: "auth", method: "logout" },
-    { phrase: "logout", module: "auth", method: "logout" },
-    { phrase: "sign out", module: "auth", method: "logout" },
-    { phrase: "navigate to", module: "navigation", method: "goToPath" },
-    { phrase: "go to", module: "navigation", method: "goToPath" },
-    { phrase: "open", module: "navigation", method: "goToPath" },
-    { phrase: "fill form", module: "forms", method: "fillForm" },
-    { phrase: "submit form", module: "forms", method: "submitForm" },
-    { phrase: "wait for", module: "waits", method: "waitForSignal" }
-  ],
-  entries: [
-    {
-      canonical: "click",
-      synonyms: ["press", "tap", "select", "hit"]
-    },
-    {
-      canonical: "enter",
-      synonyms: ["type", "fill", "input", "write"]
-    },
-    {
-      canonical: "navigate",
-      synonyms: ["go", "open", "visit", "browse"]
-    },
-    {
-      canonical: "see",
-      synonyms: ["view", "observe", "notice", "find"]
-    },
-    {
-      canonical: "visible",
-      synonyms: ["displayed", "shown", "present"]
-    },
-    {
-      canonical: "button",
-      synonyms: ["btn", "action", "cta"]
-    },
-    {
-      canonical: "field",
-      synonyms: ["input", "textbox", "text field", "text input"]
-    },
-    {
-      canonical: "dropdown",
-      synonyms: ["select", "combo", "combobox", "selector", "picker"]
-    },
-    {
-      canonical: "checkbox",
-      synonyms: ["check", "tick", "toggle"]
-    },
-    {
-      canonical: "login",
-      synonyms: ["log in", "sign in", "authenticate"]
-    },
-    {
-      canonical: "logout",
-      synonyms: ["log out", "sign out", "exit"]
-    },
-    {
-      canonical: "submit",
-      synonyms: ["send", "save", "confirm", "ok"]
-    },
-    {
-      canonical: "cancel",
-      synonyms: ["close", "dismiss", "abort", "back"]
-    },
-    {
-      canonical: "success",
-      synonyms: ["passed", "completed", "done", "finished"]
-    },
-    {
-      canonical: "error",
-      synonyms: ["failure", "failed", "problem", "issue"]
-    },
-    {
-      canonical: "toast",
-      synonyms: ["notification", "message", "alert", "snackbar"]
-    },
-    {
-      canonical: "modal",
-      synonyms: ["dialog", "popup", "overlay", "lightbox"]
-    },
-    {
-      canonical: "user",
-      synonyms: ["customer", "visitor", "member", "client"]
-    },
-    {
-      canonical: "page",
-      synonyms: ["screen", "view", "section"]
-    },
-    {
-      canonical: "form",
-      synonyms: ["questionnaire", "survey", "wizard"]
-    }
-  ]
-};
-var glossaryCache = null;
-var synonymMap = null;
-function buildSynonymMap(glossary) {
-  const map = /* @__PURE__ */ new Map();
-  for (const entry of glossary.entries) {
-    map.set(entry.canonical.toLowerCase(), entry.canonical);
-    for (const synonym of entry.synonyms) {
-      map.set(synonym.toLowerCase(), entry.canonical);
-    }
-  }
-  return map;
-}
-function initGlossary(glossaryPath) {
-  {
-    glossaryCache = defaultGlossary;
-  }
-  synonymMap = buildSynonymMap(glossaryCache);
-}
-function normalizeStepText(text) {
-  if (!synonymMap) {
-    initGlossary();
-  }
-  const parts = [];
-  const regex = /(['"][^'"]+['"])|(\S+)/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const part = match[0];
-    if (part.startsWith('"') || part.startsWith("'")) {
-      parts.push(part);
-    } else {
-      const canonical = synonymMap.get(part.toLowerCase());
-      parts.push(canonical ?? part);
-    }
-  }
-  return parts.join(" ");
-}
+
+// src/mapping/stepMapper.ts
+init_glossary();
 
 // src/journey/hintPatterns.ts
 var HINT_BLOCK_PATTERN = /\(([a-z]+)=(?:"([^"]+)"|'([^']+)'|([^,)\s]+))\)/gi;

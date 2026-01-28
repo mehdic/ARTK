@@ -343,11 +343,11 @@ declare const CSSDebtEntrySchema: z.ZodObject<{
         file: string;
         line: number;
     }[];
-    reason?: string | undefined;
     suggestedReplacement?: {
         value: string;
         strategy: string;
     } | undefined;
+    reason?: string | undefined;
 }, {
     selector: string;
     usages: {
@@ -355,11 +355,11 @@ declare const CSSDebtEntrySchema: z.ZodObject<{
         line: number;
     }[];
     priority?: "low" | "medium" | "high" | undefined;
-    reason?: string | undefined;
     suggestedReplacement?: {
         value: string;
         strategy: string;
     } | undefined;
+    reason?: string | undefined;
 }>;
 /**
  * Complete selector catalog schema
@@ -525,11 +525,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             file: string;
             line: number;
         }[];
-        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
+        reason?: string | undefined;
     }, {
         selector: string;
         usages: {
@@ -537,11 +537,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             line: number;
         }[];
         priority?: "low" | "medium" | "high" | undefined;
-        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
+        reason?: string | undefined;
     }>, "many">>;
     /** Statistics */
     stats: z.ZodOptional<z.ZodObject<{
@@ -604,11 +604,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             file: string;
             line: number;
         }[];
-        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
+        reason?: string | undefined;
     }[];
     sourceDir?: string | undefined;
     stats?: {
@@ -660,11 +660,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             line: number;
         }[];
         priority?: "low" | "medium" | "high" | undefined;
-        reason?: string | undefined;
         suggestedReplacement?: {
             value: string;
             strategy: string;
         } | undefined;
+        reason?: string | undefined;
     }[] | undefined;
     stats?: {
         totalSelectors: number;
