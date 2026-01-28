@@ -5,7 +5,9 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type { IRPrimitive } from '../ir/types.js';
-import { normalizeStepTextForTelemetry as normalizeStepText } from '../mapping/telemetry.js';
+// Use the same normalizer as stepMapper for consistent pattern matching
+// This ensures patterns learned during recording match during lookup
+import { normalizeStepText } from '../mapping/glossary.js';
 
 /**
  * A pattern learned from successful step mappings

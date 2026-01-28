@@ -192,10 +192,11 @@ describe('LLKB Pattern Extension', () => {
   describe('matchLlkbPattern', () => {
     beforeEach(() => {
       // Create a high-confidence pattern
+      // Note: normalizedText must match glossary normalizer output (which keeps articles)
       const pattern: LearnedPattern = {
         id: 'LP123',
         originalText: 'Click the submit button',
-        normalizedText: 'click submit button',
+        normalizedText: 'click the submit button',
         mappedPrimitive: { type: 'click', locator: { strategy: 'text', value: 'submit' } },
         confidence: 0.9,
         sourceJourneys: ['JRN-001'],

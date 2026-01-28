@@ -173,6 +173,21 @@ export function mapStepText(
       llkbPatternId = llkbMatch.patternId;
       llkbConfidence = llkbMatch.confidence;
 
+      // Record successful pattern match to close the learning loop
+      // This increases confidence for future matches
+      if (llkbModule && options.journeyId) {
+        try {
+          llkbModule.recordPatternSuccess(
+            text, // Original text, not processed
+            llkbMatch.primitive,
+            options.journeyId,
+            { llkbRoot }
+          );
+        } catch {
+          // Don't fail mapping if recording fails - graceful degradation
+        }
+      }
+
       // Apply hints to LLKB-matched primitive if available
       if (hints.hasHints) {
         primitive = applyHintsToPrimitive(primitive, hints);
