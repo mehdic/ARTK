@@ -472,9 +472,14 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.journey-verify id=<JRN-ID>                                ║
-║  2. /artk.journey-implement id=<JRN-ID>                             ║
-║  3. /artk.journey-validate id=JRN-####                              ║
+║  1. (IF VALIDATION PASSED) Run and verify the tests:                ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  2. (IF VALIDATION FAILED) Fix issues and re-implement:             ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  3. (OPTIONAL) Validate another journey:                            ║
+║     /artk.journey-validate id=JRN-####                             ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```

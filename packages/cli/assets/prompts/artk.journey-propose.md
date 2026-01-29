@@ -898,9 +898,20 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.journey-define source=JRN-####                           ║
-║  2. /artk.journey-clarify id=JRN-####                              ║
-║  3. /artk.journey-implement id=JRN-####                            ║
+║  1. (RECOMMENDED) Define a proposed journey with full structure:    ║
+║     /artk.journey-define source=JRN-####                           ║
+║                                                                     ║
+║  2. (ALTERNATIVE) Define a new journey manually:                    ║
+║     /artk.journey-define id=JRN-#### title="<title>"               ║
+║                                                                     ║
+║  3. (AFTER DEFINE) Add execution detail to a journey:               ║
+║     /artk.journey-clarify id=JRN-####                              ║
+║                                                                     ║
+║  4. (AFTER CLARIFY) Generate Playwright tests:                      ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  5. (OPTIONAL) Audit selectors for stable test hooks:               ║
+║     /artk.testid-audit mode=report                                 ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```

@@ -384,9 +384,17 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.journey-clarify id=<JRN-ID>                               ║
-║  2. /artk.journey-implement id=<JRN-ID>                             ║
-║  3. /artk.journey-define id=JRN-#### title="<title>"                ║
+║  1. (RECOMMENDED) Add execution detail to this journey:             ║
+║     /artk.journey-clarify id=<JRN-ID>                              ║
+║                                                                     ║
+║  2. (OPTIONAL) Audit selectors before implementation:               ║
+║     /artk.testid-audit mode=report scope=journey:<JRN-ID>          ║
+║                                                                     ║
+║  3. (AFTER CLARIFY) Implement the journey as Playwright tests:      ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  4. (OPTIONAL) Define another journey:                              ║
+║     /artk.journey-define id=JRN-#### title="<title>"               ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```

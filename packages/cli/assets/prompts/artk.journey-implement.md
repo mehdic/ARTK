@@ -2906,9 +2906,17 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.journey-validate id=<JRN-ID>                              ║
-║  2. /artk.journey-verify id=<JRN-ID>                                ║
-║  3. /artk.journey-implement id=JRN-####                             ║
+║  1. (IF VALIDATE FAILED) Fix issues and re-validate:               ║
+║     /artk.journey-validate id=<JRN-ID>                             ║
+║                                                                     ║
+║  2. (IF VERIFY FAILED) Run verification again after fixes:          ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  3. (OPTIONAL) Implement another journey:                           ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  4. (OPTIONAL) Run all tests for the tier:                          ║
+║     npm run test:smoke   (or test:release, test:regression)        ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
