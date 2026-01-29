@@ -1045,6 +1045,15 @@ if [ -d "$COMMON_PROMPTS_SOURCE" ]; then
     cp "$COMMON_PROMPTS_SOURCE"/GENERAL_RULES.md "$COMMON_PROMPTS_TARGET/" 2>/dev/null || true
 fi
 
+# Copy next-commands static files (for anti-hallucination)
+NEXT_COMMANDS_SOURCE="$ARTK_PROMPTS/next-commands"
+NEXT_COMMANDS_TARGET="$PROMPTS_TARGET/next-commands"
+if [ -d "$NEXT_COMMANDS_SOURCE" ]; then
+    mkdir -p "$NEXT_COMMANDS_TARGET"
+    cp "$NEXT_COMMANDS_SOURCE"/*.txt "$NEXT_COMMANDS_TARGET/" 2>/dev/null || true
+    echo -e "${CYAN}  Installed next-commands static files${NC}"
+fi
+
 # Install VS Code settings (merge with existing if present - only add missing keys)
 echo -e "${CYAN}  Installing VS Code settings...${NC}"
 VSCODE_DIR="$TARGET_PROJECT/.vscode"

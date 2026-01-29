@@ -1162,6 +1162,17 @@ if (Test-Path $CommonPromptsSource) {
     }
 }
 
+# Copy next-commands static files (for anti-hallucination)
+$NextCommandsSource = Join-Path $ArtkPrompts "next-commands"
+$NextCommandsTarget = Join-Path $PromptsTarget "next-commands"
+if (Test-Path $NextCommandsSource) {
+    New-Item -ItemType Directory -Force -Path $NextCommandsTarget | Out-Null
+    Get-ChildItem -Path $NextCommandsSource -Filter "*.txt" | ForEach-Object {
+        Copy-Item $_.FullName -Destination $NextCommandsTarget -Force
+    }
+    Write-Host "  Installed next-commands static files" -ForegroundColor Cyan
+}
+
 # Install VS Code settings (merge with existing if present - only add missing keys)
 Write-Host "  Installing VS Code settings..." -ForegroundColor Cyan
 $VscodeDir = Join-Path $TargetProject ".vscode"
