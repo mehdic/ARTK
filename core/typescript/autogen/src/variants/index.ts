@@ -22,7 +22,7 @@ export interface VariantFeatures {
  */
 export function detectVariant(): VariantInfo {
   const nodeVersionStr = process.version.slice(1);
-  const nodeVersion = parseInt(nodeVersionStr.split('.')[0], 10);
+  const nodeVersion = parseInt(nodeVersionStr.split('.')[0] ?? '18', 10);
 
   // Check if running in ESM context
   const isESM = typeof import.meta !== 'undefined';

@@ -219,6 +219,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ArtkRepo = Split-Path -Parent $ScriptDir
 $ArtkCore = Join-Path $ArtkRepo "core\typescript"
 $ArtkAutogen = Join-Path $ArtkCore "autogen"
+$ArtkCoreJourneys = Join-Path $ArtkRepo "core\artk-core-journeys\artk-core-journeys"
 $ArtkPrompts = Join-Path $ArtkRepo "prompts"
 
 function Resolve-GitHubRepo {
@@ -601,12 +602,40 @@ browsers:
     width: 1280
     height: 720
   headless: true
+
+# Core component versions (managed by bootstrap)
+core:
+  runtime:
+    install: vendor
+    installDir: vendor/artk-core
+  autogen:
+    install: vendor
+    installDir: vendor/artk-core-autogen
+  journeys:
+    install: vendor
+    installDir: vendor/artk-core-journeys
+    version: "__JOURNEYS_VERSION__"
 '@
+
+    # Read Journey Core version from manifest
+    $journeysVersion = "0.1.0"
+    $manifestPath = Join-Path $ArtkCoreJourneys "core.manifest.json"
+    if (Test-Path $manifestPath) {
+        try {
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            if ($manifest.version) {
+                $journeysVersion = $manifest.version
+            }
+        } catch {
+            # Use default version on parse error
+        }
+    }
 
     $content = $template.Replace("__PROJECT_NAME__", $ProjectName)
     $content = $content.Replace("__TIMESTAMP__", (Get-Date -Format "yyyy-MM-ddTHH:mm:ssK"))
     $content = $content.Replace("__BROWSER_CHANNEL__", $Channel)
     $content = $content.Replace("__BROWSER_STRATEGY__", $Strategy)
+    $content = $content.Replace("__JOURNEYS_VERSION__", $journeysVersion)
 
     Set-Content -Path $ConfigPath -Value $content
 }
@@ -872,6 +901,7 @@ Write-Host "[2/7] Creating artk-e2e/ structure..." -ForegroundColor Yellow
 @(
     "vendor\artk-core",
     "vendor\artk-core-autogen",
+    "vendor\artk-core-journeys",
     "src\modules\foundation\auth",
     "src\modules\foundation\navigation",
     "src\modules\foundation\selectors",
@@ -1066,6 +1096,49 @@ if (Test-Path $AutogenPackageJsonPath) {
 $AutogenReadmePath = Join-Path $ArtkAutogen "README.md"
 if (Test-Path $AutogenReadmePath) {
     Copy-Item -Path $AutogenReadmePath -Destination $AutogenVendorTarget -Force
+}
+
+# Step 3.5: Copy artk-core-journeys to vendor
+Write-Host "[3.5/7] Installing artk-core-journeys to vendor/..." -ForegroundColor Yellow
+$JourneysVendorTarget = Join-Path $ArtkE2e "vendor\artk-core-journeys"
+
+if (Test-Path $ArtkCoreJourneys) {
+    # Copy entire Journey Core directory structure
+    Copy-Item -Path (Join-Path $ArtkCoreJourneys "*") -Destination $JourneysVendorTarget -Recurse -Force
+
+    # Add READONLY.md for AI protection
+    $JourneysReadonlyContent = @"
+# ⚠️ DO NOT MODIFY THIS DIRECTORY
+
+This directory contains **artk-core-journeys** - the Journey schema, templates, and tools.
+
+**DO NOT modify files in this directory.**
+
+These files are managed by ARTK bootstrap and will be overwritten on upgrades.
+
+If you need to customize Journey schemas:
+1. Create custom schemas in ``artk-e2e/journeys/schemas/custom/``
+2. Extend the base schema rather than modifying it
+
+---
+
+*Installed by ARTK Bootstrap*
+"@
+    Set-Content -Path (Join-Path $JourneysVendorTarget "READONLY.md") -Value $JourneysReadonlyContent
+
+    # Add .ai-ignore
+    $JourneysAiIgnoreContent = @"
+# AI agents should not modify files in this directory
+# This is vendored code managed by ARTK bootstrap
+
+*
+"@
+    Set-Content -Path (Join-Path $JourneysVendorTarget ".ai-ignore") -Value $JourneysAiIgnoreContent
+
+    Write-Host "artk-core-journeys installed to vendor/" -ForegroundColor Green
+} else {
+    Write-Host "Warning: artk-core-journeys not found at $ArtkCoreJourneys" -ForegroundColor Yellow
+    Write-Host "Journey System will need manual installation via init-playbook" -ForegroundColor Yellow
 }
 
 # Step 4: Install prompts
@@ -1760,6 +1833,7 @@ Write-Host "Installed:" -ForegroundColor Cyan
 Write-Host "  artk-e2e/                             - E2E test workspace"
 Write-Host "  artk-e2e/vendor/artk-core/            - @artk/core (vendored)"
 Write-Host "  artk-e2e/vendor/artk-core-autogen/    - @artk/core-autogen (vendored)"
+Write-Host "  artk-e2e/vendor/artk-core-journeys/   - Journey schemas & tools (vendored)"
 Write-Host "  artk-e2e/package.json                 - Test workspace dependencies"
 Write-Host "  artk-e2e/playwright.config.ts         - Playwright configuration"
 Write-Host "  artk-e2e/tsconfig.json                - TypeScript configuration"

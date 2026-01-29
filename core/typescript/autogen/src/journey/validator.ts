@@ -53,7 +53,7 @@ export function parseStepsFromContent(content: string): ParsedStep[] {
   let inStepsSection = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i]!;
     const lineNumber = i + 1;
 
     // Detect steps section headers
@@ -71,7 +71,7 @@ export function parseStepsFromContent(content: string): ParsedStep[] {
     // Parse step lines (numbered or bulleted)
     if (inStepsSection || line.match(/^\d+\.\s+\*\*(?:Action|Assert|Wait)/i)) {
       const stepMatch = line.match(/^(?:\d+\.\s*|-\s*|\*\s*)(?:\*\*\w+\*\*:\s*)?(.+)$/);
-      if (stepMatch) {
+      if (stepMatch?.[1]) {
         const stepText = stepMatch[1].trim();
         if (stepText && !stepText.startsWith('#') && stepText.length > 3) {
           steps.push({
@@ -289,7 +289,7 @@ export function applyAutoFixes(
   for (const fix of sortedFixes) {
     const lineIndex = fix.line - 1;
     if (lineIndex >= 0 && lineIndex < lines.length) {
-      lines[lineIndex] = lines[lineIndex].replace(fix.original, fix.fixed);
+      lines[lineIndex] = lines[lineIndex]!.replace(fix.original, fix.fixed);
     }
   }
 

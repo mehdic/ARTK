@@ -261,7 +261,7 @@ export function recordPatternSuccess(
  */
 export function recordPatternFailure(
   originalText: string,
-  journeyId: string,
+  _journeyId: string,
   options: { llkbRoot?: string } = {}
 ): LearnedPattern | null {
   const patterns = loadLearnedPatterns(options);

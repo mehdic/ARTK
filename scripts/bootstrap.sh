@@ -31,6 +31,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARTK_REPO="$(dirname "$SCRIPT_DIR")"
 ARTK_CORE="$ARTK_REPO/core/typescript"
+ARTK_CORE_JOURNEYS="$ARTK_REPO/core/artk-core-journeys/artk-core-journeys"
 ARTK_PROMPTS="$ARTK_REPO/prompts"
 
 # Helpers for Playwright browser cache
@@ -711,7 +712,7 @@ fi
 
 # Step 2: Create artk-e2e structure
 echo -e "${YELLOW}[2/7] Creating artk-e2e/ structure...${NC}"
-mkdir -p "$ARTK_E2E"/{vendor/artk-core,vendor/artk-core-autogen,docs,journeys,.auth-states}
+mkdir -p "$ARTK_E2E"/{vendor/artk-core,vendor/artk-core-autogen,vendor/artk-core-journeys,docs,journeys,.auth-states}
 mkdir -p "$ARTK_E2E"/reports/{discovery,testid,validation,verification}
 
 # Create foundation module structure (discover-foundation expects this)
@@ -984,6 +985,46 @@ else
 fi
 cp "$ARTK_CORE/autogen/README.md" "$ARTK_E2E/vendor/artk-core-autogen/" 2>/dev/null || true
 
+# Step 3.5: Copy artk-core-journeys to vendor
+echo -e "${YELLOW}[3.5/7] Installing artk-core-journeys to vendor/...${NC}"
+
+if [ -d "$ARTK_CORE_JOURNEYS" ]; then
+    # Copy entire Journey Core directory structure
+    cp -r "$ARTK_CORE_JOURNEYS"/* "$ARTK_E2E/vendor/artk-core-journeys/"
+
+    # Add READONLY.md for AI protection
+    cat > "$ARTK_E2E/vendor/artk-core-journeys/READONLY.md" << 'JCREADONLY'
+# ⚠️ DO NOT MODIFY THIS DIRECTORY
+
+This directory contains **artk-core-journeys** - the Journey schema, templates, and tools.
+
+**DO NOT modify files in this directory.**
+
+These files are managed by ARTK bootstrap and will be overwritten on upgrades.
+
+If you need to customize Journey schemas:
+1. Create custom schemas in `artk-e2e/journeys/schemas/custom/`
+2. Extend the base schema rather than modifying it
+
+---
+
+*Installed by ARTK Bootstrap*
+JCREADONLY
+
+    # Add .ai-ignore
+    cat > "$ARTK_E2E/vendor/artk-core-journeys/.ai-ignore" << 'JCAIIGNORE'
+# AI agents should not modify files in this directory
+# This is vendored code managed by ARTK bootstrap
+
+*
+JCAIIGNORE
+
+    echo -e "${GREEN}✓ artk-core-journeys installed to vendor/${NC}"
+else
+    echo -e "${YELLOW}Warning: artk-core-journeys not found at $ARTK_CORE_JOURNEYS${NC}"
+    echo -e "${YELLOW}Journey System will need manual installation via init-playbook${NC}"
+fi
+
 # Step 4: Install prompts
 echo -e "${YELLOW}[4/7] Installing prompts to .github/prompts/...${NC}"
 PROMPTS_TARGET="$TARGET_PROJECT/.github/prompts"
@@ -1106,7 +1147,31 @@ browsers:
     width: 1280
     height: 720
   headless: true
+
+# Core component versions (managed by bootstrap)
+core:
+  runtime:
+    install: vendor
+    installDir: vendor/artk-core
+  autogen:
+    install: vendor
+    installDir: vendor/artk-core-autogen
+  journeys:
+    install: vendor
+    installDir: vendor/artk-core-journeys
+    version: "__JOURNEYS_VERSION__"
 ARTKCONFIG
+
+    # Read Journey Core version from manifest (prefer jq if available for robust JSON parsing)
+    local journeys_version="0.1.0"
+    if [ -f "$ARTK_CORE_JOURNEYS/core.manifest.json" ]; then
+        if command -v jq &>/dev/null; then
+            journeys_version=$(jq -r '.version // "0.1.0"' "$ARTK_CORE_JOURNEYS/core.manifest.json" 2>/dev/null)
+        else
+            journeys_version=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$ARTK_CORE_JOURNEYS/core.manifest.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+        fi
+        [ -z "$journeys_version" ] && journeys_version="0.1.0"
+    fi
 
     # Perform safe substitutions
     sed -i.bak \
@@ -1114,6 +1179,7 @@ ARTKCONFIG
         -e "s|__PROJECT_NAME__|${project_name}|g" \
         -e "s|__CHANNEL__|${channel}|g" \
         -e "s|__STRATEGY__|${strategy}|g" \
+        -e "s|__JOURNEYS_VERSION__|${journeys_version}|g" \
         "$ARTK_E2E/artk.config.yml"
     rm -f "$ARTK_E2E/artk.config.yml.bak"
 }
@@ -1723,6 +1789,7 @@ echo -e "${CYAN}Installed:${NC}"
 echo "  artk-e2e/                             - E2E test workspace"
 echo "  artk-e2e/vendor/artk-core/            - @artk/core (vendored)"
 echo "  artk-e2e/vendor/artk-core-autogen/    - @artk/core-autogen (vendored)"
+echo "  artk-e2e/vendor/artk-core-journeys/   - Journey schemas & tools (vendored)"
 echo "  artk-e2e/package.json                 - Test workspace dependencies"
 echo "  artk-e2e/playwright.config.ts         - Playwright configuration"
 echo "  artk-e2e/tsconfig.json                - TypeScript configuration"
