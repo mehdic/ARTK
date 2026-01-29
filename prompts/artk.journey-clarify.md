@@ -1337,9 +1337,17 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.testid-audit mode=report scope=journey:<JRN-ID>           ║
-║  2. /artk.journey-implement id=<JRN-ID>                             ║
-║  3. /artk.journey-validate id=<JRN-ID>                              ║
+║  1. (RECOMMENDED) Audit selectors before implementation:            ║
+║     /artk.testid-audit mode=report scope=journey:<JRN-ID>          ║
+║                                                                     ║
+║  2. (RECOMMENDED) Implement the journey as Playwright tests:        ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  3. (AFTER IMPLEMENT) Validate the generated tests:                 ║
+║     /artk.journey-validate id=<JRN-ID>                             ║
+║                                                                     ║
+║  4. (OPTIONAL) Clarify another journey:                             ║
+║     /artk.journey-clarify id=JRN-####                              ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```

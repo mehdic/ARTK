@@ -2025,13 +2025,18 @@ You MUST read and display the contents of this file EXACTLY:
 **If you cannot read the file**, display this fallback EXACTLY:
 ```
 ╔════════════════════════════════════════════════════════════════════╗
-║  NEXT COMMANDS                                                      ║
+║                         NEXT COMMANDS                              ║
 ╠════════════════════════════════════════════════════════════════════╣
-║                                                                     ║
-║  1. /artk.testid-audit mode=report                                  ║
-║  2. /artk.journey-propose                                           ║
-║  3. /artk.journey-define id=JRN-0001 title="<title>"                ║
-║                                                                     ║
+║                                                                    ║
+║  1. (RECOMMENDED) Audit testid coverage:                           ║
+║     /artk.testid-audit mode=report                                 ║
+║                                                                    ║
+║  2. (OPTIONAL) Propose journeys from discovery:                    ║
+║     /artk.journey-propose                                          ║
+║                                                                    ║
+║  3. (OPTIONAL) Create a specific journey manually:                 ║
+║     /artk.journey-define id=JRN-0001 title="<your title>"          ║
+║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 

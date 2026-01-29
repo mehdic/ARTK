@@ -1963,9 +1963,17 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.discover-foundation                                       ║
-║  2. /artk.journey-propose                                           ║
-║  3. /artk.journey-define id=JRN-0001 title="<title>"                ║
+║  1. (RECOMMENDED) Analyze app and build foundation harness:         ║
+║     /artk.discover-foundation                                       ║
+║                                                                     ║
+║  2. (AFTER DISCOVERY) Auto-propose journeys from findings:          ║
+║     /artk.journey-propose                                           ║
+║                                                                     ║
+║  3. (ALTERNATIVE) Define a journey manually:                        ║
+║     /artk.journey-define id=JRN-0001 title="<title>"                ║
+║                                                                     ║
+║  4. (OPTIONAL) Audit selectors for test hooks:                      ║
+║     /artk.testid-audit mode=report                                  ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```

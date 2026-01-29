@@ -410,9 +410,17 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.journey-propose                                           ║
-║  2. /artk.journey-define id=JRN-0001 title="<title>"                ║
-║  3. /artk.journey-implement id=JRN-####                             ║
+║  1. (RECOMMENDED) Propose journeys using stable selectors:          ║
+║     /artk.journey-propose                                          ║
+║                                                                     ║
+║  2. (OPTIONAL) Define a specific journey manually:                  ║
+║     /artk.journey-define id=JRN-0001 title="<title>"               ║
+║                                                                     ║
+║  3. (OPTIONAL) Implement a journey with data-testid selectors:      ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  4. (IF ITEMS REMAIN) Re-run audit for remaining items:             ║
+║     /artk.testid-audit mode=report scope=<component>               ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```

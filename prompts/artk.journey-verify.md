@@ -1611,9 +1611,17 @@ You MUST read and display the contents of this file EXACTLY:
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. /artk.journey-implement id=JRN-####                             ║
-║  2. /artk.journey-verify id=<JRN-ID>                                ║
-║  3. /artk.journey-verify id=<JRN-ID> heal=auto                      ║
+║  1. (IF TESTS PASSED) Journey is complete! Implement another:       ║
+║     /artk.journey-implement id=JRN-####                            ║
+║                                                                     ║
+║  2. (IF TESTS FAILED) Fix issues and re-run verification:           ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  3. (IF FLAKY) Stabilize tests and re-verify:                       ║
+║     /artk.journey-verify id=<JRN-ID> heal=auto                     ║
+║                                                                     ║
+║  4. (OPTIONAL) Run all tests for the tier:                          ║
+║     npm run test:smoke   (or test:release, test:regression)        ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
