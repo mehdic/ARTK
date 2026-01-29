@@ -884,8 +884,6 @@ You MUST read and display the contents of this file EXACTLY:
 
 **File to read:** `.github/prompts/next-commands/artk.journey-propose.txt`
 
-**Alternative path (if above not found):** `prompts/next-commands/artk.journey-propose.txt`
-
 **Instructions:**
 1. Use your file reading capability to read the file above
 2. Display the ENTIRE contents of that file as a code block
