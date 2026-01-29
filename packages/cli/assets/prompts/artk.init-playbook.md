@@ -110,7 +110,7 @@ When `dryRun=true`:
 - `coreSource`: where `@artk/core` runtime library is (default: auto-detect `core/typescript/`)
 - `journeyCoreSource`: where Journey Core (schemas, tools) is (default: auto-detect `core/artk-core-journeys/`)
 - `coreInstall`: `vendor | submodule | subtree` (default: `vendor`) — `npm` reserved for future registry publish
-- `journeyCoreInstallDir`: where to install Journey Core (default: `<ARTK_ROOT>/.artk/core/journeys`)
+- `journeyCoreInstallDir`: where to install Journey Core (default: `<ARTK_ROOT>/vendor/artk-core-journeys`)
 - `layout`: `auto | flat | staged` (default: `auto` → picks `flat` for new, preserves existing)
 - `idPrefix`: default `JRN`
 - `idWidth`: default `4` (e.g., JRN-0001)
@@ -125,13 +125,13 @@ ARTK has THREE core components (ALL MANDATORY):
 |-----------|--------------|-----------------|------------------|---------|
 | **Runtime Core** | `@artk/core` | `core/typescript/` | `<ARTK_ROOT>/vendor/artk-core/` | Fixtures, auth, config, locators, assertions, grid helpers |
 | **AutoGen** | `@artk/core-autogen` | `core/typescript/autogen/` | `<ARTK_ROOT>/vendor/artk-core-autogen/` | Test generation, validation, IR |
-| **Journey Core** | `artk-core-journeys` | `core/artk-core-journeys/artk-core-journeys/` | `<ARTK_ROOT>/.artk/core/journeys/` | Journey schemas, backlog tools |
+| **Journey Core** | `artk-core-journeys` | `core/artk-core-journeys/artk-core-journeys/` | `<ARTK_ROOT>/vendor/artk-core-journeys/` | Journey schemas, backlog tools |
 
 **Naming conventions in this prompt:**
 - `<coreSource>` = path to `@artk/core` source (e.g., `core/typescript/`)
 - `<autogenSource>` = path to `@artk/core-autogen` source (always `<coreSource>/autogen/`)
 - `<journeyCoreSource>` = path to `artk-core-journeys` source
-- `<journeyCoreInstallDir>` = where Journey Core is installed (default: `.artk/core/journeys/`)
+- `<journeyCoreInstallDir>` = where Journey Core is installed (default: `vendor/artk-core-journeys/`)
 
 ---
 
@@ -190,7 +190,9 @@ After repo scan, determine which mode applies:
 version = artk.config.yml.version ?? 0
 coreInstalled = exists(<ARTK_ROOT>/vendor/artk-core/package.json)
 autogenInstalled = exists(<ARTK_ROOT>/vendor/artk-core-autogen/package.json)
-journeyCoreInstalled = exists(<journeyCoreInstallDir>/core.manifest.json)
+journeyCoreInstalled = exists(<ARTK_ROOT>/vendor/artk-core-journeys/core.manifest.json)
+journeysConfigured = exists(<ARTK_ROOT>/journeys/journeys.config.yml)
+wrapperScriptsExist = exists(<ARTK_ROOT>/tools/journeys/generate-backlog.sh) OR exists(<ARTK_ROOT>/tools/journeys/generate-backlog.ps1)
 
 IF artk.config.yml NOT found:
   → Mode A (Fresh Install)
@@ -198,6 +200,11 @@ ELIF version < 1 OR NOT coreInstalled OR NOT autogenInstalled OR NOT journeyCore
   → Mode B (Upgrade)
   // Note: All three components (core, autogen, journey-core) are MANDATORY for Mode C
   // Missing any component triggers upgrade path
+ELIF NOT journeysConfigured OR NOT wrapperScriptsExist:
+  → Mode B.5 (First-Run-After-Bootstrap)
+  // Bootstrap installed files but Journey System not fully configured
+  // journeyCoreInstalled is guaranteed TRUE at this point (passed Mode B check)
+  // Run Step 8.5 + Steps 11-18 (skip Steps 5-8, 9-10)
 ELSE:
   → Mode C (Re-run/Validation)
   // Note: Config version is an integer (1, 2, 3...), not semver
@@ -351,7 +358,7 @@ Configuration complete. Running validation...
 ```
 📋 ARTK already installed at demo/
   • Version: 1.0.0 (current)
-  • Core: installed at .artk/core/journeys
+  • Core: installed at vendor/artk-core-journeys
   • Journeys: 3 found
   • Config: ✓ complete
 
@@ -366,6 +373,9 @@ Then skip to Step 16 (regenerate BACKLOG.md) → Step 18 (report). Do NOT re-sca
 
 **Skip entirely in Mode C:** Steps 5-15, 17 (no scaffolding, no install — config update only if triggered)
 
+**Skip in Mode B.5:** Steps 5-8, 9-10, questionnaire (bootstrap already handled core installation)
+**Run in Mode B.5:** Step 8.5 (legacy migration check) - ALWAYS run this step to detect orphaned legacy locations
+
 **Mode B (Upgrade):** ARTK exists but needs updates.
 ```
 📋 ARTK detected at demo/ - upgrade needed
@@ -374,6 +384,17 @@ Then skip to Step 16 (regenerate BACKLOG.md) → Step 18 (report). Do NOT re-sca
   • Journeys: 3 found (will preserve)
 ```
 → Continue to the questionnaire below (same as Mode A, with "keep previous" option).
+
+**Mode B.5 (First-Run-After-Bootstrap):** Bootstrap completed but Journey System not configured.
+```
+📋 ARTK bootstrap detected at demo/
+  • Core components: ✓ installed (vendor/)
+  • Journey System: needs configuration
+  • Completing setup...
+```
+→ Skip questionnaire, skip Steps 5-8, 9-10. Run Step 8.5 (legacy check) then Steps 11-18.
+
+**Mode B.5 path:** Step 1 → Step 2 → Step 3 → Step 4 (detect Mode B.5) → Step 8.5 → Step 11 → Step 12 → Step 13 → Step 14 → Step 15 → Step 16 → Step 17 → Step 18
 
 **Mode A (Fresh):** No ARTK detected.
 → Continue to the questionnaire below.
@@ -952,6 +973,7 @@ If a critical field cannot be inferred:
   vendor/
     artk-core/                  # @artk/core (from core/typescript/)
     artk-core-autogen/          # @artk/core-autogen (from core/typescript/autogen/)
+    artk-core-journeys/         # Journey Core (auto-installed by bootstrap)
   docs/
     PLAYBOOK.md                 # Generated in Part 2
     ARCHITECTURE.md
@@ -1395,19 +1417,53 @@ IF journeys.config.yml exists AND (
 ```
 ℹ️  Migrating old Journey System to Core-based architecture:
   → Backing up journeys.config.yml
-  → Installing Core v1.x to .artk/core/journeys
+  → Installing Core v1.x to vendor/artk-core-journeys
   → Creating wrapper scripts
   → Regenerating BACKLOG.md and index.json
   ✓ Migration complete - all Journey files preserved
 ```
 
+## Step 8.5 — Migrate legacy Journey Core location
+
+**Check for legacy installation at `.artk/core/journeys/`:**
+
+```
+IF .artk/core/journeys/core.manifest.json exists:
+  legacyVersion = read version from .artk/core/journeys/core.manifest.json
+
+  IF vendor/artk-core-journeys/ is EMPTY or missing:
+    → Migrate: Copy .artk/core/journeys/* to vendor/artk-core-journeys/
+    → Log: "Migrated Journey Core from .artk/core/journeys/ to vendor/"
+    → Update artk.config.yml core.journeys.installDir to vendor/artk-core-journeys
+
+  ELIF vendor/artk-core-journeys/core.manifest.json exists:
+    vendorVersion = read version from vendor/artk-core-journeys/core.manifest.json
+
+    IF vendorVersion >= legacyVersion:
+      → Log: "Legacy Journey Core found at .artk/core/journeys/ (can be removed)"
+      → Warn: "Consider removing .artk/core/journeys/ - vendor/ has same or newer version"
+    ELSE:
+      → Warn: "Legacy location has newer version - keeping both for safety"
+      → Suggest: "Run bootstrap to update vendor/ then remove .artk/core/journeys/"
+```
+
+**Output example:**
+```
+ℹ️  Legacy Journey Core detected at .artk/core/journeys/
+  → Migrating to vendor/artk-core-journeys/...
+  ✓ Migration complete
+  → Tip: You can safely delete .artk/core/journeys/
+```
+
 ## Step 9 — Detect installed Journey Core
-Default install dir: `<ARTK_ROOT>/.artk/core/journeys` (= `<journeyCoreInstallDir>`).
+Default install dir: `<ARTK_ROOT>/vendor/artk-core-journeys` (= `<journeyCoreInstallDir>`).
 
 **Journey Core** (distinct from `@artk/core` runtime) is considered "installed" if these exist:
-- `<journeyCoreInstallDir>/core.manifest.json`
-- `<journeyCoreInstallDir>/journeys/schema/journey.frontmatter.schema.json`
-- `<journeyCoreInstallDir>/journeys/tools/node/generate.js` and `validate.js`
+- `<ARTK_ROOT>/vendor/artk-core-journeys/core.manifest.json`
+- `<ARTK_ROOT>/vendor/artk-core-journeys/journeys/schema/journey.frontmatter.schema.json`
+- `<ARTK_ROOT>/vendor/artk-core-journeys/journeys/tools/node/generate.js` and `validate.js`
+
+**Backward compatibility:** Also check `.artk/core/journeys/` for legacy installations. If found there but not in vendor/, use the legacy location.
 
 Read the installed Journey Core version from `core.manifest.json`.
 
@@ -1419,10 +1475,11 @@ Journey Core source is where `artk-core-journeys` files can be copied *from* (in
 ### Phase 1: Fast-path checks (explicit locations)
 Try these paths in order (first valid match wins):
 1) `journeyCoreSource=` argument (if user provided)
-2) `<repoRoot>/core/artk-core-journeys/artk-core-journeys/` (ARTK repo structure)
-3) `<repoRoot>/artk-core-journeys/` (standalone checkout)
-4) `<journeyCoreInstallDir>/` (already installed - check version)
-5) `<repoRoot>/vendor/artk-core-journeys/` (vendored)
+2) `<ARTK_ROOT>/vendor/artk-core-journeys/` (bootstrap auto-installed - PREFERRED for consumer projects)
+3) `<repoRoot>/core/artk-core-journeys/artk-core-journeys/` (ARTK repo structure)
+4) `<repoRoot>/artk-core-journeys/` (standalone checkout)
+5) `<journeyCoreInstallDir>/` (already installed - check version)
+6) `<repoRoot>/vendor/artk-core-journeys/` (vendored at repo root)
 
 **Validation:** A valid Journey Core source MUST contain:
 - `core.manifest.json` with `"name": "artk-core-journeys"`
@@ -1443,29 +1500,61 @@ Output this message and WAIT for user response:
 ⚠️ Could not auto-detect Journey Core source.
 
 Searched:
+  ✗ <ARTK_ROOT>/vendor/artk-core-journeys/ (bootstrap auto-install location)
   ✗ core/artk-core-journeys/artk-core-journeys/
   ✗ artk-core-journeys/
+  ✗ <journeyCoreInstallDir>/
   ✗ vendor/artk-core-journeys/
   ✗ **/core.manifest.json with artk-core-journeys (glob)
 
-Please provide the path to Journey Core, or re-run with:
+If you ran the bootstrap script, Journey Core should be at <ARTK_ROOT>/vendor/artk-core-journeys/.
+Otherwise, please provide the path to Journey Core, or re-run with:
   /artk.init-playbook journeyCoreSource=<path>
 ```
 
 **Validation:** A valid Journey Core source MUST contain `core.manifest.json` with `"name": "artk-core-journeys"`.
 
 ## Step 11 — Install or upgrade Journey Core
-**Goal:** place an exact copy of the Journey Core source into `<journeyCoreInstallDir>`.
+**Goal:** Ensure Journey Core is available at `<ARTK_ROOT>/vendor/artk-core-journeys/`.
 
-Rules:
-- If Journey Core is not installed: install it.
-- If Journey Core is installed and source version is newer: upgrade it.
-- If Journey Core is installed and source version is the same: do nothing.
-- If Journey Core is installed and source version is older: refuse by default (unless user explicitly requests downgrade).
+**Bootstrap handles installation:** If bootstrap was run (recommended), Journey Core is already in `vendor/artk-core-journeys/`. This step validates and records the installation.
+
+### Decision logic:
+```
+IF vendor/artk-core-journeys/core.manifest.json exists:
+  → Already installed by bootstrap. Validate and record version. SKIP copy.
+  → Update artk.config.yml with core.journeys section if missing.
+
+ELIF .artk/core/journeys/core.manifest.json exists (legacy):
+  → Legacy installation found. Self-contained migration (does NOT depend on Step 8.5):
+    legacyVersion = read version from .artk/core/journeys/core.manifest.json
+    IF vendor/artk-core-journeys/ is empty or missing:
+      → Migrate: Copy .artk/core/journeys/* to vendor/artk-core-journeys/
+      → Log: "Migrated Journey Core from .artk/core/journeys/ to vendor/"
+    ELIF vendor/artk-core-journeys/core.manifest.json exists:
+      → Use vendor/ (prefer newer location, already migrated)
+      → Warn: "Legacy .artk/core/journeys/ found - can be safely removed"
+    → Update artk.config.yml installDir to vendor/artk-core-journeys
+
+ELIF journeyCoreSource found in Step 10:
+  → Copy from source to vendor/artk-core-journeys/
+  → Create READONLY.md and .ai-ignore markers
+
+ELSE:
+  → Error: Run bootstrap first, or provide journeyCoreSource= argument.
+  → Show: "Journey Core not found. Run bootstrap.sh or provide journeyCoreSource="
+```
+
+**IMPORTANT:** After ANY of the above paths, ensure artk.config.yml has the core.journeys section. Bootstrap may have created the file but older versions didn't include this section.
+
+### Version check (when already installed):
+- If source version is newer than installed: offer upgrade (copy newer version)
+- If source version is same: do nothing
+- If source version is older: warn but do not downgrade
 
 ### Upgrade safety
-- Never overwrite repo-owned files outside `<journeyCoreInstallDir>` without managed markers.
-- Inside `<journeyCoreInstallDir>`, it's fine to replace files entirely (Core-managed zone).
+- vendor/artk-core-journeys/ is managed by bootstrap - safe to replace entirely
+- Never modify files outside vendor/ without managed markers
 
 ### Record pinning
 Update (or create) `<ARTK_ROOT>/artk.config.yml` to include:
@@ -1473,9 +1562,8 @@ Update (or create) `<ARTK_ROOT>/artk.config.yml` to include:
 core:
   journeys:
     install: vendor
-    installDir: .artk/core/journeys
+    installDir: vendor/artk-core-journeys
     version: "<installed version>"
-    sourcePath: "<relative path to coreSource>"
 ```
 If `artk.config.yml` already exists with a different structure, preserve existing keys and add this section minimally.
 
@@ -1505,7 +1593,7 @@ If the file exists, preserve user customizations and only fill missing keys.
 
 ## Step 13 — Create/Update repo-local Journey README (Instance doc)
 Create/update `<ARTK_ROOT>/journeys/README.md` using the Journey Core template:
-- `<journeyCoreInstallDir>/journeys/docs/README.template.md`
+- `vendor/artk-core-journeys/journeys/docs/README.template.md`
 
 This README may contain repo-specific notes (auth approach, environment quirks).
 Use managed markers so you can update the generic parts without clobbering local notes:
@@ -1518,9 +1606,14 @@ Create:
 
 Wrappers must:
 - infer ARTK_ROOT (or accept `--artkRoot`)
-- call the Journey Core scripts in `<journeyCoreInstallDir>/journeys/tools/node/`
+- call the Journey Core scripts in `vendor/artk-core-journeys/journeys/tools/node/`
 - pass through CLI args
 - print friendly errors if Node deps are missing
+
+**Path resolution:** Wrappers should resolve Journey Core location:
+1. Check `vendor/artk-core-journeys/` (default, installed by bootstrap)
+2. Fall back to `.artk/core/journeys/` (legacy installations)
+3. Error if neither found
 
 Example wrapper behavior:
 - `node <ARTK_ROOT>/tools/journeys/generate.js` regenerates `journeys/BACKLOG.md` + `journeys/index.json`
@@ -1696,7 +1789,8 @@ If the workflow fails before Step 18 completion, the repo may be in a partial st
 **Diagnosis:**
 1. Check the last `✓` marker in the output — that's where it stopped
 2. Check if `artk.config.yml` exists (Step 5D)
-3. Check if Journey Core is installed at `<journeyCoreInstallDir>/core.manifest.json` (Step 11)
+3. Check if Journey Core is installed at `vendor/artk-core-journeys/core.manifest.json` (Step 11)
+4. Check if Journey System is configured at `journeys/journeys.config.yml` (Step 12)
 
 **Recovery options:**
 
@@ -1705,14 +1799,21 @@ If the workflow fails before Step 18 completion, the repo may be in a partial st
 | No `artk.config.yml` | Re-run `/artk.init-playbook` — will trigger Mode A |
 | `artk.config.yml` exists, no Core | Re-run — will trigger Mode B |
 | `artk.config.yml` exists, no AutoGen | Re-run — will trigger Mode B |
+| Journey Core in vendor/, no `journeys.config.yml` | Re-run — will trigger Mode B.5 (configures Journey System) |
 | Journey Core installed, missing files | Re-run — will trigger Mode B or C |
+| Legacy Journey Core in `.artk/core/journeys/` | Re-run — will migrate to vendor/ (Step 8.5) |
 | `npm install` failed | Run manually: `cd <ARTK_ROOT> && npm install --legacy-peer-deps` |
 | Playwright install failed | Will auto-fallback to Edge/Chrome; or run: `npx playwright install chromium` |
 
 **Nuclear option (start fresh):**
 ```bash
-rm -rf <ARTK_ROOT>/artk.config.yml <ARTK_ROOT>/.artk
-# Then re-run /artk.init-playbook
+# Remove all ARTK configuration and vendor packages
+rm -rf <ARTK_ROOT>/artk.config.yml \
+       <ARTK_ROOT>/vendor \
+       <ARTK_ROOT>/journeys \
+       <ARTK_ROOT>/tools/journeys \
+       <ARTK_ROOT>/.artk
+# Then re-run bootstrap.sh followed by /artk.init-playbook
 ```
 
 ---
@@ -1751,7 +1852,7 @@ Trigger interactive fallback:
 - Regenerate into managed markers or replace only if clearly generated
 
 ## Core already installed but modified
-- If files under `<journeyCoreInstallDir>` differ from manifest hashes, warn (Journey Core should be immutable)
+- If files under `vendor/artk-core-journeys/` differ from manifest hashes, warn (Journey Core should be immutable)
 - Reinstall from source
 
 ## Windows paths
@@ -1800,7 +1901,7 @@ Trigger interactive fallback:
 - [ ] @artk/core-autogen installed at `vendor/artk-core-autogen/`
 - [ ] `docs/PLAYBOOK.md` generated with governance rules
 - [ ] Copilot instructions created/updated
-- [ ] Journey Core installed at `<journeyCoreInstallDir>`
+- [ ] Journey Core installed at `vendor/artk-core-journeys/`
 - [ ] `journeys/journeys.config.yml` created
 - [ ] `journeys/README.md` created
 - [ ] Wrapper scripts created (`tools/journeys/`)
@@ -1812,7 +1913,7 @@ Trigger interactive fallback:
 - [ ] Existing config preserved, missing keys added
 - [ ] @artk/core installed/upgraded at `vendor/artk-core/`
 - [ ] @artk/core-autogen installed/upgraded at `vendor/artk-core-autogen/`
-- [ ] Journey Core installed/upgraded at `<journeyCoreInstallDir>`
+- [ ] Journey Core installed/upgraded at `vendor/artk-core-journeys/`
 - [ ] `artk.config.yml` updated with Core pin info
 - [ ] Wrapper scripts created/updated
 - [ ] BACKLOG.md + index.json regenerated
