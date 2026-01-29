@@ -92,6 +92,10 @@ If inputs are missing, infer them from a repo scan.
 
 6) **Final output is mandatory.** Before ending, MUST display the "Next Commands" box from the MANDATORY section verbatim. Do not summarize or paraphrase.
 
+> ⚠️ **CRITICAL: NEVER finish without displaying the Next Commands box.**
+> If you complete the audit without showing the Next Commands box, you have FAILED.
+> Scroll to "MANDATORY: Final Output Section" and copy it EXACTLY.
+
 ---
 
 ## Phase 0 - Repo scan (no questions yet)
@@ -365,7 +369,9 @@ You must produce:
 ### Final Output (MANDATORY)
 - [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
 
-## MANDATORY: Final Output Section
+## MANDATORY: Final Output Section (FINAL STEP - DO NOT SKIP)
+
+> 🛑 **STOP! This is the FINAL STEP. You MUST complete this before ending.**
 
 **You MUST display this section at the end of your output, exactly as formatted.**
 
@@ -412,3 +418,8 @@ You must produce:
 - Run `/artk.testid-audit mode=report` periodically to track selector debt
 
 **IMPORTANT:** Copy the commands box exactly. Do not abbreviate or summarize.
+
+---
+
+> ⚠️ **REMINDER: If you reached this point, you MUST have displayed the Next Commands box above.**
+> If you haven't, scroll up and copy it NOW before ending your response.
