@@ -82,7 +82,7 @@ This command does THREE things in one (ALL MANDATORY):
 5. **No CI/CD yet.** Do not add/modify pipelines. Only scaffold code/docs/config.
 6. **No secrets.** Never request or write credentials. Capture only *where* secrets live and *how* auth works.
 7. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
-8. **Final output is mandatory.** Before ending, MUST display the "Next Commands" box from the MANDATORY section verbatim. Do not summarize or paraphrase.
+8. **Final output is mandatory.** Before ending, MUST READ and display the "Next Commands" file from `.github/prompts/next-commands/`. Do not generate your own version.
 
 ## Inputs (parse from arguments if provided)
 
@@ -1939,35 +1939,37 @@ If anything is ambiguous, ask in the single grouped questionnaire and proceed on
 ---
 
 ### Final Output (MANDATORY)
-- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
+- [ ] "Next Commands" box displayed from file (READ, don't generate)
 
 # MANDATORY: Final Output Section
 
-**You MUST display this section at the end of your output, exactly as formatted.**
+**🛑 STOP - READ THE FILE, DON'T GENERATE**
 
-**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+You MUST read and display the contents of this file EXACTLY:
 
+**File to read:** `.github/prompts/next-commands/artk.init-playbook.txt`
+
+**Alternative path (if above not found):** `prompts/next-commands/artk.init-playbook.txt`
+
+**Instructions:**
+1. Use your file reading capability to read the file above
+2. Display the ENTIRE contents of that file as a code block
+3. Do NOT modify, summarize, or add to the file contents
+4. Do NOT generate your own version - READ THE FILE
+
+**If you cannot read the file**, display this fallback EXACTLY:
 ```
 ╔════════════════════════════════════════════════════════════════════╗
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. (RECOMMENDED) Analyze app and build foundation harness:         ║
-║     /artk.discover-foundation                                       ║
-║                                                                     ║
-║  2. (AFTER DISCOVERY) Auto-propose journeys from findings:          ║
-║     /artk.journey-propose                                           ║
-║                                                                     ║
-║  3. (ALTERNATIVE) Define a journey manually:                        ║
-║     /artk.journey-define id=JRN-0001 title="<title>"                ║
-║                                                                     ║
-║  4. (OPTIONAL) Audit selectors for test hooks:                      ║
-║     /artk.testid-audit mode=report                                  ║
+║  1. /artk.discover-foundation                                       ║
+║  2. /artk.journey-propose                                           ║
+║  3. /artk.journey-define id=JRN-0001 title="<title>"                ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
 **IMPORTANT:**
-- Copy the commands box exactly. Do not abbreviate or summarize.
 - Do NOT invent commands that don't exist.
 - Only use commands from the handoffs section of this prompt.

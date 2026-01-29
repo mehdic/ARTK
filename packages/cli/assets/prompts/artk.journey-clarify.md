@@ -1313,30 +1313,33 @@ Maintain a canonical guidance doc with managed markers that includes:
 ---
 
 ### Final Output (MANDATORY)
-- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
+- [ ] "Next Commands" box displayed from file (READ, don't generate)
 
 # MANDATORY: Final Output Section
 
-**You MUST display this section at the end of your output, exactly as formatted.**
+**🛑 STOP - READ THE FILE, DON'T GENERATE**
 
-**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+You MUST read and display the contents of this file EXACTLY:
 
+**File to read:** `.github/prompts/next-commands/artk.journey-clarify.txt`
+
+**Alternative path (if above not found):** `prompts/next-commands/artk.journey-clarify.txt`
+
+**Instructions:**
+1. Use your file reading capability to read the file above
+2. Display the ENTIRE contents of that file as a code block
+3. Do NOT modify, summarize, or add to the file contents
+4. Do NOT generate your own version - READ THE FILE
+
+**If you cannot read the file**, display this fallback EXACTLY:
 ```
 ╔════════════════════════════════════════════════════════════════════╗
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. (RECOMMENDED) Audit selectors before implementation:            ║
-║     /artk.testid-audit mode=report scope=journey:<JRN-ID>          ║
-║                                                                     ║
-║  2. (RECOMMENDED) Implement the journey as Playwright tests:        ║
-║     /artk.journey-implement id=<JRN-ID>                            ║
-║                                                                     ║
-║  3. (AFTER IMPLEMENT) Validate the generated tests:                 ║
-║     /artk.journey-validate id=<JRN-ID>                             ║
-║                                                                     ║
-║  4. (OPTIONAL) Clarify another journey:                             ║
-║     /artk.journey-clarify id=JRN-####                              ║
+║  1. /artk.testid-audit mode=report scope=journey:<JRN-ID>           ║
+║  2. /artk.journey-implement id=<JRN-ID>                             ║
+║  3. /artk.journey-validate id=<JRN-ID>                              ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
@@ -1344,6 +1347,5 @@ Maintain a canonical guidance doc with managed markers that includes:
 **Replace `<JRN-ID>` with the actual journey ID that was just clarified (e.g., JRN-0001).**
 
 **IMPORTANT:**
-- Copy the commands box exactly. Do not abbreviate or summarize.
 - Do NOT invent commands that don't exist.
 - Only use commands from the handoffs section of this prompt.
