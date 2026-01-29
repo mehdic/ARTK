@@ -55,6 +55,28 @@ The objective is simple: propose the Journeys most likely to catch regressions *
 - **Graceful degradation.** If git history or incident sources are unavailable, proceed with discovery-only signals and label uncertainty.
 - **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 
+> ⚠️ **CRITICAL ANTI-HALLUCINATION RULE**
+>
+> At the end of this task, you MUST copy the "Next Commands" box VERBATIM from the MANDATORY section.
+>
+> **ONLY THESE COMMANDS EXIST:**
+> - `/artk.init-playbook`
+> - `/artk.discover-foundation`
+> - `/artk.journey-propose`
+> - `/artk.journey-define`
+> - `/artk.journey-clarify`
+> - `/artk.testid-audit`
+> - `/artk.journey-implement`
+> - `/artk.journey-validate`
+> - `/artk.journey-verify`
+>
+> **THESE COMMANDS DO NOT EXIST (never mention them):**
+> - ❌ `/artk.journey-review` — DOES NOT EXIST
+> - ❌ `/artk.journey-gen` — DOES NOT EXIST
+> - ❌ `/artk.journey-create` — DOES NOT EXIST
+> - ❌ `/artk.journey-approve` — DOES NOT EXIST
+> - ❌ Any command not in the list above — DOES NOT EXIST
+
 ---
 
 # Expected inputs (best-effort)
@@ -883,8 +905,20 @@ Provide one reply template.
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-**CRITICAL - ANTI-HALLUCINATION RULES:**
-- Copy the commands box EXACTLY. Do not abbreviate or summarize.
-- Do NOT invent commands that don't exist (e.g., `/artk.journey-gen` does NOT exist).
-- Only use commands from the handoffs section of this prompt.
-- The ONLY valid ARTK commands are those listed in the handoffs section at the top of this file.
+**🛑 CRITICAL - ANTI-HALLUCINATION RULES:**
+
+1. **COPY the box above CHARACTER-FOR-CHARACTER.** Do not retype it. Do not paraphrase.
+2. **Do NOT invent commands.** The following DO NOT EXIST:
+   - ❌ `/artk.journey-review` — HALLUCINATION, does not exist
+   - ❌ `/artk.journey-gen` — HALLUCINATION, does not exist
+   - ❌ `/artk.journey-create` — HALLUCINATION, does not exist
+   - ❌ `/artk.journey-approve` — HALLUCINATION, does not exist
+3. **The ONLY valid next command after journey-propose is `/artk.journey-define`.**
+4. If you display ANY command not in the box above, you have FAILED this task.
+
+**VERIFICATION:** Before ending, check that your output contains EXACTLY these commands and NO OTHERS:
+- `/artk.journey-define source=JRN-####`
+- `/artk.journey-define id=JRN-#### title="<title>"`
+- `/artk.journey-clarify id=JRN-####`
+- `/artk.journey-implement id=JRN-####`
+- `/artk.testid-audit mode=report`
