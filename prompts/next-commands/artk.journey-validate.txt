@@ -1,0 +1,14 @@
+╔════════════════════════════════════════════════════════════════════╗
+║  NEXT COMMANDS                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                     ║
+║  1. (IF VALIDATION PASSED) Run and verify the tests:                ║
+║     /artk.journey-verify id=<JRN-ID>                               ║
+║                                                                     ║
+║  2. (IF VALIDATION FAILED) Fix issues and re-implement:             ║
+║     /artk.journey-implement id=<JRN-ID>                            ║
+║                                                                     ║
+║  3. (OPTIONAL) Validate another journey:                            ║
+║     /artk.journey-validate id=JRN-####                             ║
+║                                                                     ║
+╚════════════════════════════════════════════════════════════════════╝
