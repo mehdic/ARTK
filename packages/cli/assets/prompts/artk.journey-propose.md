@@ -874,51 +874,38 @@ Provide one reply template.
 ---
 
 ### Final Output (MANDATORY)
-- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
+- [ ] "Next Commands" box displayed from file (READ, don't generate)
 
 # MANDATORY: Final Output Section
 
-**You MUST display this section at the end of your output, exactly as formatted.**
+**🛑 STOP - READ THE FILE, DON'T GENERATE**
 
-**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+You MUST read and display the contents of this file EXACTLY:
 
+**File to read:** `.github/prompts/next-commands/artk.journey-propose.txt`
+
+**Alternative path (if above not found):** `prompts/next-commands/artk.journey-propose.txt`
+
+**Instructions:**
+1. Use your file reading capability to read the file above
+2. Display the ENTIRE contents of that file as a code block
+3. Do NOT modify, summarize, or add to the file contents
+4. Do NOT generate your own version - READ THE FILE
+
+**If you cannot read the file**, display this fallback EXACTLY:
 ```
 ╔════════════════════════════════════════════════════════════════════╗
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. (RECOMMENDED) Define a proposed journey with full structure:    ║
-║     /artk.journey-define source=JRN-####                           ║
-║                                                                     ║
-║  2. (ALTERNATIVE) Define a new journey manually:                    ║
-║     /artk.journey-define id=JRN-#### title="<title>"               ║
-║                                                                     ║
-║  3. (AFTER DEFINE) Add execution detail to a journey:               ║
-║     /artk.journey-clarify id=JRN-####                              ║
-║                                                                     ║
-║  4. (AFTER CLARIFY) Generate Playwright tests:                      ║
-║     /artk.journey-implement id=JRN-####                            ║
-║                                                                     ║
-║  5. (OPTIONAL) Audit selectors for stable test hooks:               ║
-║     /artk.testid-audit mode=report                                 ║
+║  1. /artk.journey-define source=JRN-####                           ║
+║  2. /artk.journey-clarify id=JRN-####                              ║
+║  3. /artk.journey-implement id=JRN-####                            ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-**🛑 CRITICAL - ANTI-HALLUCINATION RULES:**
-
-1. **COPY the box above CHARACTER-FOR-CHARACTER.** Do not retype it. Do not paraphrase.
-2. **Do NOT invent commands.** The following DO NOT EXIST:
-   - ❌ `/artk.journey-review` — HALLUCINATION, does not exist
-   - ❌ `/artk.journey-gen` — HALLUCINATION, does not exist
-   - ❌ `/artk.journey-create` — HALLUCINATION, does not exist
-   - ❌ `/artk.journey-approve` — HALLUCINATION, does not exist
-3. **The ONLY valid next command after journey-propose is `/artk.journey-define`.**
-4. If you display ANY command not in the box above, you have FAILED this task.
-
-**VERIFICATION:** Before ending, check that your output contains EXACTLY these commands and NO OTHERS:
-- `/artk.journey-define source=JRN-####`
-- `/artk.journey-define id=JRN-#### title="<title>"`
-- `/artk.journey-clarify id=JRN-####`
-- `/artk.journey-implement id=JRN-####`
-- `/artk.testid-audit mode=report`
+**🛑 ANTI-HALLUCINATION RULES:**
+- Do NOT invent commands like `/artk.journey-review` (DOES NOT EXIST)
+- The ONLY valid next step after journey-propose is `/artk.journey-define`
+- If you display any command not in the file, you have FAILED
