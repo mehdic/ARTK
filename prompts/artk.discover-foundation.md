@@ -57,7 +57,7 @@ By combining these, discovery findings directly inform foundation build decision
 7. **No hardcoded URLs.** Base URL and env must come from the config loader.
 8. **Local-first defaults.** Retries should be low locally; CI can raise them later.
 9. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
-10. **Final output is mandatory.** Before ending, MUST display the "Next Commands" box from the MANDATORY section verbatim. Do not summarize or paraphrase.
+10. **Final output is mandatory.** Before ending, MUST READ and display the "Next Commands" file from `.github/prompts/next-commands/`. Do not generate your own version.
 
 ---
 
@@ -1983,7 +1983,7 @@ Next steps:
 
 ### Final Output (MANDATORY)
 - [ ] Data-Testid Warning displayed (if applicable)
-- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
+- [ ] "Next Commands" box displayed from file (READ, don't generate)
 
 ---
 
@@ -2008,30 +2008,30 @@ Next steps:
 
 ### Next Commands
 
-**⚠️ CRITICAL: You MUST copy-paste the EXACT box below. DO NOT:**
-- Invent command names (NO `/artk.testid-coverage`, NO `/artk.journey-create`)
-- Add suggested journeys (NO `JRN-AUTH-001`, NO `JRN-PROD-001`)
-- Add `npm run test:validation` or other commands not in the box
-- Modify, rephrase, or "improve" the text in any way
+**🛑 STOP - READ THE FILE, DON'T GENERATE**
 
-**The ONLY valid commands are: `/artk.testid-audit`, `/artk.journey-propose`, `/artk.journey-define`**
+You MUST read and display the contents of this file EXACTLY:
 
-**Copy this box EXACTLY as-is:**
+**File to read:** `.github/prompts/next-commands/artk.discover-foundation.txt`
 
+**Alternative path (if above not found):** `prompts/next-commands/artk.discover-foundation.txt`
+
+**Instructions:**
+1. Use your file reading capability to read the file above
+2. Display the ENTIRE contents of that file as a code block
+3. Do NOT modify, summarize, or add to the file contents
+4. Do NOT generate your own version - READ THE FILE
+
+**If you cannot read the file**, display this fallback EXACTLY:
 ```
 ╔════════════════════════════════════════════════════════════════════╗
-║                         NEXT COMMANDS                              ║
+║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
-║                                                                    ║
-║  1. (RECOMMENDED) Audit testid coverage:                           ║
-║     /artk.testid-audit mode=report                                 ║
-║                                                                    ║
-║  2. (OPTIONAL) Propose journeys from discovery:                    ║
-║     /artk.journey-propose                                          ║
-║                                                                    ║
-║  3. (OPTIONAL) Create a specific journey manually:                 ║
-║     /artk.journey-define id=JRN-0001 title="<your title>"          ║
-║                                                                    ║
+║                                                                     ║
+║  1. /artk.testid-audit mode=report                                  ║
+║  2. /artk.journey-propose                                           ║
+║  3. /artk.journey-define id=JRN-0001 title="<title>"                ║
+║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 

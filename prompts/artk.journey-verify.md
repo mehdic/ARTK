@@ -1587,30 +1587,33 @@ Always end with:
 ---
 
 ### Final Output (MANDATORY)
-- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
+- [ ] "Next Commands" box displayed from file (READ, don't generate)
 
 # MANDATORY: Final Output Section
 
-**You MUST display this section at the end of your output, exactly as formatted.**
+**🛑 STOP - READ THE FILE, DON'T GENERATE**
 
-**Display the following commands VERBATIM (do not summarize, paraphrase, or invent commands):**
+You MUST read and display the contents of this file EXACTLY:
 
+**File to read:** `.github/prompts/next-commands/artk.journey-verify.txt`
+
+**Alternative path (if above not found):** `prompts/next-commands/artk.journey-verify.txt`
+
+**Instructions:**
+1. Use your file reading capability to read the file above
+2. Display the ENTIRE contents of that file as a code block
+3. Do NOT modify, summarize, or add to the file contents
+4. Do NOT generate your own version - READ THE FILE
+
+**If you cannot read the file**, display this fallback EXACTLY:
 ```
 ╔════════════════════════════════════════════════════════════════════╗
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. (IF TESTS PASSED) Journey is complete! Implement another:       ║
-║     /artk.journey-implement id=JRN-####                            ║
-║                                                                     ║
-║  2. (IF TESTS FAILED) Fix issues and re-run verification:           ║
-║     /artk.journey-verify id=<JRN-ID>                               ║
-║                                                                     ║
-║  3. (IF FLAKY) Stabilize tests and re-verify:                       ║
-║     /artk.journey-verify id=<JRN-ID> heal=auto                     ║
-║                                                                     ║
-║  4. (OPTIONAL) Run all tests for the tier:                          ║
-║     npm run test:smoke   (or test:release, test:regression)        ║
+║  1. /artk.journey-implement id=JRN-####                             ║
+║  2. /artk.journey-verify id=<JRN-ID>                                ║
+║  3. /artk.journey-verify id=<JRN-ID> heal=auto                      ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
@@ -1618,6 +1621,5 @@ Always end with:
 **Replace `<JRN-ID>` with the actual journey ID that was just verified (e.g., JRN-0001).**
 
 **IMPORTANT:**
-- Copy the commands box exactly. Do not abbreviate or summarize.
 - Do NOT invent commands that don't exist.
 - Only use commands from the handoffs section of this prompt.

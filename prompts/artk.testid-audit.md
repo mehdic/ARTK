@@ -90,11 +90,11 @@ If inputs are missing, infer them from a repo scan.
    - If repo already uses `data-cy` / `data-test-id`, prefer that over introducing a new attribute.
    - If Playwright config uses a custom `testIdAttribute`, align to it.
 
-6) **Final output is mandatory.** Before ending, MUST display the "Next Commands" box from the MANDATORY section verbatim. Do not summarize or paraphrase.
+6) **Final output is mandatory.** Before ending, MUST READ and display the "Next Commands" file from `.github/prompts/next-commands/`. Do not generate your own version.
 
 > ⚠️ **CRITICAL: NEVER finish without displaying the Next Commands box.**
 > If you complete the audit without showing the Next Commands box, you have FAILED.
-> Scroll to "MANDATORY: Final Output Section" and copy it EXACTLY.
+> Scroll to "MANDATORY: Final Output Section" and READ THE FILE as instructed.
 
 ---
 
@@ -367,7 +367,7 @@ You must produce:
 ---
 
 ### Final Output (MANDATORY)
-- [ ] "Next Commands" box displayed VERBATIM (copy exactly from template)
+- [ ] "Next Commands" box displayed from file (READ, don't generate)
 
 ## MANDATORY: Final Output Section (FINAL STEP - DO NOT SKIP)
 
@@ -390,24 +390,29 @@ You must produce:
 
 ### Next Commands
 
-**Display the following commands VERBATIM (do not summarize or paraphrase):**
+**🛑 STOP - READ THE FILE, DON'T GENERATE**
 
+You MUST read and display the contents of this file EXACTLY:
+
+**File to read:** `.github/prompts/next-commands/artk.testid-audit.txt`
+
+**Alternative path (if above not found):** `prompts/next-commands/artk.testid-audit.txt`
+
+**Instructions:**
+1. Use your file reading capability to read the file above
+2. Display the ENTIRE contents of that file as a code block
+3. Do NOT modify, summarize, or add to the file contents
+4. Do NOT generate your own version - READ THE FILE
+
+**If you cannot read the file**, display this fallback EXACTLY:
 ```
 ╔════════════════════════════════════════════════════════════════════╗
 ║  NEXT COMMANDS                                                      ║
 ╠════════════════════════════════════════════════════════════════════╣
 ║                                                                     ║
-║  1. (RECOMMENDED) Propose journeys using stable selectors:          ║
-║     /artk.journey-propose                                          ║
-║                                                                     ║
-║  2. (OPTIONAL) Define a specific journey manually:                  ║
-║     /artk.journey-define id=JRN-0001 title="<title>"               ║
-║                                                                     ║
-║  3. (OPTIONAL) Implement a journey with data-testid selectors:      ║
-║     /artk.journey-implement id=JRN-####                            ║
-║                                                                     ║
-║  4. (IF ITEMS REMAIN) Re-run audit for remaining items:             ║
-║     /artk.testid-audit mode=report scope=<component>               ║
+║  1. /artk.journey-propose                                           ║
+║  2. /artk.journey-define id=JRN-0001 title="<title>"                ║
+║  3. /artk.journey-implement id=JRN-####                             ║
 ║                                                                     ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
@@ -417,9 +422,7 @@ You must produce:
 - Prefer `data-testid` over CSS selectors for critical user flows
 - Run `/artk.testid-audit mode=report` periodically to track selector debt
 
-**IMPORTANT:** Copy the commands box exactly. Do not abbreviate or summarize.
-
 ---
 
 > ⚠️ **REMINDER: If you reached this point, you MUST have displayed the Next Commands box above.**
-> If you haven't, scroll up and copy it NOW before ending your response.
+> If you haven't, scroll up and READ THE FILE NOW before ending your response.
