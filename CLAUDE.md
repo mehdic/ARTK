@@ -229,6 +229,7 @@ ARTK (Automatic Regression Testing Kit) is a standardized kit that plugs into Gi
 ```
 docs/                          # Master specifications and lifecycle docs
 prompts/                       # GitHub Copilot prompt files (.prompt.md)
+prompts/common/                # Shared rules and patterns for all prompts
 core/
   artk-core-journeys/          # Core Journey system (schema, templates, tools)
     journeys/
@@ -236,6 +237,17 @@ core/
       templates/               # Journey markdown templates
       tools/node/              # generate.js and validate.js scripts
 ```
+
+## Common Prompt Patterns
+
+The `prompts/common/` directory contains shared rules and patterns used across ARTK prompts:
+
+| File | Purpose |
+|------|---------|
+| `GENERAL_RULES.md` | Code quality rules, edit standards, user question formatting |
+| `AUTH_BYPASS_PATTERNS.md` | Auth bypass detection patterns for discovery phase |
+
+**Auth Bypass Detection:** When running `/artk.discover-foundation` or `/artk.journey-propose`, the AI must search for auth bypass mechanisms using patterns defined in `AUTH_BYPASS_PATTERNS.md`. This ensures skip/bypass auth options (like `oauthEnabled=false`) are consistently detected and offered to users.
 
 ## CLI Architecture
 

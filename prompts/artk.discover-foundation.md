@@ -285,50 +285,21 @@ Collect:
 - SSO/OIDC hints (`oidc`, `saml`, `msal`, `auth0`, `keycloak`)
 - route guards/middleware (Angular guards, Next middleware, React auth wrappers)
 - role checks and permission gates
-- local bypass signals (see MANDATORY search patterns below)
+- local bypass signals
 
-### MANDATORY: Auth Bypass Detection Patterns
+### MANDATORY: Auth Bypass Detection
 
-**You MUST search for ALL of these patterns to detect skip/bypass auth mechanisms:**
+**You MUST read and follow `.github/prompts/common/AUTH_BYPASS_PATTERNS.md` to detect skip/bypass auth mechanisms.**
 
-```bash
-# Pattern Group 1: Skip/bypass flags in code
-skip.*auth|bypass.*auth|mock.*auth|noAuth|skipAuth|authSkip
-skipAuthentication|skip-auth|skipLogin|skipOidc
-
-# Pattern Group 2: Environment variables
-SKIP_AUTH|NO_AUTH|AUTH_DISABLED|DISABLE_AUTH
-VITE_BYPASS|BYPASS_AUTH|MOCK_AUTH
-
-# Pattern Group 3: Config flags (search in config files and services)
-oauthEnabled|authEnabled|enableAuth|requireAuth
-authRequired|isAuthRequired|useAuth
-
-# Pattern Group 4: Mock/dev user patterns
-mockUser|devUser|testUser|fakeUser
-DEV_USER|MOCK_USER|TEST_USER
-
-# Pattern Group 5: Conditional auth rendering (React/Vue/Angular)
-if.*auth.*enabled|if.*oauth|config\.auth|config\.oauth
-AuthProvider.*\?|AuthGuard.*skip|canActivate.*false
-```
-
-**For each pattern found, document:**
-- File path and line number
-- The condition/flag name (e.g., `oauthEnabled`, `SKIP_AUTH`)
-- How to enable/disable (env var, config endpoint, build flag)
-- Impact: identityless (no user context) vs mock-identity (fake user with roles)
-
-**Check config endpoints:** If the app fetches config from an API (e.g., `/api/config`), examine what auth-related flags it provides.
+This document contains:
+- 5 pattern groups to search (skip flags, env vars, config flags, mock users, conditional rendering)
+- Documentation requirements for each finding
+- Output format for the "Local auth bypass signals" table
 
 Output:
 - "Auth entry points" table
 - "Role/permission hints" list
-- "Local auth bypass signals" table with:
-  - Flag/mechanism name
-  - Location (file:line or endpoint)
-  - How to enable
-  - Mode (identityless | mock-identity)
+- "Local auth bypass signals" table (format specified in AUTH_BYPASS_PATTERNS.md)
 
 Do NOT request credentials.
 

@@ -812,6 +812,7 @@ Keep output deterministic.
 Quick +:
 4) Confirm auth style. **ALWAYS check discovery findings for bypass mechanisms.**
    - Reference `docs/DISCOVERY.md` "Local auth bypass signals" section
+   - See `.github/prompts/common/AUTH_BYPASS_PATTERNS.md` for bypass pattern definitions
    - If bypass detected (e.g., `oauthEnabled=false`, `SKIP_AUTH`), include it as an option
    - Example options when bypass exists:
      ```
