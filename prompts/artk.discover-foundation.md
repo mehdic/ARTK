@@ -1974,6 +1974,15 @@ Next steps:
 - [ ] Module registry created
 - [ ] Harness README created
 
+### LLKB (Lessons Learned Knowledge Base)
+- [ ] LLKB migration check performed (Step F11)
+- [ ] LLKB directory structure created (`${HARNESS_ROOT}/.artk/llkb/`)
+- [ ] `config.yml` initialized with default settings
+- [ ] `lessons.json` initialized (empty array)
+- [ ] `components.json` initialized (empty array)
+- [ ] `analytics.json` initialized with baseline metrics
+- [ ] LLKB CLI utility created or verified
+
 ### Validation
 - [ ] TypeScript compilation passes (`tsc --noEmit`)
 - [ ] Foundation validation tests created

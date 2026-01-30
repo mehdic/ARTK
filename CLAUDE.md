@@ -799,6 +799,63 @@ artk-export
 ```
 
 
+## LLKB Lifecycle (Creation and Initialization)
+
+**IMPORTANT:** LLKB (Lessons Learned Knowledge Base) MUST be created during `/artk.discover-foundation` (Step F11), NOT during journey-implement.
+
+### When LLKB Gets Created
+
+LLKB is created by `/artk.discover-foundation` in Step F11 after the foundation modules are built. The initialization:
+1. Performs migration check (existing LLKB, legacy files, or fresh install)
+2. Creates `.artk/llkb/` directory structure
+3. Initializes `config.yml`, `lessons.json`, `components.json`, `analytics.json`
+4. Creates LLKB CLI utility script
+
+### Why journey-implement Blocks Without LLKB
+
+The `/artk.journey-implement` prompt has a **MANDATORY GATE** (Step 1) that checks for LLKB:
+- If LLKB is missing or invalid, it blocks with "LLKB STRUCTURE INVALID"
+- This is intentional - LLKB should already exist from discover-foundation
+- DO NOT make LLKB optional in journey-implement; fix discover-foundation instead
+
+### Troubleshooting: LLKB Not Created
+
+If journey-implement fails with "LLKB STRUCTURE INVALID":
+1. **Root cause:** `/artk.discover-foundation` did not execute Step F11
+2. **Check:** The Completion Checklist in discover-foundation.md must include LLKB items
+3. **Manual fix:** Run `artk llkb init` from the harness root directory
+4. **Prevention:** Ensure Copilot checks off all LLKB items in the discover-foundation checklist
+
+### LLKB Directory Structure
+
+```
+${HARNESS_ROOT}/.artk/llkb/
+├── config.yml          # LLKB configuration
+├── lessons.json        # Accumulated lessons
+├── components.json     # Extracted components
+├── analytics.json      # Usage metrics
+├── patterns/           # Pattern templates
+└── history/            # Learning history
+```
+
+### CLI Commands for LLKB
+
+```bash
+# Initialize LLKB (normally done by discover-foundation)
+artk llkb init
+
+# Check LLKB health
+artk llkb health
+
+# View statistics
+artk llkb stats
+
+# Export for AutoGen
+artk llkb export --for-autogen --output ./
+```
+
+---
+
 ## LLKB-AutoGen Integration
 
 ARTK features a self-improving test generation system where LLKB (Lessons Learned Knowledge Base) enhances AutoGen's code generation capabilities through continuous learning.
