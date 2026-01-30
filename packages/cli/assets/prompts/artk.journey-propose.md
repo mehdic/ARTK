@@ -810,7 +810,16 @@ Keep output deterministic.
 
 ## STANDARD (≤ 7; default)
 Quick +:
-4) Confirm auth style (SSO redirect vs login form vs both).
+4) Confirm auth style. **ALWAYS check discovery findings for bypass mechanisms.**
+   - Reference `docs/DISCOVERY.md` "Local auth bypass signals" section
+   - If bypass detected (e.g., `oauthEnabled=false`, `SKIP_AUTH`), include it as an option
+   - Example options when bypass exists:
+     ```
+     1. **OIDC with Keycloak** (detected - local env)
+     2. **SSO redirect** (corporate SSO in higher envs)
+     3. **Skip auth** (oauthEnabled=false detected) — for fast local testing
+     4. **Multiple modes** (Keycloak locally, SSO in staging, skip for unit-like tests)
+     ```
 5) Confirm test data approach (seeded env vs API setup vs manual).
 6) Confirm coverage scope:
    - `large` (recommended): 50 journeys (10 smoke, 20 release, 20 regression)
