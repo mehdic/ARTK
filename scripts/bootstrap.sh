@@ -5,9 +5,12 @@
 #
 # Options:
 #   --skip-npm                Skip npm install
+#   --skip-llkb               Skip LLKB initialization
 #   --variant=<variant>       Force specific variant (modern-esm, modern-cjs, legacy-16, legacy-14)
 #   --force-detect            Force environment re-detection
 #   --skip-validation         Skip validation of generated code
+#   --yes                     Skip confirmation prompts (auto-approve all)
+#   --dry-run                 Preview changes without applying them
 #   --template-variant=<v>    Legacy option (use --variant instead)
 #
 # This is the ONLY script you need to run. It does everything:
@@ -562,8 +565,11 @@ get_variant_node_range() {
 # Parse arguments
 TARGET=""
 SKIP_NPM=false
+SKIP_LLKB=false
 FORCE_DETECT=false
 SKIP_VALIDATION=false
+YES_MODE=false
+DRY_RUN=false
 TEMPLATE_VARIANT=""
 FORCED_VARIANT=""
 
@@ -572,11 +578,20 @@ for arg in "$@"; do
         --skip-npm)
             SKIP_NPM=true
             ;;
+        --skip-llkb)
+            SKIP_LLKB=true
+            ;;
         --force-detect)
             FORCE_DETECT=true
             ;;
         --skip-validation)
             SKIP_VALIDATION=true
+            ;;
+        --yes|-y)
+            YES_MODE=true
+            ;;
+        --dry-run)
+            DRY_RUN=true
             ;;
         --variant=*)
             FORCED_VARIANT="${arg#*=}"
@@ -610,9 +625,12 @@ if [ -z "$TARGET" ]; then
     echo ""
     echo "Options:"
     echo "  --skip-npm                    Skip npm install"
+    echo "  --skip-llkb                   Skip LLKB initialization"
     echo "  --variant=<variant>           Force specific variant (overrides auto-detection)"
     echo "  --force-detect                Force environment re-detection"
     echo "  --skip-validation             Skip validation of generated code"
+    echo "  --yes, -y                     Skip confirmation prompts (auto-approve all)"
+    echo "  --dry-run                     Preview changes without applying them"
     echo ""
     echo "Available variants:"
     echo "  modern-esm   Node 18+, ESM, Playwright 1.57.x"
@@ -1064,42 +1082,324 @@ mkdir -p "$VSCODE_DIR"
 
 if [ -f "$VSCODE_TEMPLATE" ]; then
     if [ -f "$VSCODE_SETTINGS" ]; then
-        # Merge: only add ARTK settings that don't already exist
-        # Use node to merge JSON if available
+        # Existing settings found - preview changes and ask for confirmation
         if command -v node >/dev/null 2>&1; then
-            node -e "
+            # Preview what will be added (dry-run analysis)
+            PREVIEW_RESULT=$(node -e "
 const fs = require('fs');
-const existing = JSON.parse(fs.readFileSync('$VSCODE_SETTINGS', 'utf8'));
-const artk = JSON.parse(fs.readFileSync('$VSCODE_TEMPLATE', 'utf8'));
 
-let added = 0;
-let skipped = 0;
-
-// Only add keys that don't exist in existing settings
-for (const [key, value] of Object.entries(artk)) {
-    if (!(key in existing)) {
-        existing[key] = value;
-        added++;
-        console.log('  + Added: ' + key);
-    } else {
-        skipped++;
-    }
+// Strip JSONC comments for parsing
+function stripComments(jsonc) {
+    return jsonc
+        .replace(/\/\/.*\$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/,(\s*[}\]])/g, '\$1');
 }
 
-fs.writeFileSync('$VSCODE_SETTINGS', JSON.stringify(existing, null, 2));
-console.log('ARTK VS Code settings: ' + added + ' added, ' + skipped + ' already present');
-" 2>/dev/null || {
-                echo -e "${YELLOW}  Warning: Could not merge VS Code settings. Please manually add Copilot terminal access.${NC}"
+// Deep merge with array union support
+function deepMerge(target, source) {
+    const result = { ...target };
+    for (const [key, value] of Object.entries(source)) {
+        if (key in result) {
+            if (Array.isArray(result[key]) && Array.isArray(value)) {
+                // Array union: add new items that don't exist
+                const existing = new Set(result[key]);
+                const newItems = value.filter(v => !existing.has(v));
+                result[key] = [...result[key], ...newItems];
+            } else if (typeof result[key] === 'object' && result[key] !== null &&
+                typeof value === 'object' && value !== null &&
+                !Array.isArray(result[key]) && !Array.isArray(value)) {
+                result[key] = deepMerge(result[key], value);
             }
+            // Otherwise preserve existing value (don't overwrite)
+        } else {
+            result[key] = value;
+        }
+    }
+    return result;
+}
+
+try {
+    const existingRaw = fs.readFileSync('$VSCODE_SETTINGS', 'utf8');
+    const existing = JSON.parse(stripComments(existingRaw));
+    const artk = JSON.parse(stripComments(fs.readFileSync('$VSCODE_TEMPLATE', 'utf8')));
+
+    let newKeys = [];
+    let mergedKeys = [];
+    let arrayMergedKeys = [];
+    let skippedKeys = [];
+    let conflicts = [];
+
+    // Critical settings that ARTK requires
+    const criticalSettings = {
+        'chat.tools.terminal.enableAutoApprove': true,
+        'github.copilot.chat.terminalAccess.enabled': true,
+        'github.copilot.chat.agent.runInTerminal': true
+    };
+
+    for (const [key, value] of Object.entries(artk)) {
+        if (!(key in existing)) {
+            newKeys.push(key);
+        } else if (Array.isArray(existing[key]) && Array.isArray(value)) {
+            // Check for new array items
+            const existingSet = new Set(existing[key]);
+            const newItems = value.filter(v => !existingSet.has(v));
+            if (newItems.length > 0) {
+                arrayMergedKeys.push(key + ' (+' + newItems.length + ' items)');
+            } else {
+                skippedKeys.push(key);
+            }
+        } else if (typeof existing[key] === 'object' && typeof value === 'object' &&
+                   !Array.isArray(existing[key]) && !Array.isArray(value)) {
+            const existingSubKeys = Object.keys(existing[key]);
+            const newSubKeys = Object.keys(value).filter(k => !existingSubKeys.includes(k));
+            if (newSubKeys.length > 0) {
+                mergedKeys.push(key + ' (+' + newSubKeys.length + ' nested)');
+            } else {
+                skippedKeys.push(key);
+            }
+        } else {
+            skippedKeys.push(key);
+        }
+    }
+
+    // Check for conflicts with critical settings
+    for (const [key, requiredValue] of Object.entries(criticalSettings)) {
+        if (key in existing && existing[key] !== requiredValue) {
+            conflicts.push(key + ' (yours: ' + existing[key] + ', ARTK needs: ' + requiredValue + ')');
+        }
+    }
+
+    // Check if file has comments (will be lost)
+    const hasComments = /\/\/|\/\*/.test(existingRaw);
+
+    console.log(JSON.stringify({ newKeys, mergedKeys, arrayMergedKeys, skippedKeys, conflicts, hasComments, error: null }));
+} catch (err) {
+    console.log(JSON.stringify({ newKeys: [], mergedKeys: [], arrayMergedKeys: [], skippedKeys: [], conflicts: [], hasComments: false, error: err.message }));
+}
+" 2>/dev/null)
+
+            # Parse preview result using here-string (avoids subshell issues)
+            NEW_KEYS=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.newKeys.join('\n'))" "$PREVIEW_RESULT" 2>/dev/null || echo "")
+            MERGED_KEYS=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.mergedKeys.join('\n'))" "$PREVIEW_RESULT" 2>/dev/null || echo "")
+            ARRAY_MERGED_KEYS=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.arrayMergedKeys.join('\n'))" "$PREVIEW_RESULT" 2>/dev/null || echo "")
+            SKIPPED_COUNT=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.skippedKeys.length)" "$PREVIEW_RESULT" 2>/dev/null || echo "0")
+            CONFLICTS=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.conflicts.join('\n'))" "$PREVIEW_RESULT" 2>/dev/null || echo "")
+            HAS_COMMENTS=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.hasComments)" "$PREVIEW_RESULT" 2>/dev/null || echo "false")
+            PARSE_ERROR=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.error||'')" "$PREVIEW_RESULT" 2>/dev/null || echo "parse failed")
+
+            if [ -n "$PARSE_ERROR" ]; then
+                echo -e "${YELLOW}  Warning: Could not parse existing settings.json (may have complex comments)${NC}"
+                # FALLBACK: append essential settings as text (matching PowerShell behavior)
+                EXISTING_CONTENT=$(cat "$VSCODE_SETTINGS")
+                SETTINGS_TO_ADD=""
+
+                if ! echo "$EXISTING_CONTENT" | grep -q 'github\.copilot\.chat\.terminalAccess'; then
+                    SETTINGS_TO_ADD="$SETTINGS_TO_ADD"$'\n  "github.copilot.chat.terminalAccess.enabled": true,'
+                fi
+                if ! echo "$EXISTING_CONTENT" | grep -q 'github\.copilot\.chat\.agent\.runInTerminal'; then
+                    SETTINGS_TO_ADD="$SETTINGS_TO_ADD"$'\n  "github.copilot.chat.agent.runInTerminal": true,'
+                fi
+                if ! echo "$EXISTING_CONTENT" | grep -q 'chat\.tools\.terminal\.enableAutoApprove'; then
+                    SETTINGS_TO_ADD="$SETTINGS_TO_ADD"$'\n  "chat.tools.terminal.enableAutoApprove": true,'
+                fi
+
+                if [ -n "$SETTINGS_TO_ADD" ]; then
+                    if [ "$DRY_RUN" = true ]; then
+                        echo -e "${CYAN}  [DRY-RUN] Would append essential Copilot settings${NC}"
+                    elif [ "$YES_MODE" = true ]; then
+                        # Insert before last closing brace
+                        sed -i.bak 's/}$/'"$SETTINGS_TO_ADD"'\n}/' "$VSCODE_SETTINGS" && rm -f "$VSCODE_SETTINGS.bak"
+                        echo -e "${GREEN}  ✓ Appended essential Copilot settings (fallback mode)${NC}"
+                    else
+                        echo -e "${YELLOW}  Will append essential Copilot settings (cannot do full merge).${NC}"
+                        echo -n -e "${YELLOW}  Continue? [Y/n]: ${NC}"
+                        read -r CONFIRM
+                        if [ -z "$CONFIRM" ] || [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
+                            sed -i.bak 's/}$/'"$SETTINGS_TO_ADD"'\n}/' "$VSCODE_SETTINGS" && rm -f "$VSCODE_SETTINGS.bak"
+                            echo -e "${GREEN}  ✓ Appended essential Copilot settings${NC}"
+                        else
+                            echo -e "${CYAN}  Skipped VS Code settings (user declined)${NC}"
+                        fi
+                    fi
+                else
+                    echo -e "${CYAN}  Essential Copilot settings already present${NC}"
+                fi
+            elif [ -z "$NEW_KEYS" ] && [ -z "$MERGED_KEYS" ] && [ -z "$ARRAY_MERGED_KEYS" ]; then
+                echo -e "${CYAN}  ✓ VS Code settings already up-to-date (${SKIPPED_COUNT} settings already present)${NC}"
+                # Still check for conflicts
+                if [ -n "$CONFLICTS" ]; then
+                    echo -e "${YELLOW}  ⚠ Warning: Some settings conflict with ARTK requirements:${NC}"
+                    while IFS= read -r conflict; do
+                        [ -n "$conflict" ] && echo -e "    ${YELLOW}! $conflict${NC}"
+                    done <<< "$CONFLICTS"
+                    echo -e "${YELLOW}    ARTK prompts may require manual approval for each command.${NC}"
+                fi
+            else
+                # Show preview
+                echo -e "${CYAN}  Existing .vscode/settings.json found. Changes to apply:${NC}"
+                if [ -n "$NEW_KEYS" ]; then
+                    echo -e "${GREEN}  New settings to add:${NC}"
+                    while IFS= read -r key; do
+                        [ -n "$key" ] && echo -e "    ${GREEN}+ $key${NC}"
+                    done <<< "$NEW_KEYS"
+                fi
+                if [ -n "$MERGED_KEYS" ]; then
+                    echo -e "${CYAN}  Settings to deep-merge:${NC}"
+                    while IFS= read -r key; do
+                        [ -n "$key" ] && echo -e "    ${CYAN}~ $key${NC}"
+                    done <<< "$MERGED_KEYS"
+                fi
+                if [ -n "$ARRAY_MERGED_KEYS" ]; then
+                    echo -e "${CYAN}  Arrays to extend:${NC}"
+                    while IFS= read -r key; do
+                        [ -n "$key" ] && echo -e "    ${CYAN}⊕ $key${NC}"
+                    done <<< "$ARRAY_MERGED_KEYS"
+                fi
+
+                # Warn about conflicts
+                if [ -n "$CONFLICTS" ]; then
+                    echo -e "${YELLOW}  ⚠ Conflicts with ARTK requirements (will NOT be changed):${NC}"
+                    while IFS= read -r conflict; do
+                        [ -n "$conflict" ] && echo -e "    ${YELLOW}! $conflict${NC}"
+                    done <<< "$CONFLICTS"
+                fi
+
+                # Warn about comment loss
+                if [ "$HAS_COMMENTS" = "true" ]; then
+                    echo -e "${YELLOW}  ⚠ Warning: Your settings.json contains comments.${NC}"
+                    echo -e "${YELLOW}    Comments will be REMOVED during merge (JSON limitation).${NC}"
+                    echo -e "${YELLOW}    A backup will be created at: settings.json.backup${NC}"
+                fi
+
+                echo -e "${YELLOW}  Existing settings will NOT be overwritten.${NC}"
+
+                # Dry-run mode - just show what would happen
+                if [ "$DRY_RUN" = true ]; then
+                    echo -e "${CYAN}  [DRY-RUN] No changes applied${NC}"
+                else
+                    # Ask for confirmation unless --yes
+                    APPLY_SETTINGS=false
+                    if [ "$YES_MODE" = true ]; then
+                        APPLY_SETTINGS=true
+                        echo -e "${CYAN}  Auto-approved (--yes flag)${NC}"
+                    else
+                        echo -n -e "${YELLOW}  Apply these changes? [Y/n]: ${NC}"
+                        read -r CONFIRM
+                        if [ -z "$CONFIRM" ] || [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
+                            APPLY_SETTINGS=true
+                        else
+                            echo -e "${CYAN}  Skipped VS Code settings (user declined)${NC}"
+                        fi
+                    fi
+
+                    if [ "$APPLY_SETTINGS" = true ]; then
+                        # Create backup before merge
+                        BACKUP_FILE="$VSCODE_SETTINGS.backup-$(date +%Y%m%d-%H%M%S)"
+                        cp "$VSCODE_SETTINGS" "$BACKUP_FILE"
+                        echo -e "${CYAN}  Created backup: $(basename "$BACKUP_FILE")${NC}"
+
+                        # Apply the merge with array union support
+                        node -e "
+const fs = require('fs');
+
+function stripComments(jsonc) {
+    return jsonc
+        .replace(/\/\/.*\$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/,(\s*[}\]])/g, '\$1');
+}
+
+function deepMerge(target, source) {
+    const result = { ...target };
+    for (const [key, value] of Object.entries(source)) {
+        if (key in result) {
+            if (Array.isArray(result[key]) && Array.isArray(value)) {
+                // Array union
+                const existing = new Set(result[key]);
+                const newItems = value.filter(v => !existing.has(v));
+                result[key] = [...result[key], ...newItems];
+            } else if (typeof result[key] === 'object' && result[key] !== null &&
+                typeof value === 'object' && value !== null &&
+                !Array.isArray(result[key]) && !Array.isArray(value)) {
+                result[key] = deepMerge(result[key], value);
+            }
+        } else {
+            result[key] = value;
+        }
+    }
+    return result;
+}
+
+const existingRaw = fs.readFileSync('$VSCODE_SETTINGS', 'utf8');
+const existing = JSON.parse(stripComments(existingRaw));
+const artk = JSON.parse(stripComments(fs.readFileSync('$VSCODE_TEMPLATE', 'utf8')));
+const merged = deepMerge(existing, artk);
+fs.writeFileSync('$VSCODE_SETTINGS', JSON.stringify(merged, null, 2));
+" 2>/dev/null && echo -e "${GREEN}  ✓ VS Code settings merged successfully${NC}" || {
+                            echo -e "${YELLOW}  Warning: Merge failed. Restoring backup...${NC}"
+                            cp "$BACKUP_FILE" "$VSCODE_SETTINGS"
+                            echo -e "${CYAN}  Restored from backup${NC}"
+                        }
+                    fi
+                fi
+            fi
         else
-            echo -e "${YELLOW}  Warning: Node.js not found. Please manually enable terminal access in VS Code settings.${NC}"
-            echo -e "${YELLOW}  Add: \"github.copilot.chat.terminalAccess.enabled\": true${NC}"
-            echo -e "${YELLOW}  Add: \"github.copilot.chat.agent.runInTerminal\": true${NC}"
+            # No Node.js - fallback to text-based append
+            echo -e "${YELLOW}  Warning: Node.js not found. Using text-based fallback.${NC}"
+            EXISTING_CONTENT=$(cat "$VSCODE_SETTINGS")
+            SETTINGS_TO_ADD=""
+
+            if ! echo "$EXISTING_CONTENT" | grep -q 'github\.copilot\.chat\.terminalAccess'; then
+                SETTINGS_TO_ADD="$SETTINGS_TO_ADD"$'\n  "github.copilot.chat.terminalAccess.enabled": true,'
+            fi
+            if ! echo "$EXISTING_CONTENT" | grep -q 'github\.copilot\.chat\.agent\.runInTerminal'; then
+                SETTINGS_TO_ADD="$SETTINGS_TO_ADD"$'\n  "github.copilot.chat.agent.runInTerminal": true,'
+            fi
+            if ! echo "$EXISTING_CONTENT" | grep -q 'chat\.tools\.terminal\.enableAutoApprove'; then
+                SETTINGS_TO_ADD="$SETTINGS_TO_ADD"$'\n  "chat.tools.terminal.enableAutoApprove": true,'
+            fi
+
+            if [ -n "$SETTINGS_TO_ADD" ]; then
+                if [ "$DRY_RUN" = true ]; then
+                    echo -e "${CYAN}  [DRY-RUN] Would append essential Copilot settings${NC}"
+                else
+                    echo -e "${YELLOW}  Will append essential Copilot settings:${NC}"
+                    echo -e "${YELLOW}    - github.copilot.chat.terminalAccess.enabled${NC}"
+                    echo -e "${YELLOW}    - github.copilot.chat.agent.runInTerminal${NC}"
+                    echo -e "${YELLOW}    - chat.tools.terminal.enableAutoApprove${NC}"
+
+                    APPLY_FALLBACK=false
+                    if [ "$YES_MODE" = true ]; then
+                        APPLY_FALLBACK=true
+                    else
+                        echo -n -e "${YELLOW}  Continue? [Y/n]: ${NC}"
+                        read -r CONFIRM
+                        [ -z "$CONFIRM" ] || [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ] && APPLY_FALLBACK=true
+                    fi
+
+                    if [ "$APPLY_FALLBACK" = true ]; then
+                        # Create backup
+                        cp "$VSCODE_SETTINGS" "$VSCODE_SETTINGS.backup-$(date +%Y%m%d-%H%M%S)"
+                        # Insert before last closing brace using sed
+                        sed -i.tmp 's/}$/'"$SETTINGS_TO_ADD"'\n}/' "$VSCODE_SETTINGS" && rm -f "$VSCODE_SETTINGS.tmp"
+                        echo -e "${GREEN}  ✓ Appended essential Copilot settings${NC}"
+                    else
+                        echo -e "${CYAN}  Skipped VS Code settings (user declined)${NC}"
+                    fi
+                fi
+            else
+                echo -e "${CYAN}  ✓ Essential Copilot settings already present${NC}"
+            fi
         fi
     else
         # No existing settings - just copy template
-        cp "$VSCODE_TEMPLATE" "$VSCODE_SETTINGS"
-        echo -e "${CYAN}  ✓ Created .vscode/settings.json with Copilot terminal access enabled${NC}"
+        if [ "$DRY_RUN" = true ]; then
+            echo -e "${CYAN}  [DRY-RUN] Would create .vscode/settings.json${NC}"
+        else
+            cp "$VSCODE_TEMPLATE" "$VSCODE_SETTINGS"
+            echo -e "${CYAN}  ✓ Created .vscode/settings.json with Copilot tool auto-approve enabled${NC}"
+        fi
     fi
 else
     echo -e "${YELLOW}  Warning: VS Code template not found at $VSCODE_TEMPLATE${NC}"
@@ -1662,46 +1962,37 @@ if [ "$SKIP_NPM" = false ]; then
     fi
 
     # Initialize LLKB (Lessons Learned Knowledge Base)
-    echo -e "${YELLOW}[6.5/7] Initializing LLKB...${NC}"
-    LLKB_ROOT="$ARTK_E2E/.artk/llkb"
-    LLKB_INIT_LOG="$LOGS_DIR/llkb-init.log"
+    if [ "$SKIP_LLKB" = false ]; then
+        echo -e "${YELLOW}[6.5/7] Initializing LLKB...${NC}"
+        LLKB_INIT_LOG="$LOGS_DIR/llkb-init.log"
 
-    # Call initializeLLKB from vendored @artk/core
-    set +e
-    node -e "
-const path = require('path');
-const llkbModule = require('./vendor/artk-core/dist/llkb');
+        # Copy and run the LLKB bootstrap helper (CJS for Node.js compatibility)
+        # The helper is a standalone .cjs file that works with ALL Node versions (12-22+)
+        # and doesn't depend on ESM/CJS module system of the vendored @artk/core
+        LLKB_HELPER="$ARTK_REPO/scripts/helpers/bootstrap-llkb.cjs"
+        LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
 
-async function init() {
-  const llkbRoot = path.join(process.cwd(), '.artk', 'llkb');
-  const result = await llkbModule.initializeLLKB(llkbRoot);
-  if (result.success) {
-    console.log('✅ LLKB initialized successfully');
-    console.log('   Created: ' + llkbRoot + '/config.yml');
-    console.log('   Created: ' + llkbRoot + '/lessons.json');
-    console.log('   Created: ' + llkbRoot + '/components.json');
-    console.log('   Created: ' + llkbRoot + '/analytics.json');
-    process.exit(0);
-  } else {
-    console.error('❌ LLKB initialization failed: ' + result.error);
-    process.exit(1);
-  }
-}
+        if [ -f "$LLKB_HELPER" ]; then
+            cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
 
-init().catch(err => {
-  console.error('❌ LLKB initialization error: ' + err.message);
-  process.exit(1);
-});
-" > "$LLKB_INIT_LOG" 2>&1
-    LLKB_STATUS=$?
-    set -e
+            set +e
+            node "$LLKB_HELPER_DEST" "$ARTK_E2E" --verbose > "$LLKB_INIT_LOG" 2>&1
+            LLKB_STATUS=$?
+            set -e
 
-    if [ "$LLKB_STATUS" -eq 0 ]; then
-        echo -e "${GREEN}$(cat "$LLKB_INIT_LOG" | head -1)${NC}"
+            if [ "$LLKB_STATUS" -eq 0 ]; then
+                echo -e "${GREEN}$(grep -m1 'LLKB' "$LLKB_INIT_LOG" || echo '✅ LLKB initialized')${NC}"
+            else
+                echo -e "${YELLOW}Warning: LLKB initialization failed (non-fatal)${NC}"
+                echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
+                echo -e "${YELLOW}Details: $LLKB_INIT_LOG${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Warning: LLKB helper not found at $LLKB_HELPER${NC}"
+            echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
+        fi
     else
-        echo -e "${YELLOW}Warning: LLKB initialization failed (non-fatal)${NC}"
-        echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
-        echo -e "${YELLOW}Details: $LLKB_INIT_LOG${NC}"
+        echo -e "${CYAN}[6.5/7] Skipping LLKB initialization (--skip-llkb)${NC}"
     fi
 
     echo -e "${YELLOW}[7/7] Configuring browsers...${NC}"

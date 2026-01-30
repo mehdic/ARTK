@@ -4,9 +4,12 @@
 #
 # Options:
 #   -SkipNpm                   Skip npm install
+#   -SkipLlkb                  Skip LLKB initialization
 #   -Variant <variant>         Force specific variant (modern-esm, modern-cjs, legacy-16, legacy-14)
 #   -ForceDetect               Force environment re-detection
 #   -SkipValidation            Skip validation of generated code
+#   -Yes                       Skip confirmation prompts (auto-approve all)
+#   -DryRun                    Preview changes without applying them
 #
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
@@ -22,12 +25,19 @@ param(
 
     [switch]$SkipNpm,
 
+    [switch]$SkipLlkb,
+
     [ValidateSet("modern-esm", "modern-cjs", "legacy-16", "legacy-14", "")]
     [string]$Variant = "",
 
     [switch]$ForceDetect,
 
-    [switch]$SkipValidation
+    [switch]$SkipValidation,
+
+    [Alias("y")]
+    [switch]$Yes,
+
+    [switch]$DryRun
 )
 
 # Multi-variant support functions
@@ -1193,38 +1203,224 @@ function Remove-JsonComments {
     return $result
 }
 
+# Convert PSCustomObject to hashtable (PowerShell 5.1 compatibility)
+# PowerShell 7+ has -AsHashtable, but PS 5.1 doesn't
+function ConvertTo-Hashtable {
+    param([Parameter(ValueFromPipeline)]$InputObject)
+    process {
+        if ($null -eq $InputObject) { return $null }
+        if ($InputObject -is [hashtable]) { return $InputObject }
+        if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
+            return @($InputObject | ForEach-Object { ConvertTo-Hashtable $_ })
+        }
+        if ($InputObject -is [PSCustomObject]) {
+            $hash = @{}
+            foreach ($prop in $InputObject.PSObject.Properties) {
+                $hash[$prop.Name] = ConvertTo-Hashtable $prop.Value
+            }
+            return $hash
+        }
+        return $InputObject
+    }
+}
+
+# Deep merge function with array union support
+function Merge-DeepHashtable {
+    param(
+        [hashtable]$Target,
+        [hashtable]$Source
+    )
+
+    $result = $Target.Clone()
+
+    foreach ($key in $Source.Keys) {
+        if ($result.ContainsKey($key)) {
+            # Key exists
+            if ($result[$key] -is [array] -and $Source[$key] -is [array]) {
+                # Array union: add new items that don't exist
+                $existingSet = [System.Collections.Generic.HashSet[string]]::new()
+                foreach ($item in $result[$key]) { [void]$existingSet.Add($item.ToString()) }
+                $newItems = $Source[$key] | Where-Object { -not $existingSet.Contains($_.ToString()) }
+                if ($newItems) {
+                    $result[$key] = @($result[$key]) + @($newItems)
+                }
+            } elseif ($result[$key] -is [hashtable] -and $Source[$key] -is [hashtable]) {
+                # Deep merge hashtables
+                $result[$key] = Merge-DeepHashtable -Target $result[$key] -Source $Source[$key]
+            }
+            # Otherwise preserve existing value (don't overwrite)
+        } else {
+            # Key doesn't exist - add it
+            $result[$key] = $Source[$key]
+        }
+    }
+
+    return $result
+}
+
+# Critical settings that ARTK requires
+$criticalSettings = @{
+    'chat.tools.terminal.enableAutoApprove' = $true
+    'github.copilot.chat.terminalAccess.enabled' = $true
+    'github.copilot.chat.agent.runInTerminal' = $true
+}
+
 if (Test-Path $VscodeTemplate) {
     if (Test-Path $VscodeSettings) {
-        # Merge: only add ARTK settings that don't already exist
+        # Existing settings found - preview changes and ask for confirmation
         $merged = $false
         try {
             # Try parsing existing settings (may have JSONC comments)
             $existingRaw = Get-Content $VscodeSettings -Raw
             $existingClean = Remove-JsonComments $existingRaw
-            $existing = $existingClean | ConvertFrom-Json -AsHashtable
-            $artk = Get-Content $VscodeTemplate -Raw | ConvertFrom-Json -AsHashtable
+            # Use ConvertTo-Hashtable for PS 5.1 compatibility
+            $existing = $existingClean | ConvertFrom-Json | ConvertTo-Hashtable
+            $artkRaw = Get-Content $VscodeTemplate -Raw
+            $artkClean = Remove-JsonComments $artkRaw
+            $artk = $artkClean | ConvertFrom-Json | ConvertTo-Hashtable
 
-            $added = 0
-            $skipped = 0
+            # Check if file has comments (will be lost)
+            $hasComments = $existingRaw -match '//|/\*'
 
-            # Only add keys that don't exist in existing settings
+            # Preview: categorize keys
+            $newKeys = @()
+            $mergedKeys = @()
+            $arrayMergedKeys = @()
+            $skippedKeys = @()
+            $conflicts = @()
+
             foreach ($key in $artk.Keys) {
                 if (-not $existing.ContainsKey($key)) {
-                    $existing[$key] = $artk[$key]
-                    $added++
-                    Write-Host "    + Added: $key" -ForegroundColor Green
+                    $newKeys += $key
+                } elseif ($existing[$key] -is [array] -and $artk[$key] -is [array]) {
+                    # Check for new array items
+                    $existingSet = [System.Collections.Generic.HashSet[string]]::new()
+                    foreach ($item in $existing[$key]) { [void]$existingSet.Add($item.ToString()) }
+                    $newItems = $artk[$key] | Where-Object { -not $existingSet.Contains($_.ToString()) }
+                    if ($newItems) {
+                        $arrayMergedKeys += "$key (+$($newItems.Count) items)"
+                    } else {
+                        $skippedKeys += $key
+                    }
+                } elseif ($existing[$key] -is [hashtable] -and $artk[$key] -is [hashtable]) {
+                    # Check if nested hashtable has new keys
+                    $existingSubKeys = $existing[$key].Keys
+                    $newSubKeys = $artk[$key].Keys | Where-Object { $_ -notin $existingSubKeys }
+                    if ($newSubKeys.Count -gt 0) {
+                        $mergedKeys += "$key (+$($newSubKeys.Count) nested)"
+                    } else {
+                        $skippedKeys += $key
+                    }
                 } else {
-                    $skipped++
+                    $skippedKeys += $key
                 }
             }
 
-            $existing | ConvertTo-Json -Depth 10 | Set-Content $VscodeSettings
-            Write-Host "  ARTK VS Code settings: $added added, $skipped already present" -ForegroundColor Cyan
-            $merged = $true
+            # Check for conflicts with critical settings
+            foreach ($key in $criticalSettings.Keys) {
+                if ($existing.ContainsKey($key) -and $existing[$key] -ne $criticalSettings[$key]) {
+                    $conflicts += "$key (yours: $($existing[$key]), ARTK needs: $($criticalSettings[$key]))"
+                }
+            }
+
+            if ($newKeys.Count -eq 0 -and $mergedKeys.Count -eq 0 -and $arrayMergedKeys.Count -eq 0) {
+                Write-Host "  VS Code settings already up-to-date ($($skippedKeys.Count) settings already present)" -ForegroundColor Cyan
+                $merged = $true
+
+                # Still warn about conflicts
+                if ($conflicts.Count -gt 0) {
+                    Write-Host "  Warning: Some settings conflict with ARTK requirements:" -ForegroundColor Yellow
+                    foreach ($conflict in $conflicts) {
+                        Write-Host "    ! $conflict" -ForegroundColor Yellow
+                    }
+                    Write-Host "    ARTK prompts may require manual approval for each command." -ForegroundColor Yellow
+                }
+            } else {
+                # Show preview
+                Write-Host "  Existing .vscode/settings.json found. Changes to apply:" -ForegroundColor Cyan
+                if ($newKeys.Count -gt 0) {
+                    Write-Host "  New settings to add:" -ForegroundColor Green
+                    foreach ($key in $newKeys) {
+                        Write-Host "    + $key" -ForegroundColor Green
+                    }
+                }
+                if ($mergedKeys.Count -gt 0) {
+                    Write-Host "  Settings to deep-merge:" -ForegroundColor Cyan
+                    foreach ($key in $mergedKeys) {
+                        Write-Host "    ~ $key" -ForegroundColor Cyan
+                    }
+                }
+                if ($arrayMergedKeys.Count -gt 0) {
+                    Write-Host "  Arrays to extend:" -ForegroundColor Cyan
+                    foreach ($key in $arrayMergedKeys) {
+                        Write-Host "    + $key" -ForegroundColor Cyan
+                    }
+                }
+
+                # Warn about conflicts
+                if ($conflicts.Count -gt 0) {
+                    Write-Host "  Conflicts with ARTK requirements (will NOT be changed):" -ForegroundColor Yellow
+                    foreach ($conflict in $conflicts) {
+                        Write-Host "    ! $conflict" -ForegroundColor Yellow
+                    }
+                }
+
+                # Warn about comment loss
+                if ($hasComments) {
+                    Write-Host "  Warning: Your settings.json contains comments." -ForegroundColor Yellow
+                    Write-Host "    Comments will be REMOVED during merge (JSON limitation)." -ForegroundColor Yellow
+                    Write-Host "    A backup will be created." -ForegroundColor Yellow
+                }
+
+                Write-Host "  Existing settings will NOT be overwritten." -ForegroundColor Yellow
+
+                # Dry-run mode
+                if ($DryRun) {
+                    Write-Host "  [DRY-RUN] No changes applied" -ForegroundColor Cyan
+                    $merged = $true
+                } else {
+                    # Ask for confirmation unless -Yes
+                    $applySettings = $false
+                    if ($Yes) {
+                        $applySettings = $true
+                        Write-Host "  Auto-approved (-Yes flag)" -ForegroundColor Cyan
+                    } else {
+                        $confirm = Read-Host "  Apply these changes? [Y/n]"
+                        if ([string]::IsNullOrEmpty($confirm) -or $confirm -eq 'y' -or $confirm -eq 'Y') {
+                            $applySettings = $true
+                        } else {
+                            Write-Host "  Skipped VS Code settings (user declined)" -ForegroundColor Cyan
+                            $merged = $true
+                        }
+                    }
+
+                    if ($applySettings) {
+                        # Create backup before merge
+                        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+                        $backupFile = "$VscodeSettings.backup-$timestamp"
+                        Copy-Item $VscodeSettings -Destination $backupFile
+                        Write-Host "  Created backup: $(Split-Path -Leaf $backupFile)" -ForegroundColor Cyan
+
+                        try {
+                            # Apply the deep merge with array union
+                            $mergedSettings = Merge-DeepHashtable -Target $existing -Source $artk
+                            $mergedSettings | ConvertTo-Json -Depth 10 | Set-Content $VscodeSettings
+                            Write-Host "  VS Code settings merged successfully" -ForegroundColor Green
+                            $merged = $true
+                        }
+                        catch {
+                            Write-Host "  Warning: Merge failed. Restoring backup..." -ForegroundColor Yellow
+                            Copy-Item $backupFile -Destination $VscodeSettings -Force
+                            Write-Host "  Restored from backup" -ForegroundColor Cyan
+                        }
+                    }
+                }
+            }
         }
         catch {
-            # JSON parsing failed - try to append settings directly
-            Write-Host "  Note: Could not parse existing settings.json (may have comments)" -ForegroundColor Yellow
+            # JSON parsing failed
+            Write-Host "  Note: Could not parse existing settings.json (may have complex comments)" -ForegroundColor Yellow
+            Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Yellow
         }
 
         if (-not $merged) {
@@ -1238,22 +1434,53 @@ if (Test-Path $VscodeTemplate) {
             if ($existingContent -notmatch 'github\.copilot\.chat\.agent\.runInTerminal') {
                 $settingsToAdd += '  "github.copilot.chat.agent.runInTerminal": true'
             }
+            if ($existingContent -notmatch 'chat\.tools\.terminal\.enableAutoApprove') {
+                $settingsToAdd += '  "chat.tools.terminal.enableAutoApprove": true'
+            }
 
             if ($settingsToAdd.Count -gt 0) {
-                Write-Host "  Appending required Copilot settings..." -ForegroundColor Cyan
-                # Insert before the last closing brace
-                $newContent = $existingContent -replace '(\s*)\}(\s*)$', (",`n" + ($settingsToAdd -join ",`n") + "`n}`$2")
-                Set-Content $VscodeSettings -Value $newContent
-                Write-Host "  Added $($settingsToAdd.Count) Copilot settings" -ForegroundColor Green
+                if ($DryRun) {
+                    Write-Host "  [DRY-RUN] Would append $($settingsToAdd.Count) essential Copilot settings" -ForegroundColor Cyan
+                } else {
+                    # Ask for confirmation unless -Yes
+                    $applyFallback = $false
+                    if ($Yes) {
+                        $applyFallback = $true
+                        Write-Host "  Auto-approved fallback settings (-Yes flag)" -ForegroundColor Cyan
+                    } else {
+                        Write-Host "  Will append $($settingsToAdd.Count) essential Copilot settings." -ForegroundColor Yellow
+                        $confirm = Read-Host "  Continue? [Y/n]"
+                        if ([string]::IsNullOrEmpty($confirm) -or $confirm -eq 'y' -or $confirm -eq 'Y') {
+                            $applyFallback = $true
+                        } else {
+                            Write-Host "  Skipped VS Code settings (user declined)" -ForegroundColor Cyan
+                        }
+                    }
+
+                    if ($applyFallback) {
+                        # Create backup
+                        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+                        Copy-Item $VscodeSettings -Destination "$VscodeSettings.backup-$timestamp"
+                        Write-Host "  Appending required Copilot settings..." -ForegroundColor Cyan
+                        # Insert before the last closing brace
+                        $newContent = $existingContent -replace '(\s*)\}(\s*)$', (",`n" + ($settingsToAdd -join ",`n") + "`n}`$2")
+                        Set-Content $VscodeSettings -Value $newContent
+                        Write-Host "  Added $($settingsToAdd.Count) Copilot settings" -ForegroundColor Green
+                    }
+                }
             } else {
-                Write-Host "  Copilot settings already present" -ForegroundColor Cyan
+                Write-Host "  Essential Copilot settings already present" -ForegroundColor Cyan
             }
         }
     }
     else {
         # No existing settings - just copy template
-        Copy-Item $VscodeTemplate -Destination $VscodeSettings -Force
-        Write-Host "  Created .vscode/settings.json with Copilot terminal access enabled" -ForegroundColor Cyan
+        if ($DryRun) {
+            Write-Host "  [DRY-RUN] Would create .vscode/settings.json" -ForegroundColor Cyan
+        } else {
+            Copy-Item $VscodeTemplate -Destination $VscodeSettings -Force
+            Write-Host "  Created .vscode/settings.json with Copilot tool auto-approve enabled" -ForegroundColor Cyan
+        }
     }
 }
 else {
@@ -1725,47 +1952,38 @@ if (-not $SkipNpm) {
         }
 
         # Initialize LLKB (Lessons Learned Knowledge Base)
-        Write-Host "[6.5/7] Initializing LLKB..." -ForegroundColor Yellow
-        $llkbInitLog = Join-Path $logsDir "llkb-init.log"
+        if (-not $SkipLlkb) {
+            Write-Host "[6.5/7] Initializing LLKB..." -ForegroundColor Yellow
+            $llkbInitLog = Join-Path $logsDir "llkb-init.log"
 
-        $llkbInitScript = @"
-const path = require('path');
-const llkbModule = require('./vendor/artk-core/dist/llkb');
+            # Copy and run the LLKB bootstrap helper (CJS for Node.js compatibility)
+            # The helper is a standalone .cjs file that works with ALL Node versions (12-22+)
+            # and doesn't depend on ESM/CJS module system of the vendored @artk/core
+            $llkbHelper = Join-Path $ArtkRepo "scripts" "helpers" "bootstrap-llkb.cjs"
+            $llkbHelperDest = Join-Path $ArtkE2e "vendor" "artk-core" "bootstrap-llkb.cjs"
 
-async function init() {
-  const llkbRoot = path.join(process.cwd(), '.artk', 'llkb');
-  const result = await llkbModule.initializeLLKB(llkbRoot);
-  if (result.success) {
-    console.log('LLKB initialized successfully');
-    console.log('Created: ' + llkbRoot + '/config.yml');
-    console.log('Created: ' + llkbRoot + '/lessons.json');
-    console.log('Created: ' + llkbRoot + '/components.json');
-    console.log('Created: ' + llkbRoot + '/analytics.json');
-    process.exit(0);
-  } else {
-    console.error('LLKB initialization failed: ' + result.error);
-    process.exit(1);
-  }
-}
+            if (Test-Path $llkbHelper) {
+                Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
 
-init().catch(err => {
-  console.error('LLKB initialization error: ' + err.message);
-  process.exit(1);
-});
-"@
-
-        try {
-            $llkbProc = Start-Process -FilePath "node" -ArgumentList @("-e", $llkbInitScript) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError "$llkbInitLog.err" -WorkingDirectory $ArtkE2e
-            if ($llkbProc.ExitCode -eq 0) {
-                Write-Host "  LLKB initialized successfully" -ForegroundColor Green
+                try {
+                    $llkbProc = Start-Process -FilePath "node" -ArgumentList @($llkbHelperDest, $ArtkE2e, "--verbose") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError "$llkbInitLog.err" -WorkingDirectory $ArtkE2e
+                    if ($llkbProc.ExitCode -eq 0) {
+                        Write-Host "  LLKB initialized successfully" -ForegroundColor Green
+                    } else {
+                        Write-Host "  Warning: LLKB initialization failed (non-fatal)" -ForegroundColor Yellow
+                        Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+                        Write-Host "  Details: $llkbInitLog" -ForegroundColor DarkGray
+                    }
+                } catch {
+                    Write-Host "  Warning: LLKB initialization failed (non-fatal): $($_.Exception.Message)" -ForegroundColor Yellow
+                    Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+                }
             } else {
-                Write-Host "  Warning: LLKB initialization failed (non-fatal)" -ForegroundColor Yellow
+                Write-Host "  Warning: LLKB helper not found at $llkbHelper" -ForegroundColor Yellow
                 Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
-                Write-Host "  Details: $llkbInitLog" -ForegroundColor DarkGray
             }
-        } catch {
-            Write-Host "  Warning: LLKB initialization failed (non-fatal): $($_.Exception.Message)" -ForegroundColor Yellow
-            Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+        } else {
+            Write-Host "[6.5/7] Skipping LLKB initialization (-SkipLlkb)" -ForegroundColor Cyan
         }
 
         Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
