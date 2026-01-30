@@ -15,11 +15,13 @@
 - If a function is needed in multiple files, define it in ONE file and import from there
 - Example: `getStorageStatePath` should be in `storage-state.ts` ONLY, imported by `login.ts`
 
-### 2. ESM Import Paths
-- When using dynamic imports for directories, ALWAYS include `/index`
-- ✅ `await import('../../src/modules/foundation/navigation/index')`
-- ❌ `await import('../../src/modules/foundation/navigation')`
-- This prevents "ERR_MODULE_NOT_FOUND" errors in ESM context
+### 2. Module Imports (CommonJS preferred)
+- artk-e2e uses **CommonJS** by default (tsconfig.json: `"module": "CommonJS"`)
+- For dynamic imports in tests, prefer `require()` over `await import()`
+- ✅ `const nav = require('../../src/modules/foundation/navigation/nav')`
+- ❌ `const nav = await import('../../src/modules/foundation/navigation/nav')`
+- This prevents ESM/CommonJS mismatch errors in Playwright tests
+- If you must use dynamic imports, include `/index` for directory imports
 
 ### 3. Template Literal Syntax
 - Use proper backticks for template literals
@@ -52,12 +54,13 @@ For each function you created:
 3. Update imports in other files to use the single source
 ```
 
-### Step V1: ESM Import Path Check
+### Step V1: Module Import Check
 ```
-For each dynamic import statement:
-1. If importing a directory → ensure path ends with `/index`
-2. ✅ await import('./modules/auth/index')
-3. ❌ await import('./modules/auth')
+For each module import in tests:
+1. Prefer require() over dynamic import() for CommonJS compatibility
+2. ✅ const auth = require('./modules/auth/login')
+3. ❌ const auth = await import('./modules/auth/login')
+4. If using dynamic imports, ensure path includes /index for directories
 ```
 
 ### Step V2: Import Usage Check
