@@ -1022,7 +1022,41 @@ Create `README.md` with:
 
 ## Step F11 — Initialize LLKB (Lessons Learned Knowledge Base)
 
-**After foundation build completes, initialize the LLKB structure:**
+**After foundation build completes, initialize the LLKB structure.**
+
+### 11.0a Quick Check — Ensure LLKB Exists (Fallback)
+
+**Bootstrap should have already created LLKB. If not, initialize it now:**
+
+```bash
+# Check if LLKB exists
+if [ ! -f "${HARNESS_ROOT}/.artk/llkb/config.yml" ]; then
+  echo "LLKB not found - initializing..."
+
+  # Call initializeLLKB from @artk/core
+  node -e "
+    const { initializeLLKB } = require('./vendor/artk-core/dist/llkb');
+    initializeLLKB('.artk/llkb').then(r => {
+      if (r.success) {
+        console.log('✅ LLKB initialized successfully');
+      } else {
+        console.error('❌ LLKB init failed:', r.error);
+        process.exit(1);
+      }
+    });
+  "
+else
+  echo "✓ LLKB already exists"
+fi
+```
+
+**If the above command fails**, report to user and suggest running bootstrap again:
+```
+⚠️ LLKB initialization failed. Please run bootstrap again:
+   artk init . --force
+   OR
+   /path/to/ARTK/scripts/bootstrap.sh .
+```
 
 ### 11.0 Migration Detection (MANDATORY FOR EXISTING PROJECTS)
 

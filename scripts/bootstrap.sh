@@ -1661,6 +1661,49 @@ if [ "$SKIP_NPM" = false ]; then
         exit 1
     fi
 
+    # Initialize LLKB (Lessons Learned Knowledge Base)
+    echo -e "${YELLOW}[6.5/7] Initializing LLKB...${NC}"
+    LLKB_ROOT="$ARTK_E2E/.artk/llkb"
+    LLKB_INIT_LOG="$LOGS_DIR/llkb-init.log"
+
+    # Call initializeLLKB from vendored @artk/core
+    set +e
+    node -e "
+const path = require('path');
+const llkbModule = require('./vendor/artk-core/dist/llkb');
+
+async function init() {
+  const llkbRoot = path.join(process.cwd(), '.artk', 'llkb');
+  const result = await llkbModule.initializeLLKB(llkbRoot);
+  if (result.success) {
+    console.log('✅ LLKB initialized successfully');
+    console.log('   Created: ' + llkbRoot + '/config.yml');
+    console.log('   Created: ' + llkbRoot + '/lessons.json');
+    console.log('   Created: ' + llkbRoot + '/components.json');
+    console.log('   Created: ' + llkbRoot + '/analytics.json');
+    process.exit(0);
+  } else {
+    console.error('❌ LLKB initialization failed: ' + result.error);
+    process.exit(1);
+  }
+}
+
+init().catch(err => {
+  console.error('❌ LLKB initialization error: ' + err.message);
+  process.exit(1);
+});
+" > "$LLKB_INIT_LOG" 2>&1
+    LLKB_STATUS=$?
+    set -e
+
+    if [ "$LLKB_STATUS" -eq 0 ]; then
+        echo -e "${GREEN}$(cat "$LLKB_INIT_LOG" | head -1)${NC}"
+    else
+        echo -e "${YELLOW}Warning: LLKB initialization failed (non-fatal)${NC}"
+        echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
+        echo -e "${YELLOW}Details: $LLKB_INIT_LOG${NC}"
+    fi
+
     echo -e "${YELLOW}[7/7] Configuring browsers...${NC}"
 
     BROWSERS_CACHE_DIR="$ARTK_E2E/.artk/browsers"

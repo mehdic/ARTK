@@ -1724,6 +1724,50 @@ if (-not $SkipNpm) {
             exit 1
         }
 
+        # Initialize LLKB (Lessons Learned Knowledge Base)
+        Write-Host "[6.5/7] Initializing LLKB..." -ForegroundColor Yellow
+        $llkbInitLog = Join-Path $logsDir "llkb-init.log"
+
+        $llkbInitScript = @"
+const path = require('path');
+const llkbModule = require('./vendor/artk-core/dist/llkb');
+
+async function init() {
+  const llkbRoot = path.join(process.cwd(), '.artk', 'llkb');
+  const result = await llkbModule.initializeLLKB(llkbRoot);
+  if (result.success) {
+    console.log('LLKB initialized successfully');
+    console.log('Created: ' + llkbRoot + '/config.yml');
+    console.log('Created: ' + llkbRoot + '/lessons.json');
+    console.log('Created: ' + llkbRoot + '/components.json');
+    console.log('Created: ' + llkbRoot + '/analytics.json');
+    process.exit(0);
+  } else {
+    console.error('LLKB initialization failed: ' + result.error);
+    process.exit(1);
+  }
+}
+
+init().catch(err => {
+  console.error('LLKB initialization error: ' + err.message);
+  process.exit(1);
+});
+"@
+
+        try {
+            $llkbProc = Start-Process -FilePath "node" -ArgumentList @("-e", $llkbInitScript) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError "$llkbInitLog.err" -WorkingDirectory $ArtkE2e
+            if ($llkbProc.ExitCode -eq 0) {
+                Write-Host "  LLKB initialized successfully" -ForegroundColor Green
+            } else {
+                Write-Host "  Warning: LLKB initialization failed (non-fatal)" -ForegroundColor Yellow
+                Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+                Write-Host "  Details: $llkbInitLog" -ForegroundColor DarkGray
+            }
+        } catch {
+            Write-Host "  Warning: LLKB initialization failed (non-fatal): $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+        }
+
         Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
     } finally {
         Pop-Location

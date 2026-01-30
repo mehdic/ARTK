@@ -801,30 +801,43 @@ artk-export
 
 ## LLKB Lifecycle (Creation and Initialization)
 
-**IMPORTANT:** LLKB (Lessons Learned Knowledge Base) MUST be created during `/artk.discover-foundation` (Step F11), NOT during journey-implement.
+**IMPORTANT:** LLKB (Lessons Learned Knowledge Base) is created during **bootstrap** and verified/fallback-created during `/artk.discover-foundation` (Step F11).
 
 ### When LLKB Gets Created
 
-LLKB is created by `/artk.discover-foundation` in Step F11 after the foundation modules are built. The initialization:
-1. Performs migration check (existing LLKB, legacy files, or fresh install)
-2. Creates `.artk/llkb/` directory structure
-3. Initializes `config.yml`, `lessons.json`, `components.json`, `analytics.json`
-4. Creates LLKB CLI utility script
+**Primary: Bootstrap (Step 6.5)**
+- Bootstrap scripts (`bootstrap.sh` / `bootstrap.ps1`) call `initializeLLKB()` after npm install
+- This creates the `.artk/llkb/` directory structure with all required files
+- If this fails (non-fatal), discover-foundation will create it as fallback
+
+**Fallback: discover-foundation (Step F11.0a)**
+- Step F11 checks if LLKB exists
+- If missing, it calls `initializeLLKB()` from vendored `@artk/core`
+- This ensures LLKB is always present before journey-implement runs
+
+### LLKB Initialization Steps
+1. Creates `.artk/llkb/` directory structure
+2. Initializes `config.yml` with default settings
+3. Initializes `lessons.json`, `components.json`, `analytics.json` (empty)
+4. Creates `patterns/` and `history/` subdirectories
 
 ### Why journey-implement Blocks Without LLKB
 
 The `/artk.journey-implement` prompt has a **MANDATORY GATE** (Step 1) that checks for LLKB:
 - If LLKB is missing or invalid, it blocks with "LLKB STRUCTURE INVALID"
-- This is intentional - LLKB should already exist from discover-foundation
-- DO NOT make LLKB optional in journey-implement; fix discover-foundation instead
+- This is intentional - LLKB should already exist from bootstrap or discover-foundation
+- DO NOT make LLKB optional in journey-implement; ensure bootstrap/discover-foundation created it
 
 ### Troubleshooting: LLKB Not Created
 
 If journey-implement fails with "LLKB STRUCTURE INVALID":
-1. **Root cause:** `/artk.discover-foundation` did not execute Step F11
-2. **Check:** The Completion Checklist in discover-foundation.md must include LLKB items
-3. **Manual fix:** Run `artk llkb init` from the harness root directory
-4. **Prevention:** Ensure Copilot checks off all LLKB items in the discover-foundation checklist
+1. **Most likely cause:** Bootstrap failed silently or was run with old version
+2. **Fix:** Re-run bootstrap with `--force` flag: `artk init . --force`
+3. **Alternative fix:** Run discover-foundation again (it has fallback creation)
+4. **Manual fix:** From artk-e2e directory, run:
+   ```bash
+   node -e "require('./vendor/artk-core/dist/llkb').initializeLLKB('.artk/llkb')"
+   ```
 
 ### LLKB Directory Structure
 
