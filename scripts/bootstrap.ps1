@@ -805,8 +805,9 @@ if ($LlkbOnly) {
     $llkbInitLog = Join-Path $logsDir "llkb-init.log"
     $llkbInitLogErr = Join-Path $logsDir "llkb-init.err.log"
 
-    $llkbHelper = Join-Path $ArtkRepo "scripts" "helpers" "bootstrap-llkb.cjs"
-    $llkbHelperDest = Join-Path $ArtkE2e "vendor" "artk-core" "bootstrap-llkb.cjs"
+    # Note: Nested Join-Path calls for PowerShell 5.1 compatibility (Join-Path with multiple children requires PS 6+)
+    $llkbHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "bootstrap-llkb.cjs"
+    $llkbHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "bootstrap-llkb.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
@@ -2059,8 +2060,9 @@ if (-not $SkipLlkb) {
     $llkbInitLog = Join-Path $logsDir "llkb-init.log"
     $llkbInitLogErr = Join-Path $logsDir "llkb-init.err.log"
 
-    $llkbHelper = Join-Path $ArtkRepo "scripts" "helpers" "bootstrap-llkb.cjs"
-    $llkbHelperDest = Join-Path $ArtkE2e "vendor" "artk-core" "bootstrap-llkb.cjs"
+    # Note: Nested Join-Path calls for PowerShell 5.1 compatibility (Join-Path with multiple children requires PS 6+)
+    $llkbHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "bootstrap-llkb.cjs"
+    $llkbHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "bootstrap-llkb.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
