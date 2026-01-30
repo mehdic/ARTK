@@ -2049,10 +2049,7 @@ if (-not $SkipNpm) {
 # Step 6.5 (Independent): Initialize LLKB
 # This runs regardless of -SkipNpm because LLKB doesn't depend on node_modules
 if (-not $SkipLlkb) {
-    # Only show step if we skipped npm (otherwise show inside npm context for better UX)
-    if ($SkipNpm) {
-        Write-Host "[6.5/7] Initializing LLKB..." -ForegroundColor Yellow
-    }
+    Write-Host "[6.5/7] Initializing LLKB..." -ForegroundColor Yellow
 
     # Ensure logs directory exists
     $logsDir = Join-Path $ArtkE2e ".artk\logs"
@@ -2077,9 +2074,7 @@ if (-not $SkipLlkb) {
         try {
             $llkbProc = Start-Process -FilePath "node" -ArgumentList $llkbArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError $llkbInitLogErr -WorkingDirectory $ArtkE2e
             if ($llkbProc.ExitCode -eq 0) {
-                if ($SkipNpm) {
-                    Write-Host "  LLKB initialized successfully" -ForegroundColor Green
-                }
+                Write-Host "  LLKB initialized successfully" -ForegroundColor Green
                 # Clean up stderr file on success
                 if (Test-Path $llkbInitLogErr) {
                     $errContent = Get-Content $llkbInitLogErr -Raw -ErrorAction SilentlyContinue
@@ -2100,8 +2095,7 @@ if (-not $SkipLlkb) {
         Write-Host "  Warning: LLKB helper not found at $llkbHelper" -ForegroundColor Yellow
         Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
     }
-} elseif ($SkipNpm) {
-    # Only show skip message if we skipped npm (otherwise shown inside npm context)
+} else {
     Write-Host "[6.5/7] Skipping LLKB initialization (-SkipLlkb)" -ForegroundColor Cyan
 }
 

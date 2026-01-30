@@ -2175,10 +2175,7 @@ fi
 # Step 6.5 (Independent): Initialize LLKB
 # This runs regardless of --skip-npm because LLKB doesn't depend on node_modules
 if [ "$SKIP_LLKB" = false ]; then
-    # Only show step if we skipped npm (otherwise it was shown inside the npm block)
-    if [ "$SKIP_NPM" = true ]; then
-        echo -e "${YELLOW}[6.5/7] Initializing LLKB...${NC}"
-    fi
+    echo -e "${YELLOW}[6.5/7] Initializing LLKB...${NC}"
 
     # Ensure logs directory exists
     LOGS_DIR="$ARTK_E2E/.artk/logs"
@@ -2204,9 +2201,7 @@ if [ "$SKIP_LLKB" = false ]; then
         set -e
 
         if [ "$LLKB_STATUS" -eq 0 ]; then
-            if [ "$SKIP_NPM" = true ]; then
-                echo -e "${GREEN}$(grep -m1 'LLKB' "$LLKB_INIT_LOG" || echo '✅ LLKB initialized')${NC}"
-            fi
+            echo -e "${GREEN}  ✓ LLKB initialized successfully${NC}"
         else
             echo -e "${YELLOW}Warning: LLKB initialization failed (non-fatal)${NC}"
             echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
@@ -2216,8 +2211,7 @@ if [ "$SKIP_LLKB" = false ]; then
         echo -e "${YELLOW}Warning: LLKB helper not found at $LLKB_HELPER${NC}"
         echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
     fi
-elif [ "$SKIP_NPM" = true ]; then
-    # Only show skip message if we skipped npm (otherwise shown inside npm block)
+else
     echo -e "${CYAN}[6.5/7] Skipping LLKB initialization (--skip-llkb)${NC}"
 fi
 
