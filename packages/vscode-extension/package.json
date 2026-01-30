@@ -1,0 +1,248 @@
+{
+  "name": "artk-vscode",
+  "displayName": "ARTK - Automatic Regression Testing Kit",
+  "description": "Visual tools for ARTK test automation with Playwright",
+  "version": "1.0.0",
+  "publisher": "artk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/artk/artk"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing",
+    "Other"
+  ],
+  "keywords": [
+    "artk",
+    "playwright",
+    "e2e",
+    "testing",
+    "automation",
+    "regression"
+  ],
+  "icon": "media/artk-icon.png",
+  "activationEvents": [
+    "workspaceContains:artk-e2e",
+    "workspaceContains:.artk/context.json"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "artk.init",
+        "title": "ARTK: Initialize Project",
+        "icon": "$(add)"
+      },
+      {
+        "command": "artk.check",
+        "title": "ARTK: Check Prerequisites",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "artk.doctor",
+        "title": "ARTK: Run Doctor",
+        "icon": "$(heart)"
+      },
+      {
+        "command": "artk.upgrade",
+        "title": "ARTK: Upgrade Core",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "artk.uninstall",
+        "title": "ARTK: Uninstall",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "artk.openConfig",
+        "title": "ARTK: Open Configuration",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "artk.openDashboard",
+        "title": "ARTK: Open Dashboard",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "artk.llkb.health",
+        "title": "ARTK: LLKB Health Check",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "artk.llkb.stats",
+        "title": "ARTK: LLKB Statistics",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "artk.llkb.export",
+        "title": "ARTK: Export LLKB for AutoGen",
+        "icon": "$(export)"
+      },
+      {
+        "command": "artk.refreshViews",
+        "title": "ARTK: Refresh All Views",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "artk.openJourney",
+        "title": "ARTK: Open Journey",
+        "icon": "$(file)"
+      },
+      {
+        "command": "artk.runTests",
+        "title": "ARTK: Run Tests",
+        "icon": "$(play)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "artk-explorer",
+          "title": "ARTK",
+          "icon": "media/artk-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "artk-explorer": [
+        {
+          "id": "artk-status",
+          "name": "Status",
+          "contextualTitle": "ARTK Status"
+        },
+        {
+          "id": "artk-journeys",
+          "name": "Journeys",
+          "contextualTitle": "ARTK Journeys"
+        },
+        {
+          "id": "artk-llkb",
+          "name": "LLKB",
+          "contextualTitle": "Lessons Learned Knowledge Base",
+          "when": "artk.llkbEnabled"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "artk-status",
+        "contents": "ARTK is not installed in this workspace.\n[Initialize ARTK](command:artk.init)"
+      },
+      {
+        "view": "artk-journeys",
+        "contents": "No journeys found.\nRun discovery to propose journeys.\n[Open Dashboard](command:artk.openDashboard)"
+      },
+      {
+        "view": "artk-llkb",
+        "contents": "LLKB not initialized.\n[Check Status](command:artk.doctor)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "artk.refreshViews",
+          "when": "view =~ /^artk-/",
+          "group": "navigation"
+        },
+        {
+          "command": "artk.openDashboard",
+          "when": "view == artk-status",
+          "group": "navigation"
+        },
+        {
+          "command": "artk.openConfig",
+          "when": "view == artk-status",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "artk.openJourney",
+          "when": "view == artk-journeys && viewItem == journey",
+          "group": "inline"
+        },
+        {
+          "command": "artk.runTests",
+          "when": "view == artk-journeys && viewItem == journey",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "artk.openJourney",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ARTK",
+      "properties": {
+        "artk.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh views when files change"
+        },
+        "artk.refreshInterval": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 0,
+          "description": "Interval in ms to refresh status (0 to disable polling)"
+        },
+        "artk.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show ARTK status in the status bar"
+        },
+        "artk.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to artk CLI executable (leave empty to use npx)"
+        },
+        "artk.llkb.showInExplorer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show LLKB view in the ARTK explorer"
+        },
+        "artk.terminalAccess": {
+          "type": "string",
+          "default": "on-workspace-open",
+          "enum": [
+            "on-workspace-open",
+            "always-allow",
+            "never-allow"
+          ],
+          "enumDescriptions": [
+            "Allow terminal access when ARTK workspace is detected",
+            "Always allow terminal access for ARTK commands",
+            "Never allow automatic terminal access"
+          ],
+          "description": "Controls when ARTK can access the integrated terminal"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
+    "lint": "eslint src --ext ts",
+    "test": "node ./test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.19.11",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4"
+  }
+}
