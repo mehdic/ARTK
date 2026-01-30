@@ -2221,6 +2221,9 @@ Write-Host "  .vscode/settings.json                 - VS Code settings (terminal
 Write-Host "  artk-e2e/.artk/context.json           - ARTK context"
 Write-Host "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"
 Write-Host "  artk-e2e/.artk/logs/                  - Bootstrap logs (npm + Playwright)"
+if (-not $SkipLlkb) {
+    Write-Host "  artk-e2e/.artk/llkb/                  - Lessons Learned Knowledge Base"
+}
 
 if ($script:FinalBrowserChannel) {
     Write-Host "" 

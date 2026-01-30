@@ -2234,6 +2234,9 @@ echo "  .vscode/settings.json                 - VS Code settings (terminal acces
 echo "  artk-e2e/.artk/context.json           - ARTK context"
 echo "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"
 echo "  artk-e2e/.artk/logs/                  - Bootstrap logs (npm + Playwright)"
+if [ "$SKIP_LLKB" = false ]; then
+    echo "  artk-e2e/.artk/llkb/                  - Lessons Learned Knowledge Base"
+fi
 echo ""
 echo -e "${CYAN}Next steps:${NC}"
 echo "  1. cd artk-e2e"
