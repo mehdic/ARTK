@@ -334,6 +334,85 @@ jobs:
           mv package.json.backup package.json
         working-directory: core/typescript
 
+  test-llkb-helper:
+    name: Test LLKB Bootstrap Helper
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['14', '16', '18', '20', '22']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Test LLKB helper runs
+        run: |
+          # Create a test directory
+          mkdir -p /tmp/test-artk-e2e/vendor/artk-core
+
+          # Copy the helper
+          cp scripts/helpers/bootstrap-llkb.cjs /tmp/test-artk-e2e/vendor/artk-core/
+
+          # Run the helper
+          node /tmp/test-artk-e2e/vendor/artk-core/bootstrap-llkb.cjs /tmp/test-artk-e2e --verbose
+
+          # Verify files were created
+          if [ ! -f "/tmp/test-artk-e2e/.artk/llkb/config.yml" ]; then
+            echo "ERROR: config.yml not created"
+            exit 1
+          fi
+          if [ ! -f "/tmp/test-artk-e2e/.artk/llkb/lessons.json" ]; then
+            echo "ERROR: lessons.json not created"
+            exit 1
+          fi
+          if [ ! -f "/tmp/test-artk-e2e/.artk/llkb/components.json" ]; then
+            echo "ERROR: components.json not created"
+            exit 1
+          fi
+          if [ ! -f "/tmp/test-artk-e2e/.artk/llkb/analytics.json" ]; then
+            echo "ERROR: analytics.json not created"
+            exit 1
+          fi
+          if [ ! -d "/tmp/test-artk-e2e/.artk/llkb/patterns" ]; then
+            echo "ERROR: patterns directory not created"
+            exit 1
+          fi
+          if [ ! -d "/tmp/test-artk-e2e/.artk/llkb/history" ]; then
+            echo "ERROR: history directory not created"
+            exit 1
+          fi
+
+          echo "✓ LLKB helper works on Node ${{ matrix.node-version }}"
+
+      - name: Test verify-only mode
+        run: |
+          node /tmp/test-artk-e2e/vendor/artk-core/bootstrap-llkb.cjs /tmp/test-artk-e2e --verify-only
+          echo "✓ Verify-only mode works on Node ${{ matrix.node-version }}"
+
+      - name: Test force mode
+        run: |
+          # Add a marker file to verify force deletes
+          echo "test" > /tmp/test-artk-e2e/.artk/llkb/marker.txt
+
+          # Run with force
+          node /tmp/test-artk-e2e/vendor/artk-core/bootstrap-llkb.cjs /tmp/test-artk-e2e --force --verbose
+
+          # Verify marker was deleted (force wipes existing)
+          if [ -f "/tmp/test-artk-e2e/.artk/llkb/marker.txt" ]; then
+            echo "ERROR: Force mode didn't delete existing LLKB"
+            exit 1
+          fi
+
+          echo "✓ Force mode works on Node ${{ matrix.node-version }}"
+
+      - name: Cleanup
+        run: rm -rf /tmp/test-artk-e2e
+
   build-cli:
     name: Build CLI
     runs-on: ubuntu-latest

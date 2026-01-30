@@ -1961,39 +1961,8 @@ if [ "$SKIP_NPM" = false ]; then
         exit 1
     fi
 
-    # Initialize LLKB (Lessons Learned Knowledge Base)
-    if [ "$SKIP_LLKB" = false ]; then
-        echo -e "${YELLOW}[6.5/7] Initializing LLKB...${NC}"
-        LLKB_INIT_LOG="$LOGS_DIR/llkb-init.log"
-
-        # Copy and run the LLKB bootstrap helper (CJS for Node.js compatibility)
-        # The helper is a standalone .cjs file that works with ALL Node versions (12-22+)
-        # and doesn't depend on ESM/CJS module system of the vendored @artk/core
-        LLKB_HELPER="$ARTK_REPO/scripts/helpers/bootstrap-llkb.cjs"
-        LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
-
-        if [ -f "$LLKB_HELPER" ]; then
-            cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
-
-            set +e
-            node "$LLKB_HELPER_DEST" "$ARTK_E2E" --verbose > "$LLKB_INIT_LOG" 2>&1
-            LLKB_STATUS=$?
-            set -e
-
-            if [ "$LLKB_STATUS" -eq 0 ]; then
-                echo -e "${GREEN}$(grep -m1 'LLKB' "$LLKB_INIT_LOG" || echo '✅ LLKB initialized')${NC}"
-            else
-                echo -e "${YELLOW}Warning: LLKB initialization failed (non-fatal)${NC}"
-                echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
-                echo -e "${YELLOW}Details: $LLKB_INIT_LOG${NC}"
-            fi
-        else
-            echo -e "${YELLOW}Warning: LLKB helper not found at $LLKB_HELPER${NC}"
-            echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
-        fi
-    else
-        echo -e "${CYAN}[6.5/7] Skipping LLKB initialization (--skip-llkb)${NC}"
-    fi
+    # Note: LLKB initialization moved outside npm conditional (see Step 6.5 below)
+    # It runs independently because it doesn't depend on node_modules
 
     echo -e "${YELLOW}[7/7] Configuring browsers...${NC}"
 
@@ -2121,6 +2090,48 @@ if [ "$SKIP_NPM" = false ]; then
 else
     echo -e "${CYAN}[6/7] Skipping npm install (--skip-npm)${NC}"
     echo -e "${CYAN}[7/7] Skipping browser installation (--skip-npm)${NC}"
+fi
+
+# Step 6.5 (Independent): Initialize LLKB
+# This runs regardless of --skip-npm because LLKB doesn't depend on node_modules
+if [ "$SKIP_LLKB" = false ]; then
+    # Only show step if we skipped npm (otherwise it was shown inside the npm block)
+    if [ "$SKIP_NPM" = true ]; then
+        echo -e "${YELLOW}[6.5/7] Initializing LLKB...${NC}"
+    fi
+
+    # Ensure logs directory exists
+    LOGS_DIR="$ARTK_E2E/.artk/logs"
+    mkdir -p "$LOGS_DIR"
+    LLKB_INIT_LOG="$LOGS_DIR/llkb-init.log"
+
+    LLKB_HELPER="$ARTK_REPO/scripts/helpers/bootstrap-llkb.cjs"
+    LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
+
+    if [ -f "$LLKB_HELPER" ]; then
+        cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
+
+        set +e
+        node "$LLKB_HELPER_DEST" "$ARTK_E2E" --verbose > "$LLKB_INIT_LOG" 2>&1
+        LLKB_STATUS=$?
+        set -e
+
+        if [ "$LLKB_STATUS" -eq 0 ]; then
+            if [ "$SKIP_NPM" = true ]; then
+                echo -e "${GREEN}$(grep -m1 'LLKB' "$LLKB_INIT_LOG" || echo '✅ LLKB initialized')${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Warning: LLKB initialization failed (non-fatal)${NC}"
+            echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
+            echo -e "${YELLOW}Details: $LLKB_INIT_LOG${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Warning: LLKB helper not found at $LLKB_HELPER${NC}"
+        echo -e "${YELLOW}LLKB will be initialized by /artk.discover-foundation${NC}"
+    fi
+elif [ "$SKIP_NPM" = true ]; then
+    # Only show skip message if we skipped npm (otherwise shown inside npm block)
+    echo -e "${CYAN}[6.5/7] Skipping LLKB initialization (--skip-llkb)${NC}"
 fi
 
 echo ""

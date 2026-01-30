@@ -1951,40 +1951,8 @@ if (-not $SkipNpm) {
             exit 1
         }
 
-        # Initialize LLKB (Lessons Learned Knowledge Base)
-        if (-not $SkipLlkb) {
-            Write-Host "[6.5/7] Initializing LLKB..." -ForegroundColor Yellow
-            $llkbInitLog = Join-Path $logsDir "llkb-init.log"
-
-            # Copy and run the LLKB bootstrap helper (CJS for Node.js compatibility)
-            # The helper is a standalone .cjs file that works with ALL Node versions (12-22+)
-            # and doesn't depend on ESM/CJS module system of the vendored @artk/core
-            $llkbHelper = Join-Path $ArtkRepo "scripts" "helpers" "bootstrap-llkb.cjs"
-            $llkbHelperDest = Join-Path $ArtkE2e "vendor" "artk-core" "bootstrap-llkb.cjs"
-
-            if (Test-Path $llkbHelper) {
-                Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
-
-                try {
-                    $llkbProc = Start-Process -FilePath "node" -ArgumentList @($llkbHelperDest, $ArtkE2e, "--verbose") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError "$llkbInitLog.err" -WorkingDirectory $ArtkE2e
-                    if ($llkbProc.ExitCode -eq 0) {
-                        Write-Host "  LLKB initialized successfully" -ForegroundColor Green
-                    } else {
-                        Write-Host "  Warning: LLKB initialization failed (non-fatal)" -ForegroundColor Yellow
-                        Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
-                        Write-Host "  Details: $llkbInitLog" -ForegroundColor DarkGray
-                    }
-                } catch {
-                    Write-Host "  Warning: LLKB initialization failed (non-fatal): $($_.Exception.Message)" -ForegroundColor Yellow
-                    Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
-                }
-            } else {
-                Write-Host "  Warning: LLKB helper not found at $llkbHelper" -ForegroundColor Yellow
-                Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
-            }
-        } else {
-            Write-Host "[6.5/7] Skipping LLKB initialization (-SkipLlkb)" -ForegroundColor Cyan
-        }
+        # Note: LLKB initialization moved outside npm conditional (see Step 6.5 below)
+        # It runs independently because it doesn't depend on node_modules
 
         Remove-Item Env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ErrorAction SilentlyContinue
     } finally {
@@ -1992,6 +1960,57 @@ if (-not $SkipNpm) {
     }
 } else {
     Write-Host "[6/7] Skipping npm install (-SkipNpm)" -ForegroundColor Cyan
+}
+
+# Step 6.5 (Independent): Initialize LLKB
+# This runs regardless of -SkipNpm because LLKB doesn't depend on node_modules
+if (-not $SkipLlkb) {
+    # Only show step if we skipped npm (otherwise show inside npm context for better UX)
+    if ($SkipNpm) {
+        Write-Host "[6.5/7] Initializing LLKB..." -ForegroundColor Yellow
+    }
+
+    # Ensure logs directory exists
+    $logsDir = Join-Path $ArtkE2e ".artk\logs"
+    New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
+    $llkbInitLog = Join-Path $logsDir "llkb-init.log"
+    $llkbInitLogErr = Join-Path $logsDir "llkb-init.err.log"
+
+    $llkbHelper = Join-Path $ArtkRepo "scripts" "helpers" "bootstrap-llkb.cjs"
+    $llkbHelperDest = Join-Path $ArtkE2e "vendor" "artk-core" "bootstrap-llkb.cjs"
+
+    if (Test-Path $llkbHelper) {
+        Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
+
+        try {
+            $llkbProc = Start-Process -FilePath "node" -ArgumentList @($llkbHelperDest, $ArtkE2e, "--verbose") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError $llkbInitLogErr -WorkingDirectory $ArtkE2e
+            if ($llkbProc.ExitCode -eq 0) {
+                if ($SkipNpm) {
+                    Write-Host "  LLKB initialized successfully" -ForegroundColor Green
+                }
+                # Clean up stderr file on success
+                if (Test-Path $llkbInitLogErr) {
+                    $errContent = Get-Content $llkbInitLogErr -Raw -ErrorAction SilentlyContinue
+                    if ([string]::IsNullOrWhiteSpace($errContent)) {
+                        Remove-Item $llkbInitLogErr -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            } else {
+                Write-Host "  Warning: LLKB initialization failed (non-fatal)" -ForegroundColor Yellow
+                Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+                Write-Host "  Details: $llkbInitLog" -ForegroundColor DarkGray
+            }
+        } catch {
+            Write-Host "  Warning: LLKB initialization failed (non-fatal): $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  Warning: LLKB helper not found at $llkbHelper" -ForegroundColor Yellow
+        Write-Host "  LLKB will be initialized by /artk.discover-foundation" -ForegroundColor Yellow
+    }
+} elseif ($SkipNpm) {
+    # Only show skip message if we skipped npm (otherwise shown inside npm context)
+    Write-Host "[6.5/7] Skipping LLKB initialization (-SkipLlkb)" -ForegroundColor Cyan
 }
 
 # Step 7: Configure/install browsers

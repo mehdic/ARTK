@@ -47,6 +47,7 @@ artk init /path/to/your-project
 
 **Options:**
 - `--skip-npm`: Skip npm install
+- `--skip-llkb`: Skip LLKB (Lessons Learned Knowledge Base) initialization
 - `--skip-browsers`: Skip browser installation
 - `--force`: Overwrite existing installation
 - `--variant <type>`: Module system (commonjs, esm, auto)
@@ -71,6 +72,23 @@ C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 -TargetPath C:\path\to\your
 ```bash
 /path/to/ARTK/scripts/bootstrap.sh /path/to/your-project
 ```
+
+**Bootstrap Options:**
+| Option | Bash | PowerShell | Description |
+|--------|------|------------|-------------|
+| Skip npm | `--skip-npm` | `-SkipNpm` | Skip npm install |
+| Skip LLKB | `--skip-llkb` | `-SkipLlkb` | Skip LLKB initialization |
+| Force variant | `--variant=<v>` | `-Variant <v>` | Force specific variant |
+| Auto-approve | `--yes` or `-y` | `-Yes` | Skip confirmation prompts |
+| Preview only | `--dry-run` | `-DryRun` | Preview changes without applying |
+| Force detect | `--force-detect` | `-ForceDetect` | Force environment re-detection |
+
+**VS Code Settings:** Bootstrap installs `.vscode/settings.json` with Copilot tool auto-approve configuration. See [docs/vscode-settings-management.md](docs/vscode-settings-management.md) for details on:
+- Safe merge behavior (never overwrites your settings)
+- Backup creation before changes
+- Comment loss warnings
+- Conflict detection with ARTK requirements
+- Terminal command allowlist/denylist
 
 ### Install Prompts Only (No E2E Setup)
 

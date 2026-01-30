@@ -3,14 +3,14 @@
  * ARTK LLKB Bootstrap Helper
  *
  * This file is CommonJS (.cjs) to ensure compatibility with ALL Node.js versions
- * (12-22+) and ALL project configurations (ESM or CJS package.json).
+ * (14-22+) and ALL project configurations (ESM or CJS package.json).
  *
  * Usage: node bootstrap-llkb.cjs <harness-root> [options]
  *
  * Options:
  *   --verify-only    Only verify LLKB exists, don't create
  *   --verbose        Verbose output
- *   --migrate        Auto-migrate old LLKB versions (future)
+ *   --force          Delete and recreate LLKB even if it exists
  *
  * Exit codes:
  *   0 - Success (LLKB initialized or already exists)
@@ -27,6 +27,8 @@ const path = require('path');
 const CURRENT_VERSION = '1.0.0';
 const REQUIRED_FILES = ['config.yml', 'lessons.json', 'components.json', 'analytics.json'];
 const REQUIRED_DIRS = ['patterns', 'history'];
+const LOCK_FILE_NAME = '.llkb-init.lock';
+const LOCK_TIMEOUT_MS = 60000; // 1 minute
 
 // ============================================================================
 // ARGUMENT PARSING
@@ -36,7 +38,7 @@ function parseArgs(argv) {
     harnessRoot: null,
     verifyOnly: false,
     verbose: false,
-    migrate: false,
+    force: false,
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -45,8 +47,8 @@ function parseArgs(argv) {
       args.verifyOnly = true;
     } else if (arg === '--verbose') {
       args.verbose = true;
-    } else if (arg === '--migrate') {
-      args.migrate = true;
+    } else if (arg === '--force') {
+      args.force = true;
     } else if (!arg.startsWith('-') && !args.harnessRoot) {
       args.harnessRoot = arg;
     }
@@ -73,16 +75,146 @@ function validatePath(inputPath) {
     };
   }
 
+  // Also check case-insensitive on Windows
+  if (process.platform === 'win32') {
+    const lowerNormalized = normalized.toLowerCase();
+    const lowerBasename = basename.toLowerCase();
+    const lowerDuplicatePattern = lowerBasename + path.sep + lowerBasename;
+    if (lowerNormalized.includes(lowerDuplicatePattern)) {
+      return {
+        valid: false,
+        error: `Path duplication detected (case-insensitive): "${inputPath}"`,
+        resolved: null,
+      };
+    }
+  }
+
   return { valid: true, error: null, resolved: normalized };
+}
+
+// ============================================================================
+// SIMPLE FILE LOCKING (prevents concurrent initialization)
+// ============================================================================
+function acquireLock(llkbRoot) {
+  const lockPath = path.join(path.dirname(llkbRoot), LOCK_FILE_NAME);
+
+  // Check if lock exists and is stale
+  if (fs.existsSync(lockPath)) {
+    try {
+      const lockContent = fs.readFileSync(lockPath, 'utf-8');
+      const lockTime = parseInt(lockContent, 10);
+      if (Date.now() - lockTime < LOCK_TIMEOUT_MS) {
+        return { acquired: false, error: 'Another LLKB initialization is in progress' };
+      }
+      // Lock is stale, remove it
+      fs.unlinkSync(lockPath);
+    } catch (err) {
+      // Ignore errors reading stale lock
+    }
+  }
+
+  // Create lock file
+  try {
+    // Ensure parent directory exists
+    const lockDir = path.dirname(lockPath);
+    if (!fs.existsSync(lockDir)) {
+      fs.mkdirSync(lockDir, { recursive: true });
+    }
+    fs.writeFileSync(lockPath, Date.now().toString(), { flag: 'wx' });
+    return { acquired: true, lockPath };
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      return { acquired: false, error: 'Another LLKB initialization is in progress' };
+    }
+    // For other errors, proceed without lock (best effort)
+    return { acquired: true, lockPath: null };
+  }
+}
+
+function releaseLock(lockPath) {
+  if (lockPath && fs.existsSync(lockPath)) {
+    try {
+      fs.unlinkSync(lockPath);
+    } catch (err) {
+      // Ignore errors releasing lock
+    }
+  }
+}
+
+// ============================================================================
+// CLEANUP ON FAILURE
+// ============================================================================
+function cleanupCreatedItems(createdItems, verbose) {
+  const log = (msg) => { if (verbose) console.log(msg); };
+
+  // Clean up in reverse order (files first, then directories)
+  const sortedItems = [...createdItems].sort((a, b) => b.length - a.length);
+
+  for (const item of sortedItems) {
+    try {
+      if (fs.existsSync(item)) {
+        const stat = fs.statSync(item);
+        if (stat.isDirectory()) {
+          // Only remove if empty
+          const contents = fs.readdirSync(item);
+          if (contents.length === 0) {
+            fs.rmdirSync(item);
+            log(`  Cleaned up dir: ${item}`);
+          }
+        } else {
+          fs.unlinkSync(item);
+          log(`  Cleaned up file: ${item}`);
+        }
+      }
+    } catch (err) {
+      // Ignore cleanup errors
+    }
+  }
+}
+
+// ============================================================================
+// FORCE DELETE EXISTING LLKB
+// ============================================================================
+function deleteDirectory(dirPath, verbose) {
+  const log = (msg) => { if (verbose) console.log(msg); };
+
+  if (!fs.existsSync(dirPath)) {
+    return;
+  }
+
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      deleteDirectory(fullPath, verbose);
+    } else {
+      fs.unlinkSync(fullPath);
+      log(`  Deleted: ${fullPath}`);
+    }
+  }
+  fs.rmdirSync(dirPath);
+  log(`  Deleted dir: ${dirPath}`);
 }
 
 // ============================================================================
 // LLKB INITIALIZATION
 // ============================================================================
-function initializeLLKB(llkbRoot, verbose) {
+function initializeLLKB(llkbRoot, verbose, force) {
   const results = { created: [], skipped: [], errors: [] };
 
   const log = (msg) => { if (verbose) console.log(msg); };
+
+  // Force delete if requested
+  if (force && fs.existsSync(llkbRoot)) {
+    console.log('Force mode: deleting existing LLKB...');
+    try {
+      deleteDirectory(llkbRoot, verbose);
+      console.log('Existing LLKB deleted');
+    } catch (err) {
+      results.errors.push(`Failed to delete existing LLKB: ${err.message}`);
+      return results;
+    }
+  }
 
   // Create main directory and subdirectories
   const allDirs = [llkbRoot, ...REQUIRED_DIRS.map(d => path.join(llkbRoot, d))];
@@ -94,6 +226,8 @@ function initializeLLKB(llkbRoot, verbose) {
         log(`  Created dir: ${dir}`);
       } catch (err) {
         results.errors.push(`Failed to create directory ${dir}: ${err.message}`);
+        cleanupCreatedItems(results.created, verbose);
+        return results;
       }
     } else {
       results.skipped.push(dir);
@@ -144,6 +278,8 @@ overrides:
       log(`  Created: ${configPath}`);
     } catch (err) {
       results.errors.push(`Failed to create config.yml: ${err.message}`);
+      cleanupCreatedItems(results.created, verbose);
+      return results;
     }
   } else {
     results.skipped.push(configPath);
@@ -217,6 +353,8 @@ overrides:
         log(`  Created: ${filePath}`);
       } catch (err) {
         results.errors.push(`Failed to create ${filename}: ${err.message}`);
+        cleanupCreatedItems(results.created, verbose);
+        return results;
       }
     } else {
       results.skipped.push(filePath);
@@ -234,6 +372,8 @@ overrides:
         log(`  Created: ${filePath}`);
       } catch (err) {
         results.errors.push(`Failed to create patterns/${filename}: ${err.message}`);
+        cleanupCreatedItems(results.created, verbose);
+        return results;
       }
     } else {
       results.skipped.push(filePath);
@@ -289,7 +429,7 @@ function verifyLLKB(llkbRoot) {
 }
 
 // ============================================================================
-// VERSION CHECK
+// VERSION CHECK (improved regex to handle YAML edge cases)
 // ============================================================================
 function checkVersion(llkbRoot) {
   const configPath = path.join(llkbRoot, 'config.yml');
@@ -299,7 +439,13 @@ function checkVersion(llkbRoot) {
 
   try {
     const configContent = fs.readFileSync(configPath, 'utf-8');
-    const versionMatch = configContent.match(/version:\s*["']?([^"'\n\r]+)["']?/);
+
+    // Improved regex that:
+    // 1. Matches version at line start or after whitespace
+    // 2. Captures only the version value (not comments)
+    // 3. Handles quoted and unquoted values
+    // 4. Stops at whitespace, newline, or comment
+    const versionMatch = configContent.match(/^version:\s*["']?([0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?)["']?(?:\s*#.*)?$/m);
     const existingVersion = versionMatch ? versionMatch[1].trim() : '0.0.0';
 
     return {
@@ -320,7 +466,12 @@ function main() {
 
   // Validate harness root argument
   if (!args.harnessRoot) {
-    console.error('Usage: node bootstrap-llkb.cjs <harness-root> [--verify-only] [--verbose]');
+    console.error('Usage: node bootstrap-llkb.cjs <harness-root> [--verify-only] [--verbose] [--force]');
+    console.error('');
+    console.error('Options:');
+    console.error('  --verify-only  Only verify LLKB exists, don\'t create');
+    console.error('  --verbose      Verbose output');
+    console.error('  --force        Delete and recreate LLKB even if it exists');
     console.error('');
     console.error('Example: node bootstrap-llkb.cjs /path/to/artk-e2e');
     process.exit(1);
@@ -341,75 +492,94 @@ function main() {
   console.log(`LLKB root: ${llkbRoot}`);
   console.log('');
 
-  // Check existing version
-  const versionInfo = checkVersion(llkbRoot);
-  if (versionInfo.exists) {
-    console.log(`Existing LLKB found (version: ${versionInfo.version})`);
-    if (versionInfo.needsUpgrade) {
-      console.log(`  Note: Upgrade available to v${CURRENT_VERSION}`);
-      if (args.migrate) {
-        console.log('  Migration not yet implemented - skipping');
-      }
-    }
+  // Acquire lock
+  const lock = acquireLock(llkbRoot);
+  if (!lock.acquired) {
+    console.error(`Error: ${lock.error}`);
+    process.exit(1);
   }
 
-  // Verify-only mode
-  if (args.verifyOnly) {
-    const verification = verifyLLKB(llkbRoot);
-    if (verification.valid) {
-      console.log('LLKB verification: PASSED');
-      process.exit(0);
-    } else {
-      console.log('LLKB verification: FAILED');
-      if (verification.issues.missing.length > 0) {
-        console.log('  Missing:', verification.issues.missing.join(', '));
+  try {
+    // Check existing version
+    const versionInfo = checkVersion(llkbRoot);
+    if (versionInfo.exists && !args.force) {
+      console.log(`Existing LLKB found (version: ${versionInfo.version})`);
+      if (versionInfo.needsUpgrade) {
+        console.log(`  Note: Upgrade available to v${CURRENT_VERSION}`);
+        console.log('  Use --force to recreate LLKB with new version');
       }
-      if (verification.issues.invalid.length > 0) {
-        console.log('  Invalid:', verification.issues.invalid.join(', '));
+    }
+
+    // Verify-only mode
+    if (args.verifyOnly) {
+      const verification = verifyLLKB(llkbRoot);
+      if (verification.valid) {
+        console.log('LLKB verification: PASSED');
+        releaseLock(lock.lockPath);
+        process.exit(0);
+      } else {
+        console.log('LLKB verification: FAILED');
+        if (verification.issues.missing.length > 0) {
+          console.log('  Missing:', verification.issues.missing.join(', '));
+        }
+        if (verification.issues.invalid.length > 0) {
+          console.log('  Invalid:', verification.issues.invalid.join(', '));
+        }
+        releaseLock(lock.lockPath);
+        process.exit(1);
       }
+    }
+
+    // Check if already valid (unless force mode)
+    if (!args.force) {
+      const preCheck = verifyLLKB(llkbRoot);
+      if (preCheck.valid && !versionInfo.needsUpgrade) {
+        console.log('LLKB already exists and is valid');
+        releaseLock(lock.lockPath);
+        process.exit(0);
+      }
+    }
+
+    // Initialize LLKB
+    console.log(args.force ? 'Force reinitializing LLKB...' : 'Initializing LLKB...');
+    const results = initializeLLKB(llkbRoot, args.verbose, args.force);
+
+    // Check for errors
+    if (results.errors.length > 0) {
+      console.log('');
+      console.log('LLKB initialization FAILED:');
+      results.errors.forEach(e => console.log(`  - ${e}`));
+      releaseLock(lock.lockPath);
       process.exit(1);
     }
-  }
 
-  // Check if already valid
-  const preCheck = verifyLLKB(llkbRoot);
-  if (preCheck.valid && !versionInfo.needsUpgrade) {
-    console.log('LLKB already exists and is valid');
+    // Post-init verification
+    const postCheck = verifyLLKB(llkbRoot);
+    if (!postCheck.valid) {
+      console.log('');
+      console.log('LLKB verification FAILED after initialization:');
+      if (postCheck.issues.missing.length > 0) {
+        console.log('  Missing:', postCheck.issues.missing.join(', '));
+      }
+      if (postCheck.issues.invalid.length > 0) {
+        console.log('  Invalid:', postCheck.issues.invalid.join(', '));
+      }
+      releaseLock(lock.lockPath);
+      process.exit(1);
+    }
+
+    // Success
+    console.log('');
+    console.log('LLKB initialized successfully');
+    console.log(`  Created: ${results.created.length} files/directories`);
+    console.log(`  Skipped: ${results.skipped.length} (already existed)`);
+    releaseLock(lock.lockPath);
     process.exit(0);
-  }
-
-  // Initialize LLKB
-  console.log('Initializing LLKB...');
-  const results = initializeLLKB(llkbRoot, args.verbose);
-
-  // Check for errors
-  if (results.errors.length > 0) {
-    console.log('');
-    console.log('LLKB initialization FAILED:');
-    results.errors.forEach(e => console.log(`  - ${e}`));
+  } catch (err) {
+    console.error(`Unexpected error: ${err.message}`);
+    releaseLock(lock.lockPath);
     process.exit(1);
   }
-
-  // Post-init verification
-  const postCheck = verifyLLKB(llkbRoot);
-  if (!postCheck.valid) {
-    console.log('');
-    console.log('LLKB verification FAILED after initialization:');
-    if (postCheck.issues.missing.length > 0) {
-      console.log('  Missing:', postCheck.issues.missing.join(', '));
-    }
-    if (postCheck.issues.invalid.length > 0) {
-      console.log('  Invalid:', postCheck.issues.invalid.join(', '));
-    }
-    process.exit(1);
-  }
-
-  // Success
-  console.log('');
-  console.log('LLKB initialized successfully');
-  console.log(`  Created: ${results.created.length} files/directories`);
-  console.log(`  Skipped: ${results.skipped.length} (already existed)`);
-  process.exit(0);
 }
 
 // Run
