@@ -1037,7 +1037,13 @@ if [ ! -f "${HARNESS_ROOT}/.artk/llkb/config.yml" ]; then
   LLKB_HELPER="${HARNESS_ROOT}/vendor/artk-core/bootstrap-llkb.cjs"
 
   if [ -f "$LLKB_HELPER" ]; then
-    node "$LLKB_HELPER" "${HARNESS_ROOT}" --verbose
+    # Run helper and check exit code
+    if ! node "$LLKB_HELPER" "${HARNESS_ROOT}" --verbose; then
+      echo "⚠️ LLKB initialization failed (exit code: $?)"
+      echo "   Please re-run bootstrap to fix this."
+      exit 1
+    fi
+    echo "✓ LLKB initialized successfully"
   else
     echo "⚠️ LLKB helper not found at $LLKB_HELPER"
     echo "   Please re-run bootstrap to fix this."
