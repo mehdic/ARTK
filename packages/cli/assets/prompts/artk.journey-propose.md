@@ -112,6 +112,10 @@ If discovery sources are missing, stop and instruct the user to run `/artk.disco
 ---
 
 # Outputs (must produce these)
+
+**⚠️ GENERATION COMPLETION REQUIREMENT:**
+This command MUST complete ALL file generation in a single execution. Do NOT stop after creating directories. Do NOT pause mid-generation. Generate ALL journey files before presenting results to user.
+
 Unless overridden by args, write outputs under `<ARTK_ROOT>/`:
 
 ## 1) Proposed Journey files
@@ -629,6 +633,19 @@ When rerunning `/artk.journey-propose` on a repo with existing proposals:
 
 ## Step 11 — Generate proposed Journey files
 
+**⚠️ CRITICAL: DO NOT STOP MID-GENERATION**
+
+You MUST generate ALL journey files in a single uninterrupted operation:
+- **NEVER** pause to ask for confirmation during file generation
+- **NEVER** stop after creating directories — that is NOT a valid stopping point
+- **NEVER** wait for user input between journey files
+- Continue generating until ALL selected journeys are written to disk
+- If you cannot complete in one output, seamlessly continue in your next output without asking
+- Only stop if there is an actual error that prevents file creation
+
+**If you find yourself about to stop after "Created journeys/proposed/":**
+→ That is a BUG in your execution. Continue immediately with file generation.
+
 **Progress reporting (for large coverage or >20 journeys):**
 
 When generating many proposals, print progress to keep the user informed:
@@ -856,8 +873,14 @@ Provide one reply template.
 
 # Completion checklist (print at end)
 
+**⚠️ GENERATION VERIFICATION (MANDATORY):**
+Before printing this checklist, verify ALL files were actually created:
+- Count files in `journeys/proposed/` — must match total proposed count
+- If count is lower than expected, you stopped mid-generation — CONTINUE GENERATING
+- Do NOT print this checklist until ALL journey files exist
+
 **Artifacts created:**
-- [ ] Proposed Journey files created under `journeys/proposed/`
+- [ ] **ALL** proposed Journey files created under `journeys/proposed/` (verify count matches total)
 - [ ] Proposals evaluated against tier criteria (not just sequential fill)
 - [ ] Each proposed Journey has goal, steps, tentative assertions, dependencies
 - [ ] Backlog/index regenerated
