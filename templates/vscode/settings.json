@@ -132,6 +132,8 @@
   // ═══════════════════════════════════════════════════════════════════════════
 
   // GitHub Copilot Chat - Terminal Access (REQUIRED for /artk.journey-implement)
+  // Both settings are needed for different Copilot versions
+  "github.copilot.chat.terminalAccess": "enabled",
   "github.copilot.chat.terminalAccess.enabled": true,
 
   // GitHub Copilot Chat - Agent Terminal Execution
