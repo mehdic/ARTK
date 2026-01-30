@@ -793,9 +793,20 @@ Keep output deterministic.
 - Wait for user response before asking the next question
 
 ## QUICK (≤ 3, only if missing)
-1) Confirm top 1–2 business-critical workflows (names only).
+1) Confirm business-critical workflows from discovery findings.
+   - List each identified workflow as a numbered option with risk/evidence context
+   - **ALWAYS include a final option: "All identified critical workflows above" (recommended)**
+   - Example format:
+     ```
+     1. **Request Creation & Submission** (ranked #1 risk)
+     2. **Product Template Management** (high churn)
+     3. **HR Movement Processing** (feature-flagged)
+     4. **All identified critical workflows above** (recommended)
+
+     Reply with a number, multiple numbers (e.g., "1,3"), or "all":
+     ```
 2) Confirm primary actor roles (e.g., standard user, admin).
-3) Confirm any “no-go” areas to exclude.
+3) Confirm any "no-go" areas to exclude.
 
 ## STANDARD (≤ 7; default)
 Quick +:
