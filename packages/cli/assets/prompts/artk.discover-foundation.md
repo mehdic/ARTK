@@ -1033,18 +1033,16 @@ Create `README.md` with:
 if [ ! -f "${HARNESS_ROOT}/.artk/llkb/config.yml" ]; then
   echo "LLKB not found - initializing..."
 
-  # Call initializeLLKB from @artk/core
-  node -e "
-    const { initializeLLKB } = require('./vendor/artk-core/dist/llkb');
-    initializeLLKB('.artk/llkb').then(r => {
-      if (r.success) {
-        console.log('✅ LLKB initialized successfully');
-      } else {
-        console.error('❌ LLKB init failed:', r.error);
-        process.exit(1);
-      }
-    });
-  "
+  # Use the bootstrap-llkb.cjs helper (works with ALL Node versions and module systems)
+  LLKB_HELPER="${HARNESS_ROOT}/vendor/artk-core/bootstrap-llkb.cjs"
+
+  if [ -f "$LLKB_HELPER" ]; then
+    node "$LLKB_HELPER" "${HARNESS_ROOT}" --verbose
+  else
+    echo "⚠️ LLKB helper not found at $LLKB_HELPER"
+    echo "   Please re-run bootstrap to fix this."
+    exit 1
+  fi
 else
   echo "✓ LLKB already exists"
 fi
@@ -1067,8 +1065,8 @@ FUNCTION detectLLKBMigration() -> MigrationResult:
   # ═══════════════════════════════════════════════════════════════
   # CHECK 1: Does LLKB already exist?
   # ═══════════════════════════════════════════════════════════════
-  IF exists("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml"):
-    existingConfig = loadYAML("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml")
+  IF exists("${HARNESS_ROOT}/.artk/llkb/config.yml"):
+    existingConfig = loadYAML("${HARNESS_ROOT}/.artk/llkb/config.yml")
     existingVersion = existingConfig.version || "0.0.0"
 
     CURRENT_VERSION = "1.0.0"  # Current schema version
@@ -1129,7 +1127,7 @@ FUNCTION detectLLKBMigration() -> MigrationResult:
 | Action | What to Do |
 |--------|------------|
 | `SKIP` | LLKB exists, skip initialization. Run health check instead. |
-| `MIGRATE` | Backup `${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/`, run schema migration, preserve data. |
+| `MIGRATE` | Backup `${HARNESS_ROOT}/.artk/llkb/`, run schema migration, preserve data. |
 | `IMPORT_LEGACY` | Read legacy files, convert to new schema, create LLKB. |
 | `SEED_FROM_TESTS` | Analyze existing tests, extract patterns, seed LLKB. |
 | `FRESH_INSTALL` | Create new LLKB from scratch (Steps 11.1-11.7). |
@@ -1140,7 +1138,7 @@ FUNCTION detectLLKBMigration() -> MigrationResult:
 FUNCTION migrateLLKB(fromVersion: string, toVersion: string):
   # Step 1: Backup
   backupPath = ".artk/llkb-backup-" + formatDate(now(), "YYYY-MM-DD-HHmmss")
-  copyDir("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/", backupPath)
+  copyDir("${HARNESS_ROOT}/.artk/llkb/", backupPath)
   logInfo("Backed up LLKB to " + backupPath)
 
   # Step 2: Apply migrations
@@ -1157,22 +1155,22 @@ FUNCTION migrateLLKB(fromVersion: string, toVersion: string):
       logInfo("Migrated from " + migration.from + " to " + migration.to)
 
   # Step 3: Update version
-  config = loadYAML("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml")
+  config = loadYAML("${HARNESS_ROOT}/.artk/llkb/config.yml")
   config.version = toVersion
-  saveYAML("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/config.yml", config)
+  saveYAML("${HARNESS_ROOT}/.artk/llkb/config.yml", config)
 
   RETURN { success: true, backupPath: backupPath }
 
 FUNCTION migrate_0_9_to_1_0():
   # Example migration: Add new required fields
-  lessons = loadJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/lessons.json")
+  lessons = loadJSON("${HARNESS_ROOT}/.artk/llkb/lessons.json")
   IF NOT lessons.globalRules:
     lessons.globalRules = []
   IF NOT lessons.appQuirks:
     lessons.appQuirks = []
-  saveJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/lessons.json", lessons)
+  saveJSON("${HARNESS_ROOT}/.artk/llkb/lessons.json", lessons)
 
-  components = loadJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/components.json")
+  components = loadJSON("${HARNESS_ROOT}/.artk/llkb/components.json")
   IF NOT components.componentsByScope:
     components.componentsByScope = {
       "universal": [],
@@ -1180,7 +1178,7 @@ FUNCTION migrate_0_9_to_1_0():
       "framework:react": [],
       "app-specific": []
     }
-  saveJSON("${HARNESS_ROOT}/${HARNESS_ROOT}/.artk/llkb/components.json", components)
+  saveJSON("${HARNESS_ROOT}/.artk/llkb/components.json", components)
 ```
 
 **Output migration status:**
