@@ -92,6 +92,10 @@ If discovery is missing, proceed without it.
 ---
 
 # Output artifacts (must produce)
+
+**⚠️ GENERATION COMPLETION REQUIREMENT:**
+This command MUST complete ALL file operations in a single execution. Do NOT stop after creating directories. Do NOT stop after reading source files. Do NOT pause mid-generation. Write ALL journey files before presenting results to user.
+
 1) A canonical Journey markdown file created/updated under:
 - default: `<ARTK_ROOT>/journeys/defined/`
 
@@ -125,12 +129,30 @@ Default: `standard`
    - `<ARTK_ROOT>/journeys/journeys.config.yml`
 If missing: instruct user to run `/artk.init-playbook` first.
 
-## Step 1 — Determine whether this is “create” or “promote”
-If `source=` is provided:
+## Step 1 — Determine whether this is "create" or "promote"
+
+**Single journey mode:**
+If `source=` is provided with a single journey:
 - If it looks like an ID (e.g., `JRN-0042`), locate it via `journeys/index.json` if present.
 - If it looks like a path, open that file.
 - If source is a Journey with `status: proposed`, this is a **promotion** to defined.
-- Otherwise treat as “normalize to defined” but never stomp human content.
+- Otherwise treat as "normalize to defined" but never stomp human content.
+
+**Batch promotion mode:**
+If `source=` specifies multiple journeys:
+- `source=all-smoke` — promote ALL proposed journeys with tier=smoke
+- `source=all-release` — promote ALL proposed journeys with tier=release
+- `source=all-regression` — promote ALL proposed journeys with tier=regression
+- `source=all-proposed` — promote ALL proposed journeys (all tiers)
+- `source=JRN-0001,JRN-0002,JRN-0003` — promote specific journeys by ID (comma-separated)
+
+**⚠️ BATCH PROMOTION RULES:**
+- Read ALL source journeys first, then write ALL output journeys
+- Do NOT stop after reading — you must WRITE all files
+- Do NOT ask for confirmation between journeys
+- Write each journey file sequentially without pausing
+- Report progress as you go: "Promoting JRN-0001... done. Promoting JRN-0002... done."
+- Only print completion checklist after ALL journeys are written
 
 If `source=` is not provided:
 - This is a **new defined Journey**.
@@ -204,6 +226,20 @@ Actor/scope:
 - If missing, infer from discovery and only ask one confirmation question if ambiguity remains.
 
 ## Step 5 — Create canonical "defined" Journey structure
+
+**⚠️ CRITICAL: DO NOT STOP MID-GENERATION**
+
+You MUST complete ALL journey file writes in a single uninterrupted operation:
+- **NEVER** stop after creating the `defined/` directory — that is NOT a valid stopping point
+- **NEVER** stop after reading source files — you must WRITE the output files
+- **NEVER** pause to ask for confirmation during file writing
+- Continue writing until ALL journey files are created/updated
+- If you cannot complete in one output, seamlessly continue in your next output without asking
+- Only stop if there is an actual error that prevents file creation
+
+**If you find yourself about to stop after "Created journeys/defined/":**
+→ That is a BUG in your execution. Continue immediately with file writing.
+
 Create/update a Journey file using the ARTK Core template structure.
 
 ### Frontmatter requirements (AUTOGEN-COMPATIBLE)
@@ -350,7 +386,15 @@ If `<ARTK_ROOT>/docs/JOURNEY_CLARIFY.md` does not exist, create it with managed 
 ---
 
 # Completion checklist (print at end)
-- [ ] Journey file created/updated under journeys/defined/ (status: defined)
+
+**⚠️ GENERATION VERIFICATION (MANDATORY):**
+Before printing this checklist, verify ALL files were actually created:
+- Count files in `journeys/defined/` — must match expected count
+- If promoting multiple journeys, ALL must be written before stopping
+- If count is lower than expected, you stopped mid-generation — CONTINUE WRITING
+- Do NOT print this checklist until ALL journey files exist
+
+- [ ] **ALL** Journey files created/updated under journeys/defined/ (verify count matches expected)
 - [ ] Canonical sections present with managed markers
 - [ ] Provenance block added/updated
 - [ ] BACKLOG.md regenerated
