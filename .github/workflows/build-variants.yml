@@ -387,6 +387,44 @@ jobs:
             exit 1
           fi
 
+          # Validate file contents (not just existence)
+          echo "Validating file contents..."
+
+          # config.yml must have version field
+          if ! grep -q "^version:" /tmp/test-artk-e2e/.artk/llkb/config.yml; then
+            echo "ERROR: config.yml missing version field"
+            exit 1
+          fi
+          echo "  ✓ config.yml has version field"
+
+          # JSON files must be valid and have version key
+          for jsonfile in lessons.json components.json analytics.json; do
+            filepath="/tmp/test-artk-e2e/.artk/llkb/$jsonfile"
+            # Check valid JSON (node is available in all test environments)
+            if ! node -e "JSON.parse(require('fs').readFileSync('$filepath', 'utf8'))"; then
+              echo "ERROR: $jsonfile is not valid JSON"
+              exit 1
+            fi
+            # Check version key exists
+            if ! node -e "const d=JSON.parse(require('fs').readFileSync('$filepath','utf8')); if(!d.version) process.exit(1)"; then
+              echo "ERROR: $jsonfile missing version field"
+              exit 1
+            fi
+            echo "  ✓ $jsonfile is valid JSON with version field"
+          done
+
+          # Pattern files must be valid JSON
+          for patternfile in selectors.json timing.json assertions.json auth.json data.json; do
+            filepath="/tmp/test-artk-e2e/.artk/llkb/patterns/$patternfile"
+            if [ -f "$filepath" ]; then
+              if ! node -e "JSON.parse(require('fs').readFileSync('$filepath', 'utf8'))"; then
+                echo "ERROR: patterns/$patternfile is not valid JSON"
+                exit 1
+              fi
+              echo "  ✓ patterns/$patternfile is valid JSON"
+            fi
+          done
+
           echo "✓ LLKB helper works on Node ${{ matrix.node-version }}"
 
       - name: Test verify-only mode

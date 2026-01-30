@@ -6,6 +6,8 @@
 # Options:
 #   --skip-npm                Skip npm install
 #   --skip-llkb               Skip LLKB initialization
+#   --force-llkb              Force LLKB reinitialization (delete and recreate)
+#   --llkb-only               Only initialize LLKB (skip all other bootstrap steps)
 #   --variant=<variant>       Force specific variant (modern-esm, modern-cjs, legacy-16, legacy-14)
 #   --force-detect            Force environment re-detection
 #   --skip-validation         Skip validation of generated code
@@ -566,6 +568,8 @@ get_variant_node_range() {
 TARGET=""
 SKIP_NPM=false
 SKIP_LLKB=false
+FORCE_LLKB=false
+LLKB_ONLY=false
 FORCE_DETECT=false
 SKIP_VALIDATION=false
 YES_MODE=false
@@ -580,6 +584,12 @@ for arg in "$@"; do
             ;;
         --skip-llkb)
             SKIP_LLKB=true
+            ;;
+        --force-llkb)
+            FORCE_LLKB=true
+            ;;
+        --llkb-only)
+            LLKB_ONLY=true
             ;;
         --force-detect)
             FORCE_DETECT=true
@@ -626,6 +636,8 @@ if [ -z "$TARGET" ]; then
     echo "Options:"
     echo "  --skip-npm                    Skip npm install"
     echo "  --skip-llkb                   Skip LLKB initialization"
+    echo "  --force-llkb                  Force LLKB reinitialization (delete and recreate)"
+    echo "  --llkb-only                   Only initialize LLKB (skip all other bootstrap steps)"
     echo "  --variant=<variant>           Force specific variant (overrides auto-detection)"
     echo "  --force-detect                Force environment re-detection"
     echo "  --skip-validation             Skip validation of generated code"
@@ -652,6 +664,74 @@ TARGET_PROJECT="$(cd "$TARGET" 2>/dev/null && pwd)" || {
 }
 
 ARTK_E2E="$TARGET_PROJECT/artk-e2e"
+
+# Handle --llkb-only mode (skip all other bootstrap steps)
+if [ "$LLKB_ONLY" = true ]; then
+    echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║       ARTK LLKB Initialization Only        ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    # Verify artk-e2e exists
+    if [ ! -d "$ARTK_E2E" ]; then
+        echo -e "${RED}Error: artk-e2e directory does not exist: $ARTK_E2E${NC}"
+        echo -e "${YELLOW}Run full bootstrap first to create the directory structure.${NC}"
+        exit 1
+    fi
+
+    # Verify vendor/artk-core exists (contains the helper)
+    if [ ! -d "$ARTK_E2E/vendor/artk-core" ]; then
+        echo -e "${RED}Error: vendor/artk-core not found in $ARTK_E2E${NC}"
+        echo -e "${YELLOW}Run full bootstrap first to install @artk/core.${NC}"
+        exit 1
+    fi
+
+    echo "Target: $ARTK_E2E"
+    echo ""
+
+    # Ensure logs directory exists
+    LOGS_DIR="$ARTK_E2E/.artk/logs"
+    mkdir -p "$LOGS_DIR"
+    LLKB_INIT_LOG="$LOGS_DIR/llkb-init.log"
+
+    LLKB_HELPER="$ARTK_REPO/scripts/helpers/bootstrap-llkb.cjs"
+    LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
+
+    if [ -f "$LLKB_HELPER" ]; then
+        cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
+
+        # Build LLKB helper arguments
+        LLKB_ARGS="--verbose"
+        if [ "$FORCE_LLKB" = true ]; then
+            LLKB_ARGS="$LLKB_ARGS --force"
+            echo -e "${YELLOW}Force mode: LLKB will be deleted and recreated${NC}"
+        fi
+
+        echo -e "${YELLOW}Initializing LLKB...${NC}"
+
+        set +e
+        node "$LLKB_HELPER_DEST" "$ARTK_E2E" $LLKB_ARGS > "$LLKB_INIT_LOG" 2>&1
+        LLKB_STATUS=$?
+        set -e
+
+        if [ "$LLKB_STATUS" -eq 0 ]; then
+            echo -e "${GREEN}✓ LLKB initialized successfully${NC}"
+            cat "$LLKB_INIT_LOG"
+        else
+            echo -e "${RED}LLKB initialization failed${NC}"
+            echo -e "${YELLOW}Details:${NC}"
+            cat "$LLKB_INIT_LOG"
+            exit 1
+        fi
+    else
+        echo -e "${RED}Error: LLKB helper not found at $LLKB_HELPER${NC}"
+        exit 1
+    fi
+
+    echo ""
+    echo -e "${GREEN}LLKB initialization complete!${NC}"
+    exit 0
+fi
 
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║       ARTK Bootstrap Installation          ║${NC}"
@@ -2111,8 +2191,15 @@ if [ "$SKIP_LLKB" = false ]; then
     if [ -f "$LLKB_HELPER" ]; then
         cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
 
+        # Build LLKB helper arguments
+        LLKB_ARGS="--verbose"
+        if [ "$FORCE_LLKB" = true ]; then
+            LLKB_ARGS="$LLKB_ARGS --force"
+            echo -e "${YELLOW}  Force mode: LLKB will be deleted and recreated${NC}"
+        fi
+
         set +e
-        node "$LLKB_HELPER_DEST" "$ARTK_E2E" --verbose > "$LLKB_INIT_LOG" 2>&1
+        node "$LLKB_HELPER_DEST" "$ARTK_E2E" $LLKB_ARGS > "$LLKB_INIT_LOG" 2>&1
         LLKB_STATUS=$?
         set -e
 

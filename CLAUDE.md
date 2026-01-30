@@ -78,6 +78,8 @@ C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 -TargetPath C:\path\to\your
 |--------|------|------------|-------------|
 | Skip npm | `--skip-npm` | `-SkipNpm` | Skip npm install |
 | Skip LLKB | `--skip-llkb` | `-SkipLlkb` | Skip LLKB initialization |
+| Force LLKB | `--force-llkb` | `-ForceLlkb` | Force LLKB reinitialization (delete and recreate) |
+| LLKB only | `--llkb-only` | `-LlkbOnly` | Only initialize LLKB (skip other bootstrap steps) |
 | Force variant | `--variant=<v>` | `-Variant <v>` | Force specific variant |
 | Auto-approve | `--yes` or `-y` | `-Yes` | Skip confirmation prompts |
 | Preview only | `--dry-run` | `-DryRun` | Preview changes without applying |

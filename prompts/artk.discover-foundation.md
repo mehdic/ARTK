@@ -1028,7 +1028,14 @@ Create `README.md` with:
 
 **Bootstrap should have already created LLKB. If not, initialize it now:**
 
+**Variable mapping:** The `harnessRoot` argument from prompt inputs maps to `HARNESS_ROOT` shell variable.
+This is typically `artk-e2e` relative to project root, or the absolute path provided via `harnessRoot=` argument.
+
 ```bash
+# Set HARNESS_ROOT from the harnessRoot argument (default: artk-e2e in project root)
+# This variable should already be set from Step D1/F1 context resolution
+HARNESS_ROOT="${HARNESS_ROOT:-$(pwd)/artk-e2e}"
+
 # Check if LLKB exists
 if [ ! -f "${HARNESS_ROOT}/.artk/llkb/config.yml" ]; then
   echo "LLKB not found - initializing..."

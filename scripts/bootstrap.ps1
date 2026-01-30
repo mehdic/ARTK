@@ -5,6 +5,8 @@
 # Options:
 #   -SkipNpm                   Skip npm install
 #   -SkipLlkb                  Skip LLKB initialization
+#   -ForceLlkb                 Force LLKB reinitialization (delete and recreate)
+#   -LlkbOnly                  Only initialize LLKB (skip all other bootstrap steps)
 #   -Variant <variant>         Force specific variant (modern-esm, modern-cjs, legacy-16, legacy-14)
 #   -ForceDetect               Force environment re-detection
 #   -SkipValidation            Skip validation of generated code
@@ -26,6 +28,10 @@ param(
     [switch]$SkipNpm,
 
     [switch]$SkipLlkb,
+
+    [switch]$ForceLlkb,
+
+    [switch]$LlkbOnly,
 
     [ValidateSet("modern-esm", "modern-cjs", "legacy-16", "legacy-14", "")]
     [string]$Variant = "",
@@ -767,6 +773,83 @@ if ($TargetFolderName -eq "artk-e2e") {
 }
 
 $ArtkE2e = Join-Path $TargetProject "artk-e2e"
+
+# Handle -LlkbOnly mode (skip all other bootstrap steps)
+if ($LlkbOnly) {
+    Write-Host "==========================================" -ForegroundColor Green
+    Write-Host " ARTK LLKB Initialization Only" -ForegroundColor Green
+    Write-Host "==========================================" -ForegroundColor Green
+    Write-Host ""
+
+    # Verify artk-e2e exists
+    if (-not (Test-Path $ArtkE2e)) {
+        Write-Host "Error: artk-e2e directory does not exist: $ArtkE2e" -ForegroundColor Red
+        Write-Host "Run full bootstrap first to create the directory structure." -ForegroundColor Yellow
+        exit 1
+    }
+
+    # Verify vendor/artk-core exists (contains the helper)
+    $VendorArtkCore = Join-Path $ArtkE2e "vendor\artk-core"
+    if (-not (Test-Path $VendorArtkCore)) {
+        Write-Host "Error: vendor/artk-core not found in $ArtkE2e" -ForegroundColor Red
+        Write-Host "Run full bootstrap first to install @artk/core." -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host "Target: $ArtkE2e"
+    Write-Host ""
+
+    # Ensure logs directory exists
+    $logsDir = Join-Path $ArtkE2e ".artk\logs"
+    New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
+    $llkbInitLog = Join-Path $logsDir "llkb-init.log"
+    $llkbInitLogErr = Join-Path $logsDir "llkb-init.err.log"
+
+    $llkbHelper = Join-Path $ArtkRepo "scripts" "helpers" "bootstrap-llkb.cjs"
+    $llkbHelperDest = Join-Path $ArtkE2e "vendor" "artk-core" "bootstrap-llkb.cjs"
+
+    if (Test-Path $llkbHelper) {
+        Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
+
+        # Build LLKB helper arguments
+        $llkbArgs = @($llkbHelperDest, $ArtkE2e, "--verbose")
+        if ($ForceLlkb) {
+            $llkbArgs += "--force"
+            Write-Host "Force mode: LLKB will be deleted and recreated" -ForegroundColor Yellow
+        }
+
+        Write-Host "Initializing LLKB..." -ForegroundColor Yellow
+
+        try {
+            $llkbProc = Start-Process -FilePath "node" -ArgumentList $llkbArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError $llkbInitLogErr -WorkingDirectory $ArtkE2e
+            if ($llkbProc.ExitCode -eq 0) {
+                Write-Host "LLKB initialized successfully" -ForegroundColor Green
+                Get-Content $llkbInitLog
+            } else {
+                Write-Host "LLKB initialization failed" -ForegroundColor Red
+                Write-Host "Details:" -ForegroundColor Yellow
+                Get-Content $llkbInitLog
+                if (Test-Path $llkbInitLogErr) {
+                    $errContent = Get-Content $llkbInitLogErr -Raw -ErrorAction SilentlyContinue
+                    if (-not [string]::IsNullOrWhiteSpace($errContent)) {
+                        Write-Host $errContent -ForegroundColor Red
+                    }
+                }
+                exit 1
+            }
+        } catch {
+            Write-Host "Error running LLKB helper: $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Error: LLKB helper not found at $llkbHelper" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host ""
+    Write-Host "LLKB initialization complete!" -ForegroundColor Green
+    exit 0
+}
 
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host " ARTK Bootstrap Installation" -ForegroundColor Green
@@ -1982,8 +2065,15 @@ if (-not $SkipLlkb) {
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
 
+        # Build LLKB helper arguments
+        $llkbArgs = @($llkbHelperDest, $ArtkE2e, "--verbose")
+        if ($ForceLlkb) {
+            $llkbArgs += "--force"
+            Write-Host "  Force mode: LLKB will be deleted and recreated" -ForegroundColor Yellow
+        }
+
         try {
-            $llkbProc = Start-Process -FilePath "node" -ArgumentList @($llkbHelperDest, $ArtkE2e, "--verbose") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError $llkbInitLogErr -WorkingDirectory $ArtkE2e
+            $llkbProc = Start-Process -FilePath "node" -ArgumentList $llkbArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $llkbInitLog -RedirectStandardError $llkbInitLogErr -WorkingDirectory $ArtkE2e
             if ($llkbProc.ExitCode -eq 0) {
                 if ($SkipNpm) {
                     Write-Host "  LLKB initialized successfully" -ForegroundColor Green

@@ -485,6 +485,22 @@ function main() {
   }
 
   const harnessRoot = pathValidation.resolved;
+
+  // Verify harness root exists
+  if (!fs.existsSync(harnessRoot)) {
+    console.error(`Error: Harness root does not exist: ${harnessRoot}`);
+    console.error('');
+    console.error('Please ensure the target directory exists before running LLKB initialization.');
+    console.error('If using bootstrap, run it first to create the artk-e2e directory structure.');
+    process.exit(1);
+  }
+
+  // Verify harness root is a directory
+  const harnessRootStat = fs.statSync(harnessRoot);
+  if (!harnessRootStat.isDirectory()) {
+    console.error(`Error: Harness root is not a directory: ${harnessRoot}`);
+    process.exit(1);
+  }
   const llkbRoot = path.join(harnessRoot, '.artk', 'llkb');
 
   console.log(`LLKB Bootstrap Helper v${CURRENT_VERSION}`);
