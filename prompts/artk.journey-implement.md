@@ -1358,9 +1358,30 @@ IF journey.modules is Array:
 
 From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 PREREQUISITE: Did you run Step 2.5 (LLKB Export)?                     ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  Before running AutoGen, you MUST have:                                   ║
+# ║  1. Run: artk llkb export --for-autogen --llkb-root .artk/llkb -o .       ║
+# ║  2. Verified these files exist:                                           ║
+# ║     - autogen-llkb.config.yml                                             ║
+# ║     - llkb-glossary.ts                                                    ║
+# ║                                                                           ║
+# ║  If you skip LLKB export:                                                 ║
+# ║  - AutoGen will generate SKELETON tests (empty test bodies)               ║
+# ║  - You'll have to manually implement all test steps                       ║
+# ║  - No learning will occur from existing patterns                          ║
+# ║                                                                           ║
+# ║  The --llkb-config and --llkb-glossary flags are MANDATORY when files     ║
+# ║  exist. Only omit them if LLKB export failed or LLKB is empty.            ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
 ```bash
 # Navigate to harness root
 cd <ARTK_ROOT>/<harnessRoot>
+
+# Verify LLKB export files exist (from Step 2.5)
+ls -la autogen-llkb.config.yml llkb-glossary.ts
 
 # Generate tests from the Journey (with LLKB integration)
 npx artk-autogen generate "../journeys/{status}/{journey.file}" \
@@ -1381,7 +1402,9 @@ npx artk-autogen generate "../journeys/{status}/{journey.file}" \
   --llkb-glossary ./llkb-glossary.ts
 ```
 
-**Note:** The `--llkb-config` and `--llkb-glossary` flags are optional but STRONGLY RECOMMENDED.
+**CRITICAL:** The `--llkb-config` and `--llkb-glossary` flags are MANDATORY when export files exist.
+- Without these flags → skeleton tests with empty bodies
+- With these flags → fully implemented tests using learned patterns
 If the exported files don't exist (export failed or skipped), AutoGen will ignore these flags
 and proceed with core patterns only.
 
@@ -1480,8 +1503,22 @@ const result = await generateJourneyTests({
 
 ```
 $ cd artk-e2e
-$ npx artk-autogen generate ../journeys/clarified/JRN-0001__user-login.md -o tests/smoke/ -m
+
+# STEP 1: Export LLKB first (MANDATORY)
+$ artk llkb export --for-autogen --llkb-root .artk/llkb -o .
+LLKB Export Complete
+  Patterns exported: 12
+  Components exported: 8
+  Glossary entries: 45
+  Output: autogen-llkb.config.yml, llkb-glossary.ts
+
+# STEP 2: Run AutoGen WITH LLKB options (MANDATORY)
+$ npx artk-autogen generate ../journeys/clarified/JRN-0001__user-login.md \
+    -o tests/smoke/ -m \
+    --llkb-config ./autogen-llkb.config.yml \
+    --llkb-glossary ./llkb-glossary.ts
 Found 1 journey file(s)
+Loaded LLKB glossary: 45 entries
 Processing: JRN-0001 - User Login and Dashboard Access
 
 Generated:
@@ -2699,6 +2736,83 @@ If `postVerify=auto|true`:
 If verification cannot be executed (environment unreachable):
 - keep Journey status at clarified/defined
 - add a blocker note and print the required next step (run verify in the correct region).
+
+## Step 12.5 — Record Learning (MANDATORY after successful verification)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  📚 LEARNING LOOP: Improve LLKB for Future Journeys                       ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  When verification PASSES, record successful patterns to LLKB.            ║
+# ║  This improves AutoGen's output for future journey implementations.       ║
+# ║                                                                           ║
+# ║  Skip this step if verification FAILED (don't record failed patterns).   ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**If verification passed, run these commands to record learning:**
+
+```bash
+cd <ARTK_ROOT>/<harnessRoot>
+
+# Record successful patterns discovered in this journey
+# For each new selector pattern that worked:
+artk llkb learn --type pattern --journey <JRN-ID> --success \
+  --context "<element description>" \
+  --selector-strategy testid \
+  --selector-value "<selector value>"
+
+# For each component that was reused successfully:
+artk llkb learn --type component --id <COMP-ID> --journey <JRN-ID> --success
+
+# For each lesson that was applied successfully:
+artk llkb learn --type lesson --id <L-ID> --journey <JRN-ID> --success
+```
+
+**Example learning commands for a login journey:**
+```bash
+# Record successful login button selector
+artk llkb learn --type pattern --journey JRN-0001 --success \
+  --context "Login submit button" \
+  --selector-strategy testid \
+  --selector-value "login-button"
+
+# Record successful use of auth component
+artk llkb learn --type component --id COMP-AUTH-001 --journey JRN-0001 --success
+
+# Record that "wait for navigation" lesson worked
+artk llkb learn --type lesson --id L-NAV-001 --journey JRN-0001 --success
+```
+
+**Output LLKB Learning Summary:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  LLKB LEARNING RECORDED                                            ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Journey: {JRN-ID}                                                 ║
+║  Verification: PASSED                                              ║
+║                                                                    ║
+║  Patterns recorded: {count}                                        ║
+║  Components used: {count}                                          ║
+║  Lessons applied: {count}                                          ║
+║                                                                    ║
+║  LLKB confidence scores updated.                                   ║
+║  Next journey will benefit from these learnings.                   ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**If verification failed, output:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  LLKB LEARNING SKIPPED                                             ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Journey: {JRN-ID}                                                 ║
+║  Verification: FAILED                                              ║
+║                                                                    ║
+║  Reason: Only record patterns that pass verification.              ║
+║  Action: Fix verification issues, then record learning.            ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+---
 
 ## Step 13 — Finalize Journey as implemented (only after gates pass)
 If validate and verify both pass:
