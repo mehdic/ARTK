@@ -1793,18 +1793,15 @@ import { test, expect } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 
-// Module-system agnostic __dirname (works in both CommonJS and ESM)
-const __testDir = typeof __dirname !== 'undefined'
-  ? __dirname
-  : path.dirname(new URL(import.meta.url).pathname);
-
 // ═══════════════════════════════════════════════════════════════════
 // Module Import Validation
+// NOTE: Using require() instead of dynamic import() for CommonJS compatibility
+// artk-e2e uses CommonJS by default (see tsconfig.json module: "CommonJS")
 // ═══════════════════════════════════════════════════════════════════
 
 test.describe('Foundation Module Imports', () => {
   test('config loader imports and loads', async () => {
-    const { loadConfig } = await import('../../config/env');
+    const { loadConfig } = require('../../config/env');
     const config = loadConfig();
 
     expect(config).toBeDefined();
@@ -1812,26 +1809,26 @@ test.describe('Foundation Module Imports', () => {
   });
 
   test('navigation module imports', async () => {
-    const nav = await import('../../src/modules/foundation/navigation/nav');
+    const nav = require('../../src/modules/foundation/navigation/nav');
 
     expect(nav.gotoBase).toBeDefined();
     expect(nav.gotoPath).toBeDefined();
   });
 
   test('selector utilities import', async () => {
-    const selectors = await import('../../src/modules/foundation/selectors/locators');
+    const selectors = require('../../src/modules/foundation/selectors/locators');
 
     expect(selectors.byTestId).toBeDefined();
   });
 
   test('data harness imports', async () => {
-    const runId = await import('../../src/modules/foundation/data/run-id');
+    const runId = require('../../src/modules/foundation/data/run-id');
 
     expect(runId.generateRunId).toBeDefined();
   });
 
   test('auth module imports', async () => {
-    const auth = await import('../../src/modules/foundation/auth/login');
+    const auth = require('../../src/modules/foundation/auth/login');
 
     // Auth module should export login helper
     expect(auth).toBeDefined();
@@ -1844,7 +1841,7 @@ test.describe('Foundation Module Imports', () => {
 
 test.describe('Config Validation', () => {
   test('environment config has required fields', async () => {
-    const { loadConfig } = await import('../../config/env');
+    const { loadConfig } = require('../../config/env');
     const config = loadConfig();
 
     // Required fields
