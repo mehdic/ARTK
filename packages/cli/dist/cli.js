@@ -1,114 +1,953 @@
 #!/usr/bin/env node
 import { createRequire } from 'module';
-import { program } from 'commander';
-import { execSync, spawn } from 'child_process';
-import fs6 from 'fs-extra';
-import * as path5 from 'path';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
+import { z } from 'zod';
 import * as fs2 from 'fs';
 import { existsSync } from 'fs';
+import * as path5 from 'path';
+import { join } from 'path';
+import * as yaml2 from 'yaml';
+import yaml2__default from 'yaml';
+import { execSync, spawn } from 'child_process';
+import { program } from 'commander';
+import fs6 from 'fs-extra';
+import { fileURLToPath } from 'url';
 import * as https from 'https';
 import * as crypto from 'crypto';
-import { z } from 'zod';
-import yaml from 'yaml';
 import * as semver from 'semver';
 import * as readline from 'readline';
 import { initializeLLKB, runExportForAutogen, formatExportResultForConsole, runHealthCheck, formatHealthCheck, getStats, formatStats, prune, formatPruneResult, runLearnCommand, formatLearnResult, runCheckUpdates, formatCheckUpdatesResult, runUpdateTest, formatUpdateTestResult, runUpdateTests, formatUpdateTestsResult } from '@artk/core/llkb';
 
 createRequire(import.meta.url);
-var Logger = class {
-  spinner = null;
-  verbose;
-  constructor(options = {}) {
-    this.verbose = options.verbose ?? false;
-  }
-  header(text) {
-    console.log("");
-    console.log(chalk.green("\u2554" + "\u2550".repeat(text.length + 6) + "\u2557"));
-    console.log(chalk.green("\u2551   ") + chalk.bold.green(text) + chalk.green("   \u2551"));
-    console.log(chalk.green("\u255A" + "\u2550".repeat(text.length + 6) + "\u255D"));
-    console.log("");
-  }
-  step(current, total, message) {
-    this.stopSpinner();
-    console.log(chalk.yellow(`[${current}/${total}]`) + " " + message);
-  }
-  startSpinner(message) {
-    this.stopSpinner();
-    this.spinner = ora(message).start();
-  }
-  updateSpinner(message) {
-    if (this.spinner) {
-      this.spinner.text = message;
-    }
-  }
-  succeedSpinner(message) {
-    if (this.spinner) {
-      this.spinner.succeed(message);
-      this.spinner = null;
-    }
-  }
-  failSpinner(message) {
-    if (this.spinner) {
-      this.spinner.fail(message);
-      this.spinner = null;
-    }
-  }
-  stopSpinner() {
-    if (this.spinner) {
-      this.spinner.stop();
-      this.spinner = null;
-    }
-  }
-  info(message) {
-    console.log(chalk.cyan("\u2139") + " " + message);
-  }
-  success(message) {
-    console.log(chalk.green("\u2713") + " " + message);
-  }
-  warning(message) {
-    console.log(chalk.yellow("\u26A0") + " " + chalk.yellow(message));
-  }
-  error(message) {
-    console.log(chalk.red("\u2717") + " " + chalk.red(message));
-  }
-  debug(message) {
-    if (this.verbose) {
-      console.log(chalk.gray("  " + message));
-    }
-  }
-  list(items, indent = 2) {
-    const prefix = " ".repeat(indent);
-    for (const item of items) {
-      console.log(prefix + chalk.dim("\u2022") + " " + item);
-    }
-  }
-  table(rows) {
-    const maxLabelLength = Math.max(...rows.map((r) => r.label.length));
-    for (const row of rows) {
-      const paddedLabel = row.label.padEnd(maxLabelLength);
-      console.log("  " + chalk.dim(paddedLabel) + "  " + row.value);
-    }
-  }
-  nextSteps(steps) {
-    console.log("");
-    console.log(chalk.cyan("Next steps:"));
-    steps.forEach((step, i) => {
-      console.log(chalk.dim(`  ${i + 1}.`) + " " + step);
-    });
-    console.log("");
-  }
-  blank() {
-    console.log("");
-  }
-  divider() {
-    console.log(chalk.dim("\u2500".repeat(50)));
-  }
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
-new Logger();
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var Logger;
+var init_logger = __esm({
+  "src/lib/logger.ts"() {
+    Logger = class {
+      spinner = null;
+      verbose;
+      constructor(options = {}) {
+        this.verbose = options.verbose ?? false;
+      }
+      header(text) {
+        console.log("");
+        console.log(chalk.green("\u2554" + "\u2550".repeat(text.length + 6) + "\u2557"));
+        console.log(chalk.green("\u2551   ") + chalk.bold.green(text) + chalk.green("   \u2551"));
+        console.log(chalk.green("\u255A" + "\u2550".repeat(text.length + 6) + "\u255D"));
+        console.log("");
+      }
+      step(current, total, message) {
+        this.stopSpinner();
+        console.log(chalk.yellow(`[${current}/${total}]`) + " " + message);
+      }
+      startSpinner(message) {
+        this.stopSpinner();
+        this.spinner = ora(message).start();
+      }
+      updateSpinner(message) {
+        if (this.spinner) {
+          this.spinner.text = message;
+        }
+      }
+      succeedSpinner(message) {
+        if (this.spinner) {
+          this.spinner.succeed(message);
+          this.spinner = null;
+        }
+      }
+      failSpinner(message) {
+        if (this.spinner) {
+          this.spinner.fail(message);
+          this.spinner = null;
+        }
+      }
+      stopSpinner() {
+        if (this.spinner) {
+          this.spinner.stop();
+          this.spinner = null;
+        }
+      }
+      info(message) {
+        console.log(chalk.cyan("\u2139") + " " + message);
+      }
+      success(message) {
+        console.log(chalk.green("\u2713") + " " + message);
+      }
+      warning(message) {
+        console.log(chalk.yellow("\u26A0") + " " + chalk.yellow(message));
+      }
+      error(message) {
+        console.log(chalk.red("\u2717") + " " + chalk.red(message));
+      }
+      debug(message) {
+        if (this.verbose) {
+          console.log(chalk.gray("  " + message));
+        }
+      }
+      list(items, indent = 2) {
+        const prefix = " ".repeat(indent);
+        for (const item of items) {
+          console.log(prefix + chalk.dim("\u2022") + " " + item);
+        }
+      }
+      table(rows) {
+        const maxLabelLength = Math.max(...rows.map((r) => r.label.length));
+        for (const row of rows) {
+          const paddedLabel = row.label.padEnd(maxLabelLength);
+          console.log("  " + chalk.dim(paddedLabel) + "  " + row.value);
+        }
+      }
+      nextSteps(steps) {
+        console.log("");
+        console.log(chalk.cyan("Next steps:"));
+        steps.forEach((step, i) => {
+          console.log(chalk.dim(`  ${i + 1}.`) + " " + step);
+        });
+        console.log("");
+      }
+      blank() {
+        console.log("");
+      }
+      divider() {
+        console.log(chalk.dim("\u2500".repeat(50)));
+      }
+    };
+    new Logger();
+  }
+});
+function generateSessionId() {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  return `sess_${timestamp}_${random}`;
+}
+function createSessionState(journeyIds, batchMode, learningMode) {
+  return {
+    sessionId: generateSessionId(),
+    schemaVersion: SESSION_SCHEMA_VERSION,
+    journeysRequested: journeyIds,
+    journeysCompleted: [],
+    journeysFailed: [],
+    currentJourneyIndex: 0,
+    totalJourneys: journeyIds.length,
+    batchMode,
+    learningMode,
+    llkbExportCount: 0,
+    llkbSkippedExports: 0,
+    lastLlkbExportTime: 0,
+    startTime: Date.now(),
+    currentJourneyId: null,
+    verificationPassed: false,
+    testsGenerated: []
+  };
+}
+var JourneyStatusSchema, JourneyFrontmatterSchema, LLKBConfigSchema, BATCH_LIMITS, DEFAULT_COMMAND_TIMEOUT_MS, SESSION_SCHEMA_VERSION;
+var init_types = __esm({
+  "src/lib/workflows/types.ts"() {
+    JourneyStatusSchema = z.enum([
+      "proposed",
+      "defined",
+      "clarified",
+      "implemented",
+      "quarantined",
+      "deprecated"
+    ]);
+    JourneyFrontmatterSchema = z.object({
+      id: z.string().regex(/^JRN-\d{4}$/, "Journey ID must match JRN-XXXX pattern"),
+      title: z.string().min(1, "Title is required"),
+      status: JourneyStatusSchema,
+      tests: z.array(z.string()).optional().default([]),
+      tier: z.enum(["smoke", "release", "regression"]).optional(),
+      actor: z.string().optional(),
+      scope: z.string().optional()
+    }).passthrough();
+    LLKBConfigSchema = z.object({
+      enabled: z.boolean(),
+      version: z.string().optional(),
+      minConfidence: z.number().min(0).max(1).optional()
+    }).passthrough();
+    BATCH_LIMITS = {
+      SOFT_LIMIT: 10,
+      HARD_LIMIT: 50
+    };
+    DEFAULT_COMMAND_TIMEOUT_MS = 5 * 60 * 1e3;
+    SESSION_SCHEMA_VERSION = "1.0.0";
+  }
+});
+function isPathSafe(targetPath, rootPath) {
+  const normalizedTarget = path5.resolve(targetPath);
+  const normalizedRoot = path5.resolve(rootPath);
+  const isWindows = process.platform === "win32";
+  const targetToCheck = isWindows ? normalizedTarget.toLowerCase() : normalizedTarget;
+  const rootToCheck = isWindows ? normalizedRoot.toLowerCase() : normalizedRoot;
+  const rootWithSep = rootToCheck + path5.sep;
+  return targetToCheck === rootToCheck || targetToCheck.startsWith(rootWithSep);
+}
+function isValidJourneyId(id) {
+  return /^JRN-\d{4}$/.test(id);
+}
+function parseJourneyFrontmatter(content) {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) {
+    return {
+      success: false,
+      error: "No YAML frontmatter found. File must start with --- and end frontmatter with ---"
+    };
+  }
+  try {
+    const parsed = yaml2.parse(match[1]);
+    const result = JourneyFrontmatterSchema.safeParse(parsed);
+    if (!result.success) {
+      const details = result.error.issues.map(
+        (issue) => `${issue.path.join(".")}: ${issue.message}`
+      );
+      return {
+        success: false,
+        error: "Invalid frontmatter schema",
+        details
+      };
+    }
+    return { success: true, data: result.data };
+  } catch (e) {
+    return {
+      success: false,
+      error: `YAML parse error: ${e instanceof Error ? e.message : String(e)}`
+    };
+  }
+}
+function loadJourney(journeyPath, harnessRoot) {
+  if (harnessRoot && !isPathSafe(journeyPath, harnessRoot)) {
+    return { journey: null, error: "Path traversal detected - path outside allowed directory" };
+  }
+  try {
+    if (!fs2.existsSync(journeyPath)) {
+      return { journey: null, error: "File not found" };
+    }
+    const content = fs2.readFileSync(journeyPath, "utf-8");
+    const parseResult = parseJourneyFrontmatter(content);
+    if (!parseResult.success) {
+      return {
+        journey: null,
+        error: parseResult.error,
+        details: parseResult.details
+      };
+    }
+    return {
+      journey: {
+        id: parseResult.data.id,
+        path: journeyPath,
+        status: parseResult.data.status,
+        title: parseResult.data.title,
+        tests: parseResult.data.tests
+      }
+    };
+  } catch (e) {
+    return {
+      journey: null,
+      error: `File read error: ${e instanceof Error ? e.message : String(e)}`
+    };
+  }
+}
+function validateJourneyForImplementation(journey) {
+  const errors = [];
+  const warnings = [];
+  if (!journey.id) {
+    errors.push("Journey is missing required field: id");
+  } else if (!isValidJourneyId(journey.id)) {
+    errors.push(`Journey ID "${journey.id}" does not match pattern JRN-XXXX`);
+  }
+  const validStatuses = ["clarified", "defined"];
+  if (!validStatuses.includes(journey.status)) {
+    if (journey.status === "proposed") {
+      errors.push(`Journey status is "proposed". Must be at least "defined" (preferably "clarified") before implementation.`);
+    } else if (journey.status === "implemented") {
+      warnings.push("Journey is already implemented. Re-running will regenerate tests.");
+    } else if (journey.status === "quarantined") {
+      errors.push("Journey is quarantined. Resolve issues before re-implementing.");
+    } else if (journey.status === "deprecated") {
+      errors.push("Journey is deprecated and should not be implemented.");
+    }
+  }
+  if (journey.status === "defined") {
+    warnings.push('Journey is "defined" but not "clarified". Consider running /artk.journey-clarify first for better test generation.');
+  }
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+function validateLLKB(llkbRoot) {
+  const errors = [];
+  const warnings = [];
+  try {
+    if (!fs2.existsSync(llkbRoot)) {
+      errors.push(`LLKB directory not found: ${llkbRoot}`);
+      errors.push("Run /artk.discover-foundation to create LLKB.");
+      return { valid: false, errors, warnings };
+    }
+    const configPath = path5.join(llkbRoot, "config.yml");
+    if (!fs2.existsSync(configPath)) {
+      errors.push(`LLKB config not found: ${configPath}`);
+      return { valid: false, errors, warnings };
+    }
+    const configContent = fs2.readFileSync(configPath, "utf-8");
+    const configParsed = yaml2.parse(configContent);
+    const configResult = LLKBConfigSchema.safeParse(configParsed);
+    if (!configResult.success) {
+      const details = configResult.error.issues.map(
+        (issue) => `${issue.path.join(".")}: ${issue.message}`
+      ).join("; ");
+      errors.push(`Invalid LLKB config: ${details}`);
+      return { valid: false, errors, warnings };
+    }
+    if (configResult.data.enabled === false) {
+      errors.push("LLKB is disabled in config.yml. Set enabled: true to use LLKB.");
+    }
+    if (configResult.data.minConfidence !== void 0) {
+      if (configResult.data.minConfidence < 0.5) {
+        warnings.push(`LLKB minConfidence is ${configResult.data.minConfidence}, which may include low-quality patterns.`);
+      }
+    }
+    const requiredFiles = ["components.json", "lessons.json"];
+    for (const file of requiredFiles) {
+      const filePath = path5.join(llkbRoot, file);
+      if (!fs2.existsSync(filePath)) {
+        warnings.push(`LLKB file missing: ${file}. Will be created during export.`);
+      }
+    }
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return {
+      valid: false,
+      errors: [`Failed to validate LLKB: ${message}`],
+      warnings
+    };
+  }
+}
+function validateBatchMode(batchMode) {
+  const input = batchMode.toLowerCase().trim();
+  if (input === "subagent") {
+    return {
+      valid: true,
+      normalized: "serial",
+      warning: "batchMode=subagent is deprecated. Parallel mode is not yet implemented; using serial."
+    };
+  }
+  if (input === "parallel") {
+    return {
+      valid: false,
+      normalized: "serial",
+      error: "Parallel mode (--batch-mode=parallel) is not yet implemented. Use --batch-mode=serial or omit the flag."
+    };
+  }
+  if (input === "serial" || input === "") {
+    return { valid: true, normalized: "serial" };
+  }
+  return {
+    valid: false,
+    normalized: "serial",
+    error: `Unknown batch mode: "${batchMode}". Valid option: serial`
+  };
+}
+function validateLearningMode(learningMode) {
+  const normalized = learningMode.toLowerCase().trim();
+  if (normalized === "strict" || normalized === "batch" || normalized === "none") {
+    return { valid: true, normalized };
+  }
+  return {
+    valid: false,
+    normalized: "strict",
+    error: `Unknown learning mode: "${learningMode}". Valid options: strict, batch, none`
+  };
+}
+function findJourneyFiles(harnessRoot, journeyIds) {
+  const found = /* @__PURE__ */ new Map();
+  const duplicates = /* @__PURE__ */ new Map();
+  const journeysDir = path5.join(harnessRoot, "journeys");
+  const validIds = journeyIds.filter(isValidJourneyId);
+  for (const id of validIds) {
+    const locations = [];
+    const statuses = ["clarified", "defined", "proposed", "implemented", "quarantined", "deprecated"];
+    for (const status of statuses) {
+      const statusDir = path5.join(journeysDir, status);
+      if (!isPathSafe(statusDir, harnessRoot)) {
+        continue;
+      }
+      try {
+        if (!fs2.existsSync(statusDir)) continue;
+        const files = fs2.readdirSync(statusDir);
+        const match = files.find((f) => f.startsWith(`${id}__`) && f.endsWith(".md"));
+        if (match) {
+          const fullPath = path5.join(statusDir, match);
+          if (isPathSafe(fullPath, harnessRoot)) {
+            locations.push(fullPath);
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    if (locations.length > 1) {
+      duplicates.set(id, locations);
+      found.set(id, locations[0]);
+    } else if (locations.length === 1) {
+      found.set(id, locations[0]);
+    } else {
+      found.set(id, null);
+    }
+  }
+  for (const id of journeyIds) {
+    if (!validIds.includes(id) && !found.has(id)) {
+      found.set(id, null);
+    }
+  }
+  return { found, duplicates };
+}
+function parseJourneyList(input) {
+  const ids = /* @__PURE__ */ new Set();
+  const parts = input.split(",").map((p) => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    const rangeMatch = part.match(/^(JRN-(\d{4}))\.\.JRN-(\d{4})$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[2], 10);
+      const end = parseInt(rangeMatch[3], 10);
+      const min = Math.min(start, end);
+      const max = Math.max(start, end);
+      for (let i = min; i <= max; i++) {
+        ids.add(`JRN-${i.toString().padStart(4, "0")}`);
+      }
+    } else if (isValidJourneyId(part)) {
+      ids.add(part);
+    }
+  }
+  return Array.from(ids).sort((a, b) => {
+    const numA = parseInt(a.replace("JRN-", ""), 10);
+    const numB = parseInt(b.replace("JRN-", ""), 10);
+    return numA - numB;
+  });
+}
+function validateBatchSize(count) {
+  if (count <= 0) {
+    return { valid: false, error: "At least one journey ID required" };
+  }
+  if (count > BATCH_LIMITS.HARD_LIMIT) {
+    return {
+      valid: false,
+      error: `Too many journeys: ${count}. Maximum is ${BATCH_LIMITS.HARD_LIMIT}. Use smaller batches.`
+    };
+  }
+  if (count > BATCH_LIMITS.SOFT_LIMIT) {
+    return {
+      valid: true,
+      warning: `Processing ${count} journeys. Consider using smaller batches (${BATCH_LIMITS.SOFT_LIMIT} or fewer) for better results.`
+    };
+  }
+  return { valid: true };
+}
+var init_journey_validate = __esm({
+  "src/lib/workflows/journey-validate.ts"() {
+    init_types();
+  }
+});
+function detectEnvironment2() {
+  if (process.env.VSCODE_PID || process.env.VSCODE_CWD || process.env.TERM_PROGRAM === "vscode") {
+    return "vscode-local";
+  }
+  if (process.env.CURSOR_TRACE_ID || process.env.TERM_PROGRAM === "Cursor") {
+    return "vscode-local";
+  }
+  if (process.env.JETBRAINS_IDE || process.env.TERMINAL_EMULATOR?.includes("JetBrains")) {
+    return "vscode-local";
+  }
+  if (process.env.GITHUB_ACTIONS === "true" || process.env.GITLAB_CI === "true" || process.env.JENKINS_URL || process.env.CIRCLECI === "true" || process.env.TRAVIS === "true" || process.env.CI === "true") {
+    return "ci-pipeline";
+  }
+  if (process.env.CODESPACES === "true" || process.env.GITHUB_CODESPACE_TOKEN) {
+    return "github-web";
+  }
+  if (process.env.WSL_DISTRO_NAME || process.env.WSLENV) {
+    return "cli-terminal";
+  }
+  if (fs2.existsSync("/.dockerenv") || process.env.container === "docker") {
+    return "cli-terminal";
+  }
+  if (process.stdout.isTTY) {
+    return "cli-terminal";
+  }
+  return "unknown";
+}
+function hasTerminalAccess(environment) {
+  switch (environment) {
+    case "vscode-local":
+      return { available: true };
+    case "cli-terminal":
+      return { available: true };
+    case "ci-pipeline":
+      return { available: true };
+    case "github-web":
+      return {
+        available: false,
+        reason: "GitHub.com Copilot does not have terminal access. Use VS Code with Copilot extension or CLI instead."
+      };
+    case "unknown":
+      return {
+        available: false,
+        reason: "Unknown environment. Cannot determine terminal access availability."
+      };
+  }
+}
+function buildImplementPlan(ctx, options) {
+  const errors = [];
+  const warnings = [];
+  const environment = detectEnvironment2();
+  const terminalCheck = hasTerminalAccess(environment);
+  if (!terminalCheck.available && !options.dryRun) {
+    return {
+      success: false,
+      error: terminalCheck.reason || "Terminal access not available"
+    };
+  }
+  if (!terminalCheck.available && options.dryRun) {
+    warnings.push(`${terminalCheck.reason} Showing plan only.`);
+  }
+  const journeyIds = parseJourneyList(options.journeyIds);
+  if (journeyIds.length === 0) {
+    return {
+      success: false,
+      error: "No valid journey IDs provided. Use format: JRN-0001 or JRN-0001,JRN-0002 or JRN-0001..JRN-0010"
+    };
+  }
+  const batchSizeResult = validateBatchSize(journeyIds.length);
+  if (!batchSizeResult.valid) {
+    return { success: false, error: batchSizeResult.error };
+  }
+  if (batchSizeResult.warning) {
+    warnings.push(batchSizeResult.warning);
+  }
+  const batchModeResult = validateBatchMode(options.batchMode || "serial");
+  if (!batchModeResult.valid) {
+    return {
+      success: false,
+      error: batchModeResult.error || `Invalid batch mode: ${options.batchMode}. Valid option: serial`
+    };
+  }
+  if (batchModeResult.warning) {
+    warnings.push(batchModeResult.warning);
+  }
+  const learningModeResult = validateLearningMode(options.learningMode || "strict");
+  if (!learningModeResult.valid) {
+    return {
+      success: false,
+      error: `Invalid learning mode: ${options.learningMode}. Valid values: strict, batch, none`
+    };
+  }
+  if (batchModeResult.normalized === "serial" && learningModeResult.normalized === "batch") {
+    warnings.push("learningMode=batch with serial mode behaves the same as learningMode=strict (no batches in serial mode).");
+  }
+  const llkbResult = validateLLKB(ctx.llkbRoot);
+  if (!llkbResult.valid) {
+    return {
+      success: false,
+      error: llkbResult.errors.join("\n")
+    };
+  }
+  warnings.push(...llkbResult.warnings);
+  const findResult = findJourneyFiles(ctx.harnessRoot, journeyIds);
+  const journeys = [];
+  for (const [id, paths] of findResult.duplicates) {
+    warnings.push(
+      `Journey ${id} found in multiple locations: ${paths.map((p) => path5.basename(path5.dirname(p))).join(", ")}. Using highest priority.`
+    );
+  }
+  for (const id of journeyIds) {
+    const journeyPath = findResult.found.get(id);
+    if (!journeyPath) {
+      errors.push(`Journey not found: ${id}`);
+      continue;
+    }
+    if (!isPathSafe(journeyPath, ctx.harnessRoot)) {
+      errors.push(`Invalid journey path (security): ${id}`);
+      continue;
+    }
+    const loadResult = loadJourney(journeyPath, ctx.harnessRoot);
+    if (!loadResult.journey) {
+      const errorMsg = loadResult.error || "Unknown error";
+      const details = loadResult.details ? `: ${loadResult.details.join(", ")}` : "";
+      errors.push(`Failed to parse journey ${id}: ${errorMsg}${details}`);
+      continue;
+    }
+    const validation = validateJourneyForImplementation(loadResult.journey);
+    if (!validation.valid) {
+      errors.push(`Journey ${id}: ${validation.errors.join(", ")}`);
+    }
+    warnings.push(...validation.warnings.map((w) => `Journey ${id}: ${w}`));
+    journeys.push(loadResult.journey);
+  }
+  if (errors.length > 0) {
+    return {
+      success: false,
+      error: errors.join("\n")
+    };
+  }
+  const llkbExportCommand = {
+    executable: "npx",
+    args: [
+      "artk",
+      "llkb",
+      "export",
+      "--for-autogen",
+      "--llkb-root",
+      ctx.llkbRoot,
+      "--output",
+      ctx.harnessRoot,
+      "--min-confidence",
+      "0.7"
+    ],
+    cwd: ctx.projectRoot,
+    description: "Export LLKB for AutoGen consumption"
+  };
+  const autogenCommands = journeys.map((j) => {
+    const testsDir = path5.join(ctx.harnessRoot, "tests");
+    const llkbConfig = path5.join(ctx.harnessRoot, "autogen-llkb.config.yml");
+    const llkbGlossary = path5.join(ctx.harnessRoot, "llkb-glossary.ts");
+    return {
+      executable: "npx",
+      args: [
+        "artk-autogen",
+        "generate",
+        j.path,
+        "-o",
+        testsDir,
+        "-m",
+        "--llkb-config",
+        llkbConfig,
+        "--llkb-glossary",
+        llkbGlossary
+      ],
+      cwd: ctx.projectRoot,
+      description: `Generate tests for ${j.id}`
+    };
+  });
+  return {
+    success: true,
+    data: {
+      journeys,
+      batchMode: batchModeResult.normalized,
+      learningMode: learningModeResult.normalized,
+      llkbExportCommand,
+      autogenCommands,
+      warnings,
+      environment
+    }
+  };
+}
+function formatCommand(cmd) {
+  const quotedArgs = cmd.args.map((arg) => {
+    if (arg.includes(" ") || arg.includes('"') || arg.includes("$") || arg.includes("`")) {
+      return `"${arg.replace(/"/g, '\\"')}"`;
+    }
+    return arg;
+  });
+  return `${cmd.executable} ${quotedArgs.join(" ")}`;
+}
+function getSessionFilePath(harnessRoot) {
+  return path5.join(harnessRoot, ".artk", "session.json");
+}
+async function saveSessionState(harnessRoot, state) {
+  try {
+    const sessionPath = getSessionFilePath(harnessRoot);
+    const sessionDir = path5.dirname(sessionPath);
+    if (!fs2.existsSync(sessionDir)) {
+      fs2.mkdirSync(sessionDir, { recursive: true });
+    }
+    const stateToSave = {
+      ...state,
+      savedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    fs2.writeFileSync(sessionPath, JSON.stringify(stateToSave, null, 2), "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+function parseGeneratedTestFile(stdout, journeyId) {
+  const generatedMatch = stdout.match(/Generated:\s*(.+\.spec\.ts)/i);
+  if (generatedMatch) {
+    return generatedMatch[1].trim();
+  }
+  const createdMatch = stdout.match(/Created test file:\s*(.+\.spec\.ts)/i);
+  if (createdMatch) {
+    return createdMatch[1].trim();
+  }
+  const outputMatch = stdout.match(/Output:\s*(.+\.spec\.ts)/i);
+  if (outputMatch) {
+    return outputMatch[1].trim();
+  }
+  const journeyPathMatch = stdout.match(new RegExp(`(\\S*${journeyId}\\S*\\.spec\\.ts)`, "i"));
+  if (journeyPathMatch) {
+    return journeyPathMatch[1].trim();
+  }
+  return null;
+}
+function getTestFileName(stdout, journey) {
+  const parsed = parseGeneratedTestFile(stdout, journey.id);
+  if (parsed) {
+    return path5.basename(parsed);
+  }
+  return `${journey.id}.spec.ts`;
+}
+function formatImplementPlan(plan) {
+  const lines = [];
+  lines.push("\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
+  lines.push("\u2551  JOURNEY IMPLEMENTATION PLAN                                   \u2551");
+  lines.push("\u2560\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2563");
+  lines.push("");
+  lines.push(`Environment: ${plan.environment}`);
+  lines.push(`Batch Mode: ${plan.batchMode}`);
+  lines.push(`Learning Mode: ${plan.learningMode}`);
+  lines.push(`Journeys: ${plan.journeys.length}`);
+  lines.push("");
+  lines.push("Journeys to implement:");
+  for (const j of plan.journeys) {
+    lines.push(`  - ${j.id}: ${j.title} (status: ${j.status})`);
+  }
+  lines.push("");
+  lines.push("Commands that will be executed:");
+  lines.push("");
+  lines.push("1. Export LLKB for AutoGen:");
+  lines.push(`   ${formatCommand(plan.llkbExportCommand)}`);
+  lines.push("");
+  lines.push("2. Run AutoGen for each journey:");
+  for (let i = 0; i < plan.autogenCommands.length; i++) {
+    lines.push(`   [${i + 1}] ${formatCommand(plan.autogenCommands[i])}`);
+  }
+  lines.push("");
+  if (plan.warnings.length > 0) {
+    lines.push("Warnings:");
+    for (const w of plan.warnings) {
+      lines.push(`  \u26A0\uFE0F  ${w}`);
+    }
+    lines.push("");
+  }
+  lines.push("\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D");
+  return lines.join("\n");
+}
+async function execCommand(cmd, timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS) {
+  return new Promise((resolve11) => {
+    const proc = spawn(cmd.executable, cmd.args, {
+      cwd: cmd.cwd,
+      shell: false,
+      // CRITICAL: Never use shell: true with user input
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      proc.kill("SIGTERM");
+      setTimeout(() => {
+        if (!proc.killed) {
+          proc.kill("SIGKILL");
+        }
+      }, 5e3);
+    }, timeoutMs);
+    proc.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (killed) {
+        resolve11({
+          success: false,
+          stdout,
+          stderr: `Command timed out after ${Math.round(timeoutMs / 1e3)} seconds`,
+          timedOut: true
+        });
+      } else {
+        resolve11({ success: code === 0, stdout, stderr });
+      }
+    });
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      resolve11({ success: false, stdout, stderr: err.message });
+    });
+  });
+}
+async function executeImplementation(ctx, plan, options) {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+  const warnings = [];
+  const sessionState = createSessionState(
+    plan.journeys.map((j) => j.id),
+    plan.batchMode,
+    plan.learningMode
+  );
+  await saveSessionState(ctx.harnessRoot, sessionState);
+  const testsGenerated = [];
+  if (options.verbose) {
+    console.log("\n\u{1F4E6} Exporting LLKB for AutoGen...");
+    console.log(`   ${formatCommand(plan.llkbExportCommand)}`);
+  }
+  const llkbResult = await execCommand(plan.llkbExportCommand, timeoutMs);
+  if (!llkbResult.success) {
+    sessionState.endTime = Date.now();
+    await saveSessionState(ctx.harnessRoot, sessionState);
+    if (llkbResult.timedOut) {
+      return {
+        success: false,
+        error: `LLKB export timed out after ${Math.round(timeoutMs / 1e3)} seconds`
+      };
+    }
+    return {
+      success: false,
+      error: `LLKB export failed: ${llkbResult.stderr}`
+    };
+  }
+  sessionState.llkbExportCount++;
+  sessionState.lastLlkbExportTime = Date.now();
+  await saveSessionState(ctx.harnessRoot, sessionState);
+  for (let i = 0; i < plan.journeys.length; i++) {
+    const journey = plan.journeys[i];
+    const command = plan.autogenCommands[i];
+    sessionState.currentJourneyIndex = i;
+    sessionState.currentJourneyId = journey.id;
+    await saveSessionState(ctx.harnessRoot, sessionState);
+    if (options.verbose) {
+      console.log(`
+\u{1F528} [${i + 1}/${plan.journeys.length}] Generating tests for ${journey.id}...`);
+      console.log(`   ${formatCommand(command)}`);
+    }
+    const result = await execCommand(command, timeoutMs);
+    if (!result.success) {
+      sessionState.journeysFailed.push(journey.id);
+      sessionState.endTime = Date.now();
+      await saveSessionState(ctx.harnessRoot, sessionState);
+      const errorMsg = result.timedOut ? `AutoGen timed out for ${journey.id} after ${Math.round(timeoutMs / 1e3)} seconds` : `AutoGen failed for ${journey.id}: ${result.stderr}`;
+      return {
+        success: false,
+        error: errorMsg,
+        data: { testsGenerated, sessionState, warnings }
+      };
+    }
+    const testFile = getTestFileName(result.stdout, journey);
+    testsGenerated.push(testFile);
+    sessionState.testsGenerated.push(testFile);
+    sessionState.journeysCompleted.push(journey.id);
+    await saveSessionState(ctx.harnessRoot, sessionState);
+    if (options.verbose) {
+      console.log(`   \u2705 Generated: ${testFile}`);
+    }
+    if (plan.learningMode === "strict" && i < plan.journeys.length - 1) {
+      if (options.verbose) {
+        console.log("\n\u{1F4E6} Re-exporting LLKB with learned patterns...");
+      }
+      const reExportResult = await execCommand(plan.llkbExportCommand, timeoutMs);
+      if (reExportResult.success) {
+        sessionState.llkbExportCount++;
+        sessionState.lastLlkbExportTime = Date.now();
+      } else {
+        sessionState.llkbSkippedExports++;
+        const warnMsg = reExportResult.timedOut ? `LLKB re-export timed out after journey ${journey.id}. Continuing without updated patterns.` : `LLKB re-export failed after journey ${journey.id}: ${reExportResult.stderr}. Continuing without updated patterns.`;
+        warnings.push(warnMsg);
+        if (options.verbose) {
+          console.log(`   \u26A0\uFE0F  ${warnMsg}`);
+        }
+      }
+      await saveSessionState(ctx.harnessRoot, sessionState);
+    }
+  }
+  sessionState.endTime = Date.now();
+  sessionState.currentJourneyId = null;
+  sessionState.verificationPassed = true;
+  await saveSessionState(ctx.harnessRoot, sessionState);
+  return {
+    success: true,
+    data: { testsGenerated, sessionState, warnings },
+    warnings: warnings.length > 0 ? warnings : void 0
+  };
+}
+var init_journey_implement = __esm({
+  "src/lib/workflows/journey-implement.ts"() {
+    init_types();
+    init_journey_validate();
+  }
+});
+
+// src/lib/workflows/index.ts
+var init_workflows = __esm({
+  "src/lib/workflows/index.ts"() {
+    init_types();
+    init_journey_validate();
+    init_journey_implement();
+  }
+});
+
+// src/commands/journey/check-llkb.ts
+var check_llkb_exports = {};
+__export(check_llkb_exports, {
+  checkLlkbCommand: () => checkLlkbCommand,
+  runCheckLlkb: () => runCheckLlkb
+});
+function runCheckLlkb(options) {
+  const harnessRoot = path5.resolve(options.harnessRoot);
+  const llkbRoot = path5.join(harnessRoot, ".artk", "llkb");
+  const result = validateLLKB(llkbRoot);
+  return {
+    valid: result.valid,
+    llkbRoot,
+    errors: result.errors,
+    warnings: result.warnings
+  };
+}
+async function checkLlkbCommand(options) {
+  const logger2 = new Logger();
+  const result = runCheckLlkb(options);
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    logger2.header("LLKB Check");
+    logger2.info(`LLKB Root: ${result.llkbRoot}`);
+    logger2.blank();
+    if (result.valid) {
+      logger2.success("LLKB is configured and ready");
+    } else {
+      logger2.error("LLKB is not ready");
+      for (const err of result.errors) {
+        logger2.info(`  - ${err}`);
+      }
+    }
+    for (const warn of result.warnings) {
+      logger2.warning(`  - ${warn}`);
+    }
+  }
+  return result.valid ? 0 : 1;
+}
+var init_check_llkb = __esm({
+  "src/commands/journey/check-llkb.ts"() {
+    init_logger();
+    init_workflows();
+  }
+});
+
+// src/lib/bootstrap.ts
+init_logger();
 async function detectEnvironment(projectPath) {
   const resolvedPath = path5.resolve(projectPath);
   return {
@@ -229,6 +1068,7 @@ function getOsArch() {
   }
   return { os, arch };
 }
+init_logger();
 async function resolveBrowser(targetPath, logger2, options = {}) {
   const log = logger2 || new Logger();
   const artkE2ePath = path5.join(targetPath, "artk-e2e");
@@ -461,7 +1301,7 @@ async function tryReleaseCacheBrowsers(artkE2ePath, browsersCachePath, logsDir, 
   }
 }
 function downloadFile(url, destPath, timeoutMs) {
-  return new Promise((resolve7, reject) => {
+  return new Promise((resolve11, reject) => {
     const file = fs2.createWriteStream(destPath);
     const request = https.get(url, { timeout: timeoutMs }, (response) => {
       if (response.statusCode === 301 || response.statusCode === 302) {
@@ -469,7 +1309,7 @@ function downloadFile(url, destPath, timeoutMs) {
         if (redirectUrl) {
           file.close();
           fs2.unlinkSync(destPath);
-          downloadFile(redirectUrl, destPath, timeoutMs).then(resolve7).catch(reject);
+          downloadFile(redirectUrl, destPath, timeoutMs).then(resolve11).catch(reject);
           return;
         }
       }
@@ -482,7 +1322,7 @@ function downloadFile(url, destPath, timeoutMs) {
       response.pipe(file);
       file.on("finish", () => {
         file.close();
-        resolve7();
+        resolve11();
       });
     });
     request.on("error", (err) => {
@@ -499,16 +1339,16 @@ function downloadFile(url, destPath, timeoutMs) {
   });
 }
 function computeSha256(filePath) {
-  return new Promise((resolve7, reject) => {
+  return new Promise((resolve11, reject) => {
     const hash = crypto.createHash("sha256");
     const stream = fs2.createReadStream(filePath);
     stream.on("data", (data) => hash.update(data));
-    stream.on("end", () => resolve7(hash.digest("hex").toLowerCase()));
+    stream.on("end", () => resolve11(hash.digest("hex").toLowerCase()));
     stream.on("error", reject);
   });
 }
 async function extractZip(zipPath, destDir) {
-  return new Promise((resolve7, reject) => {
+  return new Promise((resolve11, reject) => {
     const commands = [
       { cmd: "unzip", args: ["-q", zipPath, "-d", destDir] },
       { cmd: "bsdtar", args: ["-xf", zipPath, "-C", destDir] },
@@ -526,7 +1366,7 @@ async function extractZip(zipPath, destDir) {
       });
       child.on("close", (code) => {
         if (code === 0) {
-          resolve7();
+          resolve11();
         } else {
           tryCommand(index + 1);
         }
@@ -543,7 +1383,7 @@ function writeLogFile(logPath, lines) {
 }
 async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger2) {
   const logFile = path5.join(logsDir, "playwright-browser-install.log");
-  return new Promise((resolve7) => {
+  return new Promise((resolve11) => {
     logger2.startSpinner("Installing Playwright browsers...");
     const logLines = [`Playwright browser install attempt - ${(/* @__PURE__ */ new Date()).toISOString()}`];
     logLines.push(`Working directory: ${artkE2ePath}`);
@@ -574,7 +1414,7 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger
       writeLogFile(logFile, logLines);
       if (code === 0) {
         logger2.succeedSpinner("Playwright browsers installed");
-        resolve7({
+        resolve11({
           channel: "bundled",
           version: null,
           path: browsersCachePath,
@@ -584,7 +1424,7 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger
         logger2.failSpinner("Failed to install Playwright browsers");
         logger2.debug(`Exit code: ${code}`);
         logger2.debug(`Details saved to: ${logFile}`);
-        resolve7(null);
+        resolve11(null);
       }
     });
     child.on("error", (error) => {
@@ -592,14 +1432,14 @@ async function tryBundledInstall(artkE2ePath, browsersCachePath, logsDir, logger
       writeLogFile(logFile, logLines);
       logger2.failSpinner("Failed to install Playwright browsers");
       logger2.debug(`Error: ${error.message}`);
-      resolve7(null);
+      resolve11(null);
     });
     setTimeout(() => {
       logLines.push("TIMEOUT: Installation took longer than 5 minutes");
       writeLogFile(logFile, logLines);
       child.kill();
       logger2.failSpinner("Browser installation timed out");
-      resolve7(null);
+      resolve11(null);
     }, 3e5);
   });
 }
@@ -745,6 +1585,9 @@ browsers:
   }
   fs2.writeFileSync(configPath, content);
 }
+
+// src/lib/config-validator.ts
+init_logger();
 var environmentSchema = z.object({
   baseUrl: z.string().url().or(z.string().regex(/^\$\{[^}]+\}$/))
   // Allow env var placeholders
@@ -799,7 +1642,7 @@ function validateArtkConfig(configPath, logger2) {
   }
   try {
     const content = fs2.readFileSync(configPath, "utf8");
-    const rawConfig = yaml.parse(content);
+    const rawConfig = yaml2__default.parse(content);
     if (!rawConfig || typeof rawConfig !== "object") {
       result.valid = false;
       result.errors.push("Config file is empty or invalid YAML");
@@ -809,8 +1652,8 @@ function validateArtkConfig(configPath, logger2) {
     if (!parseResult.success) {
       result.valid = false;
       for (const error of parseResult.error.errors) {
-        const path10 = error.path.join(".");
-        result.errors.push(`${path10}: ${error.message}`);
+        const path15 = error.path.join(".");
+        result.errors.push(`${path15}: ${error.message}`);
       }
       return result;
     }
@@ -1795,7 +2638,7 @@ test.describe('ARTK Foundation Validation', () => {
 }
 async function runNpmInstall(artkE2ePath, logsDir, logger2) {
   const logFile = path5.join(logsDir, "npm-install.log");
-  return new Promise((resolve7, reject) => {
+  return new Promise((resolve11, reject) => {
     logger2.startSpinner("Installing dependencies...");
     const logLines = [`npm install started - ${(/* @__PURE__ */ new Date()).toISOString()}`];
     logLines.push(`Working directory: ${artkE2ePath}`);
@@ -1828,7 +2671,7 @@ async function runNpmInstall(artkE2ePath, logsDir, logger2) {
       }
       if (code === 0) {
         logger2.succeedSpinner("Dependencies installed");
-        resolve7();
+        resolve11();
       } else {
         logger2.failSpinner("npm install failed");
         logger2.debug(`Details saved to: ${logFile}`);
@@ -2034,6 +2877,9 @@ browsers:
   headless: true
 `;
 }
+
+// src/commands/init.ts
+init_logger();
 
 // src/lib/variants/variant-types.ts
 function isVariantId(value) {
@@ -2387,6 +3233,9 @@ function printPrerequisitesReport(result, logger2) {
     logger2.error("Some prerequisites are not met. Please fix the issues above.");
   }
 }
+
+// src/commands/check.ts
+init_logger();
 var __filename3 = fileURLToPath(import.meta.url);
 var __dirname3 = path5.dirname(__filename3);
 function getVersion() {
@@ -2442,6 +3291,9 @@ async function checkCommand(options) {
     process.exit(1);
   }
 }
+
+// src/commands/upgrade.ts
+init_logger();
 var __filename4 = fileURLToPath(import.meta.url);
 var __dirname4 = path5.dirname(__filename4);
 async function upgradeCommand(targetPath, options) {
@@ -2528,6 +3380,9 @@ function getAssetsDir2() {
   }
   return path5.join(__dirname4, "..", "..", "assets");
 }
+
+// src/commands/doctor.ts
+init_logger();
 async function doctorCommand(targetPath, options) {
   const logger2 = new Logger({ verbose: options.verbose });
   const resolvedPath = path5.resolve(targetPath);
@@ -2758,6 +3613,9 @@ async function checkTypeScript(artkE2ePath) {
     };
   }
 }
+
+// src/commands/uninstall.ts
+init_logger();
 async function uninstallCommand(targetPath, options) {
   const logger2 = new Logger();
   const resolvedPath = path5.resolve(targetPath);
@@ -2858,14 +3716,14 @@ async function uninstallCommand(targetPath, options) {
   }
 }
 function confirmUninstall() {
-  return new Promise((resolve7) => {
+  return new Promise((resolve11) => {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
     });
     rl.question("Are you sure you want to uninstall? (y/N) ", (answer) => {
       rl.close();
-      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve11(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -3078,6 +3936,188 @@ function llkbCommand(program2) {
   return llkb;
 }
 
+// src/commands/journey/validate.ts
+init_logger();
+init_journey_validate();
+function runValidation(id, options) {
+  const harnessRoot = path5.resolve(options.harnessRoot);
+  const ids = parseJourneyList(id);
+  if (ids.length === 0) {
+    return {
+      valid: false,
+      journeys: [{
+        id: id || "(empty)",
+        found: false,
+        valid: false,
+        errors: ["No valid journey IDs provided. Use format: JRN-0001 or JRN-0001,JRN-0002"],
+        warnings: []
+      }]
+    };
+  }
+  const journeyPaths = findJourneyFiles(harnessRoot, ids);
+  const results = [];
+  let allValid = true;
+  for (const journeyId of ids) {
+    const journeyPath = journeyPaths.get(journeyId);
+    if (!journeyPath) {
+      results.push({
+        id: journeyId,
+        found: false,
+        valid: false,
+        errors: ["Journey file not found"],
+        warnings: []
+      });
+      allValid = false;
+      continue;
+    }
+    const journey = loadJourney(journeyPath, harnessRoot);
+    if (!journey) {
+      results.push({
+        id: journeyId,
+        found: true,
+        valid: false,
+        errors: ["Failed to parse journey file"],
+        warnings: []
+      });
+      allValid = false;
+      continue;
+    }
+    const validation = validateJourneyForImplementation(journey);
+    results.push({
+      id: journeyId,
+      found: true,
+      valid: validation.valid,
+      errors: validation.errors,
+      warnings: validation.warnings
+    });
+    if (!validation.valid) {
+      allValid = false;
+    }
+  }
+  return { valid: allValid, journeys: results };
+}
+async function validateCommand(id, options) {
+  const logger2 = new Logger();
+  const result = runValidation(id, options);
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    logger2.header("Journey Validation");
+    for (const journey of result.journeys) {
+      if (journey.valid) {
+        logger2.success(`${journey.id}: Ready for implementation`);
+      } else if (!journey.found) {
+        logger2.error(`${journey.id}: Not found`);
+      } else {
+        logger2.error(`${journey.id}: Not ready`);
+        for (const err of journey.errors) {
+          logger2.info(`  - ${err}`);
+        }
+      }
+      for (const warn of journey.warnings) {
+        logger2.warning(`  - ${warn}`);
+      }
+    }
+    logger2.blank();
+    if (result.valid) {
+      logger2.success("All journeys are ready for implementation");
+    } else {
+      logger2.error("Some journeys are not ready");
+    }
+  }
+  return result.valid ? 0 : 1;
+}
+
+// src/commands/journey/implement.ts
+init_logger();
+init_journey_implement();
+async function implementCommand(ids, options) {
+  const logger2 = new Logger();
+  const harnessRoot = path5.resolve(options.harnessRoot);
+  const projectRoot = process.cwd();
+  const llkbRoot = path5.join(harnessRoot, ".artk", "llkb");
+  const ctx = {
+    projectRoot,
+    harnessRoot,
+    llkbRoot,
+    dryRun: options.dryRun || false};
+  const implementOptions = {
+    journeyIds: ids,
+    batchMode: options.batchMode,
+    learningMode: options.learningMode,
+    dryRun: options.dryRun,
+    verbose: options.verbose
+  };
+  const planResult = buildImplementPlan(ctx, implementOptions);
+  if (!planResult.success) {
+    logger2.error("Failed to build implementation plan:");
+    logger2.error(planResult.error || "Unknown error");
+    return 1;
+  }
+  const plan = planResult.data;
+  if (options.dryRun) {
+    console.log(formatImplementPlan(plan));
+    console.log("\nThis is a dry run. No changes were made.");
+    console.log("Remove --dry-run to execute the implementation.");
+    return 0;
+  }
+  logger2.header("Journey Implementation");
+  logger2.info(`Implementing ${plan.journeys.length} journey(s)...`);
+  logger2.info(`Environment: ${plan.environment}`);
+  logger2.info(`Batch Mode: ${plan.batchMode}`);
+  logger2.info(`Learning Mode: ${plan.learningMode}`);
+  logger2.blank();
+  for (const warn of plan.warnings) {
+    logger2.warning(warn);
+  }
+  const result = await executeImplementation(ctx, plan, { verbose: options.verbose });
+  if (!result.success) {
+    logger2.error("Implementation failed:");
+    logger2.error(result.error || "Unknown error");
+    if (result.data?.sessionState) {
+      const state2 = result.data.sessionState;
+      logger2.blank();
+      logger2.info(`Completed: ${state2.journeysCompleted.length}/${state2.totalJourneys}`);
+      logger2.info(`Failed at: ${state2.currentJourneyId || "unknown"}`);
+    }
+    return 1;
+  }
+  logger2.blank();
+  logger2.success("Implementation complete!");
+  logger2.info("Tests generated:");
+  for (const test of result.data.testsGenerated) {
+    logger2.info(`  - ${test}`);
+  }
+  const state = result.data.sessionState;
+  logger2.blank();
+  logger2.info(`Session summary:`);
+  logger2.info(`  - LLKB exports: ${state.llkbExportCount}`);
+  logger2.info(`  - Duration: ${((state.endTime - state.startTime) / 1e3).toFixed(1)}s`);
+  logger2.blank();
+  logger2.info("Next steps:");
+  logger2.info("  1. Run: artk journey validate " + ids);
+  logger2.info('  2. Run: npx playwright test --grep "' + ids.split(",")[0] + '"');
+  return 0;
+}
+
+// src/commands/journey/index.ts
+function journeyCommand(program2) {
+  const journey = program2.command("journey").description("Journey operations (validate, implement, etc.)");
+  journey.command("validate <id>").description("Validate a journey is ready for implementation").option("--harness-root <path>", "Path to artk-e2e directory", "artk-e2e").option("--json", "Output as JSON").action(async (id, options) => {
+    const exitCode = await validateCommand(id, options);
+    process.exitCode = exitCode;
+  });
+  journey.command("implement <ids>").description("Generate tests for journey(s)").option("--harness-root <path>", "Path to artk-e2e directory", "artk-e2e").option("--batch-mode <mode>", "Execution mode: serial or parallel", "serial").option("--learning-mode <mode>", "LLKB learning: strict, batch, or none", "strict").option("--dry-run", "Show what would be done without executing").option("--verbose", "Show detailed output").action(async (ids, options) => {
+    const exitCode = await implementCommand(ids, options);
+    process.exitCode = exitCode;
+  });
+  journey.command("check-llkb").description("Check if LLKB is configured and ready").option("--harness-root <path>", "Path to artk-e2e directory", "artk-e2e").option("--json", "Output as JSON").action(async (options) => {
+    const { checkLlkbCommand: checkLlkbCommand2 } = await Promise.resolve().then(() => (init_check_llkb(), check_llkb_exports));
+    const exitCode = await checkLlkbCommand2(options);
+    process.exitCode = exitCode;
+  });
+}
+
 // src/cli.ts
 var version = getVersion();
 program.name("artk").description("ARTK - Automatic Regression Testing Kit\n\nBootstrap Playwright test suites with AI-assisted workflows").version(version, "-v, --version", "Output the current version");
@@ -3097,6 +4137,7 @@ program.command("uninstall <path>").description("Remove ARTK from a project").op
   await uninstallCommand(targetPath, options);
 });
 llkbCommand(program);
+journeyCommand(program);
 program.showHelpAfterError("(add --help for additional information)");
 program.parse();
 //# sourceMappingURL=cli.js.map
