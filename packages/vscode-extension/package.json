@@ -230,17 +230,22 @@
     "build": "node esbuild.config.js",
     "watch": "node esbuild.config.js --watch",
     "lint": "eslint src --ext ts",
-    "test": "node ./test/runTest.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "node ./test/runTest.js",
     "package": "vsce package",
     "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/vscode": "^1.85.0",
+    "@vitest/coverage-v8": "^1.2.0",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^2.22.0",
     "esbuild": "^0.19.11",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
   },
   "dependencies": {
     "yaml": "^2.3.4"

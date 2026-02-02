@@ -2,6 +2,7 @@
  * LLKB Tree View Provider
  *
  * Displays Lessons Learned Knowledge Base status and contents.
+ * Uses async I/O to avoid blocking the extension host.
  */
 
 import * as vscode from 'vscode';
@@ -9,11 +10,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspaceContextManager, WorkspaceContextManager } from '../workspace';
 import type { LLKBStats } from '../types';
+import { logger } from '../utils';
+
+const fsPromises = fs.promises;
 
 /**
  * Tree item types
  */
-type LLKBTreeItemType = 'section' | 'stat' | 'lesson' | 'component' | 'action';
+type LLKBTreeItemType = 'section' | 'stat' | 'lesson' | 'component' | 'action' | 'loading' | 'error';
 
 /**
  * LLKB tree item
@@ -45,6 +49,12 @@ class LLKBTreeItem extends vscode.TreeItem {
       case 'action':
         this.iconPath = new vscode.ThemeIcon('play');
         break;
+      case 'loading':
+        this.iconPath = new vscode.ThemeIcon('loading~spin');
+        break;
+      case 'error':
+        this.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('editorError.foreground'));
+        break;
     }
 
     this.contextValue = itemType;
@@ -60,25 +70,38 @@ export class LLKBTreeProvider implements vscode.TreeDataProvider<LLKBTreeItem> {
 
   private readonly contextManager: WorkspaceContextManager;
   private llkbData: LLKBData | undefined;
+  private isLoading = false;
+  private loadError: string | undefined;
+  private lastLoadTime = 0;
+  private readonly CACHE_DURATION = 5000; // 5 seconds cache
 
   constructor() {
     this.contextManager = getWorkspaceContextManager();
 
     // Listen for changes
     this.contextManager.onDidChangeWorkspace(() => this.refresh());
-    this.contextManager.onDidChangeLLKB(() => this.refresh());
+    this.contextManager.onDidChangeLLKB(() => this.invalidateCache());
+  }
+
+  /**
+   * Invalidate cache and trigger refresh
+   */
+  private invalidateCache(): void {
+    this.lastLoadTime = 0;
+    this.refresh();
   }
 
   refresh(): void {
-    this.loadLLKBData();
-    this._onDidChangeTreeData.fire(undefined);
+    this.loadLLKBDataAsync().then(() => {
+      this._onDidChangeTreeData.fire(undefined);
+    });
   }
 
   getTreeItem(element: LLKBTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: LLKBTreeItem): LLKBTreeItem[] {
+  getChildren(element?: LLKBTreeItem): LLKBTreeItem[] | Thenable<LLKBTreeItem[]> {
     if (!this.contextManager.isInstalled || !this.contextManager.llkbEnabled) {
       return [];
     }
@@ -87,14 +110,32 @@ export class LLKBTreeProvider implements vscode.TreeDataProvider<LLKBTreeItem> {
       return element.children || [];
     }
 
-    // Root level
-    this.loadLLKBData();
+    // Check if cache is still valid
+    const now = Date.now();
+    if (now - this.lastLoadTime < this.CACHE_DURATION && this.llkbData) {
+      return this.buildLLKBTree();
+    }
+
+    // Show loading state
+    if (this.isLoading) {
+      return [new LLKBTreeItem('Loading LLKB data...', 'loading', vscode.TreeItemCollapsibleState.None)];
+    }
+
+    // Show error state
+    if (this.loadError) {
+      return [new LLKBTreeItem(`Error: ${this.loadError}`, 'error', vscode.TreeItemCollapsibleState.None)];
+    }
+
+    // First load
+    if (!this.llkbData && this.lastLoadTime === 0) {
+      return this.loadLLKBDataAsync().then(() => this.buildLLKBTree());
+    }
 
     if (!this.llkbData) {
       return [
         new LLKBTreeItem(
           'Unable to load LLKB data',
-          'stat',
+          'error',
           vscode.TreeItemCollapsibleState.None
         ),
       ];
@@ -103,39 +144,111 @@ export class LLKBTreeProvider implements vscode.TreeDataProvider<LLKBTreeItem> {
     return this.buildLLKBTree();
   }
 
-  private loadLLKBData(): void {
+  /**
+   * Check if path exists (async)
+   */
+  private async pathExists(p: string): Promise<boolean> {
+    try {
+      await fsPromises.access(p);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Safely parse JSON with error handling
+   */
+  private safeJsonParse<T>(content: string, defaultValue: T): T {
+    try {
+      return JSON.parse(content) as T;
+    } catch (err) {
+      logger.warn(`Failed to parse JSON: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      return defaultValue;
+    }
+  }
+
+  /**
+   * Load LLKB data asynchronously
+   */
+  private async loadLLKBDataAsync(): Promise<void> {
     const llkbPath = this.contextManager.workspaceInfo?.llkbPath;
     if (!llkbPath) {
       this.llkbData = undefined;
+      this.loadError = undefined;
       return;
     }
 
     try {
-      // Read lessons.json
+      this.isLoading = true;
+      this.loadError = undefined;
+      this._onDidChangeTreeData.fire(undefined); // Show loading state
+
+      // Check which files exist in parallel
       const lessonsPath = path.join(llkbPath, 'lessons.json');
-      const lessons = fs.existsSync(lessonsPath)
-        ? JSON.parse(fs.readFileSync(lessonsPath, 'utf-8'))
-        : { lessons: [] };
-
-      // Read components.json
       const componentsPath = path.join(llkbPath, 'components.json');
-      const components = fs.existsSync(componentsPath)
-        ? JSON.parse(fs.readFileSync(componentsPath, 'utf-8'))
-        : { components: [] };
-
-      // Read analytics.json
       const analyticsPath = path.join(llkbPath, 'analytics.json');
-      const analytics = fs.existsSync(analyticsPath)
-        ? JSON.parse(fs.readFileSync(analyticsPath, 'utf-8'))
-        : { totalLearningEvents: 0 };
+
+      const [lessonsExists, componentsExists, analyticsExists] = await Promise.all([
+        this.pathExists(lessonsPath),
+        this.pathExists(componentsPath),
+        this.pathExists(analyticsPath),
+      ]);
+
+      // Read files that exist in parallel
+      const readPromises: Promise<{ type: string; content: string } | null>[] = [];
+
+      if (lessonsExists) {
+        readPromises.push(
+          fsPromises.readFile(lessonsPath, 'utf-8').then((content) => ({ type: 'lessons', content }))
+        );
+      }
+      if (componentsExists) {
+        readPromises.push(
+          fsPromises.readFile(componentsPath, 'utf-8').then((content) => ({ type: 'components', content }))
+        );
+      }
+      if (analyticsExists) {
+        readPromises.push(
+          fsPromises.readFile(analyticsPath, 'utf-8').then((content) => ({ type: 'analytics', content }))
+        );
+      }
+
+      const results = await Promise.all(readPromises);
+
+      // Parse results
+      let lessons: { lessons: LLKBLesson[] } = { lessons: [] };
+      let components: { components: LLKBComponent[] } = { components: [] };
+      let analytics: { totalLearningEvents?: number; lastUpdated?: string } = { totalLearningEvents: 0 };
+
+      for (const result of results) {
+        if (!result) continue;
+
+        switch (result.type) {
+          case 'lessons':
+            lessons = this.safeJsonParse(result.content, { lessons: [] });
+            break;
+          case 'components':
+            components = this.safeJsonParse(result.content, { components: [] });
+            break;
+          case 'analytics':
+            analytics = this.safeJsonParse(result.content, { totalLearningEvents: 0 });
+            break;
+        }
+      }
 
       this.llkbData = {
         lessons: lessons.lessons || [],
         components: components.components || [],
         analytics,
       };
+      this.lastLoadTime = Date.now();
+      this.isLoading = false;
     } catch (err) {
+      this.isLoading = false;
+      this.loadError = err instanceof Error ? err.message : 'Unknown error';
       this.llkbData = undefined;
+      logger.error('Failed to load LLKB data', err instanceof Error ? err : undefined);
     }
   }
 
