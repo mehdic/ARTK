@@ -97,7 +97,7 @@ declare const LLKBIntegrationLevelSchema: z.ZodDefault<z.ZodEnum<["minimal", "en
  * @see research/2026-01-23_llkb-autogen-integration-specification.md
  */
 declare const LLKBIntegrationSchema: z.ZodDefault<z.ZodObject<{
-    /** Enable LLKB integration */
+    /** Enable LLKB integration (default: true - LLKB enhances test generation) */
     enabled: z.ZodDefault<z.ZodBoolean>;
     /** Path to LLKB-generated config file */
     configPath: z.ZodOptional<z.ZodString>;
@@ -106,15 +106,15 @@ declare const LLKBIntegrationSchema: z.ZodDefault<z.ZodObject<{
     /** Integration level */
     level: z.ZodDefault<z.ZodEnum<["minimal", "enhance", "aggressive"]>>;
 }, "strip", z.ZodTypeAny, {
-    level: "minimal" | "enhance" | "aggressive";
     enabled: boolean;
+    level: "minimal" | "enhance" | "aggressive";
     configPath?: string | undefined;
     glossaryPath?: string | undefined;
 }, {
-    level?: "minimal" | "enhance" | "aggressive" | undefined;
     enabled?: boolean | undefined;
     configPath?: string | undefined;
     glossaryPath?: string | undefined;
+    level?: "minimal" | "enhance" | "aggressive" | undefined;
 }>>;
 /**
  * Complete AutoGen configuration schema
@@ -175,7 +175,7 @@ declare const AutogenConfigSchema: z.ZodObject<{
     }>>;
     regenerationStrategy: z.ZodDefault<z.ZodEnum<["ast", "blocks"]>>;
     llkb: z.ZodDefault<z.ZodObject<{
-        /** Enable LLKB integration */
+        /** Enable LLKB integration (default: true - LLKB enhances test generation) */
         enabled: z.ZodDefault<z.ZodBoolean>;
         /** Path to LLKB-generated config file */
         configPath: z.ZodOptional<z.ZodString>;
@@ -184,22 +184,22 @@ declare const AutogenConfigSchema: z.ZodObject<{
         /** Integration level */
         level: z.ZodDefault<z.ZodEnum<["minimal", "enhance", "aggressive"]>>;
     }, "strip", z.ZodTypeAny, {
-        level: "minimal" | "enhance" | "aggressive";
         enabled: boolean;
+        level: "minimal" | "enhance" | "aggressive";
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
     }, {
-        level?: "minimal" | "enhance" | "aggressive" | undefined;
         enabled?: boolean | undefined;
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
+        level?: "minimal" | "enhance" | "aggressive" | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
+    version: 1;
     validation: {
         eslintRules: Record<string, "error" | "warn" | "off">;
         customRules: string[];
     };
-    version: 1;
     paths: {
         journeys: string;
         modules: string;
@@ -218,17 +218,17 @@ declare const AutogenConfigSchema: z.ZodObject<{
     };
     regenerationStrategy: "ast" | "blocks";
     llkb: {
-        level: "minimal" | "enhance" | "aggressive";
         enabled: boolean;
+        level: "minimal" | "enhance" | "aggressive";
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
     };
 }, {
+    version?: 1 | undefined;
     validation?: {
         eslintRules?: Record<string, "error" | "warn" | "off"> | undefined;
         customRules?: string[] | undefined;
     } | undefined;
-    version?: 1 | undefined;
     paths?: {
         journeys?: string | undefined;
         modules?: string | undefined;
@@ -247,10 +247,10 @@ declare const AutogenConfigSchema: z.ZodObject<{
     } | undefined;
     regenerationStrategy?: "ast" | "blocks" | undefined;
     llkb?: {
-        level?: "minimal" | "enhance" | "aggressive" | undefined;
         enabled?: boolean | undefined;
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
+        level?: "minimal" | "enhance" | "aggressive" | undefined;
     } | undefined;
 }>;
 /**

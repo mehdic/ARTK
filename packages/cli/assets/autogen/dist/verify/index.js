@@ -147,8 +147,7 @@ function runPlaywrightAsync(options = {}) {
         ...process.env,
         ...env,
         PLAYWRIGHT_JSON_OUTPUT_NAME: reportPath
-      },
-      shell: true
+      }
     });
     child.stdout?.on("data", (data) => {
       stdout += data.toString();
