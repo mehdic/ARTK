@@ -264,9 +264,10 @@ async function runPlaywrightTest(
     let stdout = '';
     let stderr = '';
 
+    // SECURITY: shell: false (default) prevents command injection via test paths
+    // Node.js v14.18+ handles .cmd/.bat files on Windows automatically
     const proc = spawn('npx', args, {
       cwd: harnessRoot,
-      shell: true,
       env: {
         ...process.env,
         // Force color output for better error parsing
@@ -330,11 +331,20 @@ async function runPlaywrightTest(
       }
 
       // Truncate output with indicator if too long
+      // Uses UTF-8 safe truncation to avoid splitting surrogate pairs (emoji, etc.)
       const MAX_OUTPUT_SIZE = 10000;
       const truncateWithIndicator = (text: string, name: string): string => {
         if (text.length <= MAX_OUTPUT_SIZE) return text;
-        const truncated = text.substring(0, MAX_OUTPUT_SIZE);
-        return `${truncated}\n\n[${name} TRUNCATED - ${text.length - MAX_OUTPUT_SIZE} more characters]`;
+        // Find a safe truncation point that doesn't split a surrogate pair
+        // Surrogate pairs: high surrogate (0xD800-0xDBFF) followed by low surrogate (0xDC00-0xDFFF)
+        let truncateAt = MAX_OUTPUT_SIZE;
+        const code = text.charCodeAt(truncateAt - 1);
+        // If we're about to cut in the middle of a surrogate pair, back up one character
+        if (code >= 0xD800 && code <= 0xDBFF) {
+          truncateAt--;
+        }
+        const truncated = text.slice(0, truncateAt);
+        return `${truncated}\n\n[${name} TRUNCATED - ${text.length - truncateAt} more characters]`;
       };
 
       resolve({

@@ -112,19 +112,20 @@ export async function calculateConfidence(
   // For single-code confidence scoring, use calculateConfidenceWithSamples() instead
   // which properly analyzes agreement between pre-generated samples.
   //
-  // This single-code path always returns a neutral agreement score.
-  // The agreement dimension is meaningful only when comparing multiple samples.
+  // IMPORTANT: We do NOT add a fake agreement score here. Instead:
+  // - If multi-sampling is enabled but single code passed: throw error (misconfiguration)
+  // - If multi-sampling is disabled: exclude agreement dimension entirely
   if (config.sampling?.enabled && config.sampling.sampleCount > 1) {
-    // Warn that multi-sampling in single-code mode is not meaningful
-    console.warn(
-      '[confidence-scorer] Multi-sampling is enabled but calculateConfidence() only receives single code. ' +
+    // Multi-sampling enabled but wrong function called - this is a programming error
+    throw new Error(
+      '[confidence-scorer] Multi-sampling is enabled (sampleCount=' + config.sampling.sampleCount + ') ' +
+      'but calculateConfidence() only accepts single code. ' +
       'Use calculateConfidenceWithSamples() with pre-generated samples for agreement scoring.'
     );
   }
-  // Always use neutral agreement for single-code analysis
-  const agreementScore = createDefaultAgreementScore('Single-code mode (use calculateConfidenceWithSamples for agreement)');
-  agreementScore.weight = weights.agreement;
-  dimensions.push(agreementScore);
+  // Single-code mode: Agreement dimension is excluded from scoring.
+  // The overall score will be calculated from syntax, pattern, and selector dimensions only.
+  // This prevents artificial bias from a fake "neutral" agreement score.
 
   // Calculate overall score
   const overall = calculateOverallScore(dimensions);
@@ -636,16 +637,6 @@ function generateSuggestions(dim: DimensionScore): string[] {
     default:
       return [];
   }
-}
-
-function createDefaultAgreementScore(reason: string): DimensionScore {
-  return {
-    dimension: 'agreement',
-    score: 0.7, // Neutral score when not using multi-sampling
-    weight: 0.2,
-    reasoning: reason,
-    subScores: [],
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -230,8 +230,14 @@ export async function runRefinementLoop(
         }
       );
     } catch (error) {
+      // CRITICAL FIX: LLM exceptions must be tracked by circuit breaker
+      // to prevent infinite retry loops when LLM is unavailable
+      const llmError = parseError(error instanceof Error ? error.message : 'LLM error');
+
       const primaryError = currentErrors[0];
       if (!primaryError) {
+        // No errors to fix but LLM failed - still track the failure
+        circuitBreaker.recordAttempt([llmError]);
         session.finalStatus = 'CANNOT_FIX';
         break;
       }
@@ -241,9 +247,18 @@ export async function runRefinementLoop(
         error: primaryError,
         proposedFixes: [],
         outcome: 'failure',
-        newErrors: [parseError(error instanceof Error ? error.message : 'LLM error')],
+        newErrors: [llmError],
       };
       session.attempts.push(attempt);
+
+      // Track LLM failure in circuit breaker (was missing before - caused skip escalation loophole)
+      circuitBreaker.recordAttempt([...currentErrors, llmError]);
+      convergenceDetector.recordAttempt([...currentErrors, llmError]);
+
+      if (onAttemptComplete) {
+        onAttemptComplete(attempt);
+      }
+
       session.finalStatus = 'CANNOT_FIX';
       break;
     }

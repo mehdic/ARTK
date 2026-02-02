@@ -3,7 +3,7 @@ import { resolve, join, dirname, relative, basename, extname } from 'path';
 import { pathToFileURL, fileURLToPath } from 'url';
 import { parse, stringify } from 'yaml';
 import { z } from 'zod';
-import crypto, { randomBytes, createHash } from 'crypto';
+import crypto, { randomBytes, randomUUID, createHash } from 'crypto';
 import fg from 'fast-glob';
 import ejs from 'ejs';
 import { Project, ModuleKind, ScriptTarget, SyntaxKind } from 'ts-morph';
@@ -2902,8 +2902,8 @@ var HealSchema = z.object({
 var RegenerationStrategySchema = z.enum(["ast", "blocks"]).default("ast");
 var LLKBIntegrationLevelSchema = z.enum(["minimal", "enhance", "aggressive"]).default("enhance");
 var LLKBIntegrationSchema = z.object({
-  /** Enable LLKB integration */
-  enabled: z.boolean().default(false),
+  /** Enable LLKB integration (default: true - LLKB enhances test generation) */
+  enabled: z.boolean().default(true),
   /** Path to LLKB-generated config file */
   configPath: z.string().optional(),
   /** Path to LLKB-generated glossary file */
@@ -3106,10 +3106,22 @@ function loadLLKBConfig(basePath) {
 }
 function loadConfigWithMigration(configPath) {
   const config = loadConfig(configPath);
-  if (config.llkb === void 0) {
+  if (config.llkb === void 0 || config.llkb === null) {
     config.llkb = {
-      enabled: false,
-      level: "minimal"
+      enabled: true,
+      // LLKB should always be on by default
+      level: "enhance"
+      // Match schema default
+    };
+  } else {
+    config.llkb = {
+      enabled: config.llkb.enabled ?? true,
+      // Default to true if not specified
+      level: config.llkb.level ?? "enhance",
+      // Default to enhance if not specified
+      // Preserve any other user-specified fields
+      ...config.llkb.configPath !== void 0 && { configPath: config.llkb.configPath },
+      ...config.llkb.glossaryPath !== void 0 && { glossaryPath: config.llkb.glossaryPath }
     };
   }
   return config;
@@ -9426,8 +9438,7 @@ function runPlaywrightAsync(options = {}) {
         ...process.env,
         ...env,
         PLAYWRIGHT_JSON_OUTPUT_NAME: reportPath
-      },
-      shell: true
+      }
     });
     child.stdout?.on("data", (data) => {
       stdout += data.toString();
@@ -11156,15 +11167,22 @@ var CostTracker = class {
     this.state.testCost = 0;
   }
   /**
-   * Check if a limit has been exceeded
+   * Check if we are still under budget (have not exceeded limit)
+   * @returns true if cost is UNDER the limit (can continue), false if limit exceeded
    */
-  checkLimit(type) {
+  isUnderBudget(type) {
     if (!this.limits.enabled) return true;
     if (type === "test") {
       return this.state.testCost < this.limits.perTestUsd;
     } else {
       return this.state.sessionCost < this.limits.perSessionUsd;
     }
+  }
+  /**
+   * @deprecated Use isUnderBudget() instead - clearer naming
+   */
+  checkLimit(type) {
+    return this.isUnderBudget(type);
   }
   /**
    * Check if adding estimated tokens would exceed limit
@@ -11595,7 +11613,7 @@ function extractReasoning(text) {
 }
 function extractConfidence(text) {
   const match = text.match(PATTERNS.CONFIDENCE);
-  if (match) {
+  if (match && match[1]) {
     const value = parseFloat(match[1]);
     if (!isNaN(value) && value >= 0 && value <= 1) {
       return value;
@@ -11605,7 +11623,7 @@ function extractConfidence(text) {
 }
 function extractWarnings(text) {
   const match = text.match(PATTERNS.WARNINGS);
-  if (!match || match[1].trim().toLowerCase() === "none") {
+  if (!match || !match[1] || match[1].trim().toLowerCase() === "none") {
     return [];
   }
   return match[1].trim().split("\n").map((w) => w.trim()).filter(Boolean);
@@ -11615,7 +11633,12 @@ function extractStructures(text) {
   const lines = text.split("\n");
   let i = 0;
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
     const seqMatch = line.match(PATTERNS.SEQUENTIAL);
     if (seqMatch && seqMatch[1]) {
       const { structure, endIndex } = parseSequentialBlock(lines, i, seqMatch[1]);
@@ -11645,7 +11668,12 @@ function parseSequentialBlock(lines, startIndex, description) {
   const steps = [];
   let i = startIndex + 1;
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
     if (PATTERNS.SEQUENTIAL.test(line) || PATTERNS.BRANCH.test(line) || PATTERNS.LOOP.test(line)) {
       break;
     }
@@ -11671,7 +11699,12 @@ function parseBranchBlock(lines, startIndex, description) {
   let inElse = false;
   let i = startIndex + 1;
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
     const ifMatch = line.match(PATTERNS.IF);
     if (ifMatch && ifMatch[1]) {
       condition = parseConditionText(ifMatch[1]);
@@ -11716,7 +11749,12 @@ function parseLoopBlock(lines, startIndex, description) {
   let iterator = { variable: "item", collection: "items" };
   let i = startIndex + 1;
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
     const forMatch = line.match(PATTERNS.FOR_EACH);
     if (forMatch && forMatch[1] && forMatch[2]) {
       iterator = { variable: forMatch[1], collection: forMatch[2] };
@@ -13106,8 +13144,8 @@ var ConvergenceDetector = class {
     this.errorCountHistory.push(count);
     this.uniqueErrorsHistory.push(uniqueFingerprints);
     if (this.errorCountHistory.length >= 2) {
-      const prev = this.errorCountHistory[this.errorCountHistory.length - 2];
-      const curr = this.errorCountHistory[this.errorCountHistory.length - 1];
+      const prev = this.errorCountHistory[this.errorCountHistory.length - 2] ?? 0;
+      const curr = this.errorCountHistory[this.errorCountHistory.length - 1] ?? 0;
       if (curr < prev) {
         this.lastImprovement = this.errorCountHistory.length - 1;
         this.stagnationCount = 0;
@@ -13151,10 +13189,10 @@ var ConvergenceDetector = class {
       return "oscillating";
     }
     const decreasing = recent.every(
-      (val, i, arr) => i === 0 || val <= arr[i - 1]
+      (val, i, arr) => i === 0 || val <= (arr[i - 1] ?? val)
     );
     const increasing = recent.every(
-      (val, i, arr) => i === 0 || val >= arr[i - 1]
+      (val, i, arr) => i === 0 || val >= (arr[i - 1] ?? val)
     );
     const allSame = recent.every((val, _, arr) => val === arr[0]);
     if (allSame || this.stagnationCount >= 2) {
@@ -13414,6 +13452,8 @@ async function runRefinementLoop(journeyId, testFile, originalCode, initialError
   let currentErrors = initialErrors;
   const appliedFixes = [];
   const lessonsLearned = [];
+  let consecutiveSkips = 0;
+  const MAX_CONSECUTIVE_SKIPS = 3;
   while (true) {
     const analysis = analyzeRefinementProgress(
       session.attempts,
@@ -13451,15 +13491,27 @@ async function runRefinementLoop(journeyId, testFile, originalCode, initialError
         }
       );
     } catch (error) {
+      const llmError = parseError(error instanceof Error ? error.message : "LLM error");
+      const primaryError2 = currentErrors[0];
+      if (!primaryError2) {
+        circuitBreaker.recordAttempt([llmError]);
+        session.finalStatus = "CANNOT_FIX";
+        break;
+      }
       const attempt2 = {
         attemptNumber: session.attempts.length + 1,
         timestamp: /* @__PURE__ */ new Date(),
-        error: currentErrors[0],
+        error: primaryError2,
         proposedFixes: [],
         outcome: "failure",
-        newErrors: [parseError(error instanceof Error ? error.message : "LLM error")]
+        newErrors: [llmError]
       };
       session.attempts.push(attempt2);
+      circuitBreaker.recordAttempt([...currentErrors, llmError]);
+      convergenceDetector.recordAttempt([...currentErrors, llmError]);
+      if (onAttemptComplete) {
+        onAttemptComplete(attempt2);
+      }
       session.finalStatus = "CANNOT_FIX";
       break;
     }
@@ -13468,11 +13520,17 @@ async function runRefinementLoop(journeyId, testFile, originalCode, initialError
       costTracker.trackUsage(fixResult.tokenUsage);
     }
     const viableFixes = fixResult.fixes.filter((f) => f.confidence >= 0.5);
+    const primaryError = currentErrors[0];
+    if (!primaryError) {
+      session.finalStatus = "SUCCESS";
+      break;
+    }
     if (viableFixes.length === 0) {
+      consecutiveSkips++;
       const attempt2 = {
         attemptNumber: session.attempts.length + 1,
         timestamp: /* @__PURE__ */ new Date(),
-        error: currentErrors[0],
+        error: primaryError,
         proposedFixes: fixResult.fixes,
         outcome: "skipped",
         tokenUsage: fixResult.tokenUsage
@@ -13482,15 +13540,20 @@ async function runRefinementLoop(journeyId, testFile, originalCode, initialError
       if (onAttemptComplete) {
         onAttemptComplete(attempt2);
       }
+      if (consecutiveSkips >= MAX_CONSECUTIVE_SKIPS) {
+        session.finalStatus = "CANNOT_FIX";
+        break;
+      }
       continue;
     }
+    consecutiveSkips = 0;
     const fixToApply = viableFixes[0];
     const applyResult = applyFix2(currentCode, fixToApply);
     if (!applyResult.ok) {
       const attempt2 = {
         attemptNumber: session.attempts.length + 1,
         timestamp: /* @__PURE__ */ new Date(),
-        error: currentErrors[0],
+        error: primaryError,
         proposedFixes: fixResult.fixes,
         outcome: "failure",
         tokenUsage: fixResult.tokenUsage
@@ -13510,7 +13573,7 @@ async function runRefinementLoop(journeyId, testFile, originalCode, initialError
       const attempt2 = {
         attemptNumber: session.attempts.length + 1,
         timestamp: /* @__PURE__ */ new Date(),
-        error: currentErrors[0],
+        error: primaryError,
         proposedFixes: fixResult.fixes,
         appliedFix: fixToApply,
         outcome: "failure",
@@ -13529,7 +13592,7 @@ async function runRefinementLoop(journeyId, testFile, originalCode, initialError
     const attempt = {
       attemptNumber: session.attempts.length + 1,
       timestamp: /* @__PURE__ */ new Date(),
-      error: currentErrors[0],
+      error: primaryError,
       proposedFixes: fixResult.fixes,
       appliedFix: fixToApply,
       outcome,
@@ -13541,7 +13604,7 @@ async function runRefinementLoop(journeyId, testFile, originalCode, initialError
       currentCode = fixedCode;
       session.currentCode = currentCode;
       appliedFixes.push(fixToApply);
-      const lesson = createLesson(journeyId, fixToApply, currentErrors[0]);
+      const lesson = createLesson(journeyId, fixToApply, primaryError);
       if (lesson) {
         lessonsLearned.push(lesson);
       }
@@ -14305,6 +14368,65 @@ function classifyError2(message) {
   }
   return "unknown";
 }
+function parseJsonReport(jsonPath) {
+  try {
+    if (!existsSync(jsonPath)) {
+      return null;
+    }
+    const content = readFileSync(jsonPath, "utf-8");
+    const report = JSON.parse(content);
+    const counts = {
+      total: (report.stats.expected ?? 0) + (report.stats.unexpected ?? 0) + (report.stats.skipped ?? 0) + (report.stats.flaky ?? 0),
+      passed: report.stats.expected ?? 0,
+      failed: report.stats.unexpected ?? 0,
+      skipped: report.stats.skipped ?? 0,
+      flaky: report.stats.flaky ?? 0
+    };
+    const failures = [];
+    parseFailuresFromSuites(report.suites, failures);
+    for (const error of report.errors ?? []) {
+      failures.push({
+        title: "Global Error",
+        fullTitle: "Global Error",
+        file: error.location?.file ?? "",
+        line: error.location?.line,
+        error: error.message.substring(0, 500),
+        errorType: classifyError2(error.message)
+      });
+    }
+    return { counts, failures };
+  } catch (err3) {
+    console.warn(`[playwright-runner] Failed to parse JSON report: ${err3 instanceof Error ? err3.message : "unknown"}`);
+    return null;
+  }
+}
+function parseFailuresFromSuites(suites, failures) {
+  for (const suite of suites) {
+    for (const spec of suite.specs ?? []) {
+      for (const test of spec.tests ?? []) {
+        if (test.status === "unexpected" || test.status === "flaky") {
+          const lastResult = test.results[test.results.length - 1];
+          if (lastResult?.error) {
+            failures.push({
+              title: spec.title,
+              fullTitle: `${suite.title} > ${spec.title}`,
+              file: suite.file,
+              line: suite.line,
+              error: (lastResult.error.message ?? "Unknown error").substring(0, 500),
+              errorType: classifyError2(lastResult.error.message ?? ""),
+              stack: lastResult.error.stack?.split("\n").slice(0, 5).join("\n"),
+              duration: lastResult.duration,
+              retryCount: lastResult.retry
+            });
+          }
+        }
+      }
+    }
+    if (suite.suites) {
+      parseFailuresFromSuites(suite.suites, failures);
+    }
+  }
+}
 function parseTestCounts(output) {
   const counts = {
     total: 0,
@@ -14314,7 +14436,7 @@ function parseTestCounts(output) {
     flaky: 0
   };
   const summaryMatch = output.match(/(\d+)\s+passed.*?(\d+)\s+failed.*?(\d+)\s+skipped/i);
-  if (summaryMatch) {
+  if (summaryMatch && summaryMatch[1] && summaryMatch[2] && summaryMatch[3]) {
     counts.passed = parseInt(summaryMatch[1], 10);
     counts.failed = parseInt(summaryMatch[2], 10);
     counts.skipped = parseInt(summaryMatch[3], 10);
@@ -14329,7 +14451,7 @@ function parseTestCounts(output) {
   counts.skipped = skippedMatches?.length || 0;
   counts.total = counts.passed + counts.failed + counts.skipped;
   const flakyMatch = output.match(/(\d+)\s+flaky/i);
-  if (flakyMatch) {
+  if (flakyMatch && flakyMatch[1]) {
     counts.flaky = parseInt(flakyMatch[1], 10);
   }
   return counts;
@@ -14354,7 +14476,7 @@ ${stderr}`;
     const stackLines = block.split("\n").filter((l) => l.trim().startsWith("at ")).slice(0, 5);
     const stack = stackLines.length > 0 ? stackLines.join("\n") : void 0;
     const durationMatch = block.match(/(\d+(?:\.\d+)?)\s*(?:ms|s)/);
-    const duration = durationMatch ? parseFloat(durationMatch[1]) * (durationMatch[0].includes("s") && !durationMatch[0].includes("ms") ? 1e3 : 1) : void 0;
+    const duration = durationMatch && durationMatch[1] ? parseFloat(durationMatch[1]) * (durationMatch[0].includes("s") && !durationMatch[0].includes("ms") ? 1e3 : 1) : void 0;
     failures.push({
       title,
       fullTitle: title,
@@ -14384,13 +14506,17 @@ async function runPlaywright(options) {
     workers = 1
   } = options;
   const startTime = Date.now();
+  const jsonReportDir = join(cwd, ".artk", "autogen", "temp");
+  const jsonReportPath = join(jsonReportDir, `playwright-report-${randomUUID()}.json`);
+  mkdirSync(jsonReportDir, { recursive: true });
   const args = [
     "playwright",
     "test",
     ...testFiles,
     `--timeout=${timeout}`,
     `--retries=${retries}`,
-    `--reporter=${reporter}`,
+    // Use multiple reporters: JSON for parsing + user's choice for display
+    `--reporter=json,${reporter}`,
     `--workers=${workers}`
   ];
   if (headed) args.push("--headed");
@@ -14403,12 +14529,13 @@ async function runPlaywright(options) {
     let stderr = "";
     const spawnOptions = {
       cwd,
-      shell: true,
       env: {
         ...process.env,
         ...env,
-        FORCE_COLOR: "1"
-        // Force colored output for better parsing
+        FORCE_COLOR: "1",
+        // Force colored output for display reporter
+        PLAYWRIGHT_JSON_OUTPUT_NAME: jsonReportPath
+        // Direct JSON output to our file
       }
     };
     const proc = spawn("npx", args, spawnOptions);
@@ -14421,13 +14548,28 @@ async function runPlaywright(options) {
     proc.on("close", (code) => {
       const duration = Date.now() - startTime;
       const exitCode = code ?? 1;
-      const counts = parseTestCounts(stdout);
-      const failures = parseFailures(stdout, stderr);
+      let counts;
+      let failures;
+      const jsonResult = parseJsonReport(jsonReportPath);
+      if (jsonResult) {
+        counts = jsonResult.counts;
+        failures = jsonResult.failures;
+      } else {
+        console.warn("[playwright-runner] JSON report not available, falling back to stdout parsing");
+        counts = parseTestCounts(stdout);
+        failures = parseFailures(stdout, stderr);
+      }
+      try {
+        if (existsSync(jsonReportPath)) {
+          unlinkSync(jsonReportPath);
+        }
+      } catch {
+      }
       let status = "passed";
       if (exitCode !== 0) {
-        if (stdout.includes("timeout") || stderr.includes("timeout")) {
+        if (stdout.includes("timeout") || stderr.includes("timeout") || failures.some((f) => f.errorType === "timeout")) {
           status = "timeout";
-        } else if (failures.length > 0) {
+        } else if (failures.length > 0 || counts.failed > 0) {
           status = "failed";
         } else {
           status = "error";
@@ -14460,6 +14602,12 @@ async function runPlaywright(options) {
       });
     });
     proc.on("error", (err3) => {
+      try {
+        if (existsSync(jsonReportPath)) {
+          unlinkSync(jsonReportPath);
+        }
+      } catch {
+      }
       resolve6({
         status: "error",
         exitCode: 1,
@@ -15815,8 +15963,7 @@ function isSelectorFragile(selector) {
 async function calculateConfidence2(code, options) {
   const {
     config,
-    llmClient,
-    costTracker,
+    // Note: llmClient and costTracker are available in options for future multi-sample LLM calls
     customPatterns,
     llkbPatterns
   } = options;
@@ -15853,19 +16000,11 @@ async function calculateConfidence2(code, options) {
   const selectorScore = createSelectorDimensionScore(selectorResult);
   selectorScore.weight = weights.selector;
   dimensions.push(selectorScore);
-  let agreementScore;
-  if (config.sampling?.enabled && llmClient && config.sampling.sampleCount > 1) {
-    const estimatedTokens = config.sampling.sampleCount * 4e3;
-    if (costTracker?.wouldExceedLimit(estimatedTokens)) {
-      agreementScore = createDefaultAgreementScore("Cost limit would be exceeded");
-    } else {
-      agreementScore = createDefaultAgreementScore("Multi-sampling disabled for single code input");
-    }
-  } else {
-    agreementScore = createDefaultAgreementScore("Multi-sampling not enabled");
+  if (config.sampling?.enabled && config.sampling.sampleCount > 1) {
+    throw new Error(
+      "[confidence-scorer] Multi-sampling is enabled (sampleCount=" + config.sampling.sampleCount + ") but calculateConfidence() only accepts single code. Use calculateConfidenceWithSamples() with pre-generated samples for agreement scoring."
+    );
   }
-  agreementScore.weight = weights.agreement;
-  dimensions.push(agreementScore);
   const overall = calculateOverallScore(dimensions);
   const { verdict, blockedDimensions } = determineVerdict(dimensions, thresholds);
   const diagnostics = createDiagnostics2(dimensions);
@@ -15883,7 +16022,8 @@ async function calculateConfidenceWithSamples(samples, options) {
     throw new Error("At least one sample is required");
   }
   if (samples.length === 1) {
-    return calculateConfidence2(samples[0].code, options);
+    const sample = samples[0];
+    return calculateConfidence2(sample.code, options);
   }
   const { config, customPatterns, llkbPatterns } = options;
   const weights = config.weights ? {
@@ -16194,14 +16334,14 @@ function createDiagnostics2(dimensions) {
     }
   }
   return {
-    lowestDimension: {
+    lowestDimension: lowest ? {
       name: lowest.dimension,
       score: lowest.score
-    },
-    highestDimension: {
+    } : { name: "syntax", score: 0 },
+    highestDimension: highest ? {
       name: highest.dimension,
       score: highest.score
-    },
+    } : { name: "syntax", score: 0 },
     improvementSuggestions: suggestions.slice(0, 5),
     riskAreas
   };
@@ -16234,16 +16374,6 @@ function generateSuggestions(dim) {
     default:
       return [];
   }
-}
-function createDefaultAgreementScore(reason) {
-  return {
-    dimension: "agreement",
-    score: 0.7,
-    // Neutral score when not using multi-sampling
-    weight: 0.2,
-    reasoning: reason,
-    subScores: []
-  };
 }
 function quickConfidenceCheck(code, dimension) {
   switch (dimension) {
@@ -16508,8 +16638,10 @@ async function generateMultipleSamples(request, generator) {
     samplesDir = getAutogenArtifact("samples");
     mkdirSync(samplesDir, { recursive: true });
     for (let i = 0; i < samples.length; i++) {
+      const sample = samples[i];
+      if (!sample) continue;
       const samplePath = join(samplesDir, `${journeyId}-sample-${i}.ts`);
-      writeFileSync(samplePath, samples[i].code, "utf-8");
+      writeFileSync(samplePath, sample.code, "utf-8");
     }
     const agreementPath = getAutogenArtifact("agreement");
     writeFileSync(agreementPath, JSON.stringify({
@@ -16527,7 +16659,7 @@ async function generateMultipleSamples(request, generator) {
   return {
     samples,
     agreement,
-    bestSample,
+    bestSample: bestSample ?? samples[0],
     totalTokenUsage,
     samplesDir
   };
@@ -16591,7 +16723,7 @@ function processOrchestratorSamples(samples, _journeyId) {
   }));
   const agreement = analyzeAgreement2(codeSamples);
   const bestSampleIndex = codeSamples.findIndex((s) => s.code === agreement.consensusCode);
-  const bestSample = (bestSampleIndex >= 0 ? codeSamples[bestSampleIndex] : codeSamples[0]) || codeSamples[0];
+  const bestSample = (bestSampleIndex >= 0 ? codeSamples[bestSampleIndex] : codeSamples[0]) ?? codeSamples[0];
   return {
     samples: codeSamples,
     agreement,

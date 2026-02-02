@@ -9,7 +9,8 @@
  *
  * @see research/2026-02-02_autogen-enhancement-implementation-plan.md
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { getAutogenArtifact, ensureAutogenDir } from '../utils/paths.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -101,7 +102,11 @@ export function loadPipelineState(baseDir?: string): PipelineState {
 }
 
 /**
- * Save pipeline state to disk
+ * Save pipeline state to disk atomically
+ *
+ * Uses write-to-temp + rename pattern for atomic writes.
+ * This prevents file corruption if two processes write simultaneously
+ * or if the process is interrupted during write.
  */
 export async function savePipelineState(
   state: PipelineState,
@@ -111,7 +116,26 @@ export async function savePipelineState(
   const statePath = getAutogenArtifact('state', baseDir);
 
   state.updatedAt = new Date().toISOString();
-  writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+  const content = JSON.stringify(state, null, 2);
+
+  // Atomic write: write to temp file in same directory, then rename
+  // Rename is atomic on most filesystems (POSIX guarantees it)
+  const tempPath = join(dirname(statePath), `.state-${process.pid}-${Date.now()}.tmp`);
+
+  try {
+    writeFileSync(tempPath, content, 'utf-8');
+    renameSync(tempPath, statePath);
+  } catch (err) {
+    // Clean up temp file on error
+    try {
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+    } catch {
+      // Ignore cleanup errors
+    }
+    throw err;
+  }
 }
 
 /**
