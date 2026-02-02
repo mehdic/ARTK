@@ -82,6 +82,21 @@
         "icon": "$(export)"
       },
       {
+        "command": "artk.llkb.seed",
+        "title": "ARTK: Seed LLKB with Universal Patterns",
+        "icon": "$(database)"
+      },
+      {
+        "command": "artk.journey.validate",
+        "title": "ARTK: Validate Journeys",
+        "icon": "$(check)"
+      },
+      {
+        "command": "artk.journey.implement",
+        "title": "ARTK: Implement Journeys",
+        "icon": "$(run)"
+      },
+      {
         "command": "artk.refreshViews",
         "title": "ARTK: Refresh All Views",
         "icon": "$(refresh)"
