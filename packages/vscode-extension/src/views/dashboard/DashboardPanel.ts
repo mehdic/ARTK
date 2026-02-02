@@ -6,7 +6,9 @@
 
 import * as vscode from 'vscode';
 import { getWorkspaceContextManager } from '../../workspace';
+import { llkbStatsJson, journeySummary } from '../../cli';
 import type { ArtkContext, ArtkConfig } from '../../types';
+import type { LLKBStatsResult, JourneySummary } from '../../cli/types';
 
 /**
  * Escape HTML to prevent XSS attacks
@@ -30,6 +32,8 @@ export class DashboardPanel {
   public static currentPanel: DashboardPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
+  private llkbStats: LLKBStatsResult | undefined;
+  private journeySummaryData: JourneySummary | undefined;
 
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
     this.panel = panel;
@@ -116,6 +120,69 @@ export class DashboardPanel {
    * Update the webview content
    */
   private update(): void {
+    const contextManager = getWorkspaceContextManager();
+    const workspaceInfo = contextManager.workspaceInfo;
+    const artkContext = contextManager.artkContext;
+    const artkConfig = contextManager.artkConfig;
+
+    // Fetch async data in background
+    this.fetchAsyncData(workspaceInfo?.llkbPath, workspaceInfo?.artkE2ePath);
+
+    this.panel.webview.html = this.getHtmlContent(
+      workspaceInfo?.detected ?? false,
+      artkContext,
+      artkConfig,
+      workspaceInfo?.llkbEnabled ?? false
+    );
+  }
+
+  /**
+   * Fetch async data like LLKB stats and journey summary
+   */
+  private async fetchAsyncData(llkbPath?: string, harnessRoot?: string): Promise<void> {
+    const contextManager = getWorkspaceContextManager();
+
+    // Fetch LLKB stats if enabled
+    if (llkbPath && contextManager.llkbEnabled) {
+      try {
+        const result = await llkbStatsJson({ llkbRoot: llkbPath });
+        if (result.success && result.stdout) {
+          try {
+            this.llkbStats = JSON.parse(result.stdout);
+            // Re-render with new data
+            this.renderCurrentState();
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+    }
+
+    // Fetch journey summary if harness root exists
+    if (harnessRoot) {
+      try {
+        const result = await journeySummary(harnessRoot);
+        if (result.success && result.stdout) {
+          try {
+            this.journeySummaryData = JSON.parse(result.stdout);
+            // Re-render with new data
+            this.renderCurrentState();
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+    }
+  }
+
+  /**
+   * Re-render the panel with current state
+   */
+  private renderCurrentState(): void {
     const contextManager = getWorkspaceContextManager();
     const workspaceInfo = contextManager.workspaceInfo;
     const artkContext = contextManager.artkContext;
@@ -367,6 +434,26 @@ export class DashboardPanel {
             ${llkbEnabled ? 'Enabled' : 'Not Enabled'}
           </span>
         </div>
+        ${llkbEnabled && this.llkbStats ? `
+        <div class="stat">
+          <span class="stat-label">Lessons</span>
+          <span class="stat-value">${escapeHtml(this.llkbStats.lessons)}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Components</span>
+          <span class="stat-value">${escapeHtml(this.llkbStats.components)}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Avg Confidence</span>
+          <span class="stat-value">${this.llkbStats.avgConfidence !== undefined ? (this.llkbStats.avgConfidence * 100).toFixed(0) + '%' : 'N/A'}</span>
+        </div>
+        ${this.llkbStats.lastUpdated ? `
+        <div class="stat">
+          <span class="stat-label">Last Updated</span>
+          <span class="stat-value" title="${escapeHtml(this.llkbStats.lastUpdated)}">${escapeHtml(this.formatDate(this.llkbStats.lastUpdated))}</span>
+        </div>
+        ` : ''}
+        ` : ''}
       </div>
       ${llkbEnabled ? `
       <div class="actions">
@@ -377,6 +464,8 @@ export class DashboardPanel {
       ` : ''}
     </div>
 
+    ${this.getJourneySummaryCard()}
+
     <div class="card" role="region" aria-labelledby="actions-heading">
       <h2 id="actions-heading">Quick Actions</h2>
       <div class="actions">
@@ -386,6 +475,98 @@ export class DashboardPanel {
       </div>
     </div>
   </div>`;
+  }
+
+  /**
+   * Generate journey summary card
+   */
+  private getJourneySummaryCard(): string {
+    if (!this.journeySummaryData || this.journeySummaryData.total === 0) {
+      return '';
+    }
+
+    const data = this.journeySummaryData;
+    const readyCount = data.readyToImplement?.length ?? 0;
+
+    return `
+    <div class="card" role="region" aria-labelledby="journeys-heading">
+      <h2 id="journeys-heading">Journey Summary</h2>
+      <div class="card-content">
+        <div class="stat">
+          <span class="stat-label">Total</span>
+          <span class="stat-value">${escapeHtml(data.total)}</span>
+        </div>
+        ${data.implemented > 0 ? `
+        <div class="stat">
+          <span class="stat-label">Implemented</span>
+          <span class="stat-value status-ok">${escapeHtml(data.implemented)}</span>
+        </div>
+        ` : ''}
+        ${data.clarified > 0 ? `
+        <div class="stat">
+          <span class="stat-label">Clarified</span>
+          <span class="stat-value">${escapeHtml(data.clarified)}</span>
+        </div>
+        ` : ''}
+        ${data.defined > 0 ? `
+        <div class="stat">
+          <span class="stat-label">Defined</span>
+          <span class="stat-value">${escapeHtml(data.defined)}</span>
+        </div>
+        ` : ''}
+        ${data.proposed > 0 ? `
+        <div class="stat">
+          <span class="stat-label">Proposed</span>
+          <span class="stat-value">${escapeHtml(data.proposed)}</span>
+        </div>
+        ` : ''}
+        ${data.quarantined > 0 ? `
+        <div class="stat">
+          <span class="stat-label">Quarantined</span>
+          <span class="stat-value status-warning">${escapeHtml(data.quarantined)}</span>
+        </div>
+        ` : ''}
+        ${data.deprecated > 0 ? `
+        <div class="stat">
+          <span class="stat-label">Deprecated</span>
+          <span class="stat-value">${escapeHtml(data.deprecated)}</span>
+        </div>
+        ` : ''}
+        ${readyCount > 0 ? `
+        <div class="stat">
+          <span class="stat-label">Ready to Implement</span>
+          <span class="stat-value" title="${escapeHtml(data.readyToImplement?.join(', '))}">${escapeHtml(readyCount)}</span>
+        </div>
+        ` : ''}
+      </div>
+      <div class="actions">
+        <button onclick="runCommand('journeyValidate')" aria-label="Validate journeys">Validate</button>
+      </div>
+    </div>`;
+  }
+
+  /**
+   * Format date for display
+   */
+  private formatDate(isoDate: string): string {
+    try {
+      const date = new Date(isoDate);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+      if (days === 0) {
+        return 'Today';
+      } else if (days === 1) {
+        return 'Yesterday';
+      } else if (days < 7) {
+        return `${days} days ago`;
+      } else {
+        return date.toLocaleDateString();
+      }
+    } catch {
+      return isoDate;
+    }
   }
 
   /**

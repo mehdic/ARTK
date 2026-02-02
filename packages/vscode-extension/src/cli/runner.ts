@@ -21,6 +21,8 @@ import type {
   CLIJourneyValidateOptions,
   CLIJourneyImplementOptions,
   CheckPrerequisitesResult,
+  LLKBStatsResult,
+  JourneySummary,
 } from './types';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
@@ -338,6 +340,13 @@ export async function llkbStats(options: CLILLKBOptions): Promise<CLIResult> {
 }
 
 /**
+ * LLKB statistics as JSON
+ */
+export async function llkbStatsJson(options: CLILLKBOptions): Promise<CLIResult<LLKBStatsResult>> {
+  return runCLI(['llkb', 'stats', '--llkb-root', options.llkbRoot, '--json']) as Promise<CLIResult<LLKBStatsResult>>;
+}
+
+/**
  * Export LLKB for AutoGen
  */
 export async function llkbExport(options: CLILLKBExportOptions): Promise<CLIResult> {
@@ -436,4 +445,11 @@ export async function journeyImplement(options: CLIJourneyImplementOptions): Pro
   }
 
   return runCLIWithProgress('Implementing journey(s)...', args);
+}
+
+/**
+ * Get journey summary statistics
+ */
+export async function journeySummary(harnessRoot: string): Promise<CLIResult<JourneySummary>> {
+  return runCLI(['journey', 'summary', '--harness-root', harnessRoot, '--json']) as Promise<CLIResult<JourneySummary>>;
 }

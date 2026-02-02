@@ -76,7 +76,23 @@ vi.mock('vscode', () => ({
 }));
 
 // Import after mocks
-import { runCLI, init, check, doctor, upgrade, uninstall, llkbHealth, llkbStats, llkbExport } from './runner';
+import {
+  runCLI,
+  init,
+  check,
+  doctor,
+  upgrade,
+  uninstall,
+  llkbHealth,
+  llkbStats,
+  llkbStatsJson,
+  llkbExport,
+  llkbSeed,
+  journeyValidate,
+  journeyCheckLlkb,
+  journeyImplement,
+  journeySummary,
+} from './runner';
 
 describe('CLI Runner', () => {
   beforeEach(() => {
@@ -349,6 +365,121 @@ describe('CLI Runner', () => {
         expect(args).toContain('--min-confidence');
         expect(args).toContain('0.8');
         expect(args).toContain('--dry-run');
+      });
+    });
+
+    describe('llkbStatsJson', () => {
+      it('should include --json flag for JSON output', async () => {
+        await llkbStatsJson({ llkbRoot: '/path/to/llkb' });
+
+        const args = mockState.spawnCalls[0][1];
+        expect(args).toContain('llkb');
+        expect(args).toContain('stats');
+        expect(args).toContain('--llkb-root');
+        expect(args).toContain('/path/to/llkb');
+        expect(args).toContain('--json');
+      });
+    });
+
+    describe('llkbSeed', () => {
+      it('should build correct seed arguments', async () => {
+        await llkbSeed({
+          patterns: 'universal',
+          llkbRoot: '/path/to/llkb',
+          dryRun: true,
+        });
+
+        const args = mockState.spawnCalls[0][1];
+        expect(args).toContain('llkb');
+        expect(args).toContain('seed');
+        expect(args).toContain('--patterns');
+        expect(args).toContain('universal');
+        expect(args).toContain('--llkb-root');
+        expect(args).toContain('/path/to/llkb');
+        expect(args).toContain('--dry-run');
+      });
+
+      it('should support --list option', async () => {
+        await llkbSeed({
+          patterns: '',
+          list: true,
+        });
+
+        const args = mockState.spawnCalls[0][1];
+        expect(args).toContain('llkb');
+        expect(args).toContain('seed');
+        expect(args).toContain('--list');
+      });
+    });
+
+    describe('journeyValidate', () => {
+      it('should build correct validate arguments', async () => {
+        await journeyValidate({
+          journeyIds: ['JRN-0001', 'JRN-0002'],
+          harnessRoot: '/path/to/harness',
+          json: true,
+        });
+
+        const args = mockState.spawnCalls[0][1];
+        expect(args).toContain('journey');
+        expect(args).toContain('validate');
+        expect(args).toContain('JRN-0001');
+        expect(args).toContain('JRN-0002');
+        expect(args).toContain('--harness-root');
+        expect(args).toContain('/path/to/harness');
+        expect(args).toContain('--json');
+      });
+    });
+
+    describe('journeyCheckLlkb', () => {
+      it('should build correct check-llkb arguments', async () => {
+        await journeyCheckLlkb('/path/to/harness');
+
+        const args = mockState.spawnCalls[0][1];
+        expect(args).toContain('journey');
+        expect(args).toContain('check-llkb');
+        expect(args).toContain('--harness-root');
+        expect(args).toContain('/path/to/harness');
+        expect(args).toContain('--json');
+      });
+    });
+
+    describe('journeyImplement', () => {
+      it('should build correct implement arguments', async () => {
+        await journeyImplement({
+          journeyIds: ['JRN-0001'],
+          harnessRoot: '/path/to/harness',
+          batchMode: 'serial',
+          learningMode: 'strict',
+          dryRun: true,
+          verbose: true,
+        });
+
+        const args = mockState.spawnCalls[0][1];
+        expect(args).toContain('journey');
+        expect(args).toContain('implement');
+        expect(args).toContain('JRN-0001');
+        expect(args).toContain('--harness-root');
+        expect(args).toContain('/path/to/harness');
+        expect(args).toContain('--batch-mode');
+        expect(args).toContain('serial');
+        expect(args).toContain('--learning-mode');
+        expect(args).toContain('strict');
+        expect(args).toContain('--dry-run');
+        expect(args).toContain('--verbose');
+      });
+    });
+
+    describe('journeySummary', () => {
+      it('should build correct summary arguments', async () => {
+        await journeySummary('/path/to/harness');
+
+        const args = mockState.spawnCalls[0][1];
+        expect(args).toContain('journey');
+        expect(args).toContain('summary');
+        expect(args).toContain('--harness-root');
+        expect(args).toContain('/path/to/harness');
+        expect(args).toContain('--json');
       });
     });
   });
