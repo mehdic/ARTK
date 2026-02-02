@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync, renameSync } from 'fs';
 import { join, dirname, basename, resolve } from 'path';
 import yaml, { stringify, parse } from 'yaml';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -393,8 +393,8 @@ var init_schema = __esm({
     RegenerationStrategySchema = z.enum(["ast", "blocks"]).default("ast");
     LLKBIntegrationLevelSchema = z.enum(["minimal", "enhance", "aggressive"]).default("enhance");
     LLKBIntegrationSchema = z.object({
-      /** Enable LLKB integration */
-      enabled: z.boolean().default(false),
+      /** Enable LLKB integration (default: true - LLKB enhances test generation) */
+      enabled: z.boolean().default(true),
       /** Path to LLKB-generated config file */
       configPath: z.string().optional(),
       /** Path to LLKB-generated glossary file */
@@ -7969,8 +7969,8 @@ var init_convergence_detector = __esm({
         this.errorCountHistory.push(count);
         this.uniqueErrorsHistory.push(uniqueFingerprints);
         if (this.errorCountHistory.length >= 2) {
-          const prev = this.errorCountHistory[this.errorCountHistory.length - 2];
-          const curr = this.errorCountHistory[this.errorCountHistory.length - 1];
+          const prev = this.errorCountHistory[this.errorCountHistory.length - 2] ?? 0;
+          const curr = this.errorCountHistory[this.errorCountHistory.length - 1] ?? 0;
           if (curr < prev) {
             this.lastImprovement = this.errorCountHistory.length - 1;
             this.stagnationCount = 0;
@@ -8014,10 +8014,10 @@ var init_convergence_detector = __esm({
           return "oscillating";
         }
         const decreasing = recent.every(
-          (val, i, arr) => i === 0 || val <= arr[i - 1]
+          (val, i, arr) => i === 0 || val <= (arr[i - 1] ?? val)
         );
         const increasing = recent.every(
-          (val, i, arr) => i === 0 || val >= arr[i - 1]
+          (val, i, arr) => i === 0 || val >= (arr[i - 1] ?? val)
         );
         const allSame = recent.every((val, _, arr) => val === arr[0]);
         if (allSame || this.stagnationCount >= 2) {
@@ -8166,7 +8166,6 @@ async function checkPlaywrightInstalled(cwd) {
   return new Promise((resolve6) => {
     const proc = spawn("npx", ["playwright", "--version"], {
       cwd: getHarnessRoot(),
-      shell: true,
       env: process.env
     });
     let stdout = "";
@@ -8586,7 +8585,20 @@ async function savePipelineState(state, baseDir) {
   await ensureAutogenDir(baseDir);
   const statePath = getAutogenArtifact("state", baseDir);
   state.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-  writeFileSync(statePath, JSON.stringify(state, null, 2), "utf-8");
+  const content = JSON.stringify(state, null, 2);
+  const tempPath = join(dirname(statePath), `.state-${process.pid}-${Date.now()}.tmp`);
+  try {
+    writeFileSync(tempPath, content, "utf-8");
+    renameSync(tempPath, statePath);
+  } catch (err3) {
+    try {
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+    } catch {
+    }
+    throw err3;
+  }
 }
 async function updatePipelineState(command, stage, success, details, baseDir) {
   const state = loadPipelineState(baseDir);
@@ -10276,7 +10288,6 @@ async function runPlaywrightTest(testPath, options) {
     let stderr = "";
     const proc = spawn("npx", args, {
       cwd: harnessRoot,
-      shell: true,
       env: {
         ...process.env,
         // Force color output for better error parsing
@@ -10323,6 +10334,19 @@ async function runPlaywrightTest(testPath, options) {
         }
       } catch {
       }
+      const MAX_OUTPUT_SIZE = 1e4;
+      const truncateWithIndicator = (text, name) => {
+        if (text.length <= MAX_OUTPUT_SIZE) return text;
+        let truncateAt = MAX_OUTPUT_SIZE;
+        const code2 = text.charCodeAt(truncateAt - 1);
+        if (code2 >= 55296 && code2 <= 56319) {
+          truncateAt--;
+        }
+        const truncated = text.slice(0, truncateAt);
+        return `${truncated}
+
+[${name} TRUNCATED - ${text.length - truncateAt} more characters]`;
+      };
       resolve6({
         version: "1.0",
         testPath,
@@ -10331,9 +10355,8 @@ async function runPlaywrightTest(testPath, options) {
         duration,
         errors,
         output: {
-          stdout: stdout.substring(0, 1e4),
-          // Limit output size
-          stderr: stderr.substring(0, 1e4),
+          stdout: truncateWithIndicator(stdout, "STDOUT"),
+          stderr: truncateWithIndicator(stderr, "STDERR"),
           exitCode
         },
         artifacts,
@@ -10961,7 +10984,8 @@ function loadRefinementStates() {
             lastStatus: lastAttempt?.errors?.length > 0 ? "failed" : "passed",
             trend: "unknown",
             // Would need convergence detector
-            isBlocked: data.circuitBreaker?.isOpen || false
+            isBlocked: data.circuitBreakerState?.isOpen ?? false
+            // Fixed: was incorrectly reading circuitBreaker
           });
         } catch {
         }

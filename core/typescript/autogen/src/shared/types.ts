@@ -92,10 +92,12 @@ export interface CostTrackerState {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PIPELINE STATE MACHINE
+// PIPELINE ORCHESTRATION PHASE (internal state machine)
+// NOTE: This is different from PipelineState in pipeline/state.ts which is
+// the persisted state file format for the CLI pipeline.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type PipelineState =
+export type OrchestrationPhase =
   | 'IDLE'
   | 'PARSING'
   | 'PLANNING'
@@ -111,7 +113,7 @@ export type PipelineState =
 
 export interface PipelineContext {
   journeyId: string;
-  state: PipelineState;
+  state: OrchestrationPhase;
   scotEnabled: boolean;
   refinementEnabled: boolean;
   uncertaintyEnabled: boolean;
@@ -123,8 +125,8 @@ export interface PipelineContext {
 }
 
 export interface StateTransition {
-  from: PipelineState;
-  to: PipelineState;
+  from: OrchestrationPhase;
+  to: OrchestrationPhase;
   guard?: (_ctx: PipelineContext) => boolean;
   action?: (_ctx: PipelineContext) => Promise<void>;
 }
@@ -147,7 +149,7 @@ export type PipelineErrorType =
 export interface PipelineError {
   type: PipelineErrorType;
   message: string;
-  stage: PipelineState;
+  stage: OrchestrationPhase;
   recoverable: boolean;
   suggestedAction: 'manual_review' | 'journey_revision' | 'retry' | 'abort';
   diagnostics: PipelineDiagnostics;
@@ -172,7 +174,7 @@ export interface DeadEndResult {
 
 export interface DeadEndReport {
   journeyId: string;
-  blockedAt: PipelineState;
+  blockedAt: OrchestrationPhase;
   reasons: string[];
   scotDiagnostics?: {
     confidence: number;

@@ -302,13 +302,24 @@ export function loadLLKBConfig(basePath: string): AutogenConfig | null {
 export function loadConfigWithMigration(configPath?: string): AutogenConfig {
   const config = loadConfig(configPath);
 
-  // Migration: Ensure llkb field exists
+  // Migration: Ensure llkb field has all required defaults
   // The schema already has .default({}) but we add explicit migration
   // for clarity and to handle edge cases where partial configs are loaded
-  if (config.llkb === undefined) {
+  // IMPORTANT: We MERGE with defaults, not replace, to preserve user's explicit settings
+  if (config.llkb === undefined || config.llkb === null) {
+    // No llkb config at all - use full defaults
     config.llkb = {
       enabled: true,  // LLKB should always be on by default
       level: 'enhance',  // Match schema default
+    };
+  } else {
+    // Partial llkb config - merge with defaults, preserving user's explicit values
+    config.llkb = {
+      enabled: config.llkb.enabled ?? true,  // Default to true if not specified
+      level: config.llkb.level ?? 'enhance',  // Default to enhance if not specified
+      // Preserve any other user-specified fields
+      ...(config.llkb.configPath !== undefined && { configPath: config.llkb.configPath }),
+      ...(config.llkb.glossaryPath !== undefined && { glossaryPath: config.llkb.glossaryPath }),
     };
   }
 

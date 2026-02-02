@@ -255,6 +255,8 @@ export function runPlaywrightAsync(
     let stdout = '';
     let stderr = '';
 
+    // SECURITY: shell: false (default) prevents command injection via args
+    // Node.js v14.18+ handles .cmd/.bat files on Windows automatically
     const child: ChildProcess = spawn('npx', ['playwright', ...args], {
       cwd,
       env: {
@@ -262,7 +264,6 @@ export function runPlaywrightAsync(
         ...env,
         PLAYWRIGHT_JSON_OUTPUT_NAME: reportPath,
       },
-      shell: true,
     });
 
     child.stdout?.on('data', (data: Buffer) => {

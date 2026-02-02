@@ -475,9 +475,11 @@ export async function runPlaywright(options: PlaywrightRunOptions): Promise<Play
     let stdout = '';
     let stderr = '';
 
+    // SECURITY: shell: false (default) prevents command injection via grep/extraArgs
+    // This is critical because `grep` parameter comes from user input
+    // Node.js v14.18+ handles .cmd/.bat files on Windows automatically
     const spawnOptions: SpawnOptions = {
       cwd,
-      shell: true,
       env: {
         ...process.env,
         ...env,
@@ -635,9 +637,10 @@ export async function checkPlaywrightInstalled(cwd?: string): Promise<{
   error?: string;
 }> {
   return new Promise((resolve) => {
+    // SECURITY: shell: false (default) is safer
+    // Node.js v14.18+ handles .cmd/.bat files on Windows automatically
     const proc = spawn('npx', ['playwright', '--version'], {
       cwd: cwd || getHarnessRoot(),
-      shell: true,
       env: process.env,
     });
 
