@@ -1,8 +1,13 @@
 /**
  * CLI Runner - Execute ARTK CLI commands
+ *
+ * SECURITY: This module uses `shell: false` to prevent command injection.
+ * Custom CLI paths are validated before use.
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type { CLIResult } from '../types';
 import type {
@@ -16,56 +21,117 @@ import type {
 } from './types';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
+const MAX_OUTPUT_SIZE = 10 * 1024 * 1024; // 10MB limit to prevent memory issues
+
+/**
+ * Validate that a path is safe to use as a CLI executable
+ * Returns an error message if invalid, undefined if valid
+ */
+function validateCLIPath(cliPath: string): string | undefined {
+  // Path must be absolute
+  if (!path.isAbsolute(cliPath)) {
+    return 'CLI path must be an absolute path';
+  }
+
+  // Path must exist
+  if (!fs.existsSync(cliPath)) {
+    return `CLI path does not exist: ${cliPath}`;
+  }
+
+  // Path must be a file (not a directory)
+  const stat = fs.statSync(cliPath);
+  if (!stat.isFile()) {
+    return 'CLI path must be a file, not a directory';
+  }
+
+  // Reject paths containing dangerous characters
+  const dangerousChars = /[;&|`$(){}[\]<>\\'"]/;
+  if (dangerousChars.test(cliPath)) {
+    return 'CLI path contains invalid characters';
+  }
+
+  return undefined;
+}
 
 /**
  * Get the CLI executable path
- * Uses configured path or falls back to npx
+ * Uses configured path (validated) or falls back to npx
  */
-function getCLIPath(): { command: string; args: string[] } {
+function getCLIPath(): { command: string; args: string[]; useShell: boolean } {
   const config = vscode.workspace.getConfiguration('artk');
   const customPath = config.get<string>('cliPath');
 
   if (customPath && customPath.trim()) {
-    return { command: customPath, args: [] };
+    const trimmed = customPath.trim();
+    const error = validateCLIPath(trimmed);
+    if (error) {
+      // Log error and fall back to npx
+      vscode.window.showWarningMessage(`Invalid artk.cliPath: ${error}. Using npx instead.`);
+      return { command: 'npx', args: ['@artk/cli'], useShell: false };
+    }
+    return { command: trimmed, args: [], useShell: false };
   }
 
   // Use npx to run @artk/cli
-  return { command: 'npx', args: ['@artk/cli'] };
+  // npx requires shell on Windows for proper PATH resolution
+  const isWindows = process.platform === 'win32';
+  return {
+    command: isWindows ? 'npx.cmd' : 'npx',
+    args: ['@artk/cli'],
+    useShell: false
+  };
 }
 
 /**
  * Execute a CLI command and return the result
+ *
+ * SECURITY: Uses shell: false to prevent command injection
  */
 export async function runCLI(
   args: string[],
   options: CLICommandOptions = {}
 ): Promise<CLIResult> {
   const { cwd, timeout = DEFAULT_TIMEOUT, env } = options;
-  const { command, args: prefixArgs } = getCLIPath();
+  const { command, args: prefixArgs, useShell } = getCLIPath();
   const fullArgs = [...prefixArgs, ...args];
 
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
     let killed = false;
+    let outputTruncated = false;
 
     const proc = spawn(command, fullArgs, {
       cwd,
       env: { ...process.env, ...env },
-      shell: true,
+      shell: useShell, // false by default for security
+      windowsHide: true, // Hide console window on Windows
     });
 
     const timer = setTimeout(() => {
       killed = true;
       proc.kill('SIGTERM');
+      // Force kill after 5 seconds if SIGTERM doesn't work
+      setTimeout(() => {
+        if (!proc.killed) {
+          proc.kill('SIGKILL');
+        }
+      }, 5000);
     }, timeout);
 
     proc.stdout.on('data', (data) => {
-      stdout += data.toString();
+      if (stdout.length < MAX_OUTPUT_SIZE) {
+        stdout += data.toString();
+      } else if (!outputTruncated) {
+        outputTruncated = true;
+        stdout += '\n... output truncated (exceeded 10MB limit)';
+      }
     });
 
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+      if (stderr.length < MAX_OUTPUT_SIZE) {
+        stderr += data.toString();
+      }
     });
 
     proc.on('close', (code) => {
@@ -86,7 +152,7 @@ export async function runCLI(
       resolve({
         success: exitCode === 0,
         data: stdout.trim(),
-        error: exitCode !== 0 ? stderr.trim() || `Exit code: ${exitCode}` : undefined,
+        error: exitCode !== 0 ? formatErrorMessage(exitCode, stderr) : undefined,
         exitCode,
         stdout,
         stderr,
@@ -97,13 +163,38 @@ export async function runCLI(
       clearTimeout(timer);
       resolve({
         success: false,
-        error: err.message,
+        error: formatSpawnError(err),
         exitCode: -1,
         stdout,
         stderr,
       });
     });
   });
+}
+
+/**
+ * Format error message for user display
+ */
+function formatErrorMessage(exitCode: number, stderr: string): string {
+  const trimmed = stderr.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return `Command failed with exit code ${exitCode}`;
+}
+
+/**
+ * Format spawn error for user display
+ */
+function formatSpawnError(err: Error): string {
+  // Provide user-friendly messages for common errors
+  if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+    return 'ARTK CLI not found. Make sure @artk/cli is installed or configure artk.cliPath.';
+  }
+  if ((err as NodeJS.ErrnoException).code === 'EACCES') {
+    return 'Permission denied. Check that the CLI executable has execute permissions.';
+  }
+  return err.message;
 }
 
 /**

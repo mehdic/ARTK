@@ -6,6 +6,22 @@
 
 import * as vscode from 'vscode';
 import { getWorkspaceContextManager } from '../../workspace';
+import type { ArtkContext, ArtkConfig } from '../../types';
+
+/**
+ * Escape HTML to prevent XSS attacks
+ */
+function escapeHtml(unsafe: string | number | undefined | null): string {
+  if (unsafe === undefined || unsafe === null) {
+    return '';
+  }
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 /**
  * Manages the dashboard webview panel
@@ -31,7 +47,7 @@ export class DashboardPanel {
 
     // Handle messages from the webview
     this.panel.webview.onDidReceiveMessage(
-      (message) => {
+      (message: { command: string }) => {
         switch (message.command) {
           case 'runDoctor':
             vscode.commands.executeCommand('artk.doctor');
@@ -50,6 +66,9 @@ export class DashboardPanel {
             break;
           case 'llkbStats':
             vscode.commands.executeCommand('artk.llkb.stats');
+            break;
+          case 'init':
+            vscode.commands.executeCommand('artk.init');
             break;
         }
       },
@@ -72,7 +91,7 @@ export class DashboardPanel {
       return;
     }
 
-    // Create a new panel
+    // Create a new panel with Content Security Policy
     const panel = vscode.window.createWebviewPanel(
       'artkDashboard',
       'ARTK Dashboard',
@@ -80,6 +99,7 @@ export class DashboardPanel {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
+        localResourceRoots: [], // No local resources needed
       }
     );
 
@@ -105,18 +125,23 @@ export class DashboardPanel {
 
   /**
    * Generate HTML content for the webview
+   * Uses Content Security Policy to mitigate XSS risks
    */
   private getHtmlContent(
     installed: boolean,
-    context: any,
-    config: any,
+    context: ArtkContext | undefined,
+    config: ArtkConfig | undefined,
     llkbEnabled: boolean
   ): string {
+    // Generate a nonce for inline scripts
+    const nonce = this.getNonce();
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <title>ARTK Dashboard</title>
   <style>
     :root {
@@ -169,12 +194,22 @@ export class DashboardPanel {
     }
     .stat-value {
       font-weight: bold;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .status-ok {
       color: var(--vscode-testing-iconPassed);
     }
+    .status-ok::before {
+      content: "\\2713 ";
+    }
     .status-warning {
       color: var(--vscode-editorWarning-foreground);
+    }
+    .status-warning::before {
+      content: "\\26A0 ";
     }
     .status-error {
       color: var(--vscode-editorError-foreground);
@@ -197,6 +232,10 @@ export class DashboardPanel {
     button:hover {
       background: var(--vscode-button-hoverBackground);
     }
+    button:focus {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
     .not-installed {
       text-align: center;
       padding: 40px;
@@ -208,7 +247,7 @@ export class DashboardPanel {
 </head>
 <body>
   <h1>
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       <path d="M9 3h6v5l4 9a2 2 0 0 1-1.8 2.8H6.8A2 2 0 0 1 5 17l4-9V3"/>
       <path d="M9 3h6"/>
       <circle cx="10" cy="14" r="1"/>
@@ -220,55 +259,75 @@ export class DashboardPanel {
 
   ${installed ? this.getInstalledContent(context, config, llkbEnabled) : this.getNotInstalledContent()}
 
-  <script>
+  <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
 
     function runCommand(command) {
-      vscode.postMessage({ command });
+      vscode.postMessage({ command: command });
     }
   </script>
 </body>
 </html>`;
   }
 
-  private getInstalledContent(context: any, config: any, llkbEnabled: boolean): string {
+  /**
+   * Generate a random nonce for CSP
+   */
+  private getNonce(): string {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+      text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+  }
+
+  /**
+   * Generate content for installed state
+   * All user-controlled values are HTML-escaped to prevent XSS
+   */
+  private getInstalledContent(
+    context: ArtkContext | undefined,
+    config: ArtkConfig | undefined,
+    llkbEnabled: boolean
+  ): string {
     return `
-  <div class="grid">
-    <div class="card">
-      <h2>Installation</h2>
+  <div class="grid" role="main" aria-label="ARTK Status Dashboard">
+    <div class="card" role="region" aria-labelledby="installation-heading">
+      <h2 id="installation-heading">Installation</h2>
       <div class="card-content">
         <div class="stat">
           <span class="stat-label">Status</span>
-          <span class="stat-value status-ok">Installed</span>
+          <span class="stat-value status-ok" role="status">Installed</span>
         </div>
         ${context ? `
         <div class="stat">
           <span class="stat-label">Version</span>
-          <span class="stat-value">${context.artkVersion || 'Unknown'}</span>
+          <span class="stat-value">${escapeHtml(context.artkVersion) || 'Unknown'}</span>
         </div>
         <div class="stat">
           <span class="stat-label">Variant</span>
-          <span class="stat-value">${context.variant || 'Unknown'}</span>
+          <span class="stat-value">${escapeHtml(context.variant) || 'Unknown'}</span>
         </div>
         <div class="stat">
           <span class="stat-label">Node.js</span>
-          <span class="stat-value">${context.nodeVersion || 'Unknown'}</span>
+          <span class="stat-value">${escapeHtml(context.nodeVersion) || 'Unknown'}</span>
         </div>
         <div class="stat">
           <span class="stat-label">Playwright</span>
-          <span class="stat-value">${context.playwrightVersion || 'Unknown'}</span>
+          <span class="stat-value">${escapeHtml(context.playwrightVersion) || 'Unknown'}</span>
         </div>
         ` : ''}
       </div>
     </div>
 
     ${config ? `
-    <div class="card">
-      <h2>Configuration</h2>
+    <div class="card" role="region" aria-labelledby="config-heading">
+      <h2 id="config-heading">Configuration</h2>
       <div class="card-content">
         <div class="stat">
           <span class="stat-label">App Name</span>
-          <span class="stat-value">${config.app?.name || 'Not set'}</span>
+          <span class="stat-value" title="${escapeHtml(config.app?.name)}">${escapeHtml(config.app?.name) || 'Not set'}</span>
         </div>
         <div class="stat">
           <span class="stat-label">Environments</span>
@@ -277,57 +336,60 @@ export class DashboardPanel {
         ${config.auth?.provider ? `
         <div class="stat">
           <span class="stat-label">Auth Provider</span>
-          <span class="stat-value">${config.auth.provider}</span>
+          <span class="stat-value">${escapeHtml(config.auth.provider)}</span>
         </div>
         ` : ''}
         ${config.browsers?.channel ? `
         <div class="stat">
           <span class="stat-label">Browser</span>
-          <span class="stat-value">${config.browsers.channel}</span>
+          <span class="stat-value">${escapeHtml(config.browsers.channel)}</span>
         </div>
         ` : ''}
       </div>
       <div class="actions">
-        <button onclick="runCommand('openConfig')">Open Config</button>
+        <button onclick="runCommand('openConfig')" aria-label="Open configuration file">Open Config</button>
       </div>
     </div>
     ` : ''}
 
-    <div class="card">
-      <h2>LLKB</h2>
+    <div class="card" role="region" aria-labelledby="llkb-heading">
+      <h2 id="llkb-heading">LLKB</h2>
       <div class="card-content">
         <div class="stat">
           <span class="stat-label">Status</span>
-          <span class="stat-value ${llkbEnabled ? 'status-ok' : 'status-warning'}">
+          <span class="stat-value ${llkbEnabled ? 'status-ok' : 'status-warning'}" role="status">
             ${llkbEnabled ? 'Enabled' : 'Not Enabled'}
           </span>
         </div>
       </div>
       ${llkbEnabled ? `
       <div class="actions">
-        <button onclick="runCommand('llkbHealth')">Health Check</button>
-        <button onclick="runCommand('llkbStats')">Statistics</button>
+        <button onclick="runCommand('llkbHealth')" aria-label="Run LLKB health check">Health Check</button>
+        <button onclick="runCommand('llkbStats')" aria-label="View LLKB statistics">Statistics</button>
       </div>
       ` : ''}
     </div>
 
-    <div class="card">
-      <h2>Quick Actions</h2>
+    <div class="card" role="region" aria-labelledby="actions-heading">
+      <h2 id="actions-heading">Quick Actions</h2>
       <div class="actions">
-        <button onclick="runCommand('runDoctor')">Run Doctor</button>
-        <button onclick="runCommand('checkPrerequisites')">Check Prerequisites</button>
-        <button onclick="runCommand('upgrade')">Upgrade ARTK</button>
+        <button onclick="runCommand('runDoctor')" aria-label="Run ARTK diagnostics">Run Doctor</button>
+        <button onclick="runCommand('checkPrerequisites')" aria-label="Check system prerequisites">Check Prerequisites</button>
+        <button onclick="runCommand('upgrade')" aria-label="Upgrade ARTK to latest version">Upgrade ARTK</button>
       </div>
     </div>
   </div>`;
   }
 
+  /**
+   * Generate content for not installed state
+   */
   private getNotInstalledContent(): string {
     return `
-  <div class="not-installed">
+  <div class="not-installed" role="main" aria-label="ARTK Installation">
     <h2>ARTK is not installed in this workspace</h2>
     <p>Click the button below to start the installation wizard.</p>
-    <button onclick="runCommand('init')">Install ARTK</button>
+    <button onclick="runCommand('init')" aria-label="Start ARTK installation wizard">Install ARTK</button>
   </div>`;
   }
 
