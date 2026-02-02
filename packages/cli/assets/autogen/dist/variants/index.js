@@ -1,7 +1,7 @@
 // src/variants/index.ts
 function detectVariant() {
   const nodeVersionStr = process.version.slice(1);
-  const nodeVersion = parseInt(nodeVersionStr.split(".")[0], 10);
+  const nodeVersion = parseInt(nodeVersionStr.split(".")[0] ?? "18", 10);
   const isESM = typeof import.meta !== "undefined";
   if (nodeVersion >= 18) {
     return {

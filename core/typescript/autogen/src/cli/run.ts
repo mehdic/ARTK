@@ -149,7 +149,7 @@ function parseErrorType(message: string): ErrorType {
 function parseErrorLocation(message: string): ErrorLocation | undefined {
   // Try to parse file:line:column format
   const match = message.match(/([^\s:]+\.(ts|js)):(\d+):?(\d+)?/);
-  if (match) {
+  if (match && match[1] && match[3]) {
     return {
       file: match[1],
       line: parseInt(match[3], 10),

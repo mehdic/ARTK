@@ -106,15 +106,15 @@ declare const LLKBIntegrationSchema: z.ZodDefault<z.ZodObject<{
     /** Integration level */
     level: z.ZodDefault<z.ZodEnum<["minimal", "enhance", "aggressive"]>>;
 }, "strip", z.ZodTypeAny, {
-    enabled: boolean;
     level: "minimal" | "enhance" | "aggressive";
+    enabled: boolean;
     configPath?: string | undefined;
     glossaryPath?: string | undefined;
 }, {
+    level?: "minimal" | "enhance" | "aggressive" | undefined;
     enabled?: boolean | undefined;
     configPath?: string | undefined;
     glossaryPath?: string | undefined;
-    level?: "minimal" | "enhance" | "aggressive" | undefined;
 }>>;
 /**
  * Complete AutoGen configuration schema
@@ -184,22 +184,22 @@ declare const AutogenConfigSchema: z.ZodObject<{
         /** Integration level */
         level: z.ZodDefault<z.ZodEnum<["minimal", "enhance", "aggressive"]>>;
     }, "strip", z.ZodTypeAny, {
-        enabled: boolean;
         level: "minimal" | "enhance" | "aggressive";
+        enabled: boolean;
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
     }, {
+        level?: "minimal" | "enhance" | "aggressive" | undefined;
         enabled?: boolean | undefined;
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
-        level?: "minimal" | "enhance" | "aggressive" | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    version: 1;
     validation: {
         eslintRules: Record<string, "error" | "warn" | "off">;
         customRules: string[];
     };
+    version: 1;
     paths: {
         journeys: string;
         modules: string;
@@ -218,17 +218,17 @@ declare const AutogenConfigSchema: z.ZodObject<{
     };
     regenerationStrategy: "ast" | "blocks";
     llkb: {
-        enabled: boolean;
         level: "minimal" | "enhance" | "aggressive";
+        enabled: boolean;
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
     };
 }, {
-    version?: 1 | undefined;
     validation?: {
         eslintRules?: Record<string, "error" | "warn" | "off"> | undefined;
         customRules?: string[] | undefined;
     } | undefined;
+    version?: 1 | undefined;
     paths?: {
         journeys?: string | undefined;
         modules?: string | undefined;
@@ -247,10 +247,10 @@ declare const AutogenConfigSchema: z.ZodObject<{
     } | undefined;
     regenerationStrategy?: "ast" | "blocks" | undefined;
     llkb?: {
+        level?: "minimal" | "enhance" | "aggressive" | undefined;
         enabled?: boolean | undefined;
         configPath?: string | undefined;
         glossaryPath?: string | undefined;
-        level?: "minimal" | "enhance" | "aggressive" | undefined;
     } | undefined;
 }>;
 /**
@@ -267,4 +267,4 @@ type LLKBIntegrationLevel = z.infer<typeof LLKBIntegrationLevelSchema>;
 type LLKBIntegration = z.infer<typeof LLKBIntegrationSchema>;
 type AutogenConfig = z.infer<typeof AutogenConfigSchema>;
 
-export { type AutogenConfig as A, EslintRulesSchema as E, type Heal as H, type LLKBIntegration as L, type Paths as P, type RegenerationStrategy as R, type SelectorPolicy as S, type Validation as V, AutogenConfigSchema as a, type EslintSeverity as b, EslintSeveritySchema as c, HealSchema as d, type LLKBIntegrationLevel as e, LLKBIntegrationLevelSchema as f, LLKBIntegrationSchema as g, PathsSchema as h, RegenerationStrategySchema as i, SelectorPolicySchema as j, type SelectorStrategy as k, SelectorStrategySchema as l, ValidationSchema as m };
+export { type AutogenConfig as A, EslintSeveritySchema as E, HealSchema as H, LLKBIntegrationLevelSchema as L, PathsSchema as P, RegenerationStrategySchema as R, SelectorStrategySchema as S, ValidationSchema as V, EslintRulesSchema as a, SelectorPolicySchema as b, LLKBIntegrationSchema as c, AutogenConfigSchema as d, type SelectorStrategy as e, type Paths as f, type EslintSeverity as g, type SelectorPolicy as h, type Validation as i, type Heal as j, type RegenerationStrategy as k, type LLKBIntegrationLevel as l, type LLKBIntegration as m };

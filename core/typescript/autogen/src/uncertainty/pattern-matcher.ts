@@ -420,7 +420,7 @@ function findUnmatchedElements(
     const regex = new RegExp(actionPattern.regex.source, 'g');
 
     while ((match = regex.exec(code)) !== null) {
-      const methodName = match[1];
+      const methodName = match[1] || '';
       const lineNum = code.substring(0, match.index).split('\n').length;
 
       // Check if this is covered by any matched pattern
@@ -428,7 +428,7 @@ function findUnmatchedElements(
         p.codeLocation.startLine <= lineNum && p.codeLocation.endLine >= lineNum
       );
 
-      if (!isCovered) {
+      if (!isCovered && methodName) {
         // Find suggested patterns
         const suggestions = findSuggestedPatterns(methodName, allPatterns);
 
@@ -509,13 +509,15 @@ function calculateConsistencyScore(matchedPatterns: MatchedPattern[]): number {
   // Count category transitions (inconsistency indicator)
   let transitions = 0;
   for (let i = 1; i < categories.length; i++) {
-    if (categories[i] !== categories[i - 1]) {
+    const currCategory = categories[i];
+    const prevCategory = categories[i - 1];
+    if (currCategory && prevCategory && currCategory !== prevCategory) {
       transitions++;
     }
   }
 
   // More transitions = potentially less consistent (but not always bad)
-  const transitionRatio = transitions / (categories.length - 1);
+  const transitionRatio = categories.length > 1 ? transitions / (categories.length - 1) : 0;
 
   // Score: 1.0 for few transitions, down to 0.6 for many
   return Math.max(0.6, 1 - transitionRatio * 0.4);

@@ -380,4 +380,4 @@ interface IRMappingResult {
     };
 }
 
-export type { AccessibilityConfig as A, CompletionSignal as C, DataStrategy as D, IRPrimitive as I, JourneyDataConfig as J, LocatorStrategy as L, ModuleDependencies as M, NegativePath as N, PerformanceConfig as P, TestDataSet as T, ValueSpec as V, IRMappingResult as a, LocatorSpec as b, IRStep as c, IRJourney as d, AccessibilityTiming as e, CleanupStrategy as f, CompletionSignalType as g, JourneyTier as h, VisualRegressionConfig as i };
+export type { AccessibilityTiming as A, CompletionSignal as C, DataStrategy as D, IRMappingResult as I, JourneyTier as J, LocatorStrategy as L, ModuleDependencies as M, NegativePath as N, PerformanceConfig as P, TestDataSet as T, ValueSpec as V, IRPrimitive as a, LocatorSpec as b, IRStep as c, IRJourney as d, CleanupStrategy as e, CompletionSignalType as f, JourneyDataConfig as g, VisualRegressionConfig as h, AccessibilityConfig as i };

@@ -160,12 +160,12 @@ function validateBrackets(code: string): SyntaxError[] {
   let inMultilineComment = false;
 
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-    const line = lines[lineNum];
+    const line = lines[lineNum] || '';
 
     for (let col = 0; col < line.length; col++) {
-      const char = line[col];
-      const prevChar = col > 0 ? line[col - 1] : '';
-      const nextChar = col < line.length - 1 ? line[col + 1] : '';
+      const char = line[col] || '';
+      const prevChar = col > 0 ? line[col - 1] || '' : '';
+      const nextChar = col < line.length - 1 ? line[col + 1] || '' : '';
 
       // Handle comments
       if (!inString) {
@@ -210,14 +210,17 @@ function validateBrackets(code: string): SyntaxError[] {
             code: 'BRACKET_MISMATCH',
             severity: 'error',
           });
-        } else if (last.char !== closers[char]) {
-          errors.push({
-            line: lineNum + 1,
-            column: col + 1,
-            message: `Mismatched brackets: expected '${pairs[last.char]}' but found '${char}'`,
-            code: 'BRACKET_MISMATCH',
-            severity: 'error',
-          });
+        } else {
+          const expectedCloser = pairs[last.char];
+          if (expectedCloser && last.char !== closers[char]) {
+            errors.push({
+              line: lineNum + 1,
+              column: col + 1,
+              message: `Mismatched brackets: expected '${expectedCloser}' but found '${char}'`,
+              code: 'BRACKET_MISMATCH',
+              severity: 'error',
+            });
+          }
         }
       }
     }

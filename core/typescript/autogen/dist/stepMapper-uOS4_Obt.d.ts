@@ -1,6 +1,6 @@
-import { I as IRPrimitive, L as LocatorStrategy, b as LocatorSpec, V as ValueSpec, c as IRStep } from './types-CBcw78BQ.js';
+import { a as IRPrimitive, L as LocatorStrategy, b as LocatorSpec, V as ValueSpec, c as IRStep } from './types-DJnqAI1V.js';
 import { z } from 'zod';
-import { A as AcceptanceCriterion, x as ProceduralStep } from './parseJourney-pVvnO7Mc.js';
+import { F as AcceptanceCriterion, G as ProceduralStep } from './parseJourney-kHery1o3.js';
 
 /**
  * Step Mapping Patterns - Regex patterns for parsing step text into IR primitives
@@ -285,11 +285,11 @@ declare const GlossarySchema: z.ZodObject<{
         params?: Record<string, string> | undefined;
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
-    version: number;
     entries: {
         canonical: string;
         synonyms: string[];
     }[];
+    version: number;
     labelAliases: {
         label: string;
         role?: string | undefined;
@@ -562,4 +562,4 @@ declare function isLlkbAvailable(): boolean;
  */
 declare function suggestImprovements(blockedSteps: StepMappingResult[]): string[];
 
-export { mapProceduralStep as $, type ACMappingResult as A, getGlossaryStats as B, getLabelAliases as C, getLocatorFromLabel as D, type ExtendedGlossaryMeta as E, getMappingStats as F, type Glossary as G, getModuleMethods as H, getPatternCountByCategory as I, getPatternMatches as J, getPatternMetadata as K, type LabelAlias as L, type ModuleMethodMapping as M, getSynonyms as N, hasExtendedGlossary as O, PATTERN_VERSION as P, hoverPatterns as Q, initGlossary as R, type StepPattern as S, initializeLlkb as T, isLlkbAvailable as U, isSynonymOf as V, loadExtendedGlossary as W, loadGlossary as X, lookupCoreGlossary as Y, lookupGlossary as Z, mapAcceptanceCriterion as _, type GlossaryEntry as a, mapStepText as a0, mapSteps as a1, matchPattern as a2, mergeGlossaries as a3, navigationPatterns as a4, normalizeStepText as a5, parseSelectorToLocator as a6, resetGlossaryCache as a7, resolveCanonical as a8, resolveModuleMethod as a9, selectPatterns as aa, structuredPatterns as ab, suggestImprovements as ac, toastPatterns as ad, urlPatterns as ae, visibilityPatterns as af, waitPatterns as ag, type PatternMatch as b, type PatternMetadata as c, type StepMapperOptions as d, type StepMappingResult as e, allPatterns as f, authPatterns as g, checkPatterns as h, clearExtendedGlossary as i, clickPatterns as j, createLocatorFromMatch as k, createValueFromText as l, defaultGlossary as m, extendedAssertionPatterns as n, extendedClickPatterns as o, extendedFillPatterns as p, extendedNavigationPatterns as q, extendedSelectPatterns as r, extendedWaitPatterns as s, fillPatterns as t, findLabelAlias as u, findMatchingPatterns as v, findModuleMethod as w, focusPatterns as x, getAllPatternNames as y, getGlossary as z };
+export { type ExtendedGlossaryMeta as $, getPatternMatches as A, getAllPatternNames as B, getPatternCountByCategory as C, getPatternMetadata as D, findMatchingPatterns as E, type Glossary as F, type GlossaryEntry as G, defaultGlossary as H, loadGlossary as I, mergeGlossaries as J, initGlossary as K, type LabelAlias as L, type ModuleMethodMapping as M, getGlossary as N, resolveCanonical as O, PATTERN_VERSION as P, normalizeStepText as Q, getSynonyms as R, type StepPattern as S, isSynonymOf as T, resetGlossaryCache as U, findLabelAlias as V, getLocatorFromLabel as W, findModuleMethod as X, resolveModuleMethod as Y, getLabelAliases as Z, getModuleMethods as _, type PatternMetadata as a, loadExtendedGlossary as a0, clearExtendedGlossary as a1, lookupGlossary as a2, lookupCoreGlossary as a3, getGlossaryStats as a4, hasExtendedGlossary as a5, type StepMapperOptions as a6, type StepMappingResult as a7, type ACMappingResult as a8, mapStepText as a9, mapAcceptanceCriterion as aa, mapProceduralStep as ab, mapSteps as ac, getMappingStats as ad, initializeLlkb as ae, isLlkbAvailable as af, suggestImprovements as ag, type PatternMatch as b, createLocatorFromMatch as c, createValueFromText as d, clickPatterns as e, fillPatterns as f, checkPatterns as g, authPatterns as h, structuredPatterns as i, extendedClickPatterns as j, extendedFillPatterns as k, extendedAssertionPatterns as l, extendedWaitPatterns as m, navigationPatterns as n, extendedNavigationPatterns as o, parseSelectorToLocator as p, extendedSelectPatterns as q, hoverPatterns as r, selectPatterns as s, toastPatterns as t, urlPatterns as u, visibilityPatterns as v, waitPatterns as w, focusPatterns as x, allPatterns as y, matchPattern as z };

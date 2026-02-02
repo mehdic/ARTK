@@ -3,7 +3,7 @@ import { resolve, join, dirname, relative, basename, extname } from 'path';
 import { pathToFileURL, fileURLToPath } from 'url';
 import { parse, stringify } from 'yaml';
 import { z } from 'zod';
-import { randomBytes, createHash } from 'crypto';
+import crypto, { randomBytes, createHash } from 'crypto';
 import fg from 'fast-glob';
 import ejs from 'ejs';
 import { Project, ModuleKind, ScriptTarget, SyntaxKind } from 'ts-morph';
@@ -252,12 +252,12 @@ async function loadExtendedGlossary(glossaryPath) {
       exportedAt: null,
       error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
     };
-  } catch (err2) {
+  } catch (err3) {
     return {
       loaded: false,
       entryCount: 0,
       exportedAt: null,
-      error: `Failed to load glossary: ${err2 instanceof Error ? err2.message : String(err2)}`
+      error: `Failed to load glossary: ${err3 instanceof Error ? err3.message : String(err3)}`
     };
   }
 }
@@ -475,6 +475,205 @@ var init_glossary = __esm({
     extendedGlossaryMeta = null;
   }
 });
+function getModuleDir() {
+  if (cachedModuleDir) {
+    return cachedModuleDir;
+  }
+  if (typeof __dirname === "string" && __dirname.length > 0) {
+    cachedModuleDir = __dirname;
+    return cachedModuleDir;
+  }
+  try {
+    const metaUrl = import.meta.url;
+    if (metaUrl) {
+      cachedModuleDir = dirname(fileURLToPath(metaUrl));
+      return cachedModuleDir;
+    }
+  } catch {
+  }
+  try {
+    if (typeof __require !== "undefined" && __require?.resolve) {
+      const resolved = __require.resolve("@artk/core-autogen/package.json");
+      cachedModuleDir = dirname(resolved);
+      return cachedModuleDir;
+    }
+  } catch {
+  }
+  cachedModuleDir = process.cwd();
+  return cachedModuleDir;
+}
+function getPackageRoot() {
+  if (cachedPackageRoot) {
+    return cachedPackageRoot;
+  }
+  const envRoot = process.env["ARTK_AUTOGEN_ROOT"];
+  if (envRoot && existsSync(join(envRoot, "package.json"))) {
+    cachedPackageRoot = envRoot;
+    return cachedPackageRoot;
+  }
+  const moduleDir = getModuleDir();
+  const possibleRoots = [
+    join(moduleDir, "..", ".."),
+    // from dist/utils/ or dist-cjs/utils/
+    join(moduleDir, ".."),
+    // from dist/ directly
+    moduleDir
+    // if already at root
+  ];
+  for (const root of possibleRoots) {
+    const pkgPath = join(root, "package.json");
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+        if (pkg.name === "@artk/core-autogen") {
+          cachedPackageRoot = root;
+          return cachedPackageRoot;
+        }
+      } catch {
+      }
+    }
+  }
+  const cwdPaths = [
+    join(process.cwd(), "node_modules", "@artk", "core-autogen"),
+    join(process.cwd(), "artk-e2e", "vendor", "artk-core-autogen"),
+    process.cwd()
+  ];
+  for (const searchPath of cwdPaths) {
+    const pkgPath = join(searchPath, "package.json");
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+        if (pkg.name === "@artk/core-autogen") {
+          cachedPackageRoot = searchPath;
+          return cachedPackageRoot;
+        }
+      } catch {
+      }
+    }
+  }
+  cachedPackageRoot = join(moduleDir, "..", "..");
+  return cachedPackageRoot;
+}
+function getTemplatesDir() {
+  const root = getPackageRoot();
+  const moduleDir = getModuleDir();
+  const relativeToModule = join(moduleDir, "..", "codegen", "templates");
+  if (existsSync(relativeToModule)) {
+    return relativeToModule;
+  }
+  const possiblePaths = [
+    join(root, "dist", "codegen", "templates"),
+    join(root, "dist-cjs", "codegen", "templates"),
+    join(root, "dist-legacy-16", "codegen", "templates"),
+    join(root, "dist-legacy-14", "codegen", "templates")
+  ];
+  for (const templatesPath of possiblePaths) {
+    if (existsSync(templatesPath)) {
+      return templatesPath;
+    }
+  }
+  return possiblePaths[0] ?? join(root, "dist", "codegen", "templates");
+}
+function getTemplatePath(templateName) {
+  return join(getTemplatesDir(), templateName);
+}
+function getHarnessRoot() {
+  if (cachedHarnessRoot) {
+    return cachedHarnessRoot;
+  }
+  const envRoot = process.env["ARTK_HARNESS_ROOT"];
+  if (envRoot && existsSync(envRoot)) {
+    cachedHarnessRoot = envRoot;
+    return cachedHarnessRoot;
+  }
+  const artkE2eFromCwd = join(process.cwd(), "artk-e2e");
+  if (existsSync(artkE2eFromCwd)) {
+    cachedHarnessRoot = artkE2eFromCwd;
+    return cachedHarnessRoot;
+  }
+  const configInCwd = join(process.cwd(), "artk.config.yml");
+  if (existsSync(configInCwd)) {
+    cachedHarnessRoot = process.cwd();
+    return cachedHarnessRoot;
+  }
+  let searchDir = process.cwd();
+  const root = dirname(searchDir);
+  while (searchDir !== root) {
+    if (existsSync(join(searchDir, "artk.config.yml"))) {
+      cachedHarnessRoot = searchDir;
+      return cachedHarnessRoot;
+    }
+    const sibling = join(searchDir, "artk-e2e");
+    if (existsSync(sibling)) {
+      cachedHarnessRoot = sibling;
+      return cachedHarnessRoot;
+    }
+    searchDir = dirname(searchDir);
+  }
+  cachedHarnessRoot = process.cwd();
+  return cachedHarnessRoot;
+}
+function getLlkbRoot(explicitRoot) {
+  if (explicitRoot) {
+    return explicitRoot;
+  }
+  return join(getHarnessRoot(), ".artk", "llkb");
+}
+function getArtkDir(explicitBaseDir) {
+  if (explicitBaseDir) {
+    return join(explicitBaseDir, ".artk");
+  }
+  return join(getHarnessRoot(), ".artk");
+}
+function getAutogenDir(explicitBaseDir) {
+  return join(getArtkDir(explicitBaseDir), "autogen");
+}
+function getAutogenArtifact(artifact, explicitBaseDir) {
+  const dir = getAutogenDir(explicitBaseDir);
+  switch (artifact) {
+    case "analysis":
+      return join(dir, "analysis.json");
+    case "plan":
+      return join(dir, "plan.json");
+    case "state":
+      return join(dir, "pipeline-state.json");
+    case "results":
+      return join(dir, "results.json");
+    case "samples":
+      return join(dir, "samples");
+    case "agreement":
+      return join(dir, "samples", "agreement.json");
+    case "telemetry":
+      return join(dir, "telemetry.json");
+  }
+}
+async function ensureAutogenDir(explicitBaseDir) {
+  const { mkdir } = await import('fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  await mkdir(dir, { recursive: true });
+  await mkdir(join(dir, "samples"), { recursive: true });
+}
+async function cleanAutogenArtifacts(explicitBaseDir) {
+  const { rm } = await import('fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  if (existsSync(dir)) {
+    await rm(dir, { recursive: true });
+  }
+  await ensureAutogenDir(explicitBaseDir);
+}
+function hasAutogenArtifacts(explicitBaseDir) {
+  const dir = getAutogenDir(explicitBaseDir);
+  if (!existsSync(dir)) {
+    return false;
+  }
+  const artifactTypes = ["analysis", "plan", "state", "results"];
+  return artifactTypes.some((artifact) => existsSync(getAutogenArtifact(artifact, explicitBaseDir)));
+}
+var cachedPackageRoot, cachedModuleDir, cachedHarnessRoot;
+var init_paths = __esm({
+  "src/utils/paths.ts"() {
+  }
+});
 
 // src/llkb/patternExtension.ts
 var patternExtension_exports = {};
@@ -500,14 +699,14 @@ function invalidatePatternCache() {
   patternCache = null;
 }
 function getPatternsFilePath(llkbRoot) {
-  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const root = getLlkbRoot(llkbRoot);
   return join(root, PATTERNS_FILE);
 }
 function generatePatternId() {
   return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
 }
 function loadLearnedPatterns(options = {}) {
-  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const llkbRoot = getLlkbRoot(options.llkbRoot);
   const now = Date.now();
   if (!options.bypassCache && patternCache && patternCache.llkbRoot === llkbRoot && now - patternCache.loadedAt < CACHE_TTL_MS) {
     return patternCache.patterns;
@@ -546,11 +745,11 @@ function calculateConfidence(successCount, failCount) {
   const total = successCount + failCount;
   if (total === 0) return 0.5;
   const p = successCount / total;
-  const z5 = 1.96;
+  const z8 = 1.96;
   const n = total;
-  const denominator = 1 + z5 * z5 / n;
-  const center = p + z5 * z5 / (2 * n);
-  const spread = z5 * Math.sqrt((p * (1 - p) + z5 * z5 / (4 * n)) / n);
+  const denominator = 1 + z8 * z8 / n;
+  const center = p + z8 * z8 / (2 * n);
+  const spread = z8 * Math.sqrt((p * (1 - p) + z8 * z8 / (4 * n)) / n);
   return Math.max(0, Math.min(1, (center - spread) / denominator));
 }
 function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
@@ -584,7 +783,7 @@ function recordPatternSuccess(originalText, primitive, journeyId, options = {}) 
   saveLearnedPatterns(patterns, options);
   return pattern;
 }
-function recordPatternFailure(originalText, journeyId, options = {}) {
+function recordPatternFailure(originalText, _journeyId, options = {}) {
   const patterns = loadLearnedPatterns(options);
   const normalizedText = normalizeStepText(originalText);
   const pattern = patterns.find((p) => p.normalizedText === normalizedText);
@@ -614,7 +813,7 @@ function matchLlkbPattern(text, options = {}) {
   return null;
 }
 function generateRegexFromText(text) {
-  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  const pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
   return `^${pattern}$`;
 }
 function getPromotablePatterns(options = {}) {
@@ -720,12 +919,12 @@ function clearLearnedPatterns(options = {}) {
   }
   invalidatePatternCache();
 }
-var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
+var PATTERNS_FILE, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
     init_glossary();
+    init_paths();
     PATTERNS_FILE = "learned-patterns.json";
-    DEFAULT_LLKB_ROOT = ".artk/llkb";
     patternCache = null;
     CACHE_TTL_MS = 5e3;
   }
@@ -2767,14 +2966,14 @@ function loadConfig(configPath) {
   let rawContent;
   try {
     rawContent = readFileSync(resolvedPath, "utf-8");
-  } catch (err2) {
-    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err3);
   }
   let parsed;
   try {
     parsed = parse(rawContent);
-  } catch (err2) {
-    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err3);
   }
   const result = AutogenConfigSchema.safeParse(parsed);
   if (!result.success) {
@@ -2802,14 +3001,14 @@ function loadSingleConfig(configPath) {
   let rawContent;
   try {
     rawContent = readFileSync(resolvedPath, "utf-8");
-  } catch (err2) {
-    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err3);
   }
   let parsed;
   try {
     parsed = parse(rawContent);
-  } catch (err2) {
-    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err3);
   }
   const result = AutogenConfigSchema.safeParse(parsed);
   if (!result.success) {
@@ -4269,11 +4468,11 @@ function parseJourney(filePath) {
   let content;
   try {
     content = readFileSync(resolvedPath, "utf-8");
-  } catch (err2) {
+  } catch (err3) {
     throw new JourneyParseError(
       `Failed to read journey file: ${resolvedPath}`,
       resolvedPath,
-      err2
+      err3
     );
   }
   let frontmatterStr;
@@ -4282,21 +4481,21 @@ function parseJourney(filePath) {
     const extracted = extractFrontmatter(content);
     frontmatterStr = extracted.frontmatter;
     body = extracted.body;
-  } catch (err2) {
+  } catch (err3) {
     throw new JourneyParseError(
       `Invalid frontmatter in journey file: ${resolvedPath}`,
       resolvedPath,
-      err2
+      err3
     );
   }
   let rawFrontmatter;
   try {
     rawFrontmatter = parse(frontmatterStr);
-  } catch (err2) {
+  } catch (err3) {
     throw new JourneyParseError(
       `Invalid YAML in journey frontmatter: ${resolvedPath}`,
       resolvedPath,
-      err2
+      err3
     );
   }
   const result = JourneyFrontmatterSchema.safeParse(rawFrontmatter);
@@ -6181,8 +6380,8 @@ async function scanForTestIds(options) {
           cssDebtFound++;
         }
       }
-    } catch (err2) {
-      warnings.push(`Failed to scan ${filePath}: ${err2}`);
+    } catch (err3) {
+      warnings.push(`Failed to scan ${filePath}: ${err3}`);
     }
   }
   catalog.testIds = Array.from(allTestIds).sort();
@@ -6650,112 +6849,9 @@ ${body}`;
     modulesAdded
   };
 }
-var cachedPackageRoot;
-var cachedModuleDir;
-function getModuleDir() {
-  if (cachedModuleDir) {
-    return cachedModuleDir;
-  }
-  if (typeof __dirname === "string" && __dirname.length > 0) {
-    cachedModuleDir = __dirname;
-    return cachedModuleDir;
-  }
-  try {
-    const metaUrl = import.meta.url;
-    if (metaUrl) {
-      cachedModuleDir = dirname(fileURLToPath(metaUrl));
-      return cachedModuleDir;
-    }
-  } catch {
-  }
-  try {
-    if (typeof __require !== "undefined" && __require?.resolve) {
-      const resolved = __require.resolve("@artk/core-autogen/package.json");
-      cachedModuleDir = dirname(resolved);
-      return cachedModuleDir;
-    }
-  } catch {
-  }
-  cachedModuleDir = process.cwd();
-  return cachedModuleDir;
-}
-function getPackageRoot() {
-  if (cachedPackageRoot) {
-    return cachedPackageRoot;
-  }
-  const envRoot = process.env["ARTK_AUTOGEN_ROOT"];
-  if (envRoot && existsSync(join(envRoot, "package.json"))) {
-    cachedPackageRoot = envRoot;
-    return cachedPackageRoot;
-  }
-  const moduleDir = getModuleDir();
-  const possibleRoots = [
-    join(moduleDir, "..", ".."),
-    // from dist/utils/ or dist-cjs/utils/
-    join(moduleDir, ".."),
-    // from dist/ directly
-    moduleDir
-    // if already at root
-  ];
-  for (const root of possibleRoots) {
-    const pkgPath = join(root, "package.json");
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-        if (pkg.name === "@artk/core-autogen") {
-          cachedPackageRoot = root;
-          return cachedPackageRoot;
-        }
-      } catch {
-      }
-    }
-  }
-  const cwdPaths = [
-    join(process.cwd(), "node_modules", "@artk", "core-autogen"),
-    join(process.cwd(), "artk-e2e", "vendor", "artk-core-autogen"),
-    process.cwd()
-  ];
-  for (const searchPath of cwdPaths) {
-    const pkgPath = join(searchPath, "package.json");
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-        if (pkg.name === "@artk/core-autogen") {
-          cachedPackageRoot = searchPath;
-          return cachedPackageRoot;
-        }
-      } catch {
-      }
-    }
-  }
-  cachedPackageRoot = join(moduleDir, "..", "..");
-  return cachedPackageRoot;
-}
-function getTemplatesDir() {
-  const root = getPackageRoot();
-  const moduleDir = getModuleDir();
-  const relativeToModule = join(moduleDir, "..", "codegen", "templates");
-  if (existsSync(relativeToModule)) {
-    return relativeToModule;
-  }
-  const possiblePaths = [
-    join(root, "dist", "codegen", "templates"),
-    join(root, "dist-cjs", "codegen", "templates"),
-    join(root, "dist-legacy-16", "codegen", "templates"),
-    join(root, "dist-legacy-14", "codegen", "templates")
-  ];
-  for (const templatesPath of possiblePaths) {
-    if (existsSync(templatesPath)) {
-      return templatesPath;
-    }
-  }
-  return possiblePaths[0] ?? join(root, "dist", "codegen", "templates");
-}
-function getTemplatePath(templateName) {
-  return join(getTemplatesDir(), templateName);
-}
 
 // src/utils/version.ts
+init_paths();
 var cachedVersion;
 function getPackageVersion() {
   if (cachedVersion) {
@@ -6824,10 +6920,13 @@ function getBrandingComment() {
   return `@artk/core-autogen v${version}`;
 }
 
+// src/codegen/generateTest.ts
+init_paths();
+
 // src/variants/index.ts
 function detectVariant() {
   const nodeVersionStr = process.version.slice(1);
-  const nodeVersion = parseInt(nodeVersionStr.split(".")[0], 10);
+  const nodeVersion = parseInt(nodeVersionStr.split(".")[0] ?? "18", 10);
   const isESM = typeof import.meta !== "undefined";
   if (nodeVersion >= 18) {
     return {
@@ -7155,6 +7254,7 @@ function generateTest(journey, options = {}) {
 function generateTestCode(journey) {
   return generateTest(journey).code;
 }
+init_paths();
 function toPascalCase(str) {
   return str.split(/[-_\s]+/).map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join("");
 }
@@ -8008,6 +8108,9 @@ function parseWithValidator(value, parser, validator, name, defaultValue) {
   }
 }
 
+// src/index.ts
+init_paths();
+
 // src/validate/journey.ts
 var DEFAULT_OPTIONS = {
   allowDrafts: false,
@@ -8491,8 +8594,8 @@ async function lintCode(code, filename = "test.spec.ts", options = {}) {
       errorCount: 0,
       warningCount: 0
     };
-  } catch (err2) {
-    const error = err2;
+  } catch (err3) {
+    const error = err3;
     const output = error.stdout || "";
     try {
       const results = JSON.parse(output);
@@ -8579,8 +8682,8 @@ async function lintFile(filePath, options = {}) {
       errorCount: 0,
       warningCount: 0
     };
-  } catch (err2) {
-    const error = err2;
+  } catch (err3) {
+    const error = err3;
     const output = error.stdout || "";
     const issues = parseESLintOutput(output);
     return {
@@ -10132,8 +10235,8 @@ function generateEvidenceReport(evidence) {
   if (evidence.networkErrors && evidence.networkErrors.length > 0) {
     lines.push("## Network Errors");
     lines.push("");
-    for (const err2 of evidence.networkErrors) {
-      lines.push(`- ${err2}`);
+    for (const err3 of evidence.networkErrors) {
+      lines.push(`- ${err3}`);
     }
     lines.push("");
   }
@@ -10620,6 +10723,5882 @@ function needsMigration(config) {
 function isVersionSupported(version) {
   return version >= 1 && version <= CURRENT_CONFIG_VERSION2;
 }
+
+// src/shared/index.ts
+var shared_exports = {};
+__export(shared_exports, {
+  AutogenEnhancementConfigSchema: () => AutogenEnhancementConfigSchema,
+  CircuitBreakerConfigSchema: () => CircuitBreakerConfigSchema,
+  CodeChangeSchema: () => CodeChangeSchema,
+  CodeFixResponseSchema: () => CodeFixResponseSchema,
+  CostLimitsSchema: () => CostLimitsSchema,
+  CostTracker: () => CostTracker,
+  ErrorAnalysisResponseSchema: () => ErrorAnalysisResponseSchema,
+  LLMConfigSchema: () => LLMConfigSchema,
+  LLMProviderSchema: () => LLMProviderSchema,
+  RefinementConfigSchema: () => RefinementConfigSchema,
+  SCoTAtomicStepSchema: () => SCoTAtomicStepSchema,
+  SCoTConditionSchema: () => SCoTConditionSchema,
+  SCoTConfigSchema: () => SCoTConfigSchema,
+  SCoTIteratorSchema: () => SCoTIteratorSchema,
+  SCoTPlanResponseSchema: () => SCoTPlanResponseSchema,
+  SCoTStructureSchema: () => SCoTStructureSchema,
+  SuggestedApproachSchema: () => SuggestedApproachSchema,
+  Telemetry: () => Telemetry,
+  TokenUsageSchema: () => TokenUsageSchema,
+  UncertaintyConfigSchema: () => UncertaintyConfigSchema,
+  checkLLMAvailability: () => checkLLMAvailability,
+  createCostTracker: () => createCostTracker,
+  createTelemetry: () => createTelemetry,
+  err: () => err2,
+  estimateCost: () => estimateCost,
+  estimateTokensFromText: () => estimateTokensFromText,
+  extractJson: () => extractJson,
+  getTelemetry: () => getTelemetry,
+  isErr: () => isErr2,
+  isOk: () => isOk2,
+  ok: () => ok2,
+  parseLLMResponse: () => parseLLMResponse,
+  resetGlobalTelemetry: () => resetGlobalTelemetry,
+  validateEnhancementConfig: () => validateEnhancementConfig
+});
+function ok2(value) {
+  return { ok: true, value };
+}
+function err2(error) {
+  return { ok: false, error };
+}
+function isOk2(result) {
+  return result.ok;
+}
+function isErr2(result) {
+  return !result.ok;
+}
+var LLMProviderSchema = z.enum([
+  "openai",
+  "anthropic",
+  "azure",
+  "bedrock",
+  "ollama",
+  "local",
+  "none"
+]);
+var LLMConfigSchema = z.object({
+  provider: LLMProviderSchema.default("none"),
+  model: z.string().default(""),
+  temperature: z.number().min(0).max(2).default(0.2),
+  maxTokens: z.number().min(100).max(32e3).default(2e3),
+  timeoutMs: z.number().min(1e3).max(3e5).default(3e4),
+  maxRetries: z.number().min(0).max(5).default(2),
+  retryDelayMs: z.number().min(100).max(1e4).default(1e3)
+});
+var CostLimitsSchema = z.object({
+  perTestUsd: z.number().min(0.01).max(10).default(0.1),
+  perSessionUsd: z.number().min(0.1).max(100).default(5),
+  enabled: z.boolean().default(true)
+});
+var TokenUsageSchema = z.object({
+  promptTokens: z.number().default(0),
+  completionTokens: z.number().default(0),
+  totalTokens: z.number().default(0),
+  estimatedCostUsd: z.number().default(0)
+});
+function extractJson(response) {
+  const jsonBlockMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  if (jsonBlockMatch && jsonBlockMatch[1]) {
+    return jsonBlockMatch[1].trim();
+  }
+  const objectMatch = response.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    try {
+      JSON.parse(objectMatch[0]);
+      return objectMatch[0];
+    } catch {
+    }
+  }
+  const arrayMatch = response.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    try {
+      JSON.parse(arrayMatch[0]);
+      return arrayMatch[0];
+    } catch {
+    }
+  }
+  return null;
+}
+async function parseLLMResponse(rawResponse, schema, options = {}) {
+  const { maxRetries = 0, onRetry } = options;
+  let lastError = null;
+  let currentResponse = rawResponse;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const jsonStr = extractJson(currentResponse);
+    if (!jsonStr) {
+      lastError = {
+        type: "EXTRACTION_FAILED",
+        message: "Could not find JSON in LLM response",
+        rawResponse: currentResponse
+      };
+      if (attempt < maxRetries && onRetry) {
+        currentResponse = await onRetry(attempt + 1, lastError);
+        continue;
+      }
+      return err2(lastError);
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      lastError = {
+        type: "INVALID_JSON",
+        message: `JSON parse error: ${e instanceof Error ? e.message : "Unknown"}`,
+        rawResponse: currentResponse
+      };
+      if (attempt < maxRetries && onRetry) {
+        currentResponse = await onRetry(attempt + 1, lastError);
+        continue;
+      }
+      return err2(lastError);
+    }
+    const result = schema.safeParse(parsed);
+    if (!result.success) {
+      lastError = {
+        type: "SCHEMA_VALIDATION",
+        message: `Schema validation failed: ${result.error.message}`,
+        rawResponse: currentResponse,
+        validationErrors: result.error
+      };
+      if (attempt < maxRetries && onRetry) {
+        currentResponse = await onRetry(attempt + 1, lastError);
+        continue;
+      }
+      return err2(lastError);
+    }
+    return ok2(result.data);
+  }
+  return err2(lastError);
+}
+var SCoTAtomicStepSchema = z.object({
+  action: z.string(),
+  target: z.string().optional(),
+  value: z.string().optional(),
+  assertion: z.string().optional()
+});
+var SCoTConditionSchema = z.object({
+  element: z.string().optional(),
+  state: z.enum(["visible", "hidden", "enabled", "disabled", "exists", "checked", "unchecked"]),
+  negate: z.boolean().optional()
+});
+var SCoTIteratorSchema = z.object({
+  variable: z.string(),
+  collection: z.string(),
+  maxIterations: z.number().optional()
+});
+var SCoTStructureSchema = z.object({
+  type: z.enum(["sequential", "branch", "loop"]),
+  description: z.string(),
+  steps: z.array(SCoTAtomicStepSchema).optional(),
+  condition: SCoTConditionSchema.optional(),
+  thenBranch: z.array(SCoTAtomicStepSchema).optional(),
+  elseBranch: z.array(SCoTAtomicStepSchema).optional(),
+  iterator: SCoTIteratorSchema.optional(),
+  body: z.array(SCoTAtomicStepSchema).optional()
+});
+var SCoTPlanResponseSchema = z.object({
+  reasoning: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  plan: z.array(SCoTStructureSchema),
+  warnings: z.array(z.string()).default([])
+});
+var SuggestedApproachSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  confidence: z.number().min(0).max(1),
+  complexity: z.enum(["simple", "moderate", "complex"]),
+  requiredChanges: z.array(z.string())
+});
+var ErrorAnalysisResponseSchema = z.object({
+  rootCause: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  suggestedApproaches: z.array(SuggestedApproachSchema).min(1)
+});
+var CodeChangeSchema = z.object({
+  type: z.enum(["replace", "insert", "delete"]),
+  lineStart: z.number(),
+  lineEnd: z.number().optional(),
+  explanation: z.string()
+});
+var CodeFixResponseSchema = z.object({
+  fixedCode: z.string().min(1),
+  changes: z.array(CodeChangeSchema),
+  explanation: z.string()
+});
+var SCoTConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  minConfidence: z.number().min(0).max(1).default(0.7),
+  maxStructures: z.number().min(1).max(100).default(20),
+  includeReasoningComments: z.boolean().default(true),
+  llm: LLMConfigSchema.default({}),
+  fallback: z.enum(["pattern-only", "error"]).default("pattern-only")
+}).default({});
+var CircuitBreakerConfigSchema = z.object({
+  sameErrorThreshold: z.number().min(1).max(5).default(2),
+  errorHistorySize: z.number().min(5).max(50).default(10),
+  degradationThreshold: z.number().min(0.1).max(1).default(0.5),
+  cooldownMs: z.number().min(1e3).max(3e5).default(6e4)
+}).default({});
+var RefinementConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  maxAttempts: z.number().min(1).max(5).default(3),
+  timeouts: z.object({
+    session: z.number().min(6e4).max(6e5).default(3e5),
+    execution: z.number().min(1e4).max(12e4).default(6e4),
+    delayBetweenAttempts: z.number().min(500).max(1e4).default(1e3)
+  }).default({}),
+  circuitBreaker: CircuitBreakerConfigSchema,
+  errorHandling: z.object({
+    categories: z.array(z.string()).default([]),
+    skip: z.array(z.string()).default(["FIXTURE", "PAGE_ERROR"])
+  }).default({}),
+  learning: z.object({
+    enabled: z.boolean().default(true),
+    minGeneralizability: z.number().min(0).max(1).default(0.6)
+  }).default({}),
+  llm: LLMConfigSchema.default({}),
+  advanced: z.object({
+    minAutoFixConfidence: z.number().min(0).max(1).default(0.7),
+    includeScreenshots: z.boolean().default(true),
+    includeTraces: z.boolean().default(false),
+    verbose: z.boolean().default(false),
+    dryRun: z.boolean().default(false)
+  }).default({})
+}).default({});
+var UncertaintyConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  thresholds: z.object({
+    autoAccept: z.number().min(0.5).max(1).default(0.85),
+    block: z.number().min(0).max(0.8).default(0.5),
+    minimumPerDimension: z.number().min(0).max(0.8).default(0.4)
+  }).default({}),
+  weights: z.object({
+    syntax: z.number().min(0).max(1).default(0.2),
+    pattern: z.number().min(0).max(1).default(0.3),
+    selector: z.number().min(0).max(1).default(0.3),
+    agreement: z.number().min(0).max(1).default(0.2)
+  }).default({}),
+  sampling: z.object({
+    enabled: z.boolean().default(false),
+    sampleCount: z.number().min(2).max(5).default(3),
+    temperatures: z.array(z.number()).default([0.2, 0.5, 0.7])
+  }).default({}),
+  reporting: z.object({
+    includeInTestComments: z.boolean().default(true),
+    generateMarkdownReport: z.boolean().default(false)
+  }).default({})
+}).default({});
+var AutogenEnhancementConfigSchema = z.object({
+  scot: SCoTConfigSchema,
+  refinement: RefinementConfigSchema,
+  uncertainty: UncertaintyConfigSchema,
+  costLimits: CostLimitsSchema.default({})
+});
+var PROVIDER_ENV_VARS = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  azure: "AZURE_OPENAI_API_KEY",
+  bedrock: "AWS_ACCESS_KEY_ID",
+  ollama: null,
+  local: null,
+  none: null
+};
+function checkLLMAvailability(provider) {
+  if (provider === "none") {
+    return { available: true, provider, message: "LLM disabled" };
+  }
+  if (provider === "local" || provider === "ollama") {
+    return { available: true, provider, message: "Local LLM, no API key required" };
+  }
+  const envVar = PROVIDER_ENV_VARS[provider];
+  if (!envVar) {
+    return { available: false, provider, message: `Unknown provider: ${provider}` };
+  }
+  if (!process.env[envVar]) {
+    return {
+      available: false,
+      provider,
+      missingEnvVar: envVar,
+      message: `${provider} requires ${envVar} environment variable`
+    };
+  }
+  return { available: true, provider, message: `${provider} configured` };
+}
+function validateEnhancementConfig(rawConfig) {
+  const errors = [];
+  const warnings = [];
+  const result = AutogenEnhancementConfigSchema.safeParse(rawConfig ?? {});
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      errors.push({
+        path: issue.path.join("."),
+        message: issue.message,
+        severity: "error"
+      });
+    }
+    return { valid: false, errors, warnings };
+  }
+  const config = result.data;
+  if (config.scot.enabled) {
+    const llmCheck = checkLLMAvailability(config.scot.llm.provider);
+    if (!llmCheck.available) {
+      errors.push({
+        path: "scot.llm.provider",
+        message: `SCoT is enabled but LLM is not available: ${llmCheck.message}. Set ${llmCheck.missingEnvVar} or set scot.enabled: false`,
+        severity: "error"
+      });
+    }
+  }
+  if (config.refinement.enabled) {
+    const llmCheck = checkLLMAvailability(config.refinement.llm.provider);
+    if (!llmCheck.available) {
+      errors.push({
+        path: "refinement.llm.provider",
+        message: `Self-Refinement is enabled but LLM is not available: ${llmCheck.message}. Set ${llmCheck.missingEnvVar} or set refinement.enabled: false`,
+        severity: "error"
+      });
+    }
+  }
+  const weightSum = config.uncertainty.weights.syntax + config.uncertainty.weights.pattern + config.uncertainty.weights.selector + config.uncertainty.weights.agreement;
+  if (Math.abs(weightSum - 1) > 1e-3) {
+    warnings.push(`Uncertainty weights sum to ${weightSum.toFixed(2)}, not 1.0. Scores may be unexpected.`);
+  }
+  if (config.uncertainty.thresholds.block >= config.uncertainty.thresholds.autoAccept) {
+    warnings.push(`Uncertainty block threshold (${config.uncertainty.thresholds.block}) >= autoAccept (${config.uncertainty.thresholds.autoAccept}). This may cause unexpected blocking.`);
+  }
+  return {
+    valid: errors.length === 0,
+    config: errors.length === 0 ? config : void 0,
+    errors,
+    warnings
+  };
+}
+
+// src/shared/cost-tracker.ts
+var MODEL_PRICING = {
+  // OpenAI
+  "gpt-4o": { input: 2.5, output: 10 },
+  "gpt-4o-mini": { input: 0.15, output: 0.6 },
+  "gpt-4-turbo": { input: 10, output: 30 },
+  "gpt-3.5-turbo": { input: 0.5, output: 1.5 },
+  // Anthropic
+  "claude-opus-4-20250514": { input: 15, output: 75 },
+  "claude-sonnet-4-20250514": { input: 3, output: 15 },
+  "claude-3-5-sonnet-20241022": { input: 3, output: 15 },
+  "claude-3-haiku-20240307": { input: 0.25, output: 1.25 },
+  // Default for unknown models
+  "default": { input: 1, output: 3 }
+};
+function estimateCost(usage, model) {
+  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING["default"];
+  if (!pricing) {
+    throw new Error("Default pricing not found in MODEL_PRICING");
+  }
+  const inputCost = usage.promptTokens / 1e6 * pricing.input;
+  const outputCost = usage.completionTokens / 1e6 * pricing.output;
+  return inputCost + outputCost;
+}
+function estimateTokensFromText(text) {
+  return Math.ceil(text.length / 4);
+}
+var CostTracker = class {
+  state;
+  limits;
+  model;
+  constructor(limits, model = "default") {
+    this.limits = limits;
+    this.model = model;
+    this.state = {
+      sessionCost: 0,
+      testCost: 0,
+      totalTokens: 0,
+      sessionStartedAt: /* @__PURE__ */ new Date()
+    };
+  }
+  /**
+   * Track token usage and update costs
+   */
+  trackUsage(usage) {
+    const cost = usage.estimatedCostUsd > 0 ? usage.estimatedCostUsd : estimateCost(usage, this.model);
+    this.state.sessionCost += cost;
+    this.state.testCost += cost;
+    this.state.totalTokens += usage.totalTokens;
+  }
+  /**
+   * Get current session cost
+   */
+  getSessionCost() {
+    return this.state.sessionCost;
+  }
+  /**
+   * Get current test cost
+   */
+  getTestCost() {
+    return this.state.testCost;
+  }
+  /**
+   * Get total tokens used
+   */
+  getTotalTokens() {
+    return this.state.totalTokens;
+  }
+  /**
+   * Reset test cost (call between tests)
+   */
+  resetTestCost() {
+    this.state.testCost = 0;
+  }
+  /**
+   * Check if a limit has been exceeded
+   */
+  checkLimit(type) {
+    if (!this.limits.enabled) return true;
+    if (type === "test") {
+      return this.state.testCost < this.limits.perTestUsd;
+    } else {
+      return this.state.sessionCost < this.limits.perSessionUsd;
+    }
+  }
+  /**
+   * Check if adding estimated tokens would exceed limit
+   */
+  wouldExceedLimit(estimatedTokens, type = "test") {
+    if (!this.limits.enabled) return false;
+    const estimatedUsage = {
+      promptTokens: estimatedTokens,
+      completionTokens: Math.ceil(estimatedTokens * 0.5)};
+    const estimatedCost = estimateCost(estimatedUsage, this.model);
+    if (type === "test") {
+      return this.state.testCost + estimatedCost >= this.limits.perTestUsd;
+    } else {
+      return this.state.sessionCost + estimatedCost >= this.limits.perSessionUsd;
+    }
+  }
+  /**
+   * Get remaining budget
+   */
+  getRemainingBudget(type) {
+    if (!this.limits.enabled) return Infinity;
+    if (type === "test") {
+      return Math.max(0, this.limits.perTestUsd - this.state.testCost);
+    } else {
+      return Math.max(0, this.limits.perSessionUsd - this.state.sessionCost);
+    }
+  }
+  /**
+   * Get state snapshot
+   */
+  getState() {
+    return { ...this.state };
+  }
+  /**
+   * Create summary report
+   */
+  getSummary() {
+    return {
+      sessionCost: this.state.sessionCost,
+      testCost: this.state.testCost,
+      totalTokens: this.state.totalTokens,
+      sessionDurationMs: Date.now() - this.state.sessionStartedAt.getTime(),
+      testBudgetRemaining: this.getRemainingBudget("test"),
+      sessionBudgetRemaining: this.getRemainingBudget("session"),
+      limitsEnabled: this.limits.enabled
+    };
+  }
+};
+function createCostTracker(limits, model) {
+  const defaultLimits = {
+    perTestUsd: 0.1,
+    perSessionUsd: 5,
+    enabled: true,
+    ...limits
+  };
+  return new CostTracker(defaultLimits, model);
+}
+
+// src/shared/telemetry.ts
+init_paths();
+var DEFAULT_CONFIG = {
+  enabled: true,
+  maxEvents: 100,
+  defaultModel: "gpt-4o-mini"
+};
+function createEmptyTelemetryData(sessionId) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  return {
+    version: 1,
+    sessionId,
+    createdAt: now,
+    updatedAt: now,
+    totalTokens: 0,
+    totalCostUsd: 0,
+    commandStats: {},
+    recentEvents: [],
+    errorCounts: {}
+  };
+}
+var Telemetry = class {
+  data;
+  config;
+  sessionId;
+  pendingCommands;
+  constructor(config = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.sessionId = this.generateSessionId();
+    this.data = createEmptyTelemetryData(this.sessionId);
+    this.pendingCommands = /* @__PURE__ */ new Map();
+  }
+  generateSessionId() {
+    return `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  /**
+   * Load existing telemetry data or create new
+   */
+  async load(baseDir) {
+    if (!this.config.enabled) return;
+    try {
+      const telemetryPath = getAutogenArtifact("telemetry", baseDir);
+      if (existsSync(telemetryPath)) {
+        const content = readFileSync(telemetryPath, "utf-8");
+        const loaded = JSON.parse(content);
+        this.data = {
+          ...loaded,
+          sessionId: this.sessionId,
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+    } catch {
+      this.data = createEmptyTelemetryData(this.sessionId);
+    }
+  }
+  /**
+   * Save telemetry data to disk
+   */
+  async save(baseDir) {
+    if (!this.config.enabled) return;
+    try {
+      await ensureAutogenDir(baseDir);
+      const telemetryPath = getAutogenArtifact("telemetry", baseDir);
+      this.data.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      writeFileSync(telemetryPath, JSON.stringify(this.data, null, 2), "utf-8");
+    } catch {
+    }
+  }
+  /**
+   * Track command start
+   */
+  trackCommandStart(command) {
+    if (!this.config.enabled) return "";
+    const eventId = `${command}-${Date.now()}`;
+    this.pendingCommands.set(eventId, {
+      startTime: Date.now(),
+      command
+    });
+    this.addEvent({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      type: "command_start",
+      command,
+      data: { eventId }
+    });
+    return eventId;
+  }
+  /**
+   * Track command end
+   */
+  trackCommandEnd(eventId, success, data = {}) {
+    if (!this.config.enabled) return;
+    const pending = this.pendingCommands.get(eventId);
+    if (!pending) return;
+    const durationMs = Date.now() - pending.startTime;
+    const { command } = pending;
+    if (!this.data.commandStats[command]) {
+      this.data.commandStats[command] = {
+        count: 0,
+        successCount: 0,
+        errorCount: 0,
+        avgDurationMs: 0,
+        totalDurationMs: 0,
+        lastRun: null
+      };
+    }
+    const stats = this.data.commandStats[command];
+    stats.count++;
+    if (success) {
+      stats.successCount++;
+    } else {
+      stats.errorCount++;
+    }
+    stats.totalDurationMs += durationMs;
+    stats.avgDurationMs = stats.totalDurationMs / stats.count;
+    stats.lastRun = (/* @__PURE__ */ new Date()).toISOString();
+    this.addEvent({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      type: "command_end",
+      command,
+      data: { eventId, success, durationMs, ...data }
+    });
+    this.pendingCommands.delete(eventId);
+  }
+  /**
+   * Track LLM usage
+   */
+  trackLLMUsage(command, usage, model = this.config.defaultModel) {
+    if (!this.config.enabled) return;
+    const cost = usage.estimatedCostUsd > 0 ? usage.estimatedCostUsd : estimateCost(usage, model);
+    this.data.totalTokens += usage.totalTokens;
+    this.data.totalCostUsd += cost;
+    this.addEvent({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      type: "llm_call",
+      command,
+      data: {
+        model,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        totalTokens: usage.totalTokens,
+        costUsd: cost
+      }
+    });
+  }
+  /**
+   * Track error
+   */
+  trackError(command, errorType, message) {
+    if (!this.config.enabled) return;
+    this.data.errorCounts[errorType] = (this.data.errorCounts[errorType] || 0) + 1;
+    this.addEvent({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      type: "error",
+      command,
+      data: { errorType, message }
+    });
+  }
+  /**
+   * Track pipeline state transition
+   */
+  trackPipelineTransition(command, fromStage, toStage, data = {}) {
+    if (!this.config.enabled) return;
+    this.addEvent({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      type: "pipeline_transition",
+      command,
+      data: { fromStage, toStage, ...data }
+    });
+  }
+  addEvent(event) {
+    this.data.recentEvents.push(event);
+    if (this.data.recentEvents.length > this.config.maxEvents) {
+      this.data.recentEvents = this.data.recentEvents.slice(-this.config.maxEvents);
+    }
+  }
+  /**
+   * Get telemetry summary
+   */
+  getSummary() {
+    return {
+      sessionId: this.sessionId,
+      totalTokens: this.data.totalTokens,
+      totalCostUsd: this.data.totalCostUsd,
+      commandStats: { ...this.data.commandStats },
+      topErrors: Object.entries(this.data.errorCounts).sort(([, a], [, b]) => b - a).slice(0, 5).map(([type, count]) => ({ type, count })),
+      eventCount: this.data.recentEvents.length
+    };
+  }
+  /**
+   * Get raw data (for debugging)
+   */
+  getData() {
+    return { ...this.data };
+  }
+  /**
+   * Reset telemetry (for testing)
+   */
+  reset() {
+    this.sessionId = this.generateSessionId();
+    this.data = createEmptyTelemetryData(this.sessionId);
+    this.pendingCommands.clear();
+  }
+};
+var globalTelemetry = null;
+function getTelemetry(config) {
+  if (!globalTelemetry) {
+    globalTelemetry = new Telemetry(config);
+  }
+  return globalTelemetry;
+}
+function createTelemetry(config) {
+  return new Telemetry(config);
+}
+function resetGlobalTelemetry() {
+  globalTelemetry = null;
+}
+
+// src/scot/index.ts
+var scot_exports = {};
+__export(scot_exports, {
+  FEW_SHOT_EXAMPLES: () => FEW_SHOT_EXAMPLES,
+  SCOT_SYSTEM_PROMPT: () => SCOT_SYSTEM_PROMPT,
+  createErrorCorrectionPrompt: () => createErrorCorrectionPrompt,
+  createUserPrompt: () => createUserPrompt,
+  extractCodeContext: () => extractCodeContext,
+  generateSCoTPlan: () => generateSCoTPlan,
+  generateSCoTPrompts: () => generateSCoTPrompts,
+  getValidationSummary: () => getValidationSummary,
+  isBranch: () => isBranch,
+  isLoop: () => isLoop,
+  isSequential: () => isSequential,
+  parseSCoTPlan: () => parseSCoTPlan,
+  processSCoTPlanFromJSON: () => processSCoTPlanFromJSON,
+  quickValidateConfidence: () => quickValidateConfidence,
+  validateSCoTPlan: () => validateSCoTPlan
+});
+
+// src/scot/types.ts
+function isSequential(structure) {
+  return structure.type === "sequential";
+}
+function isBranch(structure) {
+  return structure.type === "branch";
+}
+function isLoop(structure) {
+  return structure.type === "loop";
+}
+
+// src/scot/parser.ts
+var PATTERNS = {
+  SEQUENTIAL: /^SEQUENTIAL:\s*(.+)$/im,
+  BRANCH: /^BRANCH:\s*(.+)$/im,
+  LOOP: /^LOOP:\s*(.+)$/im,
+  IF: /^IF\s+(.+)\s+THEN$/im,
+  ELSE: /^ELSE$/im,
+  ENDIF: /^ENDIF$/im,
+  FOR_EACH: /^FOR\s+EACH\s+(\w+)\s+IN\s+(.+)$/im,
+  ENDFOR: /^ENDFOR$/im,
+  STEP: /^\s*(\d+[a-z]?)\.\s*(.+)$/m,
+  REASONING: /REASONING:\s*([\s\S]*?)(?=CONFIDENCE:|PLAN:|$)/i,
+  CONFIDENCE: /CONFIDENCE:\s*([\d.]+)/i,
+  WARNINGS: /WARNINGS:\s*([\s\S]*?)$/i,
+  ACTION_STEP: /^-\s*(.+)$/m
+};
+async function parseSCoTPlan(llmResponse, options) {
+  const { journeyId, llmModel = "unknown", maxRetries = 1 } = options;
+  const jsonResult = await parseLLMResponse(llmResponse, SCoTPlanResponseSchema, {
+    maxRetries
+  });
+  if (jsonResult.ok) {
+    const normalized = {
+      ...jsonResult.value,
+      warnings: jsonResult.value.warnings ?? []
+    };
+    const plan = convertResponseToPlan(normalized, journeyId, llmModel, "json");
+    return ok2(plan);
+  }
+  const textResult = parseTextFormat(llmResponse, journeyId, llmModel);
+  return textResult;
+}
+function convertResponseToPlan(response, journeyId, llmModel, method) {
+  const structures = response.plan.map((item) => {
+    if (item.type === "sequential") {
+      return {
+        type: "sequential",
+        description: item.description,
+        steps: (item.steps ?? []).map(convertStep)
+      };
+    } else if (item.type === "branch") {
+      return {
+        type: "branch",
+        description: item.description,
+        condition: item.condition ?? { state: "visible" },
+        thenBranch: (item.thenBranch ?? []).map(convertStep),
+        elseBranch: item.elseBranch?.map(convertStep)
+      };
+    } else {
+      return {
+        type: "loop",
+        description: item.description,
+        iterator: item.iterator ?? { variable: "item", collection: "items" },
+        body: (item.body ?? []).map(convertStep),
+        maxIterations: item.iterator?.maxIterations
+      };
+    }
+  });
+  const metadata = {
+    generatedAt: /* @__PURE__ */ new Date(),
+    llmModel,
+    tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+    parseAttempts: 1,
+    parsingMethod: method
+  };
+  return {
+    journeyId,
+    structures,
+    reasoning: response.reasoning,
+    confidence: response.confidence,
+    warnings: response.warnings ?? [],
+    metadata
+  };
+}
+function convertStep(step) {
+  return {
+    action: step.action,
+    target: step.target,
+    value: step.value,
+    assertion: step.assertion
+  };
+}
+function parseTextFormat(text, journeyId, llmModel) {
+  try {
+    const reasoning = extractReasoning(text);
+    const confidence = extractConfidence(text);
+    const warnings = extractWarnings(text);
+    const structures = extractStructures(text);
+    if (structures.length === 0) {
+      return err2({
+        type: "STRUCTURE_ERROR",
+        message: "No SEQUENTIAL, BRANCH, or LOOP structures found in response",
+        rawContent: text.substring(0, 500)
+      });
+    }
+    const metadata = {
+      generatedAt: /* @__PURE__ */ new Date(),
+      llmModel,
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+      parseAttempts: 1,
+      parsingMethod: "text"
+    };
+    return ok2({
+      journeyId,
+      structures,
+      reasoning,
+      confidence,
+      warnings,
+      metadata
+    });
+  } catch (e) {
+    return err2({
+      type: "STRUCTURE_ERROR",
+      message: e instanceof Error ? e.message : "Unknown parsing error",
+      rawContent: text.substring(0, 500)
+    });
+  }
+}
+function extractReasoning(text) {
+  const match = text.match(PATTERNS.REASONING);
+  return match && match[1] ? match[1].trim() : "";
+}
+function extractConfidence(text) {
+  const match = text.match(PATTERNS.CONFIDENCE);
+  if (match) {
+    const value = parseFloat(match[1]);
+    if (!isNaN(value) && value >= 0 && value <= 1) {
+      return value;
+    }
+  }
+  return 0.5;
+}
+function extractWarnings(text) {
+  const match = text.match(PATTERNS.WARNINGS);
+  if (!match || match[1].trim().toLowerCase() === "none") {
+    return [];
+  }
+  return match[1].trim().split("\n").map((w) => w.trim()).filter(Boolean);
+}
+function extractStructures(text) {
+  const structures = [];
+  const lines = text.split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    const seqMatch = line.match(PATTERNS.SEQUENTIAL);
+    if (seqMatch && seqMatch[1]) {
+      const { structure, endIndex } = parseSequentialBlock(lines, i, seqMatch[1]);
+      structures.push(structure);
+      i = endIndex + 1;
+      continue;
+    }
+    const branchMatch = line.match(PATTERNS.BRANCH);
+    if (branchMatch && branchMatch[1]) {
+      const { structure, endIndex } = parseBranchBlock(lines, i, branchMatch[1]);
+      structures.push(structure);
+      i = endIndex + 1;
+      continue;
+    }
+    const loopMatch = line.match(PATTERNS.LOOP);
+    if (loopMatch && loopMatch[1]) {
+      const { structure, endIndex } = parseLoopBlock(lines, i, loopMatch[1]);
+      structures.push(structure);
+      i = endIndex + 1;
+      continue;
+    }
+    i++;
+  }
+  return structures;
+}
+function parseSequentialBlock(lines, startIndex, description) {
+  const steps = [];
+  let i = startIndex + 1;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (PATTERNS.SEQUENTIAL.test(line) || PATTERNS.BRANCH.test(line) || PATTERNS.LOOP.test(line)) {
+      break;
+    }
+    const stepMatch = line.match(PATTERNS.STEP);
+    if (stepMatch && stepMatch[2]) {
+      steps.push(parseStepText(stepMatch[2]));
+    }
+    const bulletMatch = line.match(PATTERNS.ACTION_STEP);
+    if (bulletMatch && bulletMatch[1]) {
+      steps.push(parseStepText(bulletMatch[1]));
+    }
+    i++;
+  }
+  return {
+    structure: { type: "sequential", description, steps },
+    endIndex: i - 1
+  };
+}
+function parseBranchBlock(lines, startIndex, description) {
+  const thenBranch = [];
+  const elseBranch = [];
+  let condition = { state: "visible" };
+  let inElse = false;
+  let i = startIndex + 1;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    const ifMatch = line.match(PATTERNS.IF);
+    if (ifMatch && ifMatch[1]) {
+      condition = parseConditionText(ifMatch[1]);
+      i++;
+      continue;
+    }
+    if (PATTERNS.ELSE.test(line)) {
+      inElse = true;
+      i++;
+      continue;
+    }
+    if (PATTERNS.ENDIF.test(line)) {
+      break;
+    }
+    if (PATTERNS.SEQUENTIAL.test(line) || PATTERNS.BRANCH.test(line) || PATTERNS.LOOP.test(line)) {
+      break;
+    }
+    const bulletMatch = line.match(PATTERNS.ACTION_STEP);
+    if (bulletMatch && bulletMatch[1]) {
+      const step = parseStepText(bulletMatch[1]);
+      if (inElse) {
+        elseBranch.push(step);
+      } else {
+        thenBranch.push(step);
+      }
+    }
+    i++;
+  }
+  return {
+    structure: {
+      type: "branch",
+      description,
+      condition,
+      thenBranch,
+      elseBranch: elseBranch.length > 0 ? elseBranch : void 0
+    },
+    endIndex: i
+  };
+}
+function parseLoopBlock(lines, startIndex, description) {
+  const body = [];
+  let iterator = { variable: "item", collection: "items" };
+  let i = startIndex + 1;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    const forMatch = line.match(PATTERNS.FOR_EACH);
+    if (forMatch && forMatch[1] && forMatch[2]) {
+      iterator = { variable: forMatch[1], collection: forMatch[2] };
+      i++;
+      continue;
+    }
+    if (PATTERNS.ENDFOR.test(line)) {
+      break;
+    }
+    if (PATTERNS.SEQUENTIAL.test(line) || PATTERNS.BRANCH.test(line) || PATTERNS.LOOP.test(line)) {
+      break;
+    }
+    const bulletMatch = line.match(PATTERNS.ACTION_STEP);
+    if (bulletMatch && bulletMatch[1]) {
+      body.push(parseStepText(bulletMatch[1]));
+    }
+    i++;
+  }
+  return {
+    structure: { type: "loop", description, iterator, body },
+    endIndex: i
+  };
+}
+function parseStepText(stepText) {
+  const lowerText = stepText.toLowerCase();
+  if (lowerText.includes("navigate") || lowerText.includes("go to") || lowerText.includes("open")) {
+    return { action: "navigate", target: stepText };
+  }
+  if (lowerText.includes("click") || lowerText.includes("press") || lowerText.includes("tap")) {
+    return { action: "click", target: stepText };
+  }
+  if (lowerText.includes("fill") || lowerText.includes("enter") || lowerText.includes("type") || lowerText.includes("input")) {
+    return { action: "fill", target: stepText };
+  }
+  if (lowerText.includes("select") || lowerText.includes("choose")) {
+    return { action: "select", target: stepText };
+  }
+  if (lowerText.includes("check") || lowerText.includes("toggle")) {
+    return { action: "check", target: stepText };
+  }
+  if (lowerText.includes("wait")) {
+    return { action: "wait", target: stepText };
+  }
+  if (lowerText.includes("verify") || lowerText.includes("assert") || lowerText.includes("expect") || lowerText.includes("confirm") || lowerText.includes("should")) {
+    return { action: "assert", assertion: stepText };
+  }
+  return { action: "action", target: stepText };
+}
+function parseConditionText(conditionText) {
+  const lowerText = conditionText.toLowerCase();
+  let state = "visible";
+  if (lowerText.includes("hidden") || lowerText.includes("not visible")) {
+    state = "hidden";
+  } else if (lowerText.includes("disabled")) {
+    state = "disabled";
+  } else if (lowerText.includes("enabled")) {
+    state = "enabled";
+  } else if (lowerText.includes("exists") || lowerText.includes("present")) {
+    state = "exists";
+  } else if (lowerText.includes("checked") || lowerText.includes("selected")) {
+    state = "checked";
+  } else if (lowerText.includes("unchecked") || lowerText.includes("not selected")) {
+    state = "unchecked";
+  }
+  return { element: conditionText, state };
+}
+
+// src/scot/validator.ts
+function validateSCoTPlan(plan, config) {
+  const errors = [];
+  const warnings = [];
+  if (!plan.journeyId) {
+    errors.push({
+      path: "journeyId",
+      message: "Plan must have a journeyId",
+      severity: "error"
+    });
+  }
+  if (!plan.structures || plan.structures.length === 0) {
+    errors.push({
+      path: "structures",
+      message: "Plan must have at least one structure",
+      severity: "error"
+    });
+  }
+  if (plan.structures.length > config.maxStructures) {
+    errors.push({
+      path: "structures",
+      message: `Plan has ${plan.structures.length} structures, exceeds maximum of ${config.maxStructures}`,
+      severity: "error"
+    });
+  }
+  if (plan.confidence < config.minConfidence) {
+    errors.push({
+      path: "confidence",
+      message: `Plan confidence ${plan.confidence.toFixed(2)} is below minimum ${config.minConfidence}`,
+      severity: "error"
+    });
+  }
+  plan.structures.forEach((structure, index) => {
+    const structureErrors = validateStructure(structure, `structures[${index}]`);
+    errors.push(...structureErrors);
+  });
+  if (!plan.reasoning || plan.reasoning.trim().length < 10) {
+    warnings.push("Plan reasoning is missing or too short");
+  }
+  if (plan.warnings && plan.warnings.length > 0) {
+    warnings.push(...plan.warnings.map((w) => `LLM warning: ${w}`));
+  }
+  const loopWarnings = checkForInfiniteLoops(plan.structures);
+  warnings.push(...loopWarnings);
+  const unreachableWarnings = checkForUnreachableCode(plan.structures);
+  warnings.push(...unreachableWarnings);
+  return {
+    valid: errors.filter((e) => e.severity === "error").length === 0,
+    errors,
+    warnings
+  };
+}
+function validateStructure(structure, path) {
+  const errors = [];
+  if (!structure.description || structure.description.trim().length === 0) {
+    errors.push({
+      path: `${path}.description`,
+      message: "Structure must have a description",
+      severity: "warning"
+    });
+  }
+  if (isSequential(structure)) {
+    errors.push(...validateSequential(structure, path));
+  } else if (isBranch(structure)) {
+    errors.push(...validateBranch(structure, path));
+  } else if (isLoop(structure)) {
+    errors.push(...validateLoop(structure, path));
+  }
+  return errors;
+}
+function validateSequential(structure, path) {
+  const errors = [];
+  if (!structure.steps || structure.steps.length === 0) {
+    errors.push({
+      path: `${path}.steps`,
+      message: "Sequential structure must have at least one step",
+      severity: "error"
+    });
+    return errors;
+  }
+  structure.steps.forEach((step, index) => {
+    errors.push(...validateStep(step, `${path}.steps[${index}]`));
+  });
+  return errors;
+}
+function validateBranch(structure, path) {
+  const errors = [];
+  if (!structure.condition) {
+    errors.push({
+      path: `${path}.condition`,
+      message: "Branch structure must have a condition",
+      severity: "error"
+    });
+  }
+  if (!structure.thenBranch || structure.thenBranch.length === 0) {
+    errors.push({
+      path: `${path}.thenBranch`,
+      message: "Branch structure must have at least one step in thenBranch",
+      severity: "error"
+    });
+  } else {
+    structure.thenBranch.forEach((step, index) => {
+      errors.push(...validateStep(step, `${path}.thenBranch[${index}]`));
+    });
+  }
+  if (structure.elseBranch) {
+    structure.elseBranch.forEach((step, index) => {
+      errors.push(...validateStep(step, `${path}.elseBranch[${index}]`));
+    });
+  }
+  return errors;
+}
+function validateLoop(structure, path) {
+  const errors = [];
+  if (!structure.iterator) {
+    errors.push({
+      path: `${path}.iterator`,
+      message: "Loop structure must have an iterator",
+      severity: "error"
+    });
+  }
+  if (!structure.body || structure.body.length === 0) {
+    errors.push({
+      path: `${path}.body`,
+      message: "Loop structure must have at least one step in body",
+      severity: "error"
+    });
+  } else {
+    structure.body.forEach((step, index) => {
+      errors.push(...validateStep(step, `${path}.body[${index}]`));
+    });
+  }
+  if (structure.maxIterations !== void 0 && structure.maxIterations <= 0) {
+    errors.push({
+      path: `${path}.maxIterations`,
+      message: "Loop maxIterations must be positive",
+      severity: "error"
+    });
+  }
+  return errors;
+}
+function validateStep(step, path) {
+  const errors = [];
+  if (!step.action || step.action.trim().length === 0) {
+    errors.push({
+      path: `${path}.action`,
+      message: "Step must have an action",
+      severity: "error"
+    });
+  }
+  const action = step.action.toLowerCase();
+  if (["click", "fill", "select", "check", "uncheck", "hover", "focus"].includes(action)) {
+    if (!step.target) {
+      errors.push({
+        path: `${path}.target`,
+        message: `${action} action requires a target`,
+        severity: "warning"
+      });
+    }
+  }
+  if (["fill", "type", "input"].includes(action)) {
+    if (!step.value && !step.target?.includes("=")) {
+      errors.push({
+        path: `${path}.value`,
+        message: `${action} action should have a value`,
+        severity: "warning"
+      });
+    }
+  }
+  if (["assert", "expect", "verify"].includes(action)) {
+    if (!step.assertion && !step.target) {
+      errors.push({
+        path: `${path}.assertion`,
+        message: `${action} action should have an assertion or target`,
+        severity: "warning"
+      });
+    }
+  }
+  return errors;
+}
+function checkForInfiniteLoops(structures) {
+  const warnings = [];
+  structures.forEach((structure, index) => {
+    if (isLoop(structure)) {
+      if (!structure.maxIterations) {
+        warnings.push(
+          `Loop at index ${index} has no maxIterations limit - could potentially loop indefinitely`
+        );
+      }
+      const hasBreakCondition = structure.body.some(
+        (step) => ["assert", "expect", "verify", "break"].includes(step.action.toLowerCase())
+      );
+      if (!hasBreakCondition && !structure.maxIterations) {
+        warnings.push(
+          `Loop at index ${index} has no break condition or iteration limit`
+        );
+      }
+    }
+  });
+  return warnings;
+}
+function checkForUnreachableCode(structures) {
+  const warnings = [];
+  structures.forEach((structure, index) => {
+    if (isBranch(structure)) {
+      const condition = structure.condition;
+      if (condition.expression) {
+        const expr = condition.expression.toLowerCase();
+        if (expr === "true" || expr === "1" || expr === "always") {
+          warnings.push(
+            `Branch at index ${index} has always-true condition - elseBranch may be unreachable`
+          );
+        }
+        if (expr === "false" || expr === "0" || expr === "never") {
+          warnings.push(
+            `Branch at index ${index} has always-false condition - thenBranch may be unreachable`
+          );
+        }
+      }
+    }
+  });
+  return warnings;
+}
+function quickValidateConfidence(plan, minConfidence) {
+  return plan.confidence >= minConfidence;
+}
+function getValidationSummary(result) {
+  const errorCount = result.errors.filter((e) => e.severity === "error").length;
+  const warningCount = result.errors.filter((e) => e.severity === "warning").length + result.warnings.length;
+  if (result.valid) {
+    if (warningCount > 0) {
+      return `Valid with ${warningCount} warning(s)`;
+    }
+    return "Valid";
+  }
+  return `Invalid: ${errorCount} error(s), ${warningCount} warning(s)`;
+}
+
+// src/scot/prompts.ts
+var SCOT_SYSTEM_PROMPT = `You are an expert test automation architect specializing in Playwright E2E tests.
+
+Your task is to analyze a Journey specification and create a Structured Chain-of-Thought (SCoT) plan using these programming structures:
+
+## SEQUENTIAL Structure
+For linear, step-by-step actions that must happen in order:
+\`\`\`
+SEQUENTIAL: <description>
+1. <action>
+2. <action>
+3. <action>
+\`\`\`
+
+## BRANCH Structure
+For conditional logic where different paths may be taken:
+\`\`\`
+BRANCH: <condition description>
+IF <condition> THEN
+  - <action if true>
+  - <another action if true>
+ELSE
+  - <action if false>
+ENDIF
+\`\`\`
+
+## LOOP Structure
+For repeated actions over a collection or until a condition:
+\`\`\`
+LOOP: <iteration description>
+FOR EACH <variable> IN <collection>
+  - <action with variable>
+ENDFOR
+\`\`\`
+
+## Guidelines
+1. Use SEQUENTIAL for straightforward test flows
+2. Use BRANCH when the test may take different paths (e.g., MFA prompt, error handling)
+3. Use LOOP when iterating over table rows, list items, or form fields
+4. Each step should be atomic and testable
+5. Include assertions as steps (e.g., "Verify redirect to dashboard")
+6. Consider edge cases and potential failure points
+
+## Output Format
+Your response MUST be valid JSON:
+\`\`\`json
+{
+  "reasoning": "Brief explanation of your understanding of the test flow",
+  "confidence": 0.85,
+  "plan": [
+    {
+      "type": "sequential",
+      "description": "Login flow",
+      "steps": [
+        {"action": "navigate", "target": "/login"},
+        {"action": "fill", "target": "username field", "value": "test user"},
+        {"action": "fill", "target": "password field", "value": "password"},
+        {"action": "click", "target": "submit button"},
+        {"action": "assert", "assertion": "redirect to dashboard"}
+      ]
+    },
+    {
+      "type": "branch",
+      "description": "Handle optional MFA",
+      "condition": {"element": "MFA prompt", "state": "visible"},
+      "thenBranch": [
+        {"action": "fill", "target": "TOTP code field", "value": "generated code"},
+        {"action": "click", "target": "verify button"}
+      ]
+    }
+  ],
+  "warnings": ["MFA handling may need specific TOTP generator setup"]
+}
+\`\`\`
+
+## Confidence Scoring
+- 0.9-1.0: Clear, unambiguous journey with well-defined steps
+- 0.7-0.9: Minor ambiguities but overall clear intent
+- 0.5-0.7: Several ambiguities or missing details
+- Below 0.5: Too vague to create reliable test
+
+Be precise, thorough, and focus on creating a plan that maps directly to Playwright actions.`;
+function createUserPrompt(journey) {
+  const parts = [];
+  parts.push(`# Journey: ${journey.id}`);
+  parts.push(`## ${journey.title}`);
+  parts.push("");
+  if (journey.description) {
+    parts.push(`### Description`);
+    parts.push(journey.description);
+    parts.push("");
+  }
+  if (journey.tier) {
+    parts.push(`**Tier:** ${journey.tier}`);
+    parts.push("");
+  }
+  parts.push(`### Steps`);
+  for (const step of journey.steps) {
+    parts.push(`${step.number}. ${step.text}`);
+    if (step.substeps && step.substeps.length > 0) {
+      for (const substep of step.substeps) {
+        parts.push(`   - ${substep}`);
+      }
+    }
+  }
+  parts.push("");
+  if (journey.acceptanceCriteria && journey.acceptanceCriteria.length > 0) {
+    parts.push(`### Acceptance Criteria`);
+    for (const criterion of journey.acceptanceCriteria) {
+      parts.push(`- ${criterion}`);
+    }
+    parts.push("");
+  }
+  if (journey.rawMarkdown) {
+    parts.push(`### Additional Context (Raw Markdown)`);
+    parts.push("```markdown");
+    parts.push(journey.rawMarkdown);
+    parts.push("```");
+    parts.push("");
+  }
+  parts.push(`---`);
+  parts.push(`Create a SCoT plan for this journey. Output your response as valid JSON.`);
+  return parts.join("\n");
+}
+function createErrorCorrectionPrompt(originalResponse, error) {
+  return `Your previous response had a parsing error:
+
+**Error:** ${error}
+
+**Your response:**
+\`\`\`
+${originalResponse.substring(0, 1e3)}${originalResponse.length > 1e3 ? "..." : ""}
+\`\`\`
+
+Please fix the JSON and respond with ONLY valid JSON (no markdown code blocks, no explanation).
+The JSON must match this structure:
+{
+  "reasoning": "string",
+  "confidence": number (0-1),
+  "plan": [...],
+  "warnings": [...]
+}`;
+}
+var FEW_SHOT_EXAMPLES = {
+  simpleLogin: {
+    input: `# Journey: J-AUTH-001
+## User Login
+### Steps
+1. Navigate to login page
+2. Enter username
+3. Enter password
+4. Click login button
+5. Verify dashboard is displayed`,
+    output: {
+      reasoning: "Simple login flow with standard username/password authentication",
+      confidence: 0.95,
+      plan: [
+        {
+          type: "sequential",
+          description: "Standard login flow",
+          steps: [
+            { action: "navigate", target: "/login" },
+            { action: "fill", target: "username field", value: "test_user" },
+            { action: "fill", target: "password field", value: "password" },
+            { action: "click", target: "login button" },
+            { action: "assert", assertion: "dashboard is visible" }
+          ]
+        }
+      ],
+      warnings: []
+    }
+  },
+  loginWithMFA: {
+    input: `# Journey: J-AUTH-002
+## Login with Optional MFA
+### Steps
+1. Navigate to login page
+2. Enter credentials
+3. Submit login form
+4. If MFA prompt appears, enter TOTP code
+5. Verify successful login`,
+    output: {
+      reasoning: "Login with conditional MFA handling - need to check if MFA prompt appears",
+      confidence: 0.85,
+      plan: [
+        {
+          type: "sequential",
+          description: "Initial login",
+          steps: [
+            { action: "navigate", target: "/login" },
+            { action: "fill", target: "username", value: "test_user" },
+            { action: "fill", target: "password", value: "password" },
+            { action: "click", target: "submit button" }
+          ]
+        },
+        {
+          type: "branch",
+          description: "Handle MFA if prompted",
+          condition: { element: "MFA prompt", state: "visible" },
+          thenBranch: [
+            { action: "fill", target: "TOTP code field", value: "generated_totp" },
+            { action: "click", target: "verify button" }
+          ]
+        },
+        {
+          type: "sequential",
+          description: "Verify login success",
+          steps: [
+            { action: "assert", assertion: "user is logged in" }
+          ]
+        }
+      ],
+      warnings: ["TOTP code generation requires proper test setup"]
+    }
+  },
+  tableIteration: {
+    input: `# Journey: J-DATA-001
+## Verify All Table Rows
+### Steps
+1. Navigate to data table page
+2. For each row in the table, verify the status column shows "Active"
+3. Verify total row count matches expected`,
+    output: {
+      reasoning: "Table iteration test - need to loop through rows and verify status",
+      confidence: 0.8,
+      plan: [
+        {
+          type: "sequential",
+          description: "Navigate to table",
+          steps: [
+            { action: "navigate", target: "/data-table" },
+            { action: "wait", target: "table is loaded" }
+          ]
+        },
+        {
+          type: "loop",
+          description: "Verify each row status",
+          iterator: { variable: "row", collection: "table rows", maxIterations: 100 },
+          body: [
+            { action: "assert", assertion: "row status is Active" }
+          ]
+        },
+        {
+          type: "sequential",
+          description: "Verify total",
+          steps: [
+            { action: "assert", assertion: "row count matches expected" }
+          ]
+        }
+      ],
+      warnings: ["Large tables may require pagination handling"]
+    }
+  }
+};
+
+// src/scot/planner.ts
+async function generateSCoTPlan(journey, options) {
+  const { config, llmClient, costTracker, mode = "direct" } = options;
+  if (!config.enabled) {
+    return {
+      success: false,
+      error: {
+        type: "LLM_ERROR",
+        message: "SCoT is disabled in configuration"
+      },
+      fallbackUsed: true
+    };
+  }
+  if (mode === "orchestrator") {
+    return {
+      success: false,
+      error: {
+        type: "LLM_ERROR",
+        message: "Orchestrator mode requires using generateSCoTPrompts() instead"
+      },
+      fallbackUsed: false
+    };
+  }
+  if (!llmClient) {
+    return {
+      success: false,
+      error: {
+        type: "LLM_ERROR",
+        message: "LLM client is required for direct mode"
+      },
+      fallbackUsed: config.fallback === "pattern-only"
+    };
+  }
+  if (costTracker?.wouldExceedLimit(2e3)) {
+    return {
+      success: false,
+      error: {
+        type: "COST_LIMIT",
+        message: "Cost limit would be exceeded"
+      },
+      fallbackUsed: config.fallback === "pattern-only"
+    };
+  }
+  try {
+    const userPrompt = createUserPrompt(journey);
+    const llmResult = await llmClient.generate(userPrompt, SCOT_SYSTEM_PROMPT, {
+      temperature: config.llm.temperature,
+      maxTokens: config.llm.maxTokens,
+      timeoutMs: config.llm.timeoutMs
+    });
+    if (costTracker) {
+      costTracker.trackUsage(llmResult.tokenUsage);
+    }
+    const parseResult = await parseSCoTPlan(llmResult.content, {
+      journeyId: journey.id,
+      llmModel: llmResult.model,
+      maxRetries: config.llm.maxRetries
+    });
+    if (!parseResult.ok) {
+      return {
+        success: false,
+        error: {
+          type: "PARSE_ERROR",
+          message: parseResult.error.message,
+          details: parseResult.error,
+          tokenUsage: llmResult.tokenUsage
+        },
+        fallbackUsed: config.fallback === "pattern-only"
+      };
+    }
+    const plan = parseResult.value;
+    plan.metadata.tokenUsage = llmResult.tokenUsage;
+    plan.metadata.llmModel = llmResult.model;
+    const validationResult = validateSCoTPlan(plan, config);
+    if (!validationResult.valid) {
+      const criticalErrors = validationResult.errors.filter((e) => e.severity === "error");
+      return {
+        success: false,
+        error: {
+          type: "VALIDATION_ERROR",
+          message: criticalErrors.map((e) => e.message).join("; "),
+          details: validationResult,
+          tokenUsage: llmResult.tokenUsage
+        },
+        fallbackUsed: config.fallback === "pattern-only"
+      };
+    }
+    if (plan.confidence < config.minConfidence) {
+      return {
+        success: false,
+        error: {
+          type: "LOW_CONFIDENCE",
+          message: `Plan confidence ${plan.confidence.toFixed(2)} is below threshold ${config.minConfidence}`,
+          tokenUsage: llmResult.tokenUsage
+        },
+        fallbackUsed: config.fallback === "pattern-only"
+      };
+    }
+    return {
+      success: true,
+      plan
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const isTimeout = message.toLowerCase().includes("timeout");
+    return {
+      success: false,
+      error: {
+        type: isTimeout ? "TIMEOUT" : "LLM_ERROR",
+        message,
+        details: error
+      },
+      fallbackUsed: config.fallback === "pattern-only"
+    };
+  }
+}
+function extractCodeContext(plan, includeReasoning) {
+  const structureComments = [];
+  let hasConditionals = false;
+  let hasLoops = false;
+  let estimatedSteps = 0;
+  for (const structure of plan.structures) {
+    if (structure.type === "sequential") {
+      structureComments.push(`// SEQUENTIAL: ${structure.description}`);
+      estimatedSteps += structure.steps.length;
+    } else if (structure.type === "branch") {
+      structureComments.push(`// BRANCH: ${structure.description}`);
+      hasConditionals = true;
+      estimatedSteps += structure.thenBranch.length;
+      if (structure.elseBranch) {
+        estimatedSteps += structure.elseBranch.length;
+      }
+    } else if (structure.type === "loop") {
+      structureComments.push(`// LOOP: ${structure.description}`);
+      hasLoops = true;
+      estimatedSteps += structure.body.length * (structure.maxIterations ?? 3);
+    }
+  }
+  return {
+    reasoning: includeReasoning ? plan.reasoning : "",
+    structureComments,
+    hasConditionals,
+    hasLoops,
+    estimatedSteps
+  };
+}
+var SCOT_EXPECTED_FORMAT = `
+The response should be a JSON object with:
+- reasoning: string explaining the test structure approach
+- structures: array of test structures (sequential, branch, loop)
+- stepMappings: array mapping journey steps to test actions
+- confidence: number 0.0-1.0 for overall plan confidence
+- metadata: object with journeyId, generatedAt
+
+Each structure has:
+- type: "sequential" | "branch" | "loop"
+- description: string explaining the structure
+- steps/thenBranch/elseBranch/body: arrays of step references
+- condition (for branch/loop): string describing the condition
+`;
+function generateSCoTPrompts(journey, config) {
+  const userPrompt = createUserPrompt(journey);
+  return {
+    systemPrompt: SCOT_SYSTEM_PROMPT,
+    userPrompt,
+    expectedFormat: SCOT_EXPECTED_FORMAT,
+    journeyId: journey.id,
+    parseResponse: async (response) => {
+      try {
+        const parseResult = await parseSCoTPlan(response, {
+          journeyId: journey.id,
+          llmModel: "orchestrator",
+          maxRetries: config.llm.maxRetries
+        });
+        if (!parseResult.ok) {
+          return {
+            success: false,
+            error: {
+              type: "PARSE_ERROR",
+              message: parseResult.error.message,
+              details: parseResult.error
+            },
+            fallbackUsed: config.fallback === "pattern-only"
+          };
+        }
+        const plan = parseResult.value;
+        const validationResult = validateSCoTPlan(plan, config);
+        if (!validationResult.valid) {
+          const criticalErrors = validationResult.errors.filter((e) => e.severity === "error");
+          return {
+            success: false,
+            error: {
+              type: "VALIDATION_ERROR",
+              message: criticalErrors.map((e) => e.message).join("; "),
+              details: validationResult
+            },
+            fallbackUsed: config.fallback === "pattern-only"
+          };
+        }
+        if (plan.confidence < config.minConfidence) {
+          return {
+            success: false,
+            error: {
+              type: "LOW_CONFIDENCE",
+              message: `Plan confidence ${plan.confidence.toFixed(2)} is below threshold ${config.minConfidence}`
+            },
+            fallbackUsed: config.fallback === "pattern-only"
+          };
+        }
+        return {
+          success: true,
+          plan
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        return {
+          success: false,
+          error: {
+            type: "PARSE_ERROR",
+            message,
+            details: error
+          },
+          fallbackUsed: config.fallback === "pattern-only"
+        };
+      }
+    }
+  };
+}
+async function processSCoTPlanFromJSON(planJson, journeyId, config) {
+  const prompts = generateSCoTPrompts({ id: journeyId, title: journeyId, steps: [] }, config);
+  return prompts.parseResponse(planJson);
+}
+
+// src/refinement/index.ts
+var refinement_exports = {};
+__export(refinement_exports, {
+  CircuitBreaker: () => CircuitBreaker,
+  ConvergenceDetector: () => ConvergenceDetector,
+  DEFAULT_CIRCUIT_BREAKER_CONFIG: () => DEFAULT_CIRCUIT_BREAKER_CONFIG,
+  addLesson: () => addLesson,
+  aggregateLessons: () => aggregateLessons,
+  analyzeRefinementProgress: () => analyzeRefinementProgress,
+  applyConfidenceDecay: () => applyConfidenceDecay,
+  applyLearnedFix: () => applyLearnedFix,
+  calculateConfidenceAdjustment: () => calculateConfidenceAdjustment,
+  exportLessonsForOrchestrator: () => exportLessonsForOrchestrator,
+  extractLessonsFromSession: () => extractLessonsFromSession,
+  findLesson: () => findLesson,
+  findLessonsForContext: () => findLessonsForContext,
+  formatFailures: () => formatFailures,
+  formatSummary: () => formatSummary,
+  getLlkbRefinementPath: () => getLlkbRefinementPath,
+  getSuggestedFixTypes: () => getSuggestedFixTypes,
+  getSuggestedFixes: () => getSuggestedFixes,
+  isCodeError: () => isCodeError,
+  isEnvironmentalError: () => isEnvironmentalError,
+  isSelectorRelated: () => isSelectorRelated,
+  isTimingRelated: () => isTimingRelated,
+  learnFromRefinement: () => learnFromRefinement,
+  loadLlkbStore: () => loadLlkbStore,
+  parseError: () => parseError,
+  parseErrors: () => parseErrors,
+  parsePlaywrightReport: () => parsePlaywrightReport,
+  pruneLessons: () => pruneLessons,
+  quickCheck: () => quickCheck,
+  recommendLessons: () => recommendLessons,
+  recordFailure: () => recordFailure,
+  recordSuccess: () => recordSuccess,
+  runPlaywright: () => runPlaywright,
+  runRefinementLoop: () => runRefinementLoop,
+  runSingleRefinementAttempt: () => runSingleRefinementAttempt,
+  runSingleTest: () => runSingleTest,
+  saveLlkbStore: () => saveLlkbStore
+});
+var ERROR_PATTERNS = [
+  // Selector not found
+  {
+    category: "SELECTOR_NOT_FOUND",
+    patterns: [
+      /locator\..*: Timeout \d+ms exceeded/i,
+      /waiting for (locator|selector)/i,
+      /No element matches selector/i,
+      /Element is not attached to the DOM/i,
+      /Element is outside of the viewport/i,
+      /page\.\$\(.*\) resolved to (null|undefined)/i,
+      /getByRole.*resolved to \d+ element/i,
+      /getByTestId.*resolved to \d+ element/i,
+      /getByText.*resolved to \d+ element/i,
+      /locator resolved to \d+ elements/i
+    ],
+    severity: "major",
+    selectorExtractor: /locator\(['"]([^'"]+)['"]\)|getBy\w+\(['"]([^'"]+)['"]\)/
+  },
+  // Timeout
+  {
+    category: "TIMEOUT",
+    patterns: [
+      /Timeout \d+ms exceeded/i,
+      /page\.waitFor.*exceeded/i,
+      /Test timeout of \d+ms exceeded/i,
+      /Navigation timeout of \d+ms exceeded/i,
+      /exceeded .*timeout/i
+    ],
+    severity: "major"
+  },
+  // Assertion failed
+  {
+    category: "ASSERTION_FAILED",
+    patterns: [
+      /expect\(.*\)\.to/i,
+      /Expected.*to (be|have|contain|match|equal)/i,
+      /AssertionError/i,
+      /Received.*Expected/i,
+      /toBeVisible.*but.*hidden/i,
+      /toHaveText.*but.*received/i,
+      /toHaveValue.*but.*received/i,
+      /toBeChecked.*but.*unchecked/i
+    ],
+    severity: "major",
+    valueExtractor: /Expected:?\s*(.+?)\s*(?:Received|Actual|but|$)/i
+  },
+  // Navigation error
+  {
+    category: "NAVIGATION_ERROR",
+    patterns: [
+      /net::ERR_/i,
+      /Navigation failed/i,
+      /page\.goto.*failed/i,
+      /Frame was detached/i,
+      /Target page.*closed/i,
+      /browser has disconnected/i,
+      /Protocol error.*Target closed/i
+    ],
+    severity: "critical"
+  },
+  // Network error
+  {
+    category: "NETWORK_ERROR",
+    patterns: [
+      /ECONNREFUSED/i,
+      /ENOTFOUND/i,
+      /ETIMEDOUT/i,
+      /fetch failed/i,
+      /Request failed/i,
+      /Status code: [45]\d{2}/i
+    ],
+    severity: "major"
+  },
+  // Authentication error
+  {
+    category: "AUTHENTICATION_ERROR",
+    patterns: [
+      /401 Unauthorized/i,
+      /403 Forbidden/i,
+      /Authentication failed/i,
+      /Login failed/i,
+      /Invalid credentials/i,
+      /Session expired/i,
+      /Token expired/i
+    ],
+    severity: "critical"
+  },
+  // Permission error
+  {
+    category: "PERMISSION_ERROR",
+    patterns: [
+      /Permission denied/i,
+      /Access denied/i,
+      /not authorized/i,
+      /insufficient permissions/i
+    ],
+    severity: "critical"
+  },
+  // Type error
+  {
+    category: "TYPE_ERROR",
+    patterns: [
+      /TypeError:/i,
+      /Cannot read propert/i,
+      /is not a function/i,
+      /is not defined/i,
+      /undefined is not/i,
+      /null is not/i
+    ],
+    severity: "major"
+  },
+  // Syntax error
+  {
+    category: "SYNTAX_ERROR",
+    patterns: [
+      /SyntaxError:/i,
+      /Unexpected token/i,
+      /Unexpected identifier/i,
+      /Invalid or unexpected token/i
+    ],
+    severity: "critical"
+  },
+  // Runtime error
+  {
+    category: "RUNTIME_ERROR",
+    patterns: [
+      /ReferenceError:/i,
+      /RangeError:/i,
+      /Error:/i
+    ],
+    severity: "major"
+  }
+];
+var LOCATION_PATTERNS = [
+  // Standard stack trace format
+  /at\s+.*\s+\(([^:]+):(\d+):(\d+)\)/,
+  // Playwright error format
+  /([^:\s]+\.ts):(\d+):(\d+)/,
+  // Simple file:line format
+  /([^:\s]+\.(ts|js)):(\d+)/
+];
+function extractLocation(errorText, stackTrace) {
+  const textToSearch = stackTrace || errorText;
+  for (const pattern of LOCATION_PATTERNS) {
+    const match = textToSearch.match(pattern);
+    if (match && match[1] && match[2]) {
+      return {
+        file: match[1],
+        line: parseInt(match[2], 10),
+        column: match[3] ? parseInt(match[3], 10) : void 0
+      };
+    }
+  }
+  return void 0;
+}
+function generateFingerprint(category, message, selector, location) {
+  const normalizedMessage = message.replace(/\d+ms/g, "Xms").replace(/\d+ element/g, "X element").replace(/timeout of \d+/gi, "timeout of X").replace(/'[^']+'/g, "'X'").replace(/"[^"]+"/g, '"X"').toLowerCase().trim();
+  const components = [
+    category,
+    normalizedMessage.substring(0, 100),
+    selector || "",
+    location?.file || "",
+    location?.line?.toString() || ""
+  ];
+  const hash = crypto.createHash("md5");
+  hash.update(components.join("|"));
+  return hash.digest("hex").substring(0, 12);
+}
+function parseError(errorText, options = {}) {
+  const { testFile, testName, includeStackTrace = true } = options;
+  let matchedPattern;
+  for (const pattern of ERROR_PATTERNS) {
+    for (const regex of pattern.patterns) {
+      if (regex.test(errorText)) {
+        matchedPattern = pattern;
+        break;
+      }
+    }
+    if (matchedPattern) break;
+  }
+  const category = matchedPattern?.category || "UNKNOWN";
+  const severity = matchedPattern?.severity || "major";
+  let selector;
+  if (matchedPattern?.selectorExtractor) {
+    const selectorMatch = errorText.match(matchedPattern.selectorExtractor);
+    if (selectorMatch && (selectorMatch[1] || selectorMatch[2])) {
+      selector = selectorMatch[1] || selectorMatch[2];
+    }
+  }
+  let expectedValue;
+  let actualValue;
+  if (category === "ASSERTION_FAILED") {
+    const expectedMatch = errorText.match(/Expected:?\s*(.+?)(?:\n|$)/i);
+    const actualMatch = errorText.match(/Received:?\s*(.+?)(?:\n|$)/i);
+    expectedValue = expectedMatch?.[1]?.trim();
+    actualValue = actualMatch?.[1]?.trim();
+  }
+  const stackTraceMatch = errorText.match(/(\s+at\s+.+(?:\n\s+at\s+.+)*)/);
+  const stackTrace = includeStackTrace ? stackTraceMatch?.[1]?.trim() : void 0;
+  const location = extractLocation(errorText, stackTrace);
+  if (location && testFile) {
+    location.file = testFile;
+  }
+  if (location && testName) {
+    location.testName = testName;
+  }
+  const firstLine = errorText.split("\n")[0]?.trim() || "";
+  const message = firstLine.length > 200 ? firstLine.substring(0, 200) + "..." : firstLine;
+  const fingerprint = generateFingerprint(category, message, selector, location);
+  return {
+    category,
+    severity,
+    message,
+    originalError: errorText,
+    location,
+    selector,
+    expectedValue,
+    actualValue,
+    stackTrace,
+    timestamp: /* @__PURE__ */ new Date(),
+    fingerprint
+  };
+}
+function parseErrors(testOutput, options = {}) {
+  const errors = [];
+  const errorBlocks = testOutput.split(/(?=Error:|AssertionError:|TypeError:|TimeoutError:)/i);
+  for (const block of errorBlocks) {
+    const trimmed = block.trim();
+    if (trimmed.length > 10 && /error|failed|timeout|assert/i.test(trimmed)) {
+      errors.push(parseError(trimmed, options));
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  return errors.filter((e) => {
+    if (seen.has(e.fingerprint)) return false;
+    seen.add(e.fingerprint);
+    return true;
+  });
+}
+function parsePlaywrightReport(report) {
+  const results = [];
+  function processSuite(suite, filePath) {
+    const file = suite.file || filePath;
+    if (suite.specs) {
+      for (const spec of suite.specs) {
+        if (spec.tests) {
+          for (const test of spec.tests) {
+            const lastRun = test.results?.[test.results.length - 1];
+            const errors = [];
+            if (lastRun?.error) {
+              const errorText = [lastRun.error.message, lastRun.error.stack].filter(Boolean).join("\n");
+              if (errorText) {
+                errors.push(parseError(errorText, {
+                  testFile: file,
+                  testName: `${suite.title} > ${spec.title} > ${test.title}`
+                }));
+              }
+            }
+            if (lastRun?.stderr?.length) {
+              const stderrErrors = parseErrors(lastRun.stderr.join("\n"), {
+                testFile: file,
+                testName: `${suite.title} > ${spec.title} > ${test.title}`
+              });
+              errors.push(...stderrErrors);
+            }
+            results.push({
+              testId: `${file}:${spec.title}:${test.title}`,
+              testName: `${suite.title} > ${spec.title} > ${test.title}`,
+              testFile: file || "unknown",
+              status: mapStatus(test.status),
+              duration: test.duration,
+              errors: deduplicateErrors(errors),
+              retries: (test.results?.length || 1) - 1,
+              stdout: lastRun?.stdout?.join("\n"),
+              stderr: lastRun?.stderr?.join("\n"),
+              attachments: lastRun?.attachments?.map((a) => ({
+                name: a.name,
+                contentType: a.contentType,
+                path: a.path
+              }))
+            });
+          }
+        }
+      }
+    }
+    if (suite.suites) {
+      for (const nestedSuite of suite.suites) {
+        processSuite(nestedSuite, file);
+      }
+    }
+  }
+  if (report.suites) {
+    for (const suite of report.suites) {
+      processSuite(suite);
+    }
+  }
+  return results;
+}
+function mapStatus(status) {
+  switch (status.toLowerCase()) {
+    case "passed":
+      return "passed";
+    case "failed":
+      return "failed";
+    case "timedout":
+      return "timedOut";
+    case "skipped":
+    case "pending":
+      return "skipped";
+    case "interrupted":
+      return "interrupted";
+    default:
+      return "failed";
+  }
+}
+function deduplicateErrors(errors) {
+  const seen = /* @__PURE__ */ new Set();
+  return errors.filter((e) => {
+    if (seen.has(e.fingerprint)) return false;
+    seen.add(e.fingerprint);
+    return true;
+  });
+}
+function isSelectorRelated(error) {
+  return error.category === "SELECTOR_NOT_FOUND" && !!error.selector;
+}
+function isTimingRelated(error) {
+  return error.category === "TIMEOUT" || error.category === "SELECTOR_NOT_FOUND" && error.message.includes("Timeout");
+}
+function isEnvironmentalError(error) {
+  return [
+    "NETWORK_ERROR",
+    "AUTHENTICATION_ERROR",
+    "PERMISSION_ERROR"
+  ].includes(error.category);
+}
+function isCodeError(error) {
+  return [
+    "SYNTAX_ERROR",
+    "TYPE_ERROR",
+    "RUNTIME_ERROR"
+  ].includes(error.category);
+}
+function getSuggestedFixTypes(category) {
+  switch (category) {
+    case "SELECTOR_NOT_FOUND":
+      return ["SELECTOR_CHANGE", "LOCATOR_STRATEGY_CHANGED", "FRAME_CONTEXT_ADDED"];
+    case "TIMEOUT":
+      return ["WAIT_ADDED", "TIMEOUT_INCREASED", "RETRY_ADDED"];
+    case "ASSERTION_FAILED":
+      return ["ASSERTION_MODIFIED", "WAIT_ADDED"];
+    case "NAVIGATION_ERROR":
+      return ["ERROR_HANDLING_ADDED", "RETRY_ADDED"];
+    case "TYPE_ERROR":
+    case "RUNTIME_ERROR":
+      return ["OTHER"];
+    case "SYNTAX_ERROR":
+      return ["OTHER"];
+    default:
+      return ["OTHER"];
+  }
+}
+
+// src/refinement/convergence-detector.ts
+var DEFAULT_CIRCUIT_BREAKER_CONFIG = {
+  maxAttempts: 3,
+  sameErrorThreshold: 2,
+  oscillationDetection: true,
+  oscillationWindowSize: 4,
+  totalTimeoutMs: 3e5,
+  // 5 minutes
+  cooldownMs: 1e3,
+  maxTokenBudget: 5e4
+};
+var CircuitBreaker = class {
+  config;
+  state;
+  constructor(options = {}) {
+    const { initialState, ...config } = options;
+    this.config = { ...DEFAULT_CIRCUIT_BREAKER_CONFIG, ...config };
+    if (initialState) {
+      this.state = this.restoreState(initialState);
+    } else {
+      this.state = this.createInitialState();
+    }
+  }
+  createInitialState() {
+    return {
+      isOpen: false,
+      attemptCount: 0,
+      errorHistory: [],
+      startTime: /* @__PURE__ */ new Date(),
+      tokensUsed: 0,
+      maxAttempts: this.config.maxAttempts
+    };
+  }
+  /**
+   * Restore state from a saved CircuitBreakerState
+   * This allows the circuit breaker to continue from a previous session
+   * without double-counting attempts
+   */
+  restoreState(saved) {
+    return {
+      isOpen: saved.isOpen,
+      openReason: saved.openReason,
+      attemptCount: saved.attemptCount,
+      errorHistory: [...saved.errorHistory || []],
+      // Restore startTime or use now if not saved
+      startTime: saved.startTime ? new Date(saved.startTime) : /* @__PURE__ */ new Date(),
+      tokensUsed: saved.tokensUsed || 0,
+      maxAttempts: this.config.maxAttempts
+    };
+  }
+  /**
+   * Reset the circuit breaker to initial state
+   */
+  reset() {
+    this.state = this.createInitialState();
+  }
+  /**
+   * Get current state
+   */
+  getState() {
+    return { ...this.state };
+  }
+  /**
+   * Record an attempt and check if circuit should open
+   */
+  recordAttempt(errors, tokenUsage) {
+    if (this.state.isOpen) {
+      return this.state;
+    }
+    this.state.attemptCount++;
+    const fingerprints = errors.map((e) => e.fingerprint);
+    this.state.errorHistory.push(...fingerprints);
+    if (tokenUsage) {
+      this.state.tokensUsed += tokenUsage.totalTokens;
+    }
+    this.checkMaxAttempts();
+    this.checkSameError();
+    this.checkOscillation();
+    this.checkTimeout();
+    this.checkBudget();
+    return this.state;
+  }
+  /**
+   * Check if we can make another attempt
+   */
+  canAttempt() {
+    if (this.state.isOpen) {
+      return false;
+    }
+    this.checkTimeout();
+    return !this.state.isOpen;
+  }
+  /**
+   * Get remaining attempts
+   */
+  remainingAttempts() {
+    if (this.state.isOpen) return 0;
+    return Math.max(0, this.config.maxAttempts - this.state.attemptCount);
+  }
+  /**
+   * Get remaining token budget
+   */
+  remainingTokenBudget() {
+    return Math.max(0, this.config.maxTokenBudget - this.state.tokensUsed);
+  }
+  /**
+   * Estimate if operation would exceed budget
+   */
+  wouldExceedBudget(estimatedTokens) {
+    return this.state.tokensUsed + estimatedTokens > this.config.maxTokenBudget;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // PRIVATE CHECKS
+  // ─────────────────────────────────────────────────────────────────────────
+  checkMaxAttempts() {
+    if (this.state.attemptCount >= this.config.maxAttempts) {
+      this.openCircuit("MAX_ATTEMPTS");
+    }
+  }
+  checkSameError() {
+    if (this.state.errorHistory.length < this.config.sameErrorThreshold) {
+      return;
+    }
+    const counts = /* @__PURE__ */ new Map();
+    for (const fp of this.state.errorHistory) {
+      counts.set(fp, (counts.get(fp) || 0) + 1);
+    }
+    for (const count of counts.values()) {
+      if (count >= this.config.sameErrorThreshold) {
+        this.openCircuit("SAME_ERROR");
+        return;
+      }
+    }
+  }
+  checkOscillation() {
+    if (!this.config.oscillationDetection) {
+      return;
+    }
+    const history = this.state.errorHistory;
+    const windowSize = this.config.oscillationWindowSize;
+    if (history.length < windowSize) {
+      return;
+    }
+    const recentHistory = history.slice(-windowSize);
+    const unique = new Set(recentHistory);
+    if (unique.size === 2) {
+      let isAlternating = true;
+      for (let i = 2; i < recentHistory.length; i++) {
+        const currentItem = recentHistory[i];
+        const previousItem = recentHistory[i - 2];
+        if (currentItem !== void 0 && previousItem !== void 0 && currentItem !== previousItem) {
+          isAlternating = false;
+          break;
+        }
+      }
+      if (isAlternating) {
+        this.openCircuit("OSCILLATION");
+      }
+    }
+  }
+  checkTimeout() {
+    if (!this.state.startTime) return;
+    const elapsed = Date.now() - this.state.startTime.getTime();
+    if (elapsed >= this.config.totalTimeoutMs) {
+      this.openCircuit("TIMEOUT");
+    }
+  }
+  checkBudget() {
+    if (this.state.tokensUsed >= this.config.maxTokenBudget) {
+      this.openCircuit("BUDGET_EXCEEDED");
+    }
+  }
+  openCircuit(reason) {
+    this.state.isOpen = true;
+    this.state.openReason = reason;
+  }
+};
+var ConvergenceDetector = class {
+  errorCountHistory = [];
+  uniqueErrorsHistory = [];
+  lastImprovement;
+  stagnationCount = 0;
+  /**
+   * Record errors from an attempt
+   */
+  recordAttempt(errors) {
+    const count = errors.length;
+    const uniqueFingerprints = new Set(errors.map((e) => e.fingerprint));
+    this.errorCountHistory.push(count);
+    this.uniqueErrorsHistory.push(uniqueFingerprints);
+    if (this.errorCountHistory.length >= 2) {
+      const prev = this.errorCountHistory[this.errorCountHistory.length - 2];
+      const curr = this.errorCountHistory[this.errorCountHistory.length - 1];
+      if (curr < prev) {
+        this.lastImprovement = this.errorCountHistory.length - 1;
+        this.stagnationCount = 0;
+      } else {
+        this.stagnationCount++;
+      }
+    }
+  }
+  /**
+   * Get convergence information
+   */
+  getInfo() {
+    const converged = this.isConverged();
+    const trend = this.detectTrend();
+    return {
+      converged,
+      attempts: this.errorCountHistory.length,
+      errorCountHistory: [...this.errorCountHistory],
+      uniqueErrorsHistory: this.uniqueErrorsHistory.map((s) => new Set(s)),
+      lastImprovement: this.lastImprovement,
+      stagnationCount: this.stagnationCount,
+      trend
+    };
+  }
+  /**
+   * Check if we've converged (no errors)
+   */
+  isConverged() {
+    if (this.errorCountHistory.length === 0) return false;
+    return this.errorCountHistory[this.errorCountHistory.length - 1] === 0;
+  }
+  /**
+   * Detect the trend in error counts
+   */
+  detectTrend() {
+    if (this.errorCountHistory.length < 2) {
+      return "stagnating";
+    }
+    const recent = this.errorCountHistory.slice(-3);
+    if (this.isOscillating()) {
+      return "oscillating";
+    }
+    const decreasing = recent.every(
+      (val, i, arr) => i === 0 || val <= arr[i - 1]
+    );
+    const increasing = recent.every(
+      (val, i, arr) => i === 0 || val >= arr[i - 1]
+    );
+    const allSame = recent.every((val, _, arr) => val === arr[0]);
+    if (allSame || this.stagnationCount >= 2) {
+      return "stagnating";
+    }
+    if (decreasing) {
+      return "improving";
+    }
+    if (increasing) {
+      return "degrading";
+    }
+    return "stagnating";
+  }
+  /**
+   * Check if error counts are oscillating
+   */
+  isOscillating() {
+    if (this.errorCountHistory.length < 4) {
+      return false;
+    }
+    const recent = this.errorCountHistory.slice(-4);
+    const diff01 = (recent[1] || 0) - (recent[0] || 0);
+    const diff12 = (recent[2] || 0) - (recent[1] || 0);
+    const diff23 = (recent[3] || 0) - (recent[2] || 0);
+    const signsAlternate = Math.sign(diff01) !== 0 && Math.sign(diff01) === -Math.sign(diff12) && Math.sign(diff12) === -Math.sign(diff23);
+    return signsAlternate;
+  }
+  /**
+   * Calculate improvement percentage
+   */
+  getImprovementPercentage() {
+    if (this.errorCountHistory.length < 2) {
+      return 0;
+    }
+    const first = this.errorCountHistory[0] || 0;
+    const last = this.errorCountHistory[this.errorCountHistory.length - 1] || 0;
+    if (first === 0) {
+      return last === 0 ? 100 : 0;
+    }
+    return Math.round((first - last) / first * 100);
+  }
+  /**
+   * Get new errors introduced in last attempt (not in previous)
+   */
+  getNewErrors() {
+    if (this.uniqueErrorsHistory.length < 2) {
+      const firstEntry = this.uniqueErrorsHistory[0];
+      return firstEntry ? firstEntry : /* @__PURE__ */ new Set();
+    }
+    const prev = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 2];
+    const curr = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 1];
+    if (!prev || !curr) {
+      return /* @__PURE__ */ new Set();
+    }
+    const newErrors = /* @__PURE__ */ new Set();
+    for (const fp of curr) {
+      if (!prev.has(fp)) {
+        newErrors.add(fp);
+      }
+    }
+    return newErrors;
+  }
+  /**
+   * Get errors fixed in last attempt (in previous but not current)
+   */
+  getFixedErrors() {
+    if (this.uniqueErrorsHistory.length < 2) {
+      return /* @__PURE__ */ new Set();
+    }
+    const prev = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 2];
+    const curr = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 1];
+    if (!prev || !curr) {
+      return /* @__PURE__ */ new Set();
+    }
+    const fixedErrors = /* @__PURE__ */ new Set();
+    for (const fp of prev) {
+      if (!curr.has(fp)) {
+        fixedErrors.add(fp);
+      }
+    }
+    return fixedErrors;
+  }
+  /**
+   * Reset the detector
+   */
+  reset() {
+    this.errorCountHistory = [];
+    this.uniqueErrorsHistory = [];
+    this.lastImprovement = void 0;
+    this.stagnationCount = 0;
+  }
+  /**
+   * Restore detector state from saved error count history
+   * This allows the detector to continue from a previous session
+   * without losing context about convergence trends
+   */
+  restoreFromHistory(savedErrorCounts) {
+    if (!savedErrorCounts || savedErrorCounts.length === 0) {
+      return;
+    }
+    this.errorCountHistory = [...savedErrorCounts];
+    this.uniqueErrorsHistory = savedErrorCounts.map(() => /* @__PURE__ */ new Set());
+    this.lastImprovement = void 0;
+    this.stagnationCount = 0;
+    for (let i = 1; i < savedErrorCounts.length; i++) {
+      const prev = savedErrorCounts[i - 1];
+      const curr = savedErrorCounts[i];
+      if (prev !== void 0 && curr !== void 0 && curr < prev) {
+        this.lastImprovement = i;
+        this.stagnationCount = 0;
+      } else {
+        this.stagnationCount++;
+      }
+    }
+  }
+  /**
+   * Get the error count history for serialization
+   */
+  getErrorCountHistory() {
+    return [...this.errorCountHistory];
+  }
+};
+function analyzeRefinementProgress(_attempts, circuitBreaker, convergenceDetector) {
+  const cbState = circuitBreaker.getState();
+  const convergenceInfo = convergenceDetector.getInfo();
+  if (cbState.isOpen) {
+    return {
+      shouldContinue: false,
+      reason: `Circuit breaker open: ${cbState.openReason}`,
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "stop"
+    };
+  }
+  if (convergenceInfo.converged) {
+    return {
+      shouldContinue: false,
+      reason: "All errors resolved",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "stop"
+    };
+  }
+  if (convergenceInfo.trend === "degrading") {
+    return {
+      shouldContinue: false,
+      reason: "Error count increasing - fixes are making things worse",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "escalate"
+    };
+  }
+  if (convergenceInfo.trend === "oscillating") {
+    return {
+      shouldContinue: false,
+      reason: "Error counts oscillating - cannot converge",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "escalate"
+    };
+  }
+  if (convergenceInfo.stagnationCount >= 2) {
+    return {
+      shouldContinue: false,
+      reason: "No improvement in last 2 attempts - stagnating",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "escalate"
+    };
+  }
+  return {
+    shouldContinue: true,
+    reason: "Progress being made",
+    circuitBreaker: cbState,
+    convergence: convergenceInfo,
+    recommendation: "continue"
+  };
+}
+
+// src/refinement/refinement-loop.ts
+var REFINEMENT_SYSTEM_PROMPT = `You are an expert Playwright test debugger. Your task is to fix failing E2E tests.
+
+## Context
+You will receive:
+1. The current test code (TypeScript/Playwright)
+2. A list of errors with detailed analysis
+3. Previous fix attempts (if any)
+
+## Your Task
+Analyze the errors and provide fixes. For each error:
+1. Understand the root cause
+2. Propose a minimal, targeted fix
+3. Explain your reasoning
+
+## Fix Guidelines
+- Prefer more robust selectors (testId > role > text > css)
+- Add appropriate waits for async operations
+- Don't over-engineer - fix only what's broken
+- Preserve the original test intent
+- Avoid changing test assertions unless they're incorrect
+
+## Response Format
+Respond with JSON:
+{
+  "reasoning": "Brief explanation of root cause",
+  "fixes": [
+    {
+      "type": "SELECTOR_CHANGE" | "WAIT_ADDED" | "ASSERTION_MODIFIED" | "OTHER",
+      "description": "What this fix does",
+      "originalCode": "exact code being replaced",
+      "fixedCode": "replacement code",
+      "location": { "file": "test.spec.ts", "line": 42 },
+      "confidence": 0.85,
+      "reasoning": "Why this fix should work"
+    }
+  ]
+}
+
+## Important
+- fixes[].originalCode must be an EXACT substring of the current code
+- Each fix should target one specific issue
+- Order fixes by confidence (highest first)
+- If you cannot determine a fix, set confidence < 0.5`;
+async function runRefinementLoop(journeyId, testFile, originalCode, initialErrors, options) {
+  const {
+    config,
+    llmClient,
+    testRunner,
+    costTracker,
+    circuitBreakerConfig,
+    onAttemptComplete,
+    onProgressUpdate
+  } = options;
+  const sessionId = `refine-${journeyId}-${Date.now()}`;
+  const circuitBreaker = new CircuitBreaker({
+    ...DEFAULT_CIRCUIT_BREAKER_CONFIG,
+    maxAttempts: config.maxAttempts,
+    ...circuitBreakerConfig
+  });
+  const convergenceDetector = new ConvergenceDetector();
+  convergenceDetector.recordAttempt(initialErrors);
+  const session = {
+    sessionId,
+    journeyId,
+    testFile,
+    startTime: /* @__PURE__ */ new Date(),
+    originalCode,
+    currentCode: originalCode,
+    attempts: [],
+    circuitBreakerState: circuitBreaker.getState(),
+    convergenceInfo: convergenceDetector.getInfo(),
+    finalStatus: "SUCCESS",
+    // Will be updated
+    totalTokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 }
+  };
+  let currentCode = originalCode;
+  let currentErrors = initialErrors;
+  const appliedFixes = [];
+  const lessonsLearned = [];
+  while (true) {
+    const analysis = analyzeRefinementProgress(
+      session.attempts,
+      circuitBreaker,
+      convergenceDetector
+    );
+    if (!analysis.shouldContinue) {
+      session.finalStatus = mapAnalysisToStatus(analysis.reason, currentErrors.length === 0);
+      break;
+    }
+    if (costTracker?.wouldExceedLimit(5e3)) {
+      session.finalStatus = "BUDGET_EXCEEDED";
+      break;
+    }
+    if (onProgressUpdate) {
+      onProgressUpdate({
+        attemptNumber: session.attempts.length + 1,
+        maxAttempts: config.maxAttempts,
+        currentErrorCount: currentErrors.length,
+        originalErrorCount: initialErrors.length,
+        trend: convergenceDetector.getInfo().trend,
+        status: "running"
+      });
+    }
+    let fixResult;
+    try {
+      fixResult = await llmClient.generateFix(
+        currentCode,
+        currentErrors,
+        session.attempts,
+        {
+          maxTokens: config.llm.maxTokens,
+          temperature: config.llm.temperature,
+          systemPrompt: REFINEMENT_SYSTEM_PROMPT
+        }
+      );
+    } catch (error) {
+      const attempt2 = {
+        attemptNumber: session.attempts.length + 1,
+        timestamp: /* @__PURE__ */ new Date(),
+        error: currentErrors[0],
+        proposedFixes: [],
+        outcome: "failure",
+        newErrors: [parseError(error instanceof Error ? error.message : "LLM error")]
+      };
+      session.attempts.push(attempt2);
+      session.finalStatus = "CANNOT_FIX";
+      break;
+    }
+    session.totalTokenUsage = addTokenUsage(session.totalTokenUsage, fixResult.tokenUsage);
+    if (costTracker) {
+      costTracker.trackUsage(fixResult.tokenUsage);
+    }
+    const viableFixes = fixResult.fixes.filter((f) => f.confidence >= 0.5);
+    if (viableFixes.length === 0) {
+      const attempt2 = {
+        attemptNumber: session.attempts.length + 1,
+        timestamp: /* @__PURE__ */ new Date(),
+        error: currentErrors[0],
+        proposedFixes: fixResult.fixes,
+        outcome: "skipped",
+        tokenUsage: fixResult.tokenUsage
+      };
+      session.attempts.push(attempt2);
+      circuitBreaker.recordAttempt(currentErrors, fixResult.tokenUsage);
+      if (onAttemptComplete) {
+        onAttemptComplete(attempt2);
+      }
+      continue;
+    }
+    const fixToApply = viableFixes[0];
+    const applyResult = applyFix2(currentCode, fixToApply);
+    if (!applyResult.ok) {
+      const attempt2 = {
+        attemptNumber: session.attempts.length + 1,
+        timestamp: /* @__PURE__ */ new Date(),
+        error: currentErrors[0],
+        proposedFixes: fixResult.fixes,
+        outcome: "failure",
+        tokenUsage: fixResult.tokenUsage
+      };
+      session.attempts.push(attempt2);
+      circuitBreaker.recordAttempt(currentErrors, fixResult.tokenUsage);
+      if (onAttemptComplete) {
+        onAttemptComplete(attempt2);
+      }
+      continue;
+    }
+    const fixedCode = applyResult.value;
+    let testResult;
+    try {
+      testResult = await testRunner.runTest(testFile, fixedCode);
+    } catch (error) {
+      const attempt2 = {
+        attemptNumber: session.attempts.length + 1,
+        timestamp: /* @__PURE__ */ new Date(),
+        error: currentErrors[0],
+        proposedFixes: fixResult.fixes,
+        appliedFix: fixToApply,
+        outcome: "failure",
+        newErrors: [parseError(error instanceof Error ? error.message : "Test run error")],
+        tokenUsage: fixResult.tokenUsage
+      };
+      session.attempts.push(attempt2);
+      circuitBreaker.recordAttempt(currentErrors, fixResult.tokenUsage);
+      if (onAttemptComplete) {
+        onAttemptComplete(attempt2);
+      }
+      continue;
+    }
+    const newErrors = testResult.errors;
+    const outcome = determineOutcome(currentErrors, newErrors);
+    const attempt = {
+      attemptNumber: session.attempts.length + 1,
+      timestamp: /* @__PURE__ */ new Date(),
+      error: currentErrors[0],
+      proposedFixes: fixResult.fixes,
+      appliedFix: fixToApply,
+      outcome,
+      newErrors: newErrors.length > 0 ? newErrors : void 0,
+      tokenUsage: fixResult.tokenUsage
+    };
+    session.attempts.push(attempt);
+    if (outcome === "success" || outcome === "partial") {
+      currentCode = fixedCode;
+      session.currentCode = currentCode;
+      appliedFixes.push(fixToApply);
+      const lesson = createLesson(journeyId, fixToApply, currentErrors[0]);
+      if (lesson) {
+        lessonsLearned.push(lesson);
+      }
+    }
+    currentErrors = newErrors;
+    convergenceDetector.recordAttempt(newErrors);
+    circuitBreaker.recordAttempt(newErrors, fixResult.tokenUsage);
+    session.circuitBreakerState = circuitBreaker.getState();
+    session.convergenceInfo = convergenceDetector.getInfo();
+    if (onAttemptComplete) {
+      onAttemptComplete(attempt);
+    }
+    if (config.timeouts.delayBetweenAttempts > 0) {
+      await sleep(config.timeouts.delayBetweenAttempts);
+    }
+  }
+  session.endTime = /* @__PURE__ */ new Date();
+  session.circuitBreakerState = circuitBreaker.getState();
+  session.convergenceInfo = convergenceDetector.getInfo();
+  if (onProgressUpdate) {
+    onProgressUpdate({
+      attemptNumber: session.attempts.length,
+      maxAttempts: config.maxAttempts,
+      currentErrorCount: currentErrors.length,
+      originalErrorCount: initialErrors.length,
+      trend: convergenceDetector.getInfo().trend,
+      status: currentErrors.length === 0 ? "success" : "failed"
+    });
+  }
+  return {
+    success: currentErrors.length === 0,
+    session,
+    fixedCode: currentErrors.length === 0 ? currentCode : void 0,
+    remainingErrors: currentErrors,
+    appliedFixes,
+    lessonsLearned,
+    diagnostics: createDiagnostics(session)
+  };
+}
+function applyFix2(code, fix) {
+  if (!code.includes(fix.originalCode)) {
+    return err2(`Original code not found: "${fix.originalCode.substring(0, 50)}..."`);
+  }
+  const fixedCode = code.replace(fix.originalCode, fix.fixedCode);
+  return ok2(fixedCode);
+}
+function determineOutcome(previousErrors, newErrors) {
+  if (newErrors.length === 0) {
+    return "success";
+  }
+  if (newErrors.length < previousErrors.length) {
+    return "partial";
+  }
+  const previousFingerprints = new Set(previousErrors.map((e) => e.fingerprint));
+  const newFingerprints = new Set(newErrors.map((e) => e.fingerprint));
+  let fixedCount = 0;
+  for (const fp of previousFingerprints) {
+    if (!newFingerprints.has(fp)) {
+      fixedCount++;
+    }
+  }
+  if (fixedCount > 0) {
+    return "partial";
+  }
+  return "failure";
+}
+function mapAnalysisToStatus(reason, noErrors) {
+  if (noErrors) {
+    return "SUCCESS";
+  }
+  if (reason.includes("Circuit breaker")) {
+    if (reason.includes("MAX_ATTEMPTS")) return "MAX_ATTEMPTS_REACHED";
+    if (reason.includes("SAME_ERROR")) return "SAME_ERROR_LOOP";
+    if (reason.includes("OSCILLATION")) return "OSCILLATION_DETECTED";
+    if (reason.includes("TIMEOUT")) return "TIMEOUT";
+    if (reason.includes("BUDGET")) return "BUDGET_EXCEEDED";
+  }
+  if (reason.includes("stagnating")) return "CANNOT_FIX";
+  if (reason.includes("degrading")) return "CANNOT_FIX";
+  if (reason.includes("oscillating")) return "OSCILLATION_DETECTED";
+  return "PARTIAL_SUCCESS";
+}
+function createDiagnostics(session) {
+  const lastAttempt = session.attempts.length > 0 ? session.attempts[session.attempts.length - 1] : void 0;
+  const lastError = lastAttempt?.error?.message || "";
+  return {
+    attempts: session.attempts.length,
+    lastError,
+    convergenceFailure: session.convergenceInfo.trend === "stagnating" || session.convergenceInfo.trend === "oscillating",
+    sameErrorRepeated: session.circuitBreakerState.openReason === "SAME_ERROR",
+    oscillationDetected: session.circuitBreakerState.openReason === "OSCILLATION" || session.convergenceInfo.trend === "oscillating",
+    budgetExhausted: session.circuitBreakerState.openReason === "BUDGET_EXCEEDED",
+    timedOut: session.circuitBreakerState.openReason === "TIMEOUT"
+  };
+}
+function createLesson(journeyId, fix, error) {
+  if (fix.confidence < 0.7) {
+    return void 0;
+  }
+  const lessonType = mapFixTypeToLessonType(fix.type);
+  if (!lessonType) {
+    return void 0;
+  }
+  return {
+    id: `lesson-${journeyId}-${Date.now()}`,
+    type: lessonType,
+    context: {
+      journeyId,
+      errorCategory: error.category,
+      originalSelector: error.selector,
+      element: fix.location.stepDescription || ""
+    },
+    solution: {
+      pattern: fix.type,
+      code: fix.fixedCode,
+      explanation: fix.reasoning || fix.description
+    },
+    confidence: fix.confidence,
+    createdAt: /* @__PURE__ */ new Date(),
+    verified: true
+    // It worked!
+  };
+}
+function mapFixTypeToLessonType(fixType) {
+  switch (fixType) {
+    case "SELECTOR_CHANGE":
+    case "LOCATOR_STRATEGY_CHANGED":
+      return "selector_pattern";
+    case "WAIT_ADDED":
+    case "TIMEOUT_INCREASED":
+      return "wait_strategy";
+    case "FLOW_REORDERED":
+      return "flow_pattern";
+    default:
+      return "error_fix";
+  }
+}
+function addTokenUsage(a, b) {
+  return {
+    promptTokens: a.promptTokens + b.promptTokens,
+    completionTokens: a.completionTokens + b.completionTokens,
+    totalTokens: a.totalTokens + b.totalTokens,
+    estimatedCostUsd: a.estimatedCostUsd + b.estimatedCostUsd
+  };
+}
+function sleep(ms) {
+  return new Promise((resolve6) => setTimeout(resolve6, ms));
+}
+async function runSingleRefinementAttempt(code, errors, llmClient, options = {}) {
+  try {
+    const result = await llmClient.generateFix(code, errors, [], {
+      maxTokens: options.maxTokens || 4096,
+      temperature: options.temperature || 0.2,
+      systemPrompt: REFINEMENT_SYSTEM_PROMPT
+    });
+    return ok2({
+      fixes: result.fixes,
+      reasoning: result.reasoning
+    });
+  } catch (error) {
+    return err2(error instanceof Error ? error.message : "Unknown error");
+  }
+}
+
+// src/refinement/llkb-learning.ts
+var DEFAULT_EXTRACTION_OPTIONS = {
+  minConfidence: 0.7,
+  includeUnverified: false,
+  maxLessonsPerSession: 10
+};
+function extractLessonsFromSession(session, options = {}) {
+  const opts = { ...DEFAULT_EXTRACTION_OPTIONS, ...options };
+  const lessons = [];
+  for (const attempt of session.attempts) {
+    if (attempt.outcome !== "success" && attempt.outcome !== "partial") {
+      continue;
+    }
+    if (!attempt.appliedFix) {
+      continue;
+    }
+    const fix = attempt.appliedFix;
+    if (fix.confidence < opts.minConfidence) {
+      continue;
+    }
+    const lesson = createLessonFromFix(
+      session.journeyId,
+      fix,
+      attempt.error,
+      attempt.outcome === "success"
+      // verified only if full success
+    );
+    if (lesson && (lesson.verified || opts.includeUnverified)) {
+      lessons.push(lesson);
+    }
+    if (lessons.length >= opts.maxLessonsPerSession) {
+      break;
+    }
+  }
+  return lessons;
+}
+function createLessonFromFix(journeyId, fix, error, verified) {
+  const type = mapFixTypeToLessonType2(fix.type);
+  if (!type) {
+    return void 0;
+  }
+  return {
+    id: generateLessonId(journeyId, fix, error),
+    type,
+    context: {
+      journeyId,
+      errorCategory: error.category,
+      originalSelector: error.selector,
+      element: extractElementDescription(fix, error)
+    },
+    solution: {
+      pattern: extractPattern(fix),
+      code: fix.fixedCode,
+      explanation: fix.reasoning || fix.description
+    },
+    confidence: fix.confidence,
+    createdAt: /* @__PURE__ */ new Date(),
+    verified
+  };
+}
+function mapFixTypeToLessonType2(fixType) {
+  switch (fixType) {
+    case "SELECTOR_CHANGE":
+    case "LOCATOR_STRATEGY_CHANGED":
+    case "FRAME_CONTEXT_ADDED":
+      return "selector_pattern";
+    case "WAIT_ADDED":
+    case "TIMEOUT_INCREASED":
+    case "RETRY_ADDED":
+      return "wait_strategy";
+    case "FLOW_REORDERED":
+      return "flow_pattern";
+    case "ASSERTION_MODIFIED":
+    case "ERROR_HANDLING_ADDED":
+    case "OTHER":
+      return "error_fix";
+    default:
+      return void 0;
+  }
+}
+function generateLessonId(journeyId, fix, error) {
+  const timestamp = Date.now();
+  const fixHash = hashString(fix.fixedCode.substring(0, 50));
+  return `lesson-${journeyId}-${error.category}-${fixHash}-${timestamp}`;
+}
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+function extractElementDescription(fix, error) {
+  if (fix.location.stepDescription) {
+    return fix.location.stepDescription;
+  }
+  if (error.selector) {
+    return extractElementFromSelector(error.selector);
+  }
+  const locatorMatch = fix.fixedCode.match(/getBy\w+\(['"]([^'"]+)['"]\)/);
+  if (locatorMatch && locatorMatch[1]) {
+    return locatorMatch[1];
+  }
+  return "unknown element";
+}
+function extractElementFromSelector(selector) {
+  const testIdMatch = selector.match(/data-testid[=~*^$]*["']?([^"'\]]+)/);
+  if (testIdMatch && testIdMatch[1]) {
+    return testIdMatch[1];
+  }
+  const roleMatch = selector.match(/role=["']?([^"'\]]+)/);
+  if (roleMatch && roleMatch[1]) {
+    return roleMatch[1];
+  }
+  const classMatch = selector.match(/\.([a-zA-Z0-9_-]+)/);
+  if (classMatch && classMatch[1]) {
+    return classMatch[1];
+  }
+  return selector.substring(0, 30);
+}
+function extractPattern(fix) {
+  switch (fix.type) {
+    case "SELECTOR_CHANGE":
+      return extractSelectorPattern(fix.fixedCode);
+    case "WAIT_ADDED":
+      return extractWaitPattern(fix.fixedCode);
+    case "ASSERTION_MODIFIED":
+      return extractAssertionPattern(fix.fixedCode);
+    default:
+      return fix.type;
+  }
+}
+function extractSelectorPattern(code) {
+  if (code.includes("getByTestId")) return "testid";
+  if (code.includes("getByRole")) return "role";
+  if (code.includes("getByText")) return "text";
+  if (code.includes("getByLabel")) return "label";
+  if (code.includes("getByPlaceholder")) return "placeholder";
+  if (code.includes("locator")) return "css";
+  return "unknown";
+}
+function extractWaitPattern(code) {
+  if (code.includes("waitForSelector")) return "waitForSelector";
+  if (code.includes("waitForLoadState")) return "waitForLoadState";
+  if (code.includes("waitForResponse")) return "waitForResponse";
+  if (code.includes("waitForTimeout")) return "waitForTimeout";
+  if (code.includes("toBeVisible")) return "expectVisible";
+  return "unknown";
+}
+function extractAssertionPattern(code) {
+  if (code.includes("toHaveText")) return "toHaveText";
+  if (code.includes("toHaveValue")) return "toHaveValue";
+  if (code.includes("toBeVisible")) return "toBeVisible";
+  if (code.includes("toBeEnabled")) return "toBeEnabled";
+  if (code.includes("toHaveCount")) return "toHaveCount";
+  return "unknown";
+}
+function aggregateLessons(lessons) {
+  const patterns = /* @__PURE__ */ new Map();
+  for (const lesson of lessons) {
+    const key = `${lesson.type}:${lesson.solution.pattern}`;
+    const existing = patterns.get(key);
+    if (existing) {
+      existing.occurrences++;
+      existing.totalConfidence += lesson.confidence;
+      existing.contexts.add(lesson.context.errorCategory);
+      existing.codes.push(lesson.solution.code);
+    } else {
+      patterns.set(key, {
+        occurrences: 1,
+        totalConfidence: lesson.confidence,
+        contexts: /* @__PURE__ */ new Set([lesson.context.errorCategory]),
+        codes: [lesson.solution.code]
+      });
+    }
+  }
+  return Array.from(patterns.entries()).map(([key, data]) => ({
+    pattern: key,
+    occurrences: data.occurrences,
+    averageConfidence: data.totalConfidence / data.occurrences,
+    contexts: Array.from(data.contexts),
+    representativeCode: data.codes[0] || ""
+    // Use first occurrence as representative
+  })).sort((a, b) => b.occurrences - a.occurrences);
+}
+function calculateConfidenceAdjustment(lesson, outcome, currentUsageCount) {
+  const oldConfidence = lesson.confidence;
+  let newConfidence;
+  let reason;
+  if (outcome === "success") {
+    const increment = 0.05 * Math.pow(0.9, currentUsageCount);
+    newConfidence = Math.min(1, oldConfidence + increment);
+    reason = "success";
+  } else {
+    const decrement = 0.1 * Math.pow(1.1, currentUsageCount);
+    newConfidence = Math.max(0, oldConfidence - decrement);
+    reason = "failure";
+  }
+  return {
+    lessonId: lesson.id,
+    oldConfidence,
+    newConfidence,
+    reason
+  };
+}
+function applyConfidenceDecay(lessons, decayRate = 0.01, referenceDate = /* @__PURE__ */ new Date()) {
+  const adjustments = [];
+  for (const lesson of lessons) {
+    const ageInDays = (referenceDate.getTime() - lesson.createdAt.getTime()) / (1e3 * 60 * 60 * 24);
+    if (ageInDays > 30) {
+      const decayFactor = Math.pow(1 - decayRate, Math.floor(ageInDays / 30));
+      const newConfidence = lesson.confidence * decayFactor;
+      if (newConfidence !== lesson.confidence) {
+        adjustments.push({
+          lessonId: lesson.id,
+          oldConfidence: lesson.confidence,
+          newConfidence,
+          reason: "decay"
+        });
+      }
+    }
+  }
+  return adjustments;
+}
+function recommendLessons(errors, availableLessons, maxRecommendations = 5) {
+  const recommendations = [];
+  for (const lesson of availableLessons) {
+    if (lesson.confidence < 0.6 || !lesson.verified) {
+      continue;
+    }
+    for (const error of errors) {
+      const relevance = calculateRelevance(lesson, error);
+      if (relevance > 0) {
+        recommendations.push({
+          lesson,
+          relevanceScore: relevance * lesson.confidence,
+          applicabilityReason: explainRelevance(lesson, error)
+        });
+        break;
+      }
+    }
+  }
+  return recommendations.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, maxRecommendations);
+}
+function calculateRelevance(lesson, error) {
+  let score = 0;
+  if (lesson.context.errorCategory === error.category) {
+    score += 0.5;
+  }
+  if (lesson.context.originalSelector && error.selector) {
+    const similarity = calculateSelectorSimilarity(
+      lesson.context.originalSelector,
+      error.selector
+    );
+    score += similarity * 0.3;
+  }
+  const suggestedFixes = getSuggestedFixTypesForLesson(error.category);
+  if (suggestedFixes.includes(lessonTypeToFixType(lesson.type))) {
+    score += 0.2;
+  }
+  return score;
+}
+function calculateSelectorSimilarity(selector1, selector2) {
+  const strategy1 = extractSelectorStrategy(selector1);
+  const strategy2 = extractSelectorStrategy(selector2);
+  if (strategy1 === strategy2) {
+    return 0.8;
+  }
+  if (["testid", "role", "label"].includes(strategy1) && ["testid", "role", "label"].includes(strategy2)) {
+    return 0.5;
+  }
+  return 0.2;
+}
+function extractSelectorStrategy(selector) {
+  if (selector.includes("data-testid")) return "testid";
+  if (selector.includes("role=")) return "role";
+  if (selector.includes("aria-label")) return "label";
+  if (selector.match(/^[.#]/)) return "css";
+  return "other";
+}
+function explainRelevance(lesson, error) {
+  const reasons = [];
+  if (lesson.context.errorCategory === error.category) {
+    reasons.push(`Same error type: ${error.category}`);
+  }
+  if (lesson.context.originalSelector && error.selector) {
+    reasons.push("Similar selector pattern");
+  }
+  reasons.push(`Solution: ${lesson.solution.pattern}`);
+  return reasons.join("; ");
+}
+function getSuggestedFixTypesForLesson(category) {
+  switch (category) {
+    case "SELECTOR_NOT_FOUND":
+      return ["SELECTOR_CHANGE", "LOCATOR_STRATEGY_CHANGED"];
+    case "TIMEOUT":
+      return ["WAIT_ADDED", "TIMEOUT_INCREASED"];
+    case "ASSERTION_FAILED":
+      return ["ASSERTION_MODIFIED"];
+    default:
+      return ["OTHER"];
+  }
+}
+function lessonTypeToFixType(lessonType) {
+  switch (lessonType) {
+    case "selector_pattern":
+      return "SELECTOR_CHANGE";
+    case "wait_strategy":
+      return "WAIT_ADDED";
+    case "flow_pattern":
+      return "FLOW_REORDERED";
+    case "error_fix":
+      return "OTHER";
+  }
+}
+
+// src/refinement/llkb-storage.ts
+init_paths();
+var LLKB_REFINEMENT_FILE = "refinement-lessons.json";
+function getLlkbRefinementPath() {
+  return join(getLlkbRoot(), LLKB_REFINEMENT_FILE);
+}
+function createEmptyStore() {
+  return {
+    version: "1.0",
+    lessons: [],
+    stats: {
+      totalLessons: 0,
+      lessonsByType: {
+        "selector": 0,
+        "timing": 0,
+        "assertion": 0,
+        "navigation": 0,
+        "form": 0,
+        "error-fix": 0
+      },
+      avgConfidence: 0,
+      totalApplications: 0,
+      successRate: 0
+    },
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function loadLlkbStore() {
+  const path = getLlkbRefinementPath();
+  if (!existsSync(path)) {
+    return createEmptyStore();
+  }
+  try {
+    const content = readFileSync(path, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return createEmptyStore();
+  }
+}
+function saveLlkbStore(store) {
+  const path = getLlkbRefinementPath();
+  const dir = dirname(path);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  store.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
+  updateStats(store);
+  writeFileSync(path, JSON.stringify(store, null, 2), "utf-8");
+}
+function updateStats(store) {
+  const stats = store.stats;
+  stats.totalLessons = store.lessons.length;
+  for (const type of Object.keys(stats.lessonsByType)) {
+    stats.lessonsByType[type] = 0;
+  }
+  let totalConfidence = 0;
+  let totalApplications = 0;
+  let totalSuccesses = 0;
+  for (const lesson of store.lessons) {
+    stats.lessonsByType[lesson.type]++;
+    totalConfidence += lesson.confidence;
+    totalApplications += lesson.successCount + lesson.failureCount;
+    totalSuccesses += lesson.successCount;
+  }
+  stats.avgConfidence = store.lessons.length > 0 ? totalConfidence / store.lessons.length : 0;
+  stats.totalApplications = totalApplications;
+  stats.successRate = totalApplications > 0 ? totalSuccesses / totalApplications : 0;
+}
+function generateLessonId2(type, pattern) {
+  const hash = pattern.split("").reduce((a, b) => {
+    a = (a << 5) - a + b.charCodeAt(0);
+    return a & a;
+  }, 0);
+  return `${type}-${Math.abs(hash).toString(36)}`;
+}
+function findLesson(store, type, pattern) {
+  return store.lessons.find(
+    (l) => l.type === type && l.pattern === pattern
+  );
+}
+function findLessonsForContext(store, context, minConfidence = 0.5) {
+  return store.lessons.filter((lesson) => {
+    if (lesson.confidence < minConfidence) {
+      return false;
+    }
+    const lc = lesson.context;
+    if (context.errorType && lc.errorType !== context.errorType) {
+      return false;
+    }
+    if (context.stepType && lc.stepType !== context.stepType) {
+      return false;
+    }
+    if (context.componentType && lc.componentType !== context.componentType) {
+      return false;
+    }
+    if (context.errorMessage && lc.errorMessage) {
+      const contextWords = context.errorMessage.toLowerCase().split(/\s+/);
+      const lessonWords = lc.errorMessage.toLowerCase().split(/\s+/);
+      const overlap = contextWords.filter((w) => lessonWords.includes(w));
+      if (overlap.length < Math.min(3, contextWords.length * 0.5)) {
+        return false;
+      }
+    }
+    return true;
+  }).sort((a, b) => b.confidence - a.confidence);
+}
+function addLesson(store, type, pattern, context, fix, initialConfidence = 0.5) {
+  const existing = findLesson(store, type, pattern);
+  if (existing) {
+    existing.context = { ...existing.context, ...context };
+    existing.fix = fix;
+    existing.lastUsedAt = (/* @__PURE__ */ new Date()).toISOString();
+    return existing;
+  }
+  const lesson = {
+    id: generateLessonId2(type, pattern),
+    type,
+    pattern,
+    context,
+    fix,
+    confidence: initialConfidence,
+    successCount: 0,
+    failureCount: 0,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  store.lessons.push(lesson);
+  return lesson;
+}
+function recordSuccess(store, lessonId) {
+  const lesson = store.lessons.find((l) => l.id === lessonId);
+  if (lesson) {
+    lesson.successCount++;
+    lesson.lastSuccessAt = (/* @__PURE__ */ new Date()).toISOString();
+    lesson.lastUsedAt = (/* @__PURE__ */ new Date()).toISOString();
+    lesson.confidence = Math.min(0.95, lesson.confidence + 0.05);
+  }
+}
+function recordFailure(store, lessonId) {
+  const lesson = store.lessons.find((l) => l.id === lessonId);
+  if (lesson) {
+    lesson.failureCount++;
+    lesson.lastUsedAt = (/* @__PURE__ */ new Date()).toISOString();
+    lesson.confidence = Math.max(0.1, lesson.confidence - 0.1);
+  }
+}
+function pruneLessons(store, minConfidence = 0.2, minApplications = 3) {
+  const before = store.lessons.length;
+  store.lessons = store.lessons.filter((lesson) => {
+    const applications = lesson.successCount + lesson.failureCount;
+    return applications < minApplications || lesson.confidence >= minConfidence;
+  });
+  return before - store.lessons.length;
+}
+function learnFromRefinement(errorType, errorMessage, originalCode, fixedCode, stepType) {
+  const store = loadLlkbStore();
+  const pattern = `${errorType}:${errorMessage.substring(0, 50)}`;
+  let fixType = "replace";
+  if (fixedCode.length > originalCode.length * 1.5) {
+    fixType = "wrap";
+  } else if (!originalCode.trim()) {
+    fixType = "insert";
+  }
+  const lesson = addLesson(
+    store,
+    "error-fix",
+    pattern,
+    {
+      errorType,
+      errorMessage: errorMessage.substring(0, 200),
+      stepType
+    },
+    {
+      type: fixType,
+      pattern: originalCode,
+      replacement: fixedCode,
+      explanation: `Fix for ${errorType} error`
+    },
+    0.6
+    // Start with higher confidence since it worked
+  );
+  recordSuccess(store, lesson.id);
+  saveLlkbStore(store);
+  return lesson;
+}
+function getSuggestedFixes(errorType, errorMessage, stepType) {
+  const store = loadLlkbStore();
+  return findLessonsForContext(store, {
+    errorType,
+    errorMessage,
+    stepType
+  });
+}
+function applyLearnedFix(lessonId, success) {
+  const store = loadLlkbStore();
+  if (success) {
+    recordSuccess(store, lessonId);
+  } else {
+    recordFailure(store, lessonId);
+  }
+  saveLlkbStore(store);
+}
+function exportLessonsForOrchestrator() {
+  const store = loadLlkbStore();
+  const exportLessons = store.lessons.filter((l) => l.confidence >= 0.5).sort((a, b) => b.confidence - a.confidence).slice(0, 100);
+  return {
+    lessons: exportLessons,
+    stats: store.stats,
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+
+// src/refinement/playwright-runner.ts
+init_paths();
+var ERROR_PATTERNS2 = [
+  {
+    type: "selector",
+    patterns: [
+      /locator.*not found/i,
+      /element.*not found/i,
+      /strict mode violation/i,
+      /resolved to \d+ elements/i,
+      /waiting for locator/i
+    ]
+  },
+  {
+    type: "timeout",
+    patterns: [
+      /timeout.*exceeded/i,
+      /test.*timeout/i,
+      /exceeded.*timeout/i,
+      /timed out/i
+    ]
+  },
+  {
+    type: "assertion",
+    patterns: [
+      /expect.*received/i,
+      /assertion.*failed/i,
+      /toequal.*failed/i,
+      /tobehave.*failed/i,
+      /expected.*but got/i
+    ]
+  },
+  {
+    type: "navigation",
+    patterns: [
+      /page\.goto/i,
+      /navigation.*failed/i,
+      /net::ERR/i,
+      /NS_ERROR/i,
+      /navigating to/i
+    ]
+  },
+  {
+    type: "typescript",
+    patterns: [
+      /syntaxerror/i,
+      /typeerror/i,
+      /referenceerror/i,
+      /ts\(\d+\)/i,
+      /cannot find module/i
+    ]
+  },
+  {
+    type: "network",
+    patterns: [
+      /ECONNREFUSED/i,
+      /ENOTFOUND/i,
+      /network.*error/i,
+      /fetch.*failed/i
+    ]
+  }
+];
+function classifyError2(message) {
+  for (const { type, patterns } of ERROR_PATTERNS2) {
+    if (patterns.some((p) => p.test(message))) {
+      return type;
+    }
+  }
+  return "unknown";
+}
+function parseTestCounts(output) {
+  const counts = {
+    total: 0,
+    passed: 0,
+    failed: 0,
+    skipped: 0,
+    flaky: 0
+  };
+  const summaryMatch = output.match(/(\d+)\s+passed.*?(\d+)\s+failed.*?(\d+)\s+skipped/i);
+  if (summaryMatch) {
+    counts.passed = parseInt(summaryMatch[1], 10);
+    counts.failed = parseInt(summaryMatch[2], 10);
+    counts.skipped = parseInt(summaryMatch[3], 10);
+    counts.total = counts.passed + counts.failed + counts.skipped;
+    return counts;
+  }
+  const passedMatches = output.match(/✓|✔|passed/gi);
+  const failedMatches = output.match(/✗|✘|failed/gi);
+  const skippedMatches = output.match(/⊘|skipped/gi);
+  counts.passed = passedMatches?.length || 0;
+  counts.failed = failedMatches?.length || 0;
+  counts.skipped = skippedMatches?.length || 0;
+  counts.total = counts.passed + counts.failed + counts.skipped;
+  const flakyMatch = output.match(/(\d+)\s+flaky/i);
+  if (flakyMatch) {
+    counts.flaky = parseInt(flakyMatch[1], 10);
+  }
+  return counts;
+}
+function parseFailures(stdout, stderr) {
+  const failures = [];
+  const combined = `${stdout}
+${stderr}`;
+  const errorBlocks = combined.split(/(?=\d+\)\s+\[|Error:|✘\s+\d+\s+)/);
+  for (const block of errorBlocks) {
+    if (!block.trim() || block.length < 30) continue;
+    if (!block.includes("Error") && !block.includes("\u2718") && !block.includes("failed")) {
+      continue;
+    }
+    const titleMatch = block.match(/(?:✘|✗|\d+\))\s+(?:\[.*?\])?\s*(.+?)(?:\(|at\s|Error)/);
+    const title = titleMatch && titleMatch[1] ? titleMatch[1].trim() : "Unknown test";
+    const fileMatch = block.match(/([^\s:]+\.(?:ts|js)):(\d+)/);
+    const file = fileMatch && fileMatch[1] ? fileMatch[1] : "";
+    const line = fileMatch && fileMatch[2] ? parseInt(fileMatch[2], 10) : void 0;
+    const errorMatch = block.match(/Error:\s*([^\n]+)/);
+    const error = errorMatch && errorMatch[1] ? errorMatch[1].trim() : block.split("\n")[0]?.trim() || "Unknown error";
+    const stackLines = block.split("\n").filter((l) => l.trim().startsWith("at ")).slice(0, 5);
+    const stack = stackLines.length > 0 ? stackLines.join("\n") : void 0;
+    const durationMatch = block.match(/(\d+(?:\.\d+)?)\s*(?:ms|s)/);
+    const duration = durationMatch ? parseFloat(durationMatch[1]) * (durationMatch[0].includes("s") && !durationMatch[0].includes("ms") ? 1e3 : 1) : void 0;
+    failures.push({
+      title,
+      fullTitle: title,
+      file,
+      line,
+      error: error.substring(0, 500),
+      errorType: classifyError2(error),
+      stack,
+      duration
+    });
+  }
+  return failures;
+}
+async function runPlaywright(options) {
+  const {
+    testFiles,
+    cwd = getHarnessRoot(),
+    timeout = 3e4,
+    retries = 0,
+    headed = false,
+    debug = false,
+    reporter = "list",
+    extraArgs = [],
+    env = {},
+    grep,
+    project,
+    workers = 1
+  } = options;
+  const startTime = Date.now();
+  const args = [
+    "playwright",
+    "test",
+    ...testFiles,
+    `--timeout=${timeout}`,
+    `--retries=${retries}`,
+    `--reporter=${reporter}`,
+    `--workers=${workers}`
+  ];
+  if (headed) args.push("--headed");
+  if (debug) args.push("--debug");
+  if (grep) args.push(`--grep=${grep}`);
+  if (project) args.push(`--project=${project}`);
+  args.push(...extraArgs);
+  return new Promise((resolve6) => {
+    let stdout = "";
+    let stderr = "";
+    const spawnOptions = {
+      cwd,
+      shell: true,
+      env: {
+        ...process.env,
+        ...env,
+        FORCE_COLOR: "1"
+        // Force colored output for better parsing
+      }
+    };
+    const proc = spawn("npx", args, spawnOptions);
+    proc.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+    proc.on("close", (code) => {
+      const duration = Date.now() - startTime;
+      const exitCode = code ?? 1;
+      const counts = parseTestCounts(stdout);
+      const failures = parseFailures(stdout, stderr);
+      let status = "passed";
+      if (exitCode !== 0) {
+        if (stdout.includes("timeout") || stderr.includes("timeout")) {
+          status = "timeout";
+        } else if (failures.length > 0) {
+          status = "failed";
+        } else {
+          status = "error";
+        }
+      }
+      let reportPath;
+      let tracePath;
+      const reportDir = join(cwd, "playwright-report");
+      if (existsSync(join(reportDir, "index.html"))) {
+        reportPath = join(reportDir, "index.html");
+      }
+      const testResultsDir = join(cwd, "test-results");
+      if (existsSync(testResultsDir)) {
+        const traceFile = join(testResultsDir, "trace.zip");
+        if (existsSync(traceFile)) {
+          tracePath = traceFile;
+        }
+      }
+      resolve6({
+        status,
+        exitCode,
+        duration,
+        counts,
+        failures,
+        stdout: stdout.substring(0, 5e4),
+        // Limit size
+        stderr: stderr.substring(0, 5e4),
+        reportPath,
+        tracePath
+      });
+    });
+    proc.on("error", (err3) => {
+      resolve6({
+        status: "error",
+        exitCode: 1,
+        duration: Date.now() - startTime,
+        counts: { total: 0, passed: 0, failed: 0, skipped: 0, flaky: 0 },
+        failures: [{
+          title: "Runner Error",
+          fullTitle: "Runner Error",
+          file: "",
+          error: `Failed to spawn Playwright: ${err3.message}`,
+          errorType: "unknown"
+        }],
+        stdout: "",
+        stderr: err3.message
+      });
+    });
+  });
+}
+async function runSingleTest(testFile, options = {}) {
+  return runPlaywright({
+    ...options,
+    testFiles: [testFile]
+  });
+}
+async function quickCheck(testFile, cwd) {
+  const result = await runSingleTest(testFile, {
+    cwd,
+    timeout: 6e4,
+    retries: 0,
+    workers: 1
+  });
+  return result.status === "passed";
+}
+function formatFailures(failures) {
+  return failures.map((f, i) => {
+    const lines = [
+      `${i + 1}) ${f.title}`,
+      `   File: ${f.file}${f.line ? `:${f.line}` : ""}`,
+      `   Error [${f.errorType}]: ${f.error}`
+    ];
+    if (f.stack) {
+      lines.push(`   Stack:
+${f.stack.split("\n").map((l) => `      ${l}`).join("\n")}`);
+    }
+    return lines.join("\n");
+  }).join("\n\n");
+}
+function formatSummary(result) {
+  const { counts, duration, status } = result;
+  const durationSec = (duration / 1e3).toFixed(1);
+  let summary = `Status: ${status.toUpperCase()}
+`;
+  summary += `Duration: ${durationSec}s
+`;
+  summary += `Tests: ${counts.passed}/${counts.total} passed`;
+  if (counts.failed > 0) {
+    summary += `, ${counts.failed} failed`;
+  }
+  if (counts.skipped > 0) {
+    summary += `, ${counts.skipped} skipped`;
+  }
+  if (counts.flaky > 0) {
+    summary += `, ${counts.flaky} flaky`;
+  }
+  return summary;
+}
+
+// src/uncertainty/index.ts
+var uncertainty_exports = {};
+__export(uncertainty_exports, {
+  DEFAULT_DIMENSION_WEIGHTS: () => DEFAULT_DIMENSION_WEIGHTS,
+  DEFAULT_MULTI_SAMPLER_CONFIG: () => DEFAULT_MULTI_SAMPLER_CONFIG,
+  DEFAULT_THRESHOLDS: () => DEFAULT_THRESHOLDS,
+  analyzeAgreement: () => analyzeAgreement2,
+  analyzeSelectors: () => analyzeSelectors,
+  calculateConfidence: () => calculateConfidence2,
+  calculateConfidenceWithSamples: () => calculateConfidenceWithSamples,
+  createOrchestratorSampleRequest: () => createOrchestratorSampleRequest,
+  createPatternDimensionScore: () => createPatternDimensionScore,
+  createSelectorDimensionScore: () => createSelectorDimensionScore,
+  createSyntaxDimensionScore: () => createSyntaxDimensionScore,
+  generateMultipleSamples: () => generateMultipleSamples,
+  getBlockingIssues: () => getBlockingIssues,
+  getBuiltinPatterns: () => getBuiltinPatterns,
+  getDeprecatedAPIs: () => getDeprecatedAPIs,
+  getPatternCategories: () => getPatternCategories,
+  hasMinimumPatterns: () => hasMinimumPatterns,
+  identifyStrategy: () => identifyStrategy,
+  isSelectorFragile: () => isSelectorFragile,
+  loadSamples: () => loadSamples,
+  matchPatterns: () => matchPatterns,
+  passesMinimumConfidence: () => passesMinimumConfidence,
+  processOrchestratorSamples: () => processOrchestratorSamples,
+  quickConfidenceCheck: () => quickConfidenceCheck,
+  quickSyntaxCheck: () => quickSyntaxCheck,
+  usesRecommendedSelectors: () => usesRecommendedSelectors,
+  validateSyntax: () => validateSyntax2
+});
+
+// src/uncertainty/types.ts
+var DEFAULT_DIMENSION_WEIGHTS = {
+  syntax: 0.25,
+  pattern: 0.25,
+  selector: 0.3,
+  agreement: 0.2
+};
+var DEFAULT_THRESHOLDS = {
+  overall: 0.7,
+  perDimension: {
+    syntax: 0.9,
+    // Syntax must be very high
+    pattern: 0.6,
+    selector: 0.7,
+    agreement: 0.5
+    // Agreement can be lower if single sample
+  },
+  blockOnAnyBelow: 0.4
+};
+
+// src/uncertainty/syntax-validator.ts
+var PLAYWRIGHT_IMPORTS = [
+  "@playwright/test",
+  "playwright"
+];
+var PLAYWRIGHT_TEST_PATTERNS = [
+  /test\s*\(\s*['"`]/,
+  /test\.describe\s*\(\s*['"`]/,
+  /test\.beforeEach\s*\(/,
+  /test\.afterEach\s*\(/,
+  /test\.beforeAll\s*\(/,
+  /test\.afterAll\s*\(/
+];
+var PLAYWRIGHT_FIXTURE_PATTERNS = [
+  /\{\s*page\s*\}/,
+  /\{\s*page\s*,/,
+  /,\s*page\s*\}/,
+  /\{\s*browser\s*\}/,
+  /\{\s*context\s*\}/,
+  /\{\s*request\s*\}/
+];
+var DEPRECATED_APIS = [
+  { pattern: /page\.waitForTimeout\s*\(\s*\d+\s*\)/g, api: "waitForTimeout with fixed delay", suggestion: "Use waitForSelector or expect assertions" },
+  { pattern: /page\.\$\(/g, api: "page.$()", suggestion: "Use page.locator()" },
+  { pattern: /page\.\$\$\(/g, api: "page.$$()", suggestion: "Use page.locator().all()" },
+  { pattern: /page\.waitForSelector\(/g, api: "waitForSelector", suggestion: "Use locator.waitFor() or expect assertions" },
+  { pattern: /elementHandle\./g, api: "ElementHandle", suggestion: "Use Locator API instead" },
+  { pattern: /page\.click\(/g, api: "page.click()", suggestion: "Use locator.click()" },
+  { pattern: /page\.fill\(/g, api: "page.fill()", suggestion: "Use locator.fill()" },
+  { pattern: /page\.type\(/g, api: "page.type()", suggestion: "Use locator.fill() or locator.pressSequentially()" }
+];
+var SYNTAX_ERROR_PATTERNS = [
+  { pattern: /await\s+await\s+/g, message: "Duplicate await", severity: "error" },
+  { pattern: /\}\s*\)\s*;?\s*\)\s*;/g, message: "Unbalanced parentheses/braces", severity: "error" },
+  { pattern: /\(\s*\)\s*=>\s*\{[^}]*$/m, message: "Unclosed arrow function", severity: "error" },
+  { pattern: /expect\([^)]*\)\s*\.\s*$/m, message: "Incomplete expect chain", severity: "error" },
+  { pattern: /const\s+\w+\s*=\s*$/m, message: "Incomplete variable declaration", severity: "error" }
+];
+var SYNTAX_WARNING_PATTERNS = [
+  { pattern: /\/\/\s*TODO/gi, message: "TODO comment found - incomplete implementation", suggestion: "Complete the TODO items" },
+  { pattern: /console\.log\(/g, message: "Console.log in test code", suggestion: "Remove debug statements" },
+  { pattern: /\.only\s*\(/g, message: ".only() will skip other tests", suggestion: "Remove .only() before committing" },
+  { pattern: /\.skip\s*\(/g, message: ".skip() found - test will not run", suggestion: "Remove .skip() or add explanation" },
+  { pattern: /any\s*[,)]/g, message: 'Use of "any" type', suggestion: "Add proper type annotations" },
+  { pattern: /as\s+any/g, message: "Type assertion to any", suggestion: "Use proper type instead" }
+];
+function validateSyntax2(code) {
+  const errors = [];
+  const warnings = [];
+  const bracketErrors = validateBrackets(code);
+  errors.push(...bracketErrors);
+  const patternErrors = validatePatterns(code);
+  errors.push(...patternErrors);
+  const patternWarnings = checkWarningPatterns(code);
+  warnings.push(...patternWarnings);
+  const typescript = validateTypeScript(code);
+  errors.push(...typescript.errors);
+  const playwright = validatePlaywright(code);
+  const score = calculateSyntaxScore(errors, warnings, typescript, playwright);
+  return {
+    valid: errors.filter((e) => e.severity === "error").length === 0,
+    score,
+    errors,
+    warnings,
+    typescript,
+    playwright
+  };
+}
+function createSyntaxDimensionScore(result) {
+  const subScores = [
+    {
+      name: "TypeScript Compilation",
+      score: result.typescript.compiles ? 1 : 0,
+      details: result.typescript.compiles ? "Code compiles" : "Compilation errors found"
+    },
+    {
+      name: "Type Inference",
+      score: result.typescript.typeInferenceScore,
+      details: `Type coverage: ${Math.round(result.typescript.typeInferenceScore * 100)}%`
+    },
+    {
+      name: "Playwright API Usage",
+      score: result.playwright.apiUsageScore,
+      details: `API correctness: ${Math.round(result.playwright.apiUsageScore * 100)}%`
+    },
+    {
+      name: "Test Structure",
+      score: result.playwright.hasValidTestBlocks ? 1 : 0.3,
+      details: result.playwright.hasValidTestBlocks ? "Valid test blocks" : "Missing test blocks"
+    }
+  ];
+  const reasoning = generateSyntaxReasoning(result);
+  return {
+    dimension: "syntax",
+    score: result.score,
+    weight: 0.25,
+    reasoning,
+    subScores
+  };
+}
+function validateBrackets(code) {
+  const errors = [];
+  const stack = [];
+  const pairs = { "(": ")", "[": "]", "{": "}" };
+  const closers = { ")": "(", "]": "[", "}": "{" };
+  const lines = code.split("\n");
+  let inString = false;
+  let stringChar = "";
+  let inMultilineComment = false;
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+    const line = lines[lineNum] || "";
+    for (let col = 0; col < line.length; col++) {
+      const char = line[col] || "";
+      const prevChar = col > 0 ? line[col - 1] || "" : "";
+      const nextChar = col < line.length - 1 ? line[col + 1] || "" : "";
+      if (!inString) {
+        if (char === "/" && nextChar === "/" && !inMultilineComment) {
+          break;
+        }
+        if (char === "/" && nextChar === "*") {
+          inMultilineComment = true;
+          continue;
+        }
+        if (char === "*" && nextChar === "/" && inMultilineComment) {
+          inMultilineComment = false;
+          col++;
+          continue;
+        }
+        if (inMultilineComment) continue;
+      }
+      if ((char === '"' || char === "'" || char === "`") && prevChar !== "\\") {
+        if (!inString) {
+          inString = true;
+          stringChar = char;
+        } else if (char === stringChar) {
+          inString = false;
+        }
+        continue;
+      }
+      if (inString) continue;
+      if (pairs[char]) {
+        stack.push({ char, line: lineNum + 1, column: col + 1 });
+      } else if (closers[char]) {
+        const last = stack.pop();
+        if (!last) {
+          errors.push({
+            line: lineNum + 1,
+            column: col + 1,
+            message: `Unexpected closing '${char}'`,
+            code: "BRACKET_MISMATCH",
+            severity: "error"
+          });
+        } else {
+          const expectedCloser = pairs[last.char];
+          if (expectedCloser && last.char !== closers[char]) {
+            errors.push({
+              line: lineNum + 1,
+              column: col + 1,
+              message: `Mismatched brackets: expected '${expectedCloser}' but found '${char}'`,
+              code: "BRACKET_MISMATCH",
+              severity: "error"
+            });
+          }
+        }
+      }
+    }
+  }
+  for (const unclosed of stack) {
+    errors.push({
+      line: unclosed.line,
+      column: unclosed.column,
+      message: `Unclosed '${unclosed.char}'`,
+      code: "BRACKET_UNCLOSED",
+      severity: "error"
+    });
+  }
+  if (inString) {
+    errors.push({
+      line: lines.length,
+      column: 1,
+      message: `Unterminated string literal`,
+      code: "STRING_UNTERMINATED",
+      severity: "error"
+    });
+  }
+  return errors;
+}
+function validatePatterns(code) {
+  const errors = [];
+  for (const errorPattern of SYNTAX_ERROR_PATTERNS) {
+    let match;
+    const regex = new RegExp(errorPattern.pattern.source, errorPattern.pattern.flags);
+    while ((match = regex.exec(code)) !== null) {
+      const lineNum = code.substring(0, match.index).split("\n").length;
+      const lineStart = code.lastIndexOf("\n", match.index) + 1;
+      errors.push({
+        line: lineNum,
+        column: match.index - lineStart + 1,
+        message: errorPattern.message,
+        code: "PATTERN_ERROR",
+        severity: errorPattern.severity
+      });
+    }
+  }
+  return errors;
+}
+function checkWarningPatterns(code) {
+  const warnings = [];
+  for (const warningPattern of SYNTAX_WARNING_PATTERNS) {
+    let match;
+    const regex = new RegExp(warningPattern.pattern.source, warningPattern.pattern.flags);
+    while ((match = regex.exec(code)) !== null) {
+      const lineNum = code.substring(0, match.index).split("\n").length;
+      warnings.push({
+        line: lineNum,
+        message: warningPattern.message,
+        suggestion: warningPattern.suggestion
+      });
+    }
+  }
+  return warnings;
+}
+function validateTypeScript(code) {
+  const errors = [];
+  const incompleteStatements = code.match(/(?:const|let|var|function|class)\s+\w+\s*(?::|=)?\s*$/gm);
+  if (incompleteStatements) {
+    for (const stmt of incompleteStatements) {
+      const lineNum = code.substring(0, code.indexOf(stmt)).split("\n").length;
+      errors.push({
+        line: lineNum,
+        column: 1,
+        message: "Incomplete statement",
+        code: "TS_INCOMPLETE",
+        severity: "error"
+      });
+    }
+  }
+  const badArrows = code.match(/=>\s*\{[^}]*(?!\})/gm);
+  if (badArrows) {
+    errors.push({
+      line: 1,
+      column: 1,
+      message: "Unclosed arrow function body",
+      code: "TS_ARROW_ERROR",
+      severity: "error"
+    });
+  }
+  const typeInferenceScore = calculateTypeInferenceScore(code);
+  return {
+    compiles: errors.length === 0,
+    errors,
+    typeInferenceScore
+  };
+}
+function calculateTypeInferenceScore(code) {
+  let score = 1;
+  const anyCount = (code.match(/:\s*any\b/g) || []).length;
+  score -= anyCount * 0.1;
+  const untypedParams = (code.match(/\(\s*\w+\s*[,)]/g) || []).length;
+  const typedParams = (code.match(/\(\s*\w+\s*:/g) || []).length;
+  if (untypedParams + typedParams > 0) {
+    score -= untypedParams / (untypedParams + typedParams) * 0.2;
+  }
+  const hasReturnTypes = /\)\s*:\s*\w+/.test(code);
+  if (hasReturnTypes) {
+    score += 0.1;
+  }
+  return Math.max(0, Math.min(1, score));
+}
+function validatePlaywright(code) {
+  const hasValidImports = PLAYWRIGHT_IMPORTS.some(
+    (imp) => code.includes(`from '${imp}'`) || code.includes(`from "${imp}"`)
+  );
+  const usesTestFixtures = PLAYWRIGHT_FIXTURE_PATTERNS.some((pattern) => pattern.test(code));
+  const hasValidTestBlocks = PLAYWRIGHT_TEST_PATTERNS.some((pattern) => pattern.test(code));
+  const deprecatedAPIs = [];
+  for (const deprecated of DEPRECATED_APIS) {
+    if (deprecated.pattern.test(code)) {
+      deprecatedAPIs.push(deprecated.api);
+    }
+  }
+  const apiUsageScore = calculatePlaywrightAPIScore(code, deprecatedAPIs);
+  return {
+    hasValidImports,
+    usesTestFixtures,
+    hasValidTestBlocks,
+    apiUsageScore,
+    deprecatedAPIs
+  };
+}
+function calculatePlaywrightAPIScore(code, deprecatedAPIs) {
+  let score = 1;
+  score -= deprecatedAPIs.length * 0.15;
+  if (code.includes(".locator(") || code.includes("getBy")) {
+    score += 0.1;
+  }
+  if (code.includes("expect(") && code.includes(").to")) {
+    score += 0.1;
+  }
+  if (code.includes("test.step(")) {
+    score += 0.05;
+  }
+  const hardWaits = (code.match(/waitForTimeout\s*\(\s*\d{4,}/g) || []).length;
+  score -= hardWaits * 0.2;
+  return Math.max(0, Math.min(1, score));
+}
+function calculateSyntaxScore(errors, warnings, typescript, playwright) {
+  let score = 1;
+  const criticalErrors = errors.filter((e) => e.severity === "error").length;
+  score -= criticalErrors * 0.3;
+  score -= warnings.length * 0.05;
+  if (!typescript.compiles) {
+    score -= 0.4;
+  }
+  score *= 0.7 + 0.3 * typescript.typeInferenceScore;
+  if (!playwright.hasValidImports) score -= 0.2;
+  if (!playwright.hasValidTestBlocks) score -= 0.3;
+  if (!playwright.usesTestFixtures) score -= 0.1;
+  score *= 0.7 + 0.3 * playwright.apiUsageScore;
+  return Math.max(0, Math.min(1, score));
+}
+function generateSyntaxReasoning(result) {
+  const reasons = [];
+  if (result.errors.length > 0) {
+    reasons.push(`${result.errors.length} syntax error(s) found`);
+  }
+  if (result.warnings.length > 0) {
+    reasons.push(`${result.warnings.length} warning(s)`);
+  }
+  if (!result.typescript.compiles) {
+    reasons.push("TypeScript compilation failed");
+  }
+  if (!result.playwright.hasValidImports) {
+    reasons.push("Missing Playwright imports");
+  }
+  if (!result.playwright.hasValidTestBlocks) {
+    reasons.push("No valid test blocks found");
+  }
+  if (result.playwright.deprecatedAPIs.length > 0) {
+    reasons.push(`${result.playwright.deprecatedAPIs.length} deprecated API(s) used`);
+  }
+  if (reasons.length === 0) {
+    reasons.push("Syntax is valid");
+  }
+  return reasons.join("; ");
+}
+function quickSyntaxCheck(code) {
+  if (!code.includes("test(") && !code.includes("test.describe(")) {
+    return false;
+  }
+  const brackets = validateBrackets(code);
+  if (brackets.length > 0) {
+    return false;
+  }
+  return true;
+}
+function getDeprecatedAPIs(code) {
+  const found = [];
+  for (const deprecated of DEPRECATED_APIS) {
+    if (deprecated.pattern.test(code)) {
+      found.push({
+        api: deprecated.api,
+        suggestion: deprecated.suggestion
+      });
+    }
+  }
+  return found;
+}
+
+// src/uncertainty/pattern-matcher.ts
+var BUILTIN_PATTERNS = [
+  // Navigation patterns
+  {
+    id: "nav-goto",
+    name: "Page Navigation",
+    category: "navigation",
+    patterns: [/page\.goto\s*\(/],
+    confidence: 0.95,
+    source: "builtin"
+  },
+  {
+    id: "nav-reload",
+    name: "Page Reload",
+    category: "navigation",
+    patterns: [/page\.reload\s*\(/],
+    confidence: 0.95,
+    source: "builtin"
+  },
+  {
+    id: "nav-back",
+    name: "Navigate Back",
+    category: "navigation",
+    patterns: [/page\.goBack\s*\(/, /page\.goForward\s*\(/],
+    confidence: 0.95,
+    source: "builtin"
+  },
+  // Interaction patterns
+  {
+    id: "click-locator",
+    name: "Locator Click",
+    category: "interaction",
+    patterns: [/\.click\s*\(\s*\)/, /locator\([^)]+\)\.click/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "fill-locator",
+    name: "Locator Fill",
+    category: "interaction",
+    patterns: [/\.fill\s*\([^)]+\)/, /locator\([^)]+\)\.fill/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "type-locator",
+    name: "Locator Type",
+    category: "interaction",
+    patterns: [/\.pressSequentially\s*\(/, /\.type\s*\(/],
+    confidence: 0.85,
+    source: "builtin"
+  },
+  {
+    id: "select-option",
+    name: "Select Option",
+    category: "interaction",
+    patterns: [/\.selectOption\s*\(/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "check-uncheck",
+    name: "Checkbox Toggle",
+    category: "interaction",
+    patterns: [/\.check\s*\(\s*\)/, /\.uncheck\s*\(\s*\)/, /\.setChecked\s*\(/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "hover",
+    name: "Hover Action",
+    category: "interaction",
+    patterns: [/\.hover\s*\(\s*\)/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "focus",
+    name: "Focus Element",
+    category: "interaction",
+    patterns: [/\.focus\s*\(\s*\)/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "keyboard",
+    name: "Keyboard Action",
+    category: "interaction",
+    patterns: [/\.press\s*\(['"]/, /keyboard\.press\s*\(/],
+    confidence: 0.85,
+    source: "builtin"
+  },
+  // Assertion patterns
+  {
+    id: "expect-visible",
+    name: "Visibility Assertion",
+    category: "assertion",
+    patterns: [/expect\([^)]+\)\.toBeVisible/, /expect\([^)]+\)\.toBeHidden/],
+    confidence: 0.95,
+    source: "builtin"
+  },
+  {
+    id: "expect-text",
+    name: "Text Assertion",
+    category: "assertion",
+    patterns: [/expect\([^)]+\)\.toHaveText/, /expect\([^)]+\)\.toContainText/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "expect-value",
+    name: "Value Assertion",
+    category: "assertion",
+    patterns: [/expect\([^)]+\)\.toHaveValue/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "expect-url",
+    name: "URL Assertion",
+    category: "assertion",
+    patterns: [/expect\(page\)\.toHaveURL/],
+    confidence: 0.95,
+    source: "builtin"
+  },
+  {
+    id: "expect-title",
+    name: "Title Assertion",
+    category: "assertion",
+    patterns: [/expect\(page\)\.toHaveTitle/],
+    confidence: 0.95,
+    source: "builtin"
+  },
+  {
+    id: "expect-count",
+    name: "Count Assertion",
+    category: "assertion",
+    patterns: [/expect\([^)]+\)\.toHaveCount/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "expect-enabled",
+    name: "Enabled State Assertion",
+    category: "assertion",
+    patterns: [/expect\([^)]+\)\.toBeEnabled/, /expect\([^)]+\)\.toBeDisabled/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "expect-checked",
+    name: "Checked State Assertion",
+    category: "assertion",
+    patterns: [/expect\([^)]+\)\.toBeChecked/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  // Wait patterns
+  {
+    id: "wait-selector",
+    name: "Wait for Selector",
+    category: "wait",
+    patterns: [/\.waitFor\s*\(\s*\{/, /locator\.waitFor/],
+    confidence: 0.85,
+    source: "builtin"
+  },
+  {
+    id: "wait-load-state",
+    name: "Wait for Load State",
+    category: "wait",
+    patterns: [/page\.waitForLoadState\s*\(/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "wait-response",
+    name: "Wait for Response",
+    category: "wait",
+    patterns: [/page\.waitForResponse\s*\(/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  {
+    id: "wait-request",
+    name: "Wait for Request",
+    category: "wait",
+    patterns: [/page\.waitForRequest\s*\(/],
+    confidence: 0.9,
+    source: "builtin"
+  },
+  // Form patterns
+  {
+    id: "form-submit",
+    name: "Form Submit",
+    category: "form",
+    patterns: [/getByRole\(['"]button['"].*submit/i, /type=['"]submit['"]/],
+    confidence: 0.85,
+    source: "builtin"
+  },
+  // Data patterns
+  {
+    id: "table-row",
+    name: "Table Row Access",
+    category: "data",
+    patterns: [/getByRole\(['"]row['"]/, /locator\(['"]tr['"]\)/],
+    confidence: 0.85,
+    source: "builtin"
+  },
+  {
+    id: "table-cell",
+    name: "Table Cell Access",
+    category: "data",
+    patterns: [/getByRole\(['"]cell['"]/, /locator\(['"]td['"]\)/],
+    confidence: 0.85,
+    source: "builtin"
+  },
+  // Utility patterns
+  {
+    id: "screenshot",
+    name: "Screenshot",
+    category: "utility",
+    patterns: [/page\.screenshot\s*\(/],
+    confidence: 0.95,
+    source: "builtin"
+  },
+  {
+    id: "test-step",
+    name: "Test Step",
+    category: "utility",
+    patterns: [/test\.step\s*\(/],
+    confidence: 0.95,
+    source: "builtin"
+  }
+];
+function matchPatterns(code, options = {}) {
+  const {
+    customPatterns = [],
+    llkbPatterns = [],
+    includeBuiltins = true,
+    minConfidence = 0.5
+  } = options;
+  const allPatterns2 = [
+    ...includeBuiltins ? BUILTIN_PATTERNS : [],
+    ...customPatterns,
+    ...llkbPatterns
+  ];
+  const matchedPatterns = [];
+  const matchedLineRanges = /* @__PURE__ */ new Set();
+  for (const pattern of allPatterns2) {
+    for (const regex of pattern.patterns) {
+      const globalRegex = new RegExp(regex.source, "gm");
+      let match;
+      while ((match = globalRegex.exec(code)) !== null) {
+        const startLine = code.substring(0, match.index).split("\n").length;
+        const endLine = startLine;
+        const lineRange = `${startLine}-${endLine}`;
+        if (!matchedLineRanges.has(`${pattern.id}:${lineRange}`)) {
+          matchedLineRanges.add(`${pattern.id}:${lineRange}`);
+          matchedPatterns.push({
+            patternId: pattern.id,
+            patternName: pattern.name,
+            confidence: pattern.confidence,
+            codeLocation: { startLine, endLine },
+            source: pattern.source
+          });
+        }
+      }
+    }
+  }
+  const unmatchedElements = findUnmatchedElements(code, matchedPatterns, allPatterns2);
+  const noveltyScore = calculateNoveltyScore(matchedPatterns);
+  const consistencyScore = calculateConsistencyScore(matchedPatterns);
+  const overallScore = calculatePatternScore(
+    matchedPatterns,
+    unmatchedElements,
+    noveltyScore,
+    consistencyScore);
+  return {
+    score: overallScore,
+    matchedPatterns,
+    unmatchedElements,
+    noveltyScore,
+    consistencyScore
+  };
+}
+function createPatternDimensionScore(result) {
+  const subScores = [
+    {
+      name: "Pattern Coverage",
+      score: Math.min(1, result.matchedPatterns.length / 10),
+      details: `${result.matchedPatterns.length} patterns matched`
+    },
+    {
+      name: "Novelty",
+      score: result.noveltyScore,
+      details: `Novelty score: ${Math.round(result.noveltyScore * 100)}%`
+    },
+    {
+      name: "Consistency",
+      score: result.consistencyScore,
+      details: `Consistency score: ${Math.round(result.consistencyScore * 100)}%`
+    },
+    {
+      name: "Unmatched Risk",
+      score: Math.max(0, 1 - result.unmatchedElements.length * 0.2),
+      details: `${result.unmatchedElements.length} unmatched elements`
+    }
+  ];
+  const reasoning = generatePatternReasoning(result);
+  return {
+    dimension: "pattern",
+    score: result.score,
+    weight: 0.25,
+    reasoning,
+    subScores
+  };
+}
+function findUnmatchedElements(code, matchedPatterns, allPatterns2) {
+  const unmatched = [];
+  const actionPatterns = [
+    { regex: /page\.(\w+)\s*\(/g, type: "page method" },
+    { regex: /locator\([^)]+\)\.(\w+)\s*\(/g, type: "locator method" },
+    { regex: /getBy\w+\([^)]+\)\.(\w+)\s*\(/g, type: "locator method" },
+    { regex: /expect\([^)]+\)\.(\w+)/g, type: "assertion" }
+  ];
+  for (const actionPattern of actionPatterns) {
+    let match;
+    const regex = new RegExp(actionPattern.regex.source, "g");
+    while ((match = regex.exec(code)) !== null) {
+      const methodName = match[1] || "";
+      const lineNum = code.substring(0, match.index).split("\n").length;
+      const isCovered = matchedPatterns.some(
+        (p) => p.codeLocation.startLine <= lineNum && p.codeLocation.endLine >= lineNum
+      );
+      if (!isCovered && methodName) {
+        const suggestions = findSuggestedPatterns(methodName, allPatterns2);
+        unmatched.push({
+          element: `${actionPattern.type}: ${methodName}`,
+          reason: "No matching pattern found",
+          suggestedPatterns: suggestions,
+          riskLevel: determineRiskLevel(methodName)
+        });
+      }
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  return unmatched.filter((u) => {
+    if (seen.has(u.element)) return false;
+    seen.add(u.element);
+    return true;
+  });
+}
+function findSuggestedPatterns(methodName, patterns) {
+  const suggestions = [];
+  for (const pattern of patterns) {
+    const patternText = pattern.patterns.map((p) => p.source).join(" ");
+    if (patternText.toLowerCase().includes(methodName.toLowerCase())) {
+      suggestions.push(pattern.name);
+    }
+  }
+  return suggestions.slice(0, 3);
+}
+function determineRiskLevel(methodName) {
+  const highRiskMethods = ["evaluate", "evaluateHandle", "addScriptTag", "setContent"];
+  const mediumRiskMethods = ["waitForTimeout", "waitForFunction", "route", "unroute"];
+  if (highRiskMethods.includes(methodName)) return "high";
+  if (mediumRiskMethods.includes(methodName)) return "medium";
+  return "low";
+}
+function calculateNoveltyScore(matchedPatterns, _allPatterns) {
+  if (matchedPatterns.length === 0) return 0.5;
+  const llkbCount = matchedPatterns.filter((p) => p.source === "llkb").length;
+  const glossaryCount = matchedPatterns.filter((p) => p.source === "glossary").length;
+  const total = matchedPatterns.length;
+  const learnedRatio = (llkbCount + glossaryCount) / total;
+  return 0.5 + learnedRatio * 0.5;
+}
+function calculateConsistencyScore(matchedPatterns) {
+  if (matchedPatterns.length < 2) return 1;
+  const categories = matchedPatterns.map((p) => {
+    const pattern = BUILTIN_PATTERNS.find((bp) => bp.id === p.patternId);
+    return pattern?.category || "unknown";
+  });
+  let transitions = 0;
+  for (let i = 1; i < categories.length; i++) {
+    const currCategory = categories[i];
+    const prevCategory = categories[i - 1];
+    if (currCategory && prevCategory && currCategory !== prevCategory) {
+      transitions++;
+    }
+  }
+  const transitionRatio = categories.length > 1 ? transitions / (categories.length - 1) : 0;
+  return Math.max(0.6, 1 - transitionRatio * 0.4);
+}
+function calculatePatternScore(matchedPatterns, unmatchedElements, noveltyScore, consistencyScore, _minConfidence) {
+  const avgConfidence = matchedPatterns.length > 0 ? matchedPatterns.reduce((sum, p) => sum + p.confidence, 0) / matchedPatterns.length : 0.5;
+  const highRiskCount = unmatchedElements.filter((u) => u.riskLevel === "high").length;
+  const mediumRiskCount = unmatchedElements.filter((u) => u.riskLevel === "medium").length;
+  const riskPenalty = highRiskCount * 0.15 + mediumRiskCount * 0.05;
+  let score = avgConfidence * 0.4 + noveltyScore * 0.2 + consistencyScore * 0.2 + (1 - riskPenalty) * 0.2;
+  if (matchedPatterns.length < 3) {
+    score *= 0.8;
+  }
+  return Math.max(0, Math.min(1, score));
+}
+function generatePatternReasoning(result) {
+  const reasons = [];
+  const patternCount = result.matchedPatterns.length;
+  if (patternCount === 0) {
+    reasons.push("No recognized patterns found");
+  } else if (patternCount < 5) {
+    reasons.push(`${patternCount} patterns matched (low coverage)`);
+  } else {
+    reasons.push(`${patternCount} patterns matched`);
+  }
+  const llkbCount = result.matchedPatterns.filter((p) => p.source === "llkb").length;
+  if (llkbCount > 0) {
+    reasons.push(`${llkbCount} LLKB patterns used`);
+  }
+  const highRisk = result.unmatchedElements.filter((u) => u.riskLevel === "high");
+  if (highRisk.length > 0) {
+    reasons.push(`${highRisk.length} high-risk unmatched elements`);
+  }
+  if (result.consistencyScore < 0.7) {
+    reasons.push("Pattern usage inconsistent");
+  }
+  return reasons.join("; ");
+}
+function getPatternCategories(matchedPatterns) {
+  const categories = {
+    navigation: 0,
+    interaction: 0,
+    assertion: 0,
+    wait: 0,
+    form: 0,
+    authentication: 0,
+    data: 0,
+    utility: 0
+  };
+  for (const matched of matchedPatterns) {
+    const pattern = BUILTIN_PATTERNS.find((p) => p.id === matched.patternId);
+    if (pattern) {
+      categories[pattern.category]++;
+    }
+  }
+  return categories;
+}
+function hasMinimumPatterns(matchedPatterns, requirements) {
+  const categories = getPatternCategories(matchedPatterns);
+  for (const [category, minCount] of Object.entries(requirements)) {
+    if (categories[category] < minCount) {
+      return false;
+    }
+  }
+  return true;
+}
+function getBuiltinPatterns() {
+  return [...BUILTIN_PATTERNS];
+}
+
+// src/uncertainty/selector-analyzer.ts
+var SELECTOR_PATTERNS = [
+  // Test ID selectors (most stable)
+  {
+    strategy: "testId",
+    pattern: /getByTestId\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 1,
+    accessibilityBonus: 0
+  },
+  {
+    strategy: "testId",
+    pattern: /locator\s*\(\s*['"]\[data-testid=['"]?([^'"\]]+)['"]?\]['"]\s*\)/g,
+    stabilityScore: 0.95,
+    accessibilityBonus: 0
+  },
+  // Role selectors (stable + accessible)
+  {
+    strategy: "role",
+    pattern: /getByRole\s*\(\s*['"]([^'"]+)['"](?:\s*,\s*\{[^}]*\})?\s*\)/g,
+    stabilityScore: 0.9,
+    accessibilityBonus: 0.2
+  },
+  // Label selectors (stable + accessible)
+  {
+    strategy: "label",
+    pattern: /getByLabel\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.85,
+    accessibilityBonus: 0.15
+  },
+  {
+    strategy: "label",
+    pattern: /getByLabelText\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.85,
+    accessibilityBonus: 0.15
+  },
+  // Placeholder selectors (moderately stable)
+  {
+    strategy: "placeholder",
+    pattern: /getByPlaceholder\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.75,
+    accessibilityBonus: 0
+  },
+  // Text selectors (less stable due to content changes)
+  {
+    strategy: "text",
+    pattern: /getByText\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.65,
+    accessibilityBonus: 0.05
+  },
+  {
+    strategy: "text",
+    pattern: /getByText\s*\(\s*\/([^/]+)\/[a-z]*\s*\)/g,
+    stabilityScore: 0.6,
+    // Regex text is slightly less stable
+    accessibilityBonus: 0.05
+  },
+  // Title selectors
+  {
+    strategy: "title",
+    pattern: /getByTitle\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.7,
+    accessibilityBonus: 0.1
+  },
+  // Alt text selectors
+  {
+    strategy: "altText",
+    pattern: /getByAltText\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.75,
+    accessibilityBonus: 0.15
+  },
+  // CSS selectors (fragile)
+  {
+    strategy: "css",
+    pattern: /locator\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.5,
+    accessibilityBonus: 0
+  },
+  // XPath selectors (most fragile)
+  {
+    strategy: "xpath",
+    pattern: /locator\s*\(\s*['"]xpath=([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.3,
+    accessibilityBonus: 0
+  },
+  {
+    strategy: "xpath",
+    pattern: /locator\s*\(\s*['"]\/\/([^'"]+)['"]\s*\)/g,
+    stabilityScore: 0.3,
+    accessibilityBonus: 0
+  },
+  // nth selectors (order-dependent, fragile)
+  {
+    strategy: "nth",
+    pattern: /\.nth\s*\(\s*(\d+)\s*\)/g,
+    stabilityScore: 0.4,
+    accessibilityBonus: 0
+  },
+  {
+    strategy: "nth",
+    pattern: /\.first\s*\(\s*\)/g,
+    stabilityScore: 0.45,
+    accessibilityBonus: 0
+  },
+  {
+    strategy: "nth",
+    pattern: /\.last\s*\(\s*\)/g,
+    stabilityScore: 0.45,
+    accessibilityBonus: 0
+  },
+  // Chained selectors
+  {
+    strategy: "chain",
+    pattern: /locator\([^)]+\)\s*\.\s*locator\s*\(/g,
+    stabilityScore: 0.55,
+    accessibilityBonus: 0
+  }
+];
+var FRAGILITY_INDICATORS = [
+  { pattern: /\[class[*^$~|]?=['"][^'"]*['"]\]/i, reason: "Class-based selector (may change)" },
+  { pattern: /\[id[*^$~|]?=['"][^'"]*['"]\]/i, reason: "ID-based selector (may be dynamic)" },
+  { pattern: /:nth-child\(\d+\)/i, reason: "Position-based selector" },
+  { pattern: /:nth-of-type\(\d+\)/i, reason: "Position-based selector" },
+  { pattern: /\s>\s/g, reason: "Direct child combinator (structure-sensitive)" },
+  { pattern: /\s+\s/g, reason: "Descendant combinator (structure-sensitive)" },
+  { pattern: /\[style[*^$~|]?=/i, reason: "Style-based selector (highly volatile)" },
+  { pattern: /\.btn-[a-z]+/i, reason: "Framework-specific class (may change)" },
+  { pattern: /\.col-[a-z0-9-]+/i, reason: "Grid class (layout-dependent)" },
+  { pattern: /auto-generated|generated-id|uuid|guid/i, reason: "Contains generated ID pattern" }
+];
+function analyzeSelectors(code) {
+  const selectors = [];
+  const strategyDistribution = {
+    testId: 0,
+    role: 0,
+    text: 0,
+    label: 0,
+    placeholder: 0,
+    title: 0,
+    altText: 0,
+    css: 0,
+    xpath: 0,
+    nth: 0,
+    chain: 0
+  };
+  for (const selectorPattern of SELECTOR_PATTERNS) {
+    const regex = new RegExp(selectorPattern.pattern.source, "g");
+    let match;
+    while ((match = regex.exec(code)) !== null) {
+      const selector = match[0];
+      const lineNum = code.substring(0, match.index).split("\n").length;
+      const fragilityReasons = analyzeSelectorFragility(selector);
+      const isFragile = fragilityReasons.length > 0;
+      const specificity = calculateSpecificity(selector, selectorPattern.strategy);
+      let stabilityScore2 = selectorPattern.stabilityScore;
+      if (isFragile) {
+        stabilityScore2 *= 1 - fragilityReasons.length * 0.1;
+      }
+      selectors.push({
+        selector,
+        strategy: selectorPattern.strategy,
+        stabilityScore: Math.max(0, stabilityScore2),
+        specificity,
+        hasTestId: selectorPattern.strategy === "testId",
+        usesRole: selectorPattern.strategy === "role",
+        isFragile,
+        fragilityReasons,
+        line: lineNum
+      });
+      strategyDistribution[selectorPattern.strategy]++;
+    }
+  }
+  const stabilityScore = calculateOverallStability(selectors);
+  const accessibilityScore = calculateAccessibilityScore(selectors);
+  const recommendations = generateRecommendations(selectors);
+  const overallScore = calculateSelectorScore(
+    selectors,
+    stabilityScore,
+    accessibilityScore,
+    strategyDistribution
+  );
+  return {
+    score: overallScore,
+    selectors,
+    strategyDistribution,
+    stabilityScore,
+    accessibilityScore,
+    recommendations
+  };
+}
+function createSelectorDimensionScore(result) {
+  const subScores = [
+    {
+      name: "Stability",
+      score: result.stabilityScore,
+      details: `Stability: ${Math.round(result.stabilityScore * 100)}%`
+    },
+    {
+      name: "Accessibility",
+      score: result.accessibilityScore,
+      details: `A11y: ${Math.round(result.accessibilityScore * 100)}%`
+    },
+    {
+      name: "TestId Usage",
+      score: calculateTestIdRatio(result.strategyDistribution),
+      details: `TestId: ${result.strategyDistribution.testId} selectors`
+    },
+    {
+      name: "Fragility",
+      score: calculateFragilityScore(result.selectors),
+      details: `${result.selectors.filter((s) => s.isFragile).length} fragile selectors`
+    }
+  ];
+  const reasoning = generateSelectorReasoning(result);
+  return {
+    dimension: "selector",
+    score: result.score,
+    weight: 0.3,
+    reasoning,
+    subScores
+  };
+}
+function analyzeSelectorFragility(selector) {
+  const reasons = [];
+  for (const indicator of FRAGILITY_INDICATORS) {
+    if (indicator.pattern.test(selector)) {
+      reasons.push(indicator.reason);
+    }
+  }
+  if (selector.length > 100) {
+    reasons.push("Very long selector (likely over-specified)");
+  }
+  const combinatorCount = (selector.match(/[>\s+~]/g) || []).length;
+  if (combinatorCount > 3) {
+    reasons.push("Too many combinators (deep nesting)");
+  }
+  return reasons;
+}
+function calculateSpecificity(selector, strategy) {
+  switch (strategy) {
+    case "testId":
+      return 1;
+    // Most specific and intentional
+    case "role":
+      return 0.9;
+    // Very specific
+    case "label":
+    case "altText":
+      return 0.85;
+    case "placeholder":
+    case "title":
+      return 0.8;
+    case "text":
+      return 0.7;
+    case "css":
+      const idCount = (selector.match(/#/g) || []).length;
+      const classCount = (selector.match(/\./g) || []).length;
+      return Math.min(1, 0.3 + idCount * 0.3 + classCount * 0.1);
+    case "xpath":
+      return 0.4;
+    // XPath is usually less specific
+    case "nth":
+      return 0.3;
+    // Position-based is not semantic
+    case "chain":
+      return 0.5;
+    // Depends on the chain
+    default:
+      return 0.5;
+  }
+}
+function calculateOverallStability(selectors) {
+  if (selectors.length === 0) return 0.5;
+  const totalStability = selectors.reduce((sum, s) => sum + s.stabilityScore, 0);
+  return totalStability / selectors.length;
+}
+function calculateAccessibilityScore(selectors) {
+  if (selectors.length === 0) return 0.5;
+  const accessibleStrategies = ["role", "label", "altText", "title"];
+  const accessibleCount = selectors.filter(
+    (s) => accessibleStrategies.includes(s.strategy)
+  ).length;
+  return accessibleCount / selectors.length;
+}
+function calculateTestIdRatio(distribution) {
+  const total = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+  if (total === 0) return 0;
+  return distribution.testId / total;
+}
+function calculateFragilityScore(selectors) {
+  if (selectors.length === 0) return 1;
+  const fragileCount = selectors.filter((s) => s.isFragile).length;
+  return 1 - fragileCount / selectors.length;
+}
+function calculateSelectorScore(selectors, stabilityScore, accessibilityScore, distribution) {
+  if (selectors.length === 0) return 0.5;
+  const weights = {
+    stability: 0.4,
+    accessibility: 0.2,
+    testIdUsage: 0.25,
+    fragility: 0.15
+  };
+  const testIdRatio = calculateTestIdRatio(distribution);
+  const fragilityScore = calculateFragilityScore(selectors);
+  let score = stabilityScore * weights.stability + accessibilityScore * weights.accessibility + testIdRatio * weights.testIdUsage + fragilityScore * weights.fragility;
+  const fragileStrategyCount = distribution.css + distribution.xpath + distribution.nth;
+  const total = Object.values(distribution).reduce((sum, c) => sum + c, 0);
+  if (total > 0 && fragileStrategyCount / total > 0.5) {
+    score *= 0.8;
+  }
+  return Math.max(0, Math.min(1, score));
+}
+function generateRecommendations(selectors) {
+  const recommendations = [];
+  for (const selector of selectors) {
+    if (selector.strategy === "css" || selector.strategy === "xpath") {
+      recommendations.push({
+        selector: selector.selector,
+        currentStrategy: selector.strategy,
+        suggestedStrategy: "testId",
+        reason: "CSS/XPath selectors are fragile. Add data-testid to element.",
+        priority: "high"
+      });
+    }
+    if (selector.strategy === "nth") {
+      recommendations.push({
+        selector: selector.selector,
+        currentStrategy: selector.strategy,
+        suggestedStrategy: "role",
+        reason: "Position-based selectors break when order changes. Use role with name.",
+        priority: "medium"
+      });
+    }
+    if (selector.isFragile && selector.strategy !== "testId") {
+      recommendations.push({
+        selector: selector.selector,
+        currentStrategy: selector.strategy,
+        suggestedStrategy: "testId",
+        reason: `Fragile selector: ${selector.fragilityReasons.join(", ")}`,
+        priority: "high"
+      });
+    }
+    if (selector.strategy === "text" && !selector.usesRole) {
+      recommendations.push({
+        selector: selector.selector,
+        currentStrategy: selector.strategy,
+        suggestedStrategy: "role",
+        reason: "Text selectors break on content changes. Use role for stability.",
+        priority: "low"
+      });
+    }
+  }
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  return recommendations.slice(0, 10);
+}
+function generateSelectorReasoning(result) {
+  const reasons = [];
+  if (result.selectors.length === 0) {
+    return "No selectors found in code";
+  }
+  const totalSelectors = result.selectors.length;
+  const testIdCount = result.strategyDistribution.testId;
+  const roleCount = result.strategyDistribution.role;
+  const fragileCount = result.strategyDistribution.css + result.strategyDistribution.xpath + result.strategyDistribution.nth;
+  if (testIdCount > totalSelectors * 0.5) {
+    reasons.push("Good test-id coverage");
+  } else if (testIdCount < totalSelectors * 0.2) {
+    reasons.push("Low test-id usage");
+  }
+  if (roleCount > 0) {
+    reasons.push(`${roleCount} role-based selectors (accessible)`);
+  }
+  if (fragileCount > totalSelectors * 0.3) {
+    reasons.push(`${fragileCount} fragile selectors (CSS/XPath/nth)`);
+  }
+  const fragileSelectors = result.selectors.filter((s) => s.isFragile);
+  if (fragileSelectors.length > 0) {
+    reasons.push(`${fragileSelectors.length} selectors with fragility issues`);
+  }
+  if (result.stabilityScore > 0.8) {
+    reasons.push("High stability");
+  } else if (result.stabilityScore < 0.5) {
+    reasons.push("Low stability");
+  }
+  return reasons.join("; ");
+}
+function usesRecommendedSelectors(code) {
+  const hasTestId2 = /getByTestId|data-testid/.test(code);
+  const hasRole = /getByRole/.test(code);
+  return hasTestId2 || hasRole;
+}
+function identifyStrategy(selectorCode) {
+  for (const pattern of SELECTOR_PATTERNS) {
+    if (new RegExp(pattern.pattern.source).test(selectorCode)) {
+      return pattern.strategy;
+    }
+  }
+  return "css";
+}
+function isSelectorFragile(selector) {
+  return analyzeSelectorFragility(selector).length > 0;
+}
+
+// src/uncertainty/confidence-scorer.ts
+async function calculateConfidence2(code, options) {
+  const {
+    config,
+    llmClient,
+    costTracker,
+    customPatterns,
+    llkbPatterns
+  } = options;
+  const weights = config.weights ? {
+    syntax: config.weights.syntax,
+    pattern: config.weights.pattern,
+    selector: config.weights.selector,
+    agreement: config.weights.agreement
+  } : DEFAULT_DIMENSION_WEIGHTS;
+  const thresholds = config.thresholds ? {
+    overall: config.thresholds.autoAccept,
+    perDimension: {
+      syntax: config.thresholds.minimumPerDimension,
+      pattern: config.thresholds.minimumPerDimension,
+      selector: config.thresholds.minimumPerDimension,
+      agreement: config.thresholds.minimumPerDimension
+    },
+    blockOnAnyBelow: config.thresholds.block
+  } : DEFAULT_THRESHOLDS;
+  const dimensions = [];
+  const syntaxResult = validateSyntax2(code);
+  const syntaxScore = createSyntaxDimensionScore(syntaxResult);
+  syntaxScore.weight = weights.syntax;
+  dimensions.push(syntaxScore);
+  const patternResult = matchPatterns(code, {
+    customPatterns,
+    llkbPatterns,
+    includeBuiltins: true
+  });
+  const patternScore = createPatternDimensionScore(patternResult);
+  patternScore.weight = weights.pattern;
+  dimensions.push(patternScore);
+  const selectorResult = analyzeSelectors(code);
+  const selectorScore = createSelectorDimensionScore(selectorResult);
+  selectorScore.weight = weights.selector;
+  dimensions.push(selectorScore);
+  let agreementScore;
+  if (config.sampling?.enabled && llmClient && config.sampling.sampleCount > 1) {
+    const estimatedTokens = config.sampling.sampleCount * 4e3;
+    if (costTracker?.wouldExceedLimit(estimatedTokens)) {
+      agreementScore = createDefaultAgreementScore("Cost limit would be exceeded");
+    } else {
+      agreementScore = createDefaultAgreementScore("Multi-sampling disabled for single code input");
+    }
+  } else {
+    agreementScore = createDefaultAgreementScore("Multi-sampling not enabled");
+  }
+  agreementScore.weight = weights.agreement;
+  dimensions.push(agreementScore);
+  const overall = calculateOverallScore(dimensions);
+  const { verdict, blockedDimensions } = determineVerdict(dimensions, thresholds);
+  const diagnostics = createDiagnostics2(dimensions);
+  return {
+    overall,
+    dimensions,
+    threshold: thresholds,
+    verdict,
+    blockedDimensions,
+    diagnostics
+  };
+}
+async function calculateConfidenceWithSamples(samples, options) {
+  if (samples.length === 0) {
+    throw new Error("At least one sample is required");
+  }
+  if (samples.length === 1) {
+    return calculateConfidence2(samples[0].code, options);
+  }
+  const { config, customPatterns, llkbPatterns } = options;
+  const weights = config.weights ? {
+    syntax: config.weights.syntax,
+    pattern: config.weights.pattern,
+    selector: config.weights.selector,
+    agreement: config.weights.agreement
+  } : DEFAULT_DIMENSION_WEIGHTS;
+  const thresholds = config.thresholds ? {
+    overall: config.thresholds.autoAccept,
+    perDimension: {
+      syntax: config.thresholds.minimumPerDimension,
+      pattern: config.thresholds.minimumPerDimension,
+      selector: config.thresholds.minimumPerDimension,
+      agreement: config.thresholds.minimumPerDimension
+    },
+    blockOnAnyBelow: config.thresholds.block
+  } : DEFAULT_THRESHOLDS;
+  const sampleScores = samples.map((sample) => ({
+    sample,
+    syntax: validateSyntax2(sample.code),
+    patterns: matchPatterns(sample.code, { customPatterns, llkbPatterns }),
+    selectors: analyzeSelectors(sample.code)
+  }));
+  const syntaxScores = sampleScores.map((s) => s.syntax.score).sort((a, b) => a - b);
+  const patternScores = sampleScores.map((s) => s.patterns.score).sort((a, b) => a - b);
+  const selectorScores = sampleScores.map((s) => s.selectors.score).sort((a, b) => a - b);
+  const medianIndex = Math.floor(samples.length / 2);
+  const dimensions = [
+    {
+      dimension: "syntax",
+      score: syntaxScores[medianIndex] ?? 0,
+      weight: weights.syntax,
+      reasoning: `Median of ${samples.length} samples`,
+      subScores: []
+    },
+    {
+      dimension: "pattern",
+      score: patternScores[medianIndex] ?? 0,
+      weight: weights.pattern,
+      reasoning: `Median of ${samples.length} samples`,
+      subScores: []
+    },
+    {
+      dimension: "selector",
+      score: selectorScores[medianIndex] ?? 0,
+      weight: weights.selector,
+      reasoning: `Median of ${samples.length} samples`,
+      subScores: []
+    }
+  ];
+  const agreementResult = analyzeAgreement(samples.map((s) => s.code));
+  const agreementScore = {
+    dimension: "agreement",
+    score: agreementResult.score,
+    weight: weights.agreement,
+    reasoning: `Agreement across ${samples.length} samples`,
+    subScores: [
+      { name: "Structural", score: agreementResult.structuralAgreement },
+      { name: "Selector", score: agreementResult.selectorAgreement },
+      { name: "Flow", score: agreementResult.flowAgreement },
+      { name: "Assertion", score: agreementResult.assertionAgreement }
+    ]
+  };
+  dimensions.push(agreementScore);
+  const overall = calculateOverallScore(dimensions);
+  const { verdict, blockedDimensions } = determineVerdict(dimensions, thresholds);
+  const diagnostics = createDiagnostics2(dimensions);
+  return {
+    overall,
+    dimensions,
+    threshold: thresholds,
+    verdict,
+    blockedDimensions,
+    diagnostics
+  };
+}
+function analyzeAgreement(codes) {
+  if (codes.length < 2) {
+    return {
+      score: 1,
+      sampleCount: codes.length,
+      structuralAgreement: 1,
+      selectorAgreement: 1,
+      flowAgreement: 1,
+      assertionAgreement: 1,
+      disagreementAreas: []
+    };
+  }
+  const features = codes.map((code) => extractCodeFeatures(code));
+  const structuralAgreement = calculateStructuralAgreement(features);
+  const selectorAgreement = calculateSelectorAgreement(features);
+  const flowAgreement = calculateFlowAgreement(features);
+  const assertionAgreement = calculateAssertionAgreement(features);
+  const disagreementAreas = findDisagreementAreas(features);
+  const score = structuralAgreement * 0.3 + selectorAgreement * 0.3 + flowAgreement * 0.2 + assertionAgreement * 0.2;
+  const consensusCode = selectConsensusCode(codes, features);
+  return {
+    score,
+    sampleCount: codes.length,
+    structuralAgreement,
+    selectorAgreement,
+    flowAgreement,
+    assertionAgreement,
+    consensusCode,
+    disagreementAreas
+  };
+}
+function extractCodeFeatures(code) {
+  return {
+    testCount: (code.match(/test\s*\(/g) || []).length,
+    stepCount: (code.match(/test\.step\s*\(/g) || []).length,
+    selectorStrategies: extractSelectorStrategies(code),
+    assertions: extractAssertions(code),
+    flowStructure: extractFlowStructure(code)
+  };
+}
+function extractSelectorStrategies(code) {
+  const strategies = [];
+  if (/getByTestId/.test(code)) strategies.push("testId");
+  if (/getByRole/.test(code)) strategies.push("role");
+  if (/getByText/.test(code)) strategies.push("text");
+  if (/getByLabel/.test(code)) strategies.push("label");
+  if (/locator\(/.test(code)) strategies.push("css");
+  return strategies;
+}
+function extractAssertions(code) {
+  const assertions = [];
+  const assertionMatches = code.match(/expect\([^)]+\)\.\w+/g) || [];
+  for (const match of assertionMatches) {
+    const method = match.match(/\.(\w+)$/)?.[1] || "";
+    if (method) assertions.push(method);
+  }
+  return assertions;
+}
+function extractFlowStructure(code) {
+  const actions = [];
+  if (/page\.goto/.test(code)) actions.push("navigate");
+  if (/\.click/.test(code)) actions.push("click");
+  if (/\.fill/.test(code)) actions.push("fill");
+  if (/\.selectOption/.test(code)) actions.push("select");
+  if (/waitFor/.test(code)) actions.push("wait");
+  if (/expect\(/.test(code)) actions.push("assert");
+  return actions.join("->");
+}
+function calculateStructuralAgreement(features) {
+  if (features.length < 2) return 1;
+  const testCounts = features.map((f) => f.testCount);
+  const testCountAgreement = calculateValueAgreement(testCounts);
+  const stepCounts = features.map((f) => f.stepCount);
+  const stepCountAgreement = calculateValueAgreement(stepCounts);
+  return (testCountAgreement + stepCountAgreement) / 2;
+}
+function calculateSelectorAgreement(features) {
+  if (features.length < 2) return 1;
+  let totalSimilarity = 0;
+  let comparisons = 0;
+  for (let i = 0; i < features.length; i++) {
+    for (let j = i + 1; j < features.length; j++) {
+      const featureI = features[i];
+      const featureJ = features[j];
+      if (featureI && featureJ) {
+        const set1 = new Set(featureI.selectorStrategies);
+        const set2 = new Set(featureJ.selectorStrategies);
+        totalSimilarity += jaccardSimilarity(set1, set2);
+        comparisons++;
+      }
+    }
+  }
+  return comparisons > 0 ? totalSimilarity / comparisons : 1;
+}
+function calculateFlowAgreement(features) {
+  if (features.length < 2) return 1;
+  const flows = features.map((f) => f.flowStructure);
+  const uniqueFlows = new Set(flows);
+  if (uniqueFlows.size === 1) return 1;
+  const flowCounts = /* @__PURE__ */ new Map();
+  for (const flow of flows) {
+    flowCounts.set(flow, (flowCounts.get(flow) || 0) + 1);
+  }
+  const maxCount = Math.max(...flowCounts.values());
+  return maxCount / flows.length;
+}
+function calculateAssertionAgreement(features) {
+  if (features.length < 2) return 1;
+  let totalSimilarity = 0;
+  let comparisons = 0;
+  for (let i = 0; i < features.length; i++) {
+    for (let j = i + 1; j < features.length; j++) {
+      const featureI = features[i];
+      const featureJ = features[j];
+      if (featureI && featureJ) {
+        const set1 = new Set(featureI.assertions);
+        const set2 = new Set(featureJ.assertions);
+        totalSimilarity += jaccardSimilarity(set1, set2);
+        comparisons++;
+      }
+    }
+  }
+  return comparisons > 0 ? totalSimilarity / comparisons : 1;
+}
+function calculateValueAgreement(values) {
+  if (values.length < 2) return 1;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (max === 0) return 1;
+  return min / max;
+}
+function jaccardSimilarity(set1, set2) {
+  if (set1.size === 0 && set2.size === 0) return 1;
+  const intersection = new Set([...set1].filter((x) => set2.has(x)));
+  const union = /* @__PURE__ */ new Set([...set1, ...set2]);
+  return intersection.size / union.size;
+}
+function findDisagreementAreas(features) {
+  const areas = [];
+  const allStrategies = features.map((f) => f.selectorStrategies.join(","));
+  if (new Set(allStrategies).size > 1) {
+    const voteCounts = {};
+    for (const s of allStrategies) {
+      voteCounts[s] = (voteCounts[s] || 0) + 1;
+    }
+    const voteValues = Object.values(voteCounts);
+    areas.push({
+      area: "Selector Strategies",
+      variants: [...new Set(allStrategies)],
+      voteCounts,
+      confidence: voteValues.length > 0 ? Math.max(...voteValues) / features.length : 0
+    });
+  }
+  const flows = features.map((f) => f.flowStructure);
+  if (new Set(flows).size > 1) {
+    const voteCounts = {};
+    for (const f of flows) {
+      voteCounts[f] = (voteCounts[f] || 0) + 1;
+    }
+    const voteValues = Object.values(voteCounts);
+    areas.push({
+      area: "Test Flow",
+      variants: [...new Set(flows)],
+      voteCounts,
+      confidence: voteValues.length > 0 ? Math.max(...voteValues) / features.length : 0
+    });
+  }
+  return areas;
+}
+function selectConsensusCode(codes, features) {
+  const structures = features.map((f) => JSON.stringify({
+    testCount: f.testCount,
+    stepCount: f.stepCount,
+    flow: f.flowStructure
+  }));
+  const structureCounts = /* @__PURE__ */ new Map();
+  for (const s of structures) {
+    structureCounts.set(s, (structureCounts.get(s) || 0) + 1);
+  }
+  let maxCount = 0;
+  let consensusStructure = structures[0] || "";
+  for (const [structure, count] of structureCounts) {
+    if (count > maxCount) {
+      maxCount = count;
+      consensusStructure = structure;
+    }
+  }
+  const index = structures.indexOf(consensusStructure);
+  return codes[index] || codes[0] || "";
+}
+function calculateOverallScore(dimensions) {
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const dim of dimensions) {
+    weightedSum += dim.score * dim.weight;
+    totalWeight += dim.weight;
+  }
+  return totalWeight > 0 ? weightedSum / totalWeight : 0;
+}
+function determineVerdict(dimensions, thresholds) {
+  const blockedDimensions = [];
+  for (const dim of dimensions) {
+    const dimThreshold = thresholds.perDimension[dim.dimension];
+    if (dim.score < thresholds.blockOnAnyBelow || dim.score < dimThreshold) {
+      blockedDimensions.push(dim.dimension);
+    }
+  }
+  if (blockedDimensions.length > 0) {
+    return { verdict: "REJECT", blockedDimensions };
+  }
+  const overall = calculateOverallScore(dimensions);
+  if (overall >= thresholds.overall) {
+    return { verdict: "ACCEPT", blockedDimensions: [] };
+  }
+  return { verdict: "REVIEW", blockedDimensions: [] };
+}
+function createDiagnostics2(dimensions) {
+  const sorted = [...dimensions].sort((a, b) => a.score - b.score);
+  const lowest = sorted[0];
+  const highest = sorted[sorted.length - 1];
+  const suggestions = [];
+  for (const dim of dimensions) {
+    if (dim.score < 0.7) {
+      suggestions.push(...generateSuggestions(dim));
+    }
+  }
+  const riskAreas = [];
+  for (const dim of dimensions) {
+    if (dim.score < 0.5) {
+      riskAreas.push(`Low ${dim.dimension} score (${Math.round(dim.score * 100)}%)`);
+    }
+  }
+  return {
+    lowestDimension: {
+      name: lowest.dimension,
+      score: lowest.score
+    },
+    highestDimension: {
+      name: highest.dimension,
+      score: highest.score
+    },
+    improvementSuggestions: suggestions.slice(0, 5),
+    riskAreas
+  };
+}
+function generateSuggestions(dim) {
+  switch (dim.dimension) {
+    case "syntax":
+      return [
+        "Fix TypeScript compilation errors",
+        "Use proper Playwright imports",
+        "Ensure all brackets are balanced"
+      ];
+    case "pattern":
+      return [
+        "Use recognized Playwright patterns",
+        "Follow established test structure",
+        "Add test.step() for better organization"
+      ];
+    case "selector":
+      return [
+        "Use data-testid attributes for stability",
+        "Prefer getByRole for accessibility",
+        "Avoid CSS selectors with class names"
+      ];
+    case "agreement":
+      return [
+        "Increase sample count for better consensus",
+        "Review disagreement areas manually"
+      ];
+    default:
+      return [];
+  }
+}
+function createDefaultAgreementScore(reason) {
+  return {
+    dimension: "agreement",
+    score: 0.7,
+    // Neutral score when not using multi-sampling
+    weight: 0.2,
+    reasoning: reason,
+    subScores: []
+  };
+}
+function quickConfidenceCheck(code, dimension) {
+  switch (dimension) {
+    case "syntax":
+      return validateSyntax2(code).score;
+    case "pattern":
+      return matchPatterns(code).score;
+    case "selector":
+      return analyzeSelectors(code).score;
+    case "agreement":
+      return 0.7;
+  }
+}
+function passesMinimumConfidence(code, minOverall = 0.7, minPerDimension = 0.4) {
+  const syntaxScore = validateSyntax2(code).score;
+  if (syntaxScore < minPerDimension) return false;
+  const patternScore = matchPatterns(code).score;
+  if (patternScore < minPerDimension) return false;
+  const selectorScore = analyzeSelectors(code).score;
+  if (selectorScore < minPerDimension) return false;
+  const overall = (syntaxScore + patternScore + selectorScore) / 3;
+  return overall >= minOverall;
+}
+function getBlockingIssues(code) {
+  const issues = [];
+  const syntax = validateSyntax2(code);
+  if (syntax.errors.length > 0) {
+    issues.push(`${syntax.errors.length} syntax error(s)`);
+  }
+  const selectors = analyzeSelectors(code);
+  const fragileCount = selectors.selectors.filter((s) => s.isFragile).length;
+  if (fragileCount > selectors.selectors.length * 0.5) {
+    issues.push(`${fragileCount} fragile selector(s)`);
+  }
+  return issues;
+}
+
+// src/uncertainty/multi-sampler.ts
+init_paths();
+var DEFAULT_MULTI_SAMPLER_CONFIG = {
+  sampleCount: 3,
+  temperatures: [0.2, 0.5, 0.8],
+  minAgreementScore: 0.7,
+  persistSamples: true
+};
+function extractStructure(code) {
+  const lines = code.split("\n");
+  const imports = [];
+  const testBlocks = [];
+  const assertions = [];
+  const selectors = [];
+  const actions = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("import ")) {
+      imports.push(trimmed);
+    }
+    if (trimmed.match(/^(test|it|describe)\s*\(/)) {
+      const nameMatch = trimmed.match(/['"]([^'"]+)['"]/);
+      if (nameMatch && nameMatch[1]) {
+        testBlocks.push(nameMatch[1]);
+      }
+    }
+    if (trimmed.includes("expect(") || trimmed.includes(".should")) {
+      const assertMatch = trimmed.match(/expect\(([^)]+)\)|\.should\(([^)]+)\)/);
+      if (assertMatch) {
+        assertions.push(assertMatch[0]);
+      }
+    }
+    const selectorMatches = trimmed.matchAll(/(?:locator|getBy\w+)\(['"]([^'"]+)['"]\)/g);
+    for (const match of selectorMatches) {
+      if (match[1]) {
+        selectors.push(match[1]);
+      }
+    }
+    if (trimmed.match(/\.(click|fill|type|press|check|uncheck|select|hover)\(/)) {
+      actions.push(trimmed.substring(0, 100));
+    }
+  }
+  return { imports, testBlocks, assertions, selectors, actions };
+}
+function arraySimilarity(a, b) {
+  if (a.length === 0 && b.length === 0) return 1;
+  if (a.length === 0 || b.length === 0) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const intersection = [...setA].filter((x) => setB.has(x)).length;
+  const union = (/* @__PURE__ */ new Set([...setA, ...setB])).size;
+  return intersection / union;
+}
+function calculateStructuralAgreement2(struct1, struct2) {
+  const weights = {
+    imports: 0.1,
+    testBlocks: 0.2,
+    assertions: 0.3,
+    selectors: 0.25,
+    actions: 0.15
+  };
+  let score = 0;
+  score += weights.imports * arraySimilarity(struct1.imports, struct2.imports);
+  score += weights.testBlocks * arraySimilarity(struct1.testBlocks, struct2.testBlocks);
+  score += weights.assertions * arraySimilarity(struct1.assertions, struct2.assertions);
+  score += weights.selectors * arraySimilarity(struct1.selectors, struct2.selectors);
+  score += weights.actions * arraySimilarity(struct1.actions, struct2.actions);
+  return score;
+}
+function findDisagreements(structures) {
+  const areas = [];
+  const allSelectors = structures.flatMap((s) => s.selectors);
+  const selectorCounts = /* @__PURE__ */ new Map();
+  for (const sel of allSelectors) {
+    selectorCounts.set(sel, (selectorCounts.get(sel) || 0) + 1);
+  }
+  const uniqueSelectors = [...selectorCounts.entries()].filter(([, count]) => count < structures.length).map(([sel]) => sel);
+  if (uniqueSelectors.length > 0) {
+    const voteCounts = {};
+    for (const [sel, count] of selectorCounts) {
+      voteCounts[sel] = count;
+    }
+    areas.push({
+      area: "selectors",
+      variants: uniqueSelectors,
+      voteCounts,
+      confidence: selectorCounts.size > 0 ? Math.max(...selectorCounts.values()) / structures.length : 0
+    });
+  }
+  const allAssertions = structures.flatMap((s) => s.assertions);
+  const assertionCounts = /* @__PURE__ */ new Map();
+  for (const a of allAssertions) {
+    assertionCounts.set(a, (assertionCounts.get(a) || 0) + 1);
+  }
+  const uniqueAssertions = [...assertionCounts.entries()].filter(([, count]) => count < structures.length).map(([a]) => a);
+  if (uniqueAssertions.length > 0) {
+    const voteCounts = {};
+    for (const [a, count] of assertionCounts) {
+      voteCounts[a] = count;
+    }
+    areas.push({
+      area: "assertions",
+      variants: uniqueAssertions,
+      voteCounts,
+      confidence: assertionCounts.size > 0 ? Math.max(...assertionCounts.values()) / structures.length : 0
+    });
+  }
+  return areas;
+}
+function analyzeAgreement2(samples) {
+  if (samples.length === 0) {
+    return {
+      score: 0,
+      sampleCount: 0,
+      structuralAgreement: 0,
+      selectorAgreement: 0,
+      flowAgreement: 0,
+      assertionAgreement: 0,
+      disagreementAreas: []
+    };
+  }
+  if (samples.length === 1) {
+    return {
+      score: 1,
+      // Single sample has perfect agreement with itself
+      sampleCount: 1,
+      structuralAgreement: 1,
+      selectorAgreement: 1,
+      flowAgreement: 1,
+      assertionAgreement: 1,
+      consensusCode: samples[0]?.code || "",
+      disagreementAreas: []
+    };
+  }
+  const structures = samples.map((s) => extractStructure(s.code));
+  let totalStructural = 0;
+  let totalSelector = 0;
+  let totalAssertion = 0;
+  let pairCount = 0;
+  for (let i = 0; i < structures.length; i++) {
+    for (let j = i + 1; j < structures.length; j++) {
+      const structI = structures[i];
+      const structJ = structures[j];
+      if (structI && structJ) {
+        totalStructural += calculateStructuralAgreement2(structI, structJ);
+        totalSelector += arraySimilarity(structI.selectors, structJ.selectors);
+        totalAssertion += arraySimilarity(structI.assertions, structJ.assertions);
+        pairCount++;
+      }
+    }
+  }
+  const structuralAgreement = totalStructural / pairCount;
+  const selectorAgreement = totalSelector / pairCount;
+  const assertionAgreement = totalAssertion / pairCount;
+  let totalFlow = 0;
+  for (let i = 0; i < structures.length; i++) {
+    for (let j = i + 1; j < structures.length; j++) {
+      const structI = structures[i];
+      const structJ = structures[j];
+      if (structI && structJ) {
+        totalFlow += arraySimilarity(structI.actions, structJ.actions);
+      }
+    }
+  }
+  const flowAgreement = pairCount > 0 ? totalFlow / pairCount : 1;
+  const score = structuralAgreement * 0.3 + selectorAgreement * 0.3 + assertionAgreement * 0.25 + flowAgreement * 0.15;
+  const disagreementAreas = findDisagreements(structures);
+  let bestSampleIndex = 0;
+  let bestAvgAgreement = 0;
+  for (let i = 0; i < samples.length; i++) {
+    let avgAgreement = 0;
+    for (let j = 0; j < samples.length; j++) {
+      if (i !== j) {
+        const structI = structures[i];
+        const structJ = structures[j];
+        if (structI && structJ) {
+          avgAgreement += calculateStructuralAgreement2(structI, structJ);
+        }
+      }
+    }
+    avgAgreement /= samples.length - 1;
+    if (avgAgreement > bestAvgAgreement) {
+      bestAvgAgreement = avgAgreement;
+      bestSampleIndex = i;
+    }
+  }
+  return {
+    score,
+    sampleCount: samples.length,
+    structuralAgreement,
+    selectorAgreement,
+    flowAgreement,
+    assertionAgreement,
+    consensusCode: samples[bestSampleIndex]?.code || "",
+    disagreementAreas
+  };
+}
+async function generateMultipleSamples(request, generator) {
+  const { prompt, journeyId, config } = request;
+  const samples = [];
+  const totalTokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+  for (let i = 0; i < config.sampleCount; i++) {
+    const temperature = config.temperatures[i] ?? 0.5;
+    try {
+      const result = await generator.generate(prompt, temperature);
+      samples.push({
+        id: `sample-${i}-t${temperature}`,
+        code: result.code,
+        temperature,
+        tokenUsage: result.tokenUsage
+      });
+      totalTokenUsage.promptTokens += result.tokenUsage.promptTokens;
+      totalTokenUsage.completionTokens += result.tokenUsage.completionTokens;
+      totalTokenUsage.totalTokens += result.tokenUsage.totalTokens;
+    } catch (error) {
+      console.warn(`Sample ${i} generation failed:`, error);
+    }
+  }
+  const agreement = analyzeAgreement2(samples);
+  const bestSampleIndex = samples.findIndex((s) => s.code === agreement.consensusCode);
+  const bestSample = (bestSampleIndex >= 0 ? samples[bestSampleIndex] : samples[0]) || samples[0];
+  let samplesDir;
+  if (config.persistSamples && samples.length > 0) {
+    await ensureAutogenDir();
+    samplesDir = getAutogenArtifact("samples");
+    mkdirSync(samplesDir, { recursive: true });
+    for (let i = 0; i < samples.length; i++) {
+      const samplePath = join(samplesDir, `${journeyId}-sample-${i}.ts`);
+      writeFileSync(samplePath, samples[i].code, "utf-8");
+    }
+    const agreementPath = getAutogenArtifact("agreement");
+    writeFileSync(agreementPath, JSON.stringify({
+      journeyId,
+      agreement,
+      samples: samples.map((s) => ({
+        id: s.id,
+        temperature: s.temperature,
+        tokenUsage: s.tokenUsage
+      })),
+      totalTokenUsage,
+      generatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    }, null, 2), "utf-8");
+  }
+  return {
+    samples,
+    agreement,
+    bestSample,
+    totalTokenUsage,
+    samplesDir
+  };
+}
+function loadSamples(journeyId) {
+  const samplesDir = getAutogenArtifact("samples");
+  const agreementPath = getAutogenArtifact("agreement");
+  if (!existsSync(agreementPath)) {
+    return null;
+  }
+  try {
+    const agreementData = JSON.parse(readFileSync(agreementPath, "utf-8"));
+    if (agreementData.journeyId !== journeyId) {
+      return null;
+    }
+    const samples = [];
+    for (let i = 0; ; i++) {
+      const samplePath = join(samplesDir, `${journeyId}-sample-${i}.ts`);
+      if (!existsSync(samplePath)) break;
+      const code = readFileSync(samplePath, "utf-8");
+      const meta = agreementData.samples?.[i] || { id: `sample-${i}`, temperature: 0.5 };
+      samples.push({
+        id: meta.id || `sample-${i}`,
+        code,
+        temperature: meta.temperature ?? 0.5,
+        tokenUsage: meta.tokenUsage
+      });
+    }
+    return samples.length > 0 ? samples : null;
+  } catch {
+    return null;
+  }
+}
+function createOrchestratorSampleRequest(prompt, journeyId, config = DEFAULT_MULTI_SAMPLER_CONFIG) {
+  return {
+    prompt,
+    journeyId,
+    temperatures: config.temperatures,
+    instructions: `
+Generate ${config.sampleCount} different versions of the Playwright test code.
+For each version, use a different "creative temperature":
+${config.temperatures.map((t, i) => `- Version ${i + 1}: Temperature ${t} (${t < 0.3 ? "conservative" : t < 0.6 ? "balanced" : "creative"})`).join("\n")}
+
+Save each version as a separate code block labeled with the version number.
+The goal is to explore different approaches and identify areas of agreement/disagreement.
+
+After generating all versions, provide a brief analysis:
+1. What elements are consistent across all versions (high agreement)
+2. What elements differ between versions (disagreement areas)
+3. Which version you recommend as the best consensus
+
+Minimum agreement score threshold: ${config.minAgreementScore}
+`
+  };
+}
+function processOrchestratorSamples(samples, _journeyId) {
+  const codeSamples = samples.map((s, i) => ({
+    id: `orchestrator-sample-${i}`,
+    code: s.code,
+    temperature: s.temperature
+  }));
+  const agreement = analyzeAgreement2(codeSamples);
+  const bestSampleIndex = codeSamples.findIndex((s) => s.code === agreement.consensusCode);
+  const bestSample = (bestSampleIndex >= 0 ? codeSamples[bestSampleIndex] : codeSamples[0]) || codeSamples[0];
+  return {
+    samples: codeSamples,
+    agreement,
+    bestSample,
+    totalTokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 }
+  };
+}
 async function generateJourneyTests(options) {
   const {
     journeys,
@@ -10647,8 +16626,8 @@ async function generateJourneyTests(options) {
     if (typeof config === "string") {
       try {
         resolvedConfig = loadConfig(config);
-      } catch (err2) {
-        result.errors.push(`Failed to load config: ${err2 instanceof Error ? err2.message : String(err2)}`);
+      } catch (err3) {
+        result.errors.push(`Failed to load config: ${err3 instanceof Error ? err3.message : String(err3)}`);
       }
     } else {
       resolvedConfig = config;
@@ -10837,6 +16816,6 @@ async function verifyJourneys(journeys, options = {}) {
   return results;
 }
 
-export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, LocatorBuilder, NAMEABLE_ROLES, PATTERN_VERSION, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, __test_checkFeature, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, clearDebt, clearExtendedGlossary, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMatchingPatterns, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, focusPatterns, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllPatternNames, getAllTestIds, getApplicableRules, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getGlossaryStats, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageVersion, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getPatternStats2 as getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSchemaVersion, getSelectorPriority, getSummary, getSynonyms, getTestCount, getViolationSummary, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasExtendedGlossary, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, hoverPatterns, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, initializeLlkb, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isLlkbAvailable, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadConfigWithMigration, loadConfigs, loadEvidence, loadExtendedGlossary, loadGlossary, loadHealingLog, loadLLKBConfig, loadRegistry, loadSourceFile, lookupCoreGlossary, lookupGlossary, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeConfigs, mergeGlossaries, mergeModuleFiles, mergeWithInferred, namespaceEmail, namespaceName, navigationPatterns, needsConfigMigration, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
+export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, LocatorBuilder, NAMEABLE_ROLES, PATTERN_VERSION, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, __test_checkFeature, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, cleanAutogenArtifacts, clearDebt, clearExtendedGlossary, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, shared_exports as enhancementShared, ensureAutogenDir, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMatchingPatterns, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, focusPatterns, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllPatternNames, getAllTestIds, getApplicableRules, getArtkDir, getAutogenArtifact, getAutogenDir, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getGlossaryStats, getHarnessRoot, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLlkbRoot, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageRoot, getPackageVersion, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getPatternStats2 as getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSchemaVersion, getSelectorPriority, getSummary, getSynonyms, getTemplatePath, getTemplatesDir, getTestCount, getViolationSummary, hasAutogenArtifacts, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasExtendedGlossary, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, hoverPatterns, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, initializeLlkb, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isLlkbAvailable, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadConfigWithMigration, loadConfigs, loadEvidence, loadExtendedGlossary, loadGlossary, loadHealingLog, loadLLKBConfig, loadRegistry, loadSourceFile, lookupCoreGlossary, lookupGlossary, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeConfigs, mergeGlossaries, mergeModuleFiles, mergeWithInferred, namespaceEmail, namespaceName, navigationPatterns, needsConfigMigration, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, refinement_exports as refinement, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, scot_exports as scot, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, uncertainty_exports as uncertainty, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

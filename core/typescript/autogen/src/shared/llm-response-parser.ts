@@ -27,7 +27,7 @@ export interface ParseError {
 export function extractJson(response: string): string | null {
   // Try markdown code block first (```json ... ```)
   const jsonBlockMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  if (jsonBlockMatch) {
+  if (jsonBlockMatch && jsonBlockMatch[1]) {
     return jsonBlockMatch[1].trim();
   }
 

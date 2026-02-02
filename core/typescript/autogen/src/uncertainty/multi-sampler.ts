@@ -104,7 +104,7 @@ function extractStructure(code: string): CodeStructure {
     // Test blocks
     if (trimmed.match(/^(test|it|describe)\s*\(/)) {
       const nameMatch = trimmed.match(/['"]([^'"]+)['"]/);
-      if (nameMatch) {
+      if (nameMatch && nameMatch[1]) {
         testBlocks.push(nameMatch[1]);
       }
     }
@@ -120,7 +120,9 @@ function extractStructure(code: string): CodeStructure {
     // Selectors
     const selectorMatches = trimmed.matchAll(/(?:locator|getBy\w+)\(['"]([^'"]+)['"]\)/g);
     for (const match of selectorMatches) {
-      selectors.push(match[1]);
+      if (match[1]) {
+        selectors.push(match[1]);
+      }
     }
 
     // Actions
@@ -203,7 +205,7 @@ function findDisagreements(structures: CodeStructure[]): DisagreementArea[] {
       area: 'selectors',
       variants: uniqueSelectors,
       voteCounts,
-      confidence: Math.max(...selectorCounts.values()) / structures.length,
+      confidence: selectorCounts.size > 0 ? Math.max(...selectorCounts.values()) / structures.length : 0,
     });
   }
 
@@ -227,7 +229,7 @@ function findDisagreements(structures: CodeStructure[]): DisagreementArea[] {
       area: 'assertions',
       variants: uniqueAssertions,
       voteCounts,
-      confidence: Math.max(...assertionCounts.values()) / structures.length,
+      confidence: assertionCounts.size > 0 ? Math.max(...assertionCounts.values()) / structures.length : 0,
     });
   }
 
@@ -258,7 +260,7 @@ export function analyzeAgreement(samples: CodeSample[]): AgreementAnalysisResult
       selectorAgreement: 1,
       flowAgreement: 1,
       assertionAgreement: 1,
-      consensusCode: samples[0].code,
+      consensusCode: samples[0]?.code || '',
       disagreementAreas: [],
     };
   }
@@ -274,10 +276,14 @@ export function analyzeAgreement(samples: CodeSample[]): AgreementAnalysisResult
 
   for (let i = 0; i < structures.length; i++) {
     for (let j = i + 1; j < structures.length; j++) {
-      totalStructural += calculateStructuralAgreement(structures[i], structures[j]);
-      totalSelector += arraySimilarity(structures[i].selectors, structures[j].selectors);
-      totalAssertion += arraySimilarity(structures[i].assertions, structures[j].assertions);
-      pairCount++;
+      const structI = structures[i];
+      const structJ = structures[j];
+      if (structI && structJ) {
+        totalStructural += calculateStructuralAgreement(structI, structJ);
+        totalSelector += arraySimilarity(structI.selectors, structJ.selectors);
+        totalAssertion += arraySimilarity(structI.assertions, structJ.assertions);
+        pairCount++;
+      }
     }
   }
 
@@ -289,10 +295,14 @@ export function analyzeAgreement(samples: CodeSample[]): AgreementAnalysisResult
   let totalFlow = 0;
   for (let i = 0; i < structures.length; i++) {
     for (let j = i + 1; j < structures.length; j++) {
-      totalFlow += arraySimilarity(structures[i].actions, structures[j].actions);
+      const structI = structures[i];
+      const structJ = structures[j];
+      if (structI && structJ) {
+        totalFlow += arraySimilarity(structI.actions, structJ.actions);
+      }
     }
   }
-  const flowAgreement = totalFlow / pairCount;
+  const flowAgreement = pairCount > 0 ? totalFlow / pairCount : 1;
 
   // Overall score (weighted)
   const score = (
@@ -313,7 +323,11 @@ export function analyzeAgreement(samples: CodeSample[]): AgreementAnalysisResult
     let avgAgreement = 0;
     for (let j = 0; j < samples.length; j++) {
       if (i !== j) {
-        avgAgreement += calculateStructuralAgreement(structures[i], structures[j]);
+        const structI = structures[i];
+        const structJ = structures[j];
+        if (structI && structJ) {
+          avgAgreement += calculateStructuralAgreement(structI, structJ);
+        }
       }
     }
     avgAgreement /= (samples.length - 1);
@@ -330,7 +344,7 @@ export function analyzeAgreement(samples: CodeSample[]): AgreementAnalysisResult
     selectorAgreement,
     flowAgreement,
     assertionAgreement,
-    consensusCode: samples[bestSampleIndex].code,
+    consensusCode: samples[bestSampleIndex]?.code || '',
     disagreementAreas,
   };
 }
@@ -378,7 +392,7 @@ export async function generateMultipleSamples(
 
   // Select best sample
   const bestSampleIndex = samples.findIndex(s => s.code === agreement.consensusCode);
-  const bestSample = samples[bestSampleIndex >= 0 ? bestSampleIndex : 0] || samples[0];
+  const bestSample = (bestSampleIndex >= 0 ? samples[bestSampleIndex] : samples[0]) || samples[0];
 
   // Persist samples if configured
   let samplesDir: string | undefined;
@@ -389,8 +403,10 @@ export async function generateMultipleSamples(
 
     // Save each sample
     for (let i = 0; i < samples.length; i++) {
+      const sample = samples[i];
+      if (!sample) continue;
       const samplePath = join(samplesDir, `${journeyId}-sample-${i}.ts`);
-      writeFileSync(samplePath, samples[i].code, 'utf-8');
+      writeFileSync(samplePath, sample.code, 'utf-8');
     }
 
     // Save agreement analysis
@@ -411,7 +427,7 @@ export async function generateMultipleSamples(
   return {
     samples,
     agreement,
-    bestSample,
+    bestSample: bestSample ?? samples[0]!,
     totalTokenUsage,
     samplesDir,
   };
@@ -440,12 +456,12 @@ export function loadSamples(journeyId: string): CodeSample[] | null {
       if (!existsSync(samplePath)) break;
 
       const code = readFileSync(samplePath, 'utf-8');
-      const meta = agreementData.samples[i] || { id: `sample-${i}`, temperature: 0.5 };
+      const meta = agreementData.samples?.[i] || { id: `sample-${i}`, temperature: 0.5 };
 
       samples.push({
-        id: meta.id,
+        id: meta.id || `sample-${i}`,
         code,
-        temperature: meta.temperature,
+        temperature: meta.temperature ?? 0.5,
         tokenUsage: meta.tokenUsage,
       });
     }
@@ -520,7 +536,7 @@ export function processOrchestratorSamples(
   const agreement = analyzeAgreement(codeSamples);
 
   const bestSampleIndex = codeSamples.findIndex(s => s.code === agreement.consensusCode);
-  const bestSample = codeSamples[bestSampleIndex >= 0 ? bestSampleIndex : 0];
+  const bestSample = (bestSampleIndex >= 0 ? codeSamples[bestSampleIndex] : codeSamples[0]) ?? codeSamples[0]!;
 
   return {
     samples: codeSamples,

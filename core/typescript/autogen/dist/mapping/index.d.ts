@@ -1,8 +1,8 @@
-import { S as StepPattern } from '../stepMapper-CK4Zixeq.js';
-export { A as ACMappingResult, E as ExtendedGlossaryMeta, G as Glossary, a as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, c as PatternMetadata, d as StepMapperOptions, e as StepMappingResult, f as allPatterns, g as authPatterns, h as checkPatterns, i as clearExtendedGlossary, j as clickPatterns, k as createLocatorFromMatch, l as createValueFromText, m as defaultGlossary, n as extendedAssertionPatterns, o as extendedClickPatterns, p as extendedFillPatterns, q as extendedNavigationPatterns, r as extendedSelectPatterns, s as extendedWaitPatterns, t as fillPatterns, u as findLabelAlias, v as findMatchingPatterns, w as findModuleMethod, x as focusPatterns, y as getAllPatternNames, z as getGlossary, B as getGlossaryStats, C as getLabelAliases, D as getLocatorFromLabel, F as getMappingStats, H as getModuleMethods, I as getPatternCountByCategory, J as getPatternMatches, K as getPatternMetadata, N as getSynonyms, O as hasExtendedGlossary, Q as hoverPatterns, R as initGlossary, T as initializeLlkb, U as isLlkbAvailable, V as isSynonymOf, W as loadExtendedGlossary, X as loadGlossary, Y as lookupCoreGlossary, Z as lookupGlossary, _ as mapAcceptanceCriterion, $ as mapProceduralStep, a0 as mapStepText, a1 as mapSteps, a2 as matchPattern, a3 as mergeGlossaries, a4 as navigationPatterns, a5 as normalizeStepText, a6 as parseSelectorToLocator, a7 as resetGlossaryCache, a8 as resolveCanonical, a9 as resolveModuleMethod, aa as selectPatterns, ab as structuredPatterns, ac as suggestImprovements, ad as toastPatterns, ae as urlPatterns, af as visibilityPatterns, ag as waitPatterns } from '../stepMapper-CK4Zixeq.js';
-import '../types-CBcw78BQ.js';
+import { S as StepPattern } from '../stepMapper-uOS4_Obt.js';
+export { a8 as ACMappingResult, $ as ExtendedGlossaryMeta, F as Glossary, G as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, a as PatternMetadata, a6 as StepMapperOptions, a7 as StepMappingResult, y as allPatterns, h as authPatterns, g as checkPatterns, a1 as clearExtendedGlossary, e as clickPatterns, c as createLocatorFromMatch, d as createValueFromText, H as defaultGlossary, l as extendedAssertionPatterns, j as extendedClickPatterns, k as extendedFillPatterns, o as extendedNavigationPatterns, q as extendedSelectPatterns, m as extendedWaitPatterns, f as fillPatterns, V as findLabelAlias, E as findMatchingPatterns, X as findModuleMethod, x as focusPatterns, B as getAllPatternNames, N as getGlossary, a4 as getGlossaryStats, Z as getLabelAliases, W as getLocatorFromLabel, ad as getMappingStats, _ as getModuleMethods, C as getPatternCountByCategory, A as getPatternMatches, D as getPatternMetadata, R as getSynonyms, a5 as hasExtendedGlossary, r as hoverPatterns, K as initGlossary, ae as initializeLlkb, af as isLlkbAvailable, T as isSynonymOf, a0 as loadExtendedGlossary, I as loadGlossary, a3 as lookupCoreGlossary, a2 as lookupGlossary, aa as mapAcceptanceCriterion, ab as mapProceduralStep, a9 as mapStepText, ac as mapSteps, z as matchPattern, J as mergeGlossaries, n as navigationPatterns, Q as normalizeStepText, p as parseSelectorToLocator, U as resetGlossaryCache, O as resolveCanonical, Y as resolveModuleMethod, s as selectPatterns, i as structuredPatterns, ag as suggestImprovements, t as toastPatterns, u as urlPatterns, v as visibilityPatterns, w as waitPatterns } from '../stepMapper-uOS4_Obt.js';
+import '../types-DJnqAI1V.js';
 import 'zod';
-import '../parseJourney-pVvnO7Mc.js';
+import '../parseJourney-kHery1o3.js';
 
 /**
  * Pattern distance calculation for finding nearest matching patterns
@@ -157,7 +157,15 @@ interface TelemetryStats {
     };
 }
 /**
- * Get the telemetry file path
+ * Get the telemetry file path.
+ *
+ * Automatically infers the correct .artk directory location by:
+ * 1. Using explicit baseDir if provided
+ * 2. Finding artk-e2e/.artk from project root
+ * 3. Finding .artk in current directory if inside harness
+ *
+ * @param baseDir - Optional explicit base directory override
+ * @returns Path to the telemetry file
  */
 declare function getTelemetryPath(baseDir?: string): string;
 /**

@@ -187,7 +187,7 @@ function extractLocation(errorText: string, stackTrace?: string): ErrorLocation 
 
   for (const pattern of LOCATION_PATTERNS) {
     const match = textToSearch.match(pattern);
-    if (match) {
+    if (match && match[1] && match[2]) {
       return {
         file: match[1],
         line: parseInt(match[2], 10),
@@ -270,7 +270,7 @@ export function parseError(
   let selector: string | undefined;
   if (matchedPattern?.selectorExtractor) {
     const selectorMatch = errorText.match(matchedPattern.selectorExtractor);
-    if (selectorMatch) {
+    if (selectorMatch && (selectorMatch[1] || selectorMatch[2])) {
       selector = selectorMatch[1] || selectorMatch[2];
     }
   }
@@ -299,7 +299,7 @@ export function parseError(
   }
 
   // Extract message (first line or most relevant part)
-  const firstLine = errorText.split('\n')[0].trim();
+  const firstLine = errorText.split('\n')[0]?.trim() || '';
   const message = firstLine.length > 200 ? firstLine.substring(0, 200) + '...' : firstLine;
 
   // Generate fingerprint

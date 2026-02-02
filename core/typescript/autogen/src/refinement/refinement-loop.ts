@@ -228,10 +228,15 @@ export async function runRefinementLoop(
         }
       );
     } catch (error) {
+      const primaryError = currentErrors[0];
+      if (!primaryError) {
+        session.finalStatus = 'CANNOT_FIX';
+        break;
+      }
       const attempt: FixAttempt = {
         attemptNumber: session.attempts.length + 1,
         timestamp: new Date(),
-        error: currentErrors[0],
+        error: primaryError,
         proposedFixes: [],
         outcome: 'failure',
         newErrors: [parseError(error instanceof Error ? error.message : 'LLM error')],
@@ -250,11 +255,18 @@ export async function runRefinementLoop(
     // Filter to high-confidence fixes
     const viableFixes = fixResult.fixes.filter(f => f.confidence >= 0.5);
 
+    const primaryError = currentErrors[0];
+    if (!primaryError) {
+      // No errors - we're done
+      session.finalStatus = 'SUCCESS';
+      break;
+    }
+
     if (viableFixes.length === 0) {
       const attempt: FixAttempt = {
         attemptNumber: session.attempts.length + 1,
         timestamp: new Date(),
-        error: currentErrors[0],
+        error: primaryError,
         proposedFixes: fixResult.fixes,
         outcome: 'skipped',
         tokenUsage: fixResult.tokenUsage,
@@ -269,14 +281,14 @@ export async function runRefinementLoop(
     }
 
     // Apply the highest confidence fix
-    const fixToApply = viableFixes[0];
+    const fixToApply = viableFixes[0]!;
     const applyResult = applyFix(currentCode, fixToApply);
 
     if (!applyResult.ok) {
       const attempt: FixAttempt = {
         attemptNumber: session.attempts.length + 1,
         timestamp: new Date(),
-        error: currentErrors[0],
+        error: primaryError,
         proposedFixes: fixResult.fixes,
         outcome: 'failure',
         tokenUsage: fixResult.tokenUsage,
@@ -300,7 +312,7 @@ export async function runRefinementLoop(
       const attempt: FixAttempt = {
         attemptNumber: session.attempts.length + 1,
         timestamp: new Date(),
-        error: currentErrors[0],
+        error: primaryError,
         proposedFixes: fixResult.fixes,
         appliedFix: fixToApply,
         outcome: 'failure',
@@ -323,7 +335,7 @@ export async function runRefinementLoop(
     const attempt: FixAttempt = {
       attemptNumber: session.attempts.length + 1,
       timestamp: new Date(),
-      error: currentErrors[0],
+      error: primaryError,
       proposedFixes: fixResult.fixes,
       appliedFix: fixToApply,
       outcome,
@@ -340,7 +352,7 @@ export async function runRefinementLoop(
       appliedFixes.push(fixToApply);
 
       // Learn from successful fix
-      const lesson = createLesson(journeyId, fixToApply, currentErrors[0]);
+      const lesson = createLesson(journeyId, fixToApply, primaryError);
       if (lesson) {
         lessonsLearned.push(lesson);
       }
@@ -456,9 +468,8 @@ function mapAnalysisToStatus(reason: string, noErrors: boolean): RefinementStatu
 }
 
 function createDiagnostics(session: RefinementSession): RefinementDiagnostics {
-  const lastError = session.attempts.length > 0
-    ? session.attempts[session.attempts.length - 1].error?.message || ''
-    : '';
+  const lastAttempt = session.attempts.length > 0 ? session.attempts[session.attempts.length - 1] : undefined;
+  const lastError = lastAttempt?.error?.message || '';
 
   return {
     attempts: session.attempts.length,
@@ -495,7 +506,7 @@ function createLesson(
       journeyId,
       errorCategory: error.category,
       originalSelector: error.selector,
-      element: fix.location.stepDescription,
+      element: fix.location.stepDescription || '',
     },
     solution: {
       pattern: fix.type,

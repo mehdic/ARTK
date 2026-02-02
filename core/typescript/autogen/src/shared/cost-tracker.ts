@@ -27,6 +27,9 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 
 export function estimateCost(usage: TokenUsage, model: string): number {
   const pricing = MODEL_PRICING[model] ?? MODEL_PRICING['default'];
+  if (!pricing) {
+    throw new Error('Default pricing not found in MODEL_PRICING');
+  }
   const inputCost = (usage.promptTokens / 1_000_000) * pricing.input;
   const outputCost = (usage.completionTokens / 1_000_000) * pricing.output;
   return inputCost + outputCost;

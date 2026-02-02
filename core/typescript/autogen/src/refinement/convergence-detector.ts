@@ -210,7 +210,9 @@ export class CircuitBreaker {
       // Check if it's actually alternating
       let isAlternating = true;
       for (let i = 2; i < recentHistory.length; i++) {
-        if (recentHistory[i] !== recentHistory[i - 2]) {
+        const currentItem = recentHistory[i];
+        const previousItem = recentHistory[i - 2];
+        if (currentItem !== undefined && previousItem !== undefined && currentItem !== previousItem) {
           isAlternating = false;
           break;
         }
@@ -263,8 +265,8 @@ export class ConvergenceDetector {
 
     // Check for improvement
     if (this.errorCountHistory.length >= 2) {
-      const prev = this.errorCountHistory[this.errorCountHistory.length - 2];
-      const curr = this.errorCountHistory[this.errorCountHistory.length - 1];
+      const prev = this.errorCountHistory[this.errorCountHistory.length - 2] ?? 0;
+      const curr = this.errorCountHistory[this.errorCountHistory.length - 1] ?? 0;
 
       if (curr < prev) {
         this.lastImprovement = this.errorCountHistory.length - 1;
@@ -318,11 +320,11 @@ export class ConvergenceDetector {
 
     // Check trend
     const decreasing = recent.every((val, i, arr) =>
-      i === 0 || val <= arr[i - 1]
+      i === 0 || val <= (arr[i - 1] ?? val)
     );
 
     const increasing = recent.every((val, i, arr) =>
-      i === 0 || val >= arr[i - 1]
+      i === 0 || val >= (arr[i - 1] ?? val)
     );
 
     const allSame = recent.every((val, _, arr) => val === arr[0]);
@@ -352,9 +354,9 @@ export class ConvergenceDetector {
 
     const recent = this.errorCountHistory.slice(-4);
     // A-B-A-B pattern in counts (allow some tolerance)
-    const diff01 = recent[1] - recent[0];
-    const diff12 = recent[2] - recent[1];
-    const diff23 = recent[3] - recent[2];
+    const diff01 = (recent[1] || 0) - (recent[0] || 0);
+    const diff12 = (recent[2] || 0) - (recent[1] || 0);
+    const diff23 = (recent[3] || 0) - (recent[2] || 0);
 
     // Signs alternate: +, -, +, - or -, +, -, +
     const signsAlternate =
@@ -373,8 +375,8 @@ export class ConvergenceDetector {
       return 0;
     }
 
-    const first = this.errorCountHistory[0];
-    const last = this.errorCountHistory[this.errorCountHistory.length - 1];
+    const first = this.errorCountHistory[0] || 0;
+    const last = this.errorCountHistory[this.errorCountHistory.length - 1] || 0;
 
     if (first === 0) {
       return last === 0 ? 100 : 0;
@@ -388,11 +390,16 @@ export class ConvergenceDetector {
    */
   getNewErrors(): Set<string> {
     if (this.uniqueErrorsHistory.length < 2) {
-      return this.uniqueErrorsHistory[0] || new Set();
+      const firstEntry = this.uniqueErrorsHistory[0];
+      return firstEntry ? firstEntry : new Set();
     }
 
     const prev = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 2];
     const curr = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 1];
+
+    if (!prev || !curr) {
+      return new Set();
+    }
 
     const newErrors = new Set<string>();
     for (const fp of curr) {
@@ -414,6 +421,10 @@ export class ConvergenceDetector {
 
     const prev = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 2];
     const curr = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 1];
+
+    if (!prev || !curr) {
+      return new Set();
+    }
 
     const fixedErrors = new Set<string>();
     for (const fp of prev) {
@@ -458,7 +469,7 @@ export class ConvergenceDetector {
       const prev = savedErrorCounts[i - 1];
       const curr = savedErrorCounts[i];
 
-      if (curr < prev) {
+      if (prev !== undefined && curr !== undefined && curr < prev) {
         this.lastImprovement = i;
         this.stagnationCount = 0;
       } else {
