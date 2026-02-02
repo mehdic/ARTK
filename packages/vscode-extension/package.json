@@ -24,7 +24,6 @@
     "automation",
     "regression"
   ],
-  "icon": "media/artk-icon.png",
   "activationEvents": [
     "workspaceContains:artk-e2e",
     "workspaceContains:.artk/context.json"
