@@ -58,8 +58,7 @@ export async function calculateConfidence(
 ): Promise<ConfidenceScore> {
   const {
     config,
-    llmClient,
-    costTracker,
+    // Note: llmClient and costTracker are available in options for future multi-sample LLM calls
     customPatterns,
     llkbPatterns,
   } = options;
@@ -108,22 +107,22 @@ export async function calculateConfidence(
   selectorScore.weight = weights.selector;
   dimensions.push(selectorScore);
 
-  // 4. Multi-sample agreement (if enabled and LLM client provided)
-  let agreementScore: DimensionScore;
-  if (config.sampling?.enabled && llmClient && config.sampling.sampleCount > 1) {
-    // Check cost budget
-    const estimatedTokens = config.sampling.sampleCount * 4000;
-    if (costTracker?.wouldExceedLimit(estimatedTokens)) {
-      // Skip multi-sampling due to cost
-      agreementScore = createDefaultAgreementScore('Cost limit would be exceeded');
-    } else {
-      // Multi-sampling is expensive, so we create a placeholder for now
-      // In a real implementation, this would call the LLM multiple times
-      agreementScore = createDefaultAgreementScore('Multi-sampling disabled for single code input');
-    }
-  } else {
-    agreementScore = createDefaultAgreementScore('Multi-sampling not enabled');
+  // 4. Multi-sample agreement
+  // NOTE: Multi-sample agreement scoring requires multiple code samples.
+  // For single-code confidence scoring, use calculateConfidenceWithSamples() instead
+  // which properly analyzes agreement between pre-generated samples.
+  //
+  // This single-code path always returns a neutral agreement score.
+  // The agreement dimension is meaningful only when comparing multiple samples.
+  if (config.sampling?.enabled && config.sampling.sampleCount > 1) {
+    // Warn that multi-sampling in single-code mode is not meaningful
+    console.warn(
+      '[confidence-scorer] Multi-sampling is enabled but calculateConfidence() only receives single code. ' +
+      'Use calculateConfidenceWithSamples() with pre-generated samples for agreement scoring.'
+    );
   }
+  // Always use neutral agreement for single-code analysis
+  const agreementScore = createDefaultAgreementScore('Single-code mode (use calculateConfidenceWithSamples for agreement)');
   agreementScore.weight = weights.agreement;
   dimensions.push(agreementScore);
 

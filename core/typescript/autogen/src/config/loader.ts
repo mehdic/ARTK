@@ -307,8 +307,8 @@ export function loadConfigWithMigration(configPath?: string): AutogenConfig {
   // for clarity and to handle edge cases where partial configs are loaded
   if (config.llkb === undefined) {
     config.llkb = {
-      enabled: false,
-      level: 'minimal',
+      enabled: true,  // LLKB should always be on by default
+      level: 'enhance',  // Match schema default
     };
   }
 

@@ -329,6 +329,14 @@ async function runPlaywrightTest(
         // Ignore read errors
       }
 
+      // Truncate output with indicator if too long
+      const MAX_OUTPUT_SIZE = 10000;
+      const truncateWithIndicator = (text: string, name: string): string => {
+        if (text.length <= MAX_OUTPUT_SIZE) return text;
+        const truncated = text.substring(0, MAX_OUTPUT_SIZE);
+        return `${truncated}\n\n[${name} TRUNCATED - ${text.length - MAX_OUTPUT_SIZE} more characters]`;
+      };
+
       resolve({
         version: '1.0',
         testPath,
@@ -337,8 +345,8 @@ async function runPlaywrightTest(
         duration,
         errors,
         output: {
-          stdout: stdout.substring(0, 10000), // Limit output size
-          stderr: stderr.substring(0, 10000),
+          stdout: truncateWithIndicator(stdout, 'STDOUT'),
+          stderr: truncateWithIndicator(stderr, 'STDERR'),
           exitCode,
         },
         artifacts,

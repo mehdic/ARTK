@@ -8,8 +8,9 @@
  * @see research/2026-02-02_autogen-enhancement-implementation-plan.md
  */
 import { spawn, type SpawnOptions } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { getHarnessRoot } from '../utils/paths.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -175,7 +176,154 @@ function classifyError(message: string): ErrorType {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// OUTPUT PARSING
+// JSON REPORTER TYPES (Playwright native format)
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface PlaywrightJsonReport {
+  config: unknown;
+  suites: PlaywrightSuite[];
+  errors: PlaywrightError[];
+  stats: {
+    startTime: string;
+    duration: number;
+    expected: number;
+    unexpected: number;
+    skipped: number;
+    flaky: number;
+  };
+}
+
+interface PlaywrightSuite {
+  title: string;
+  file: string;
+  line: number;
+  column: number;
+  specs: PlaywrightSpec[];
+  suites?: PlaywrightSuite[];
+}
+
+interface PlaywrightSpec {
+  title: string;
+  ok: boolean;
+  tests: PlaywrightTest[];
+}
+
+interface PlaywrightTest {
+  timeout: number;
+  annotations: unknown[];
+  expectedStatus: string;
+  projectId: string;
+  projectName: string;
+  results: PlaywrightTestResult[];
+  status: 'expected' | 'unexpected' | 'flaky' | 'skipped';
+}
+
+interface PlaywrightTestResult {
+  workerIndex: number;
+  status: 'passed' | 'failed' | 'timedOut' | 'skipped' | 'interrupted';
+  duration: number;
+  error?: {
+    message?: string;
+    stack?: string;
+    location?: {
+      file: string;
+      line: number;
+      column: number;
+    };
+  };
+  stdout?: Array<{ text?: string; buffer?: string }>;
+  stderr?: Array<{ text?: string; buffer?: string }>;
+  retry: number;
+  attachments: unknown[];
+}
+
+interface PlaywrightError {
+  message: string;
+  location?: {
+    file: string;
+    line: number;
+    column: number;
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JSON REPORT PARSING (Primary - more reliable)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function parseJsonReport(jsonPath: string): { counts: PlaywrightRunResult['counts']; failures: TestFailure[] } | null {
+  try {
+    if (!existsSync(jsonPath)) {
+      return null;
+    }
+    const content = readFileSync(jsonPath, 'utf-8');
+    const report: PlaywrightJsonReport = JSON.parse(content);
+
+    // Parse counts from stats
+    const counts: PlaywrightRunResult['counts'] = {
+      total: (report.stats.expected ?? 0) + (report.stats.unexpected ?? 0) + (report.stats.skipped ?? 0) + (report.stats.flaky ?? 0),
+      passed: report.stats.expected ?? 0,
+      failed: report.stats.unexpected ?? 0,
+      skipped: report.stats.skipped ?? 0,
+      flaky: report.stats.flaky ?? 0,
+    };
+
+    // Parse failures from suites
+    const failures: TestFailure[] = [];
+    parseFailuresFromSuites(report.suites, failures);
+
+    // Also add global errors
+    for (const error of report.errors ?? []) {
+      failures.push({
+        title: 'Global Error',
+        fullTitle: 'Global Error',
+        file: error.location?.file ?? '',
+        line: error.location?.line,
+        error: error.message.substring(0, 500),
+        errorType: classifyError(error.message),
+      });
+    }
+
+    return { counts, failures };
+  } catch (err) {
+    // JSON parsing failed, will fallback to regex parsing
+    console.warn(`[playwright-runner] Failed to parse JSON report: ${err instanceof Error ? err.message : 'unknown'}`);
+    return null;
+  }
+}
+
+function parseFailuresFromSuites(suites: PlaywrightSuite[], failures: TestFailure[]): void {
+  for (const suite of suites) {
+    for (const spec of suite.specs ?? []) {
+      for (const test of spec.tests ?? []) {
+        if (test.status === 'unexpected' || test.status === 'flaky') {
+          // Get the last result (after retries)
+          const lastResult = test.results[test.results.length - 1];
+          if (lastResult?.error) {
+            failures.push({
+              title: spec.title,
+              fullTitle: `${suite.title} > ${spec.title}`,
+              file: suite.file,
+              line: suite.line,
+              error: (lastResult.error.message ?? 'Unknown error').substring(0, 500),
+              errorType: classifyError(lastResult.error.message ?? ''),
+              stack: lastResult.error.stack?.split('\n').slice(0, 5).join('\n'),
+              duration: lastResult.duration,
+              retryCount: lastResult.retry,
+            });
+          }
+        }
+      }
+    }
+
+    // Recurse into nested suites
+    if (suite.suites) {
+      parseFailuresFromSuites(suite.suites, failures);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STDOUT/STDERR PARSING (Fallback - less reliable)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function parseTestCounts(output: string): PlaywrightRunResult['counts'] {
@@ -278,6 +426,8 @@ function parseFailures(stdout: string, stderr: string): TestFailure[] {
 
 /**
  * Run Playwright tests and return structured results
+ *
+ * Uses JSON reporter for reliable parsing, with stdout/stderr regex as fallback.
  */
 export async function runPlaywright(options: PlaywrightRunOptions): Promise<PlaywrightRunResult> {
   const {
@@ -297,13 +447,21 @@ export async function runPlaywright(options: PlaywrightRunOptions): Promise<Play
 
   const startTime = Date.now();
 
-  // Build command args
+  // Generate unique JSON report path in temp directory
+  const jsonReportDir = join(cwd, '.artk', 'autogen', 'temp');
+  const jsonReportPath = join(jsonReportDir, `playwright-report-${randomUUID()}.json`);
+
+  // Ensure temp directory exists
+  mkdirSync(jsonReportDir, { recursive: true });
+
+  // Build command args - use both JSON reporter (for parsing) and user's reporter (for display)
   const args = [
     'playwright', 'test',
     ...testFiles,
     `--timeout=${timeout}`,
     `--retries=${retries}`,
-    `--reporter=${reporter}`,
+    // Use multiple reporters: JSON for parsing + user's choice for display
+    `--reporter=json,${reporter}`,
     `--workers=${workers}`,
   ];
 
@@ -323,7 +481,8 @@ export async function runPlaywright(options: PlaywrightRunOptions): Promise<Play
       env: {
         ...process.env,
         ...env,
-        FORCE_COLOR: '1', // Force colored output for better parsing
+        FORCE_COLOR: '1', // Force colored output for display reporter
+        PLAYWRIGHT_JSON_OUTPUT_NAME: jsonReportPath, // Direct JSON output to our file
       },
     };
 
@@ -341,16 +500,36 @@ export async function runPlaywright(options: PlaywrightRunOptions): Promise<Play
       const duration = Date.now() - startTime;
       const exitCode = code ?? 1;
 
-      // Parse results
-      const counts = parseTestCounts(stdout);
-      const failures = parseFailures(stdout, stderr);
+      // PRIMARY: Try to parse from JSON report (more reliable)
+      let counts: PlaywrightRunResult['counts'];
+      let failures: TestFailure[];
+
+      const jsonResult = parseJsonReport(jsonReportPath);
+      if (jsonResult) {
+        counts = jsonResult.counts;
+        failures = jsonResult.failures;
+      } else {
+        // FALLBACK: Parse from stdout/stderr (less reliable)
+        console.warn('[playwright-runner] JSON report not available, falling back to stdout parsing');
+        counts = parseTestCounts(stdout);
+        failures = parseFailures(stdout, stderr);
+      }
+
+      // Clean up temp JSON file
+      try {
+        if (existsSync(jsonReportPath)) {
+          unlinkSync(jsonReportPath);
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
 
       // Determine overall status
       let status: PlaywrightRunResult['status'] = 'passed';
       if (exitCode !== 0) {
-        if (stdout.includes('timeout') || stderr.includes('timeout')) {
+        if (stdout.includes('timeout') || stderr.includes('timeout') || failures.some(f => f.errorType === 'timeout')) {
           status = 'timeout';
-        } else if (failures.length > 0) {
+        } else if (failures.length > 0 || counts.failed > 0) {
           status = 'failed';
         } else {
           status = 'error';
@@ -389,6 +568,15 @@ export async function runPlaywright(options: PlaywrightRunOptions): Promise<Play
     });
 
     proc.on('error', (err) => {
+      // Clean up temp JSON file on error
+      try {
+        if (existsSync(jsonReportPath)) {
+          unlinkSync(jsonReportPath);
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+
       resolve({
         status: 'error',
         exitCode: 1,

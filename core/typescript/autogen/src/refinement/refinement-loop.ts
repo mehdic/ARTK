@@ -181,6 +181,8 @@ export async function runRefinementLoop(
   let currentErrors = initialErrors;
   const appliedFixes: CodeFix[] = [];
   const lessonsLearned: LessonLearned[] = [];
+  let consecutiveSkips = 0;  // Track consecutive low-confidence fix attempts
+  const MAX_CONSECUTIVE_SKIPS = 3;  // Escalate after this many skips
 
   // Main loop
   while (true) {
@@ -263,6 +265,8 @@ export async function runRefinementLoop(
     }
 
     if (viableFixes.length === 0) {
+      consecutiveSkips++;
+
       const attempt: FixAttempt = {
         attemptNumber: session.attempts.length + 1,
         timestamp: new Date(),
@@ -277,8 +281,17 @@ export async function runRefinementLoop(
       if (onAttemptComplete) {
         onAttemptComplete(attempt);
       }
+
+      // Escalate after too many consecutive skips (LLM can't generate high-confidence fixes)
+      if (consecutiveSkips >= MAX_CONSECUTIVE_SKIPS) {
+        session.finalStatus = 'CANNOT_FIX';
+        break;
+      }
       continue;
     }
+
+    // Reset skip counter on successful fix generation
+    consecutiveSkips = 0;
 
     // Apply the highest confidence fix
     const fixToApply = viableFixes[0]!;
