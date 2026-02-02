@@ -16,14 +16,23 @@ on:
   workflow_dispatch:
     inputs:
       version_bump:
-        description: 'Version bump type (patch, minor, major) - leave empty to skip'
+        description: 'Version bump type'
         required: false
-        default: ''
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - none
 
 jobs:
   build:
     name: Build & Package
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      vsix_file: ${{ steps.package.outputs.vsix_file }}
 
     defaults:
       run:
@@ -32,6 +41,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -42,6 +54,47 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Bump version
+        id: bump
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.version_bump != 'none')
+        run: |
+          # Determine bump type
+          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
+
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Calculate new version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          case "$BUMP_TYPE" in
+            major)
+              NEW_VERSION="$((MAJOR + 1)).0.0"
+              ;;
+            minor)
+              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+              ;;
+            patch|*)
+              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+              ;;
+          esac
+
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Update package.json
+          npm version $NEW_VERSION --no-git-tag-version
+
+          # Update package-lock.json
+          npm install --package-lock-only
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Building version: $VERSION"
 
       - name: Run linter
         run: npm run lint --if-present
@@ -54,20 +107,34 @@ jobs:
         run: npm run build
 
       - name: Package VSIX
+        id: package
         run: |
           npx @vscode/vsce package --no-dependencies
-          echo "VSIX_FILE=$(ls *.vsix)" >> $GITHUB_ENV
+          VSIX_FILE=$(ls *.vsix)
+          echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "📦 Package created: $VSIX_FILE"
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
         with:
-          name: artk-vscode-extension
+          name: artk-vscode-extension-${{ steps.version.outputs.version }}
           path: packages/vscode-extension/*.vsix
           retention-days: 30
 
+      - name: Commit version bump
+        if: steps.bump.outputs.new_version && github.ref == 'refs/heads/main'
+        run: |
+          cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/vscode-extension/package.json packages/vscode-extension/package-lock.json
+          git commit -m "chore(vscode): bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push
+
       - name: Show package info
         run: |
-          echo "📦 Package created: ${{ env.VSIX_FILE }}"
+          echo "📦 Package: ${{ steps.package.outputs.vsix_file }}"
+          echo "📌 Version: ${{ steps.version.outputs.version }}"
           ls -lh *.vsix
 
   test-install:
@@ -79,7 +146,7 @@ jobs:
       - name: Download VSIX
         uses: actions/download-artifact@v4
         with:
-          name: artk-vscode-extension
+          name: artk-vscode-extension-${{ needs.build.outputs.version }}
 
       - name: Verify VSIX
         run: |
@@ -94,39 +161,18 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Download VSIX
         uses: actions/download-artifact@v4
         with:
-          name: artk-vscode-extension
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(node -p "require('./packages/vscode-extension/package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Check if release exists
-        id: check_release
-        run: |
-          if gh release view "vscode-v${{ steps.version.outputs.version }}" &>/dev/null; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: artk-vscode-extension-${{ needs.build.outputs.version }}
 
       - name: Create Release
-        if: steps.check_release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: vscode-v${{ steps.version.outputs.version }}
-          name: VS Code Extension v${{ steps.version.outputs.version }}
+          tag_name: vscode-v${{ needs.build.outputs.version }}
+          name: VS Code Extension v${{ needs.build.outputs.version }}
           body: |
-            ## ARTK VS Code Extension v${{ steps.version.outputs.version }}
+            ## ARTK VS Code Extension v${{ needs.build.outputs.version }}
 
             ### Installation
             1. Download the `.vsix` file below
@@ -138,6 +184,9 @@ jobs:
             - Real-time implementation progress tracking
             - Journey quick actions
             - Tree views for Status, Journeys, and LLKB
+
+            ### Changes
+            See [commit history](https://github.com/${{ github.repository }}/commits/main) for details.
           files: |
             *.vsix
           draft: false
