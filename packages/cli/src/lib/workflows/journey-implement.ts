@@ -459,6 +459,121 @@ function getTestFileName(stdout: string, journey: JourneyInfo): string {
 }
 
 /**
+ * Blocked step information parsed from AutoGen output
+ */
+export interface BlockedStep {
+  stepNumber: number;
+  reason: string;
+  sourceText: string;
+}
+
+/**
+ * Telemetry for AutoGen execution
+ */
+export interface AutoGenTelemetry {
+  totalSteps: number;
+  generatedSteps: number;
+  blockedSteps: number;
+  blockedRate: number;
+  blockedDetails: BlockedStep[];
+}
+
+/**
+ * Parse blocked steps from AutoGen stdout or generated test file
+ * Looks for patterns like "ARTK BLOCKED:" comments in generated code
+ */
+export function parseBlockedSteps(stdout: string, testFileContent?: string): BlockedStep[] {
+  const blockedSteps: BlockedStep[] = [];
+  const content = testFileContent || stdout;
+
+  // Pattern: "// ARTK BLOCKED: <reason>" followed by "// Source: <text>"
+  const blockedPattern = /\/\/\s*ARTK BLOCKED:\s*(.+)\n\s*\/\/\s*Source:\s*(.+)/gi;
+  let match: RegExpExecArray | null;
+  let stepNumber = 1;
+
+  while ((match = blockedPattern.exec(content)) !== null) {
+    blockedSteps.push({
+      stepNumber: stepNumber++,
+      reason: match[1].trim(),
+      sourceText: match[2].trim(),
+    });
+  }
+
+  // Alternative pattern: "Blocked Steps: N" in stdout
+  const countMatch = stdout.match(/Blocked Steps:\s*(\d+)/i);
+  if (countMatch && blockedSteps.length === 0) {
+    // We know there are blocked steps but couldn't parse details
+    const count = parseInt(countMatch[1], 10);
+    for (let i = 0; i < count; i++) {
+      blockedSteps.push({
+        stepNumber: i + 1,
+        reason: 'Blocked step (details in generated test file)',
+        sourceText: 'See test file for source text',
+      });
+    }
+  }
+
+  return blockedSteps;
+}
+
+/**
+ * Calculate telemetry from AutoGen output
+ */
+export function calculateTelemetry(stdout: string, testFileContent?: string): AutoGenTelemetry {
+  const blockedDetails = parseBlockedSteps(stdout, testFileContent);
+  const blockedSteps = blockedDetails.length;
+
+  // Try to extract total steps from output
+  const totalMatch = stdout.match(/Total Steps:\s*(\d+)/i) ||
+                     stdout.match(/(\d+)\s*steps?\s*processed/i);
+  const totalSteps = totalMatch ? parseInt(totalMatch[1], 10) : blockedSteps; // Fallback to blocked count
+
+  const generatedSteps = totalSteps - blockedSteps;
+  const blockedRate = totalSteps > 0 ? (blockedSteps / totalSteps) * 100 : 0;
+
+  return {
+    totalSteps,
+    generatedSteps,
+    blockedSteps,
+    blockedRate: Math.round(blockedRate * 10) / 10, // Round to 1 decimal
+    blockedDetails,
+  };
+}
+
+/**
+ * Format telemetry for display
+ */
+export function formatTelemetry(telemetry: AutoGenTelemetry): string {
+  const lines: string[] = [];
+
+  lines.push('╔════════════════════════════════════════════════════════════════╗');
+  lines.push('║  AUTOGEN TELEMETRY                                             ║');
+  lines.push('╠════════════════════════════════════════════════════════════════╣');
+  lines.push(`║  Total Steps: ${telemetry.totalSteps.toString().padEnd(47)}║`);
+  lines.push(`║  Generated:   ${telemetry.generatedSteps.toString().padEnd(47)}║`);
+  lines.push(`║  Blocked:     ${telemetry.blockedSteps.toString().padEnd(47)}║`);
+  lines.push(`║  Blocked Rate: ${(telemetry.blockedRate.toFixed(1) + '%').padEnd(46)}║`);
+
+  if (telemetry.blockedDetails.length > 0) {
+    lines.push('║                                                                ║');
+    lines.push('║  Blocked Steps (require manual implementation):                ║');
+    for (const step of telemetry.blockedDetails.slice(0, 5)) { // Show max 5
+      const truncatedReason = step.reason.length > 50
+        ? step.reason.substring(0, 47) + '...'
+        : step.reason;
+      lines.push(`║    ${step.stepNumber}. ${truncatedReason.padEnd(56)}║`);
+    }
+    if (telemetry.blockedDetails.length > 5) {
+      lines.push(`║    ... and ${(telemetry.blockedDetails.length - 5)} more                                         ║`);
+    }
+  }
+
+  lines.push('╚════════════════════════════════════════════════════════════════╝');
+
+  return lines.join('\n');
+}
+
+/**
  * Format the implementation plan as human-readable output
  */
 export function formatImplementPlan(plan: ImplementPlan): string {
@@ -581,7 +696,12 @@ export async function executeImplementation(
   ctx: WorkflowContext,
   plan: ImplementPlan,
   options: { verbose?: boolean; timeoutMs?: number }
-): Promise<WorkflowResult<{ testsGenerated: string[]; sessionState: SessionState; warnings: string[] }>> {
+): Promise<WorkflowResult<{
+  testsGenerated: string[];
+  sessionState: SessionState;
+  warnings: string[];
+  telemetry: AutoGenTelemetry;
+}>> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
   const warnings: string[] = [];
 
@@ -596,6 +716,15 @@ export async function executeImplementation(
   await saveSessionState(ctx.harnessRoot, sessionState);
 
   const testsGenerated: string[] = [];
+
+  // Aggregate telemetry across all journeys
+  const aggregateTelemetry: AutoGenTelemetry = {
+    totalSteps: 0,
+    generatedSteps: 0,
+    blockedSteps: 0,
+    blockedRate: 0,
+    blockedDetails: [],
+  };
 
   // Step 1: Export LLKB
   if (options.verbose) {
@@ -652,7 +781,7 @@ export async function executeImplementation(
       return {
         success: false,
         error: errorMsg,
-        data: { testsGenerated, sessionState, warnings },
+        data: { testsGenerated, sessionState, warnings, telemetry: aggregateTelemetry },
       };
     }
 
@@ -661,10 +790,26 @@ export async function executeImplementation(
     testsGenerated.push(testFile);
     sessionState.testsGenerated.push(testFile);
     sessionState.journeysCompleted.push(journey.id);
+
+    // Calculate telemetry for this journey
+    const journeyTelemetry = calculateTelemetry(result.stdout);
+    aggregateTelemetry.totalSteps += journeyTelemetry.totalSteps;
+    aggregateTelemetry.generatedSteps += journeyTelemetry.generatedSteps;
+    aggregateTelemetry.blockedSteps += journeyTelemetry.blockedSteps;
+    aggregateTelemetry.blockedDetails.push(
+      ...journeyTelemetry.blockedDetails.map(d => ({
+        ...d,
+        sourceText: `[${journey.id}] ${d.sourceText}`,
+      }))
+    );
+
     await saveSessionState(ctx.harnessRoot, sessionState);
 
     if (options.verbose) {
       console.log(`   ✅ Generated: ${testFile}`);
+      if (journeyTelemetry.blockedSteps > 0) {
+        console.log(`   ⚠️  Blocked steps: ${journeyTelemetry.blockedSteps} (require manual implementation)`);
+      }
     }
 
     // Re-export LLKB if learningMode=strict and not last journey
@@ -697,9 +842,19 @@ export async function executeImplementation(
   sessionState.verificationPassed = true; // Will be set by verify step
   await saveSessionState(ctx.harnessRoot, sessionState);
 
+  // Calculate final blocked rate
+  aggregateTelemetry.blockedRate = aggregateTelemetry.totalSteps > 0
+    ? Math.round((aggregateTelemetry.blockedSteps / aggregateTelemetry.totalSteps) * 1000) / 10
+    : 0;
+
+  // Output telemetry summary
+  if (options.verbose && aggregateTelemetry.totalSteps > 0) {
+    console.log('\n' + formatTelemetry(aggregateTelemetry));
+  }
+
   return {
     success: true,
-    data: { testsGenerated, sessionState, warnings },
+    data: { testsGenerated, sessionState, warnings, telemetry: aggregateTelemetry },
     warnings: warnings.length > 0 ? warnings : undefined,
   };
 }

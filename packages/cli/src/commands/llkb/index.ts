@@ -6,6 +6,7 @@
 
 import { Command } from 'commander';
 import { initCommand } from './init.js';
+import { seedCommand } from './seed.js';
 import { exportCommand } from './export.js';
 import { healthCommand } from './health.js';
 import { statsCommand } from './stats.js';
@@ -25,6 +26,7 @@ export function llkbCommand(program: Command): Command {
 
   // Register all subcommands
   initCommand(llkb);
+  seedCommand(llkb);
   exportCommand(llkb);
   healthCommand(llkb);
   statsCommand(llkb);
