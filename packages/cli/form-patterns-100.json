@@ -1,0 +1,902 @@
+[
+  {
+    "id": "FORM-001",
+    "trigger": "(?:fill|enter|type|input|set|write|put)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+(?:in(?:to)?\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input|textbox|text\\s*box|entry)",
+    "pattern": "await page.getByLabel('${label}').fill('${value}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Fill a text input field by label with a specific value"
+  },
+  {
+    "id": "FORM-002",
+    "trigger": "(?:clear|erase|empty|delete|remove)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:content\\s+(?:of|from)\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input|textbox|text\\s*box)",
+    "pattern": "await page.getByLabel('${label}').clear();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Clear the content of a text input field"
+  },
+  {
+    "id": "FORM-003",
+    "trigger": "(?:type|enter)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+(?:slowly|character\\s+by\\s+character|with\\s+delay)\\s+(?:in(?:to)?\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').pressSequentially('${value}', { delay: 100 });",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Type text character by character with delay to simulate real user behavior"
+  },
+  {
+    "id": "FORM-004",
+    "trigger": "(?:verify|check|assert|confirm)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input)\\s+(?:has|shows|displays)\\s+placeholder\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveAttribute('placeholder', '${placeholder}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Verify that an input field has a specific placeholder text"
+  },
+  {
+    "id": "FORM-005",
+    "trigger": "(?:fill|enter|type|input)(?:s|ed|ing)?\\s+(?:a\\s+)?phone\\s+number\\s+['\"]([^'\"]+)['\"]\\s+(?:in(?:to)?\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|phone|telephone)",
+    "pattern": "await page.getByLabel('${label}').fill('${phone}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Fill a phone number input with formatted value"
+  },
+  {
+    "id": "FORM-006",
+    "trigger": "(?:enter|fill|type)(?:s|ed|ing)?\\s+(?:a\\s+)?credit\\s+card\\s+(?:number\\s+)?['\"]([^'\"]+)['\"]\\s+(?:in(?:to)?\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|card|payment)",
+    "pattern": "await page.getByLabel('${label}').fill('${cardNumber}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Fill a credit card number input field"
+  },
+  {
+    "id": "FORM-007",
+    "trigger": "(?:enter|fill|type)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:currency|amount|price)\\s+(?:of\\s+)?['\"]([^'\"]+)['\"]\\s+(?:in(?:to)?\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|amount|price|cost)",
+    "pattern": "await page.getByLabel('${label}').fill('${amount}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Fill a currency/amount input field with formatted value"
+  },
+  {
+    "id": "FORM-008",
+    "trigger": "(?:toggle|click|press)(?:s|ed|ing)?\\s+(?:the\\s+)?password\\s+visibility\\s+(?:toggle|button|icon)\\s+(?:for|on)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|password)",
+    "pattern": "await page.getByLabel('${label}').locator('..').getByRole('button', { name: /show|hide|toggle/i }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Toggle password visibility in a password input field"
+  },
+  {
+    "id": "FORM-009",
+    "trigger": "(?:enter|type|fill)(?:s|ed|ing)?\\s+(?:a\\s+)?masked\\s+input\\s+['\"]([^'\"]+)['\"]\\s+(?:in(?:to)?\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').fill('${value}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Fill an input field with masked input (SSN, date, etc.)"
+  },
+  {
+    "id": "FORM-010",
+    "trigger": "(?:focus|click|activate)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input|textbox)",
+    "pattern": "await page.getByLabel('${label}').focus();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Focus on a specific input field"
+  },
+  {
+    "id": "FORM-011",
+    "trigger": "(?:press|hit|type)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Enter|Return|Tab|Escape|Backspace)\\s+(?:key\\s+)?(?:in|on)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').press('${key}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Press a specific key in an input field"
+  },
+  {
+    "id": "FORM-012",
+    "trigger": "(?:fill|enter)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+with\\s+(?:a\\s+)?multiline\\s+text",
+    "pattern": "await page.getByLabel('${label}').fill('${multilineText}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Fill a textarea with multiline text"
+  },
+  {
+    "id": "FORM-013",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input)\\s+(?:is|remains)\\s+(?:empty|blank)",
+    "pattern": "await expect(page.getByLabel('${label}')).toBeEmpty();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Verify that an input field is empty"
+  },
+  {
+    "id": "FORM-014",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:contains|has\\s+value|shows)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveValue('${value}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Verify that an input field contains a specific value"
+  },
+  {
+    "id": "FORM-015",
+    "trigger": "(?:fill|enter)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:by\\s+)?(?:testid|test-id|data-testid)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.getByTestId('${testId}').fill('${value}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Fill an input field by test ID"
+  },
+  {
+    "id": "FORM-016",
+    "trigger": "(?:select|choose|pick)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+(?:from|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:dropdown|select|combobox)",
+    "pattern": "await page.getByLabel('${label}').selectOption('${value}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Select an option from a native select dropdown by visible text"
+  },
+  {
+    "id": "FORM-017",
+    "trigger": "(?:select|choose)(?:s|ed|ing)?\\s+option\\s+(?:with\\s+)?value\\s+['\"]([^'\"]+)['\"]\\s+(?:from|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').selectOption({ value: '${value}' });",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Select an option from a native select by value attribute"
+  },
+  {
+    "id": "FORM-018",
+    "trigger": "(?:select|choose)(?:s|ed|ing)?\\s+option\\s+at\\s+index\\s+(\\d+)\\s+(?:from|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').selectOption({ index: ${index} });",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Select an option from a native select by index"
+  },
+  {
+    "id": "FORM-019",
+    "trigger": "(?:open|expand|click)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:custom\\s+)?dropdown",
+    "pattern": "await page.getByLabel('${label}').click();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Open/expand a custom dropdown component"
+  },
+  {
+    "id": "FORM-020",
+    "trigger": "(?:select|choose|click)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+(?:from|in)\\s+(?:the\\s+)?(?:custom\\s+)?dropdown\\s+(?:menu|list|options)",
+    "pattern": "await page.getByRole('option', { name: '${value}' }).click();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Select an option from a custom dropdown menu"
+  },
+  {
+    "id": "FORM-021",
+    "trigger": "(?:search|type|filter)(?:s|ed|ing)?\\s+(?:for\\s+)?['\"]([^'\"]+)['\"]\\s+(?:in|within)\\s+(?:the\\s+)?searchable\\s+(?:dropdown|select)",
+    "pattern": "await page.getByLabel('${label}').fill('${searchTerm}'); await page.getByRole('option', { name: new RegExp('${searchTerm}', 'i') }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Search and select in a searchable dropdown"
+  },
+  {
+    "id": "FORM-022",
+    "trigger": "(?:select|choose|pick)(?:s|ed|ing)?\\s+multiple\\s+options?\\s+(?:['\"]([^'\"]+)['\"](?:,\\s*['\"]([^'\"]+)['\"])*)?\\s+(?:from|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').selectOption(['${option1}', '${option2}']);",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Select multiple options from a multi-select dropdown"
+  },
+  {
+    "id": "FORM-023",
+    "trigger": "(?:select|choose)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+from\\s+(?:the\\s+)?['\"]([^'\"]+)['\"]\\s+option\\s+group",
+    "pattern": "await page.getByLabel('${label}').locator('optgroup[label=\"${group}\"]').locator('option', { hasText: '${value}' }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Select an option from a grouped select/optgroup"
+  },
+  {
+    "id": "FORM-024",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?option\\s+['\"]([^'\"]+)['\"]\\s+is\\s+disabled\\s+in\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await expect(page.getByLabel('${label}').locator('option', { hasText: '${option}' })).toBeDisabled();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Verify that a specific option is disabled in a select"
+  },
+  {
+    "id": "FORM-025",
+    "trigger": "(?:wait|expect)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+dropdown\\s+options\\s+to\\s+(?:load|appear|be\\s+available)",
+    "pattern": "await page.getByLabel('${label}').click(); await page.waitForSelector('[role=\"option\"]', { state: 'visible' });",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Wait for async dropdown options to load"
+  },
+  {
+    "id": "FORM-026",
+    "trigger": "(?:clear|reset|deselect)(?:s|ed|ing)?\\s+(?:all\\s+)?(?:the\\s+)?(?:selected\\s+)?(?:option|selection)s?\\s+(?:from|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').selectOption([]);",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Clear all selected options from a multi-select"
+  },
+  {
+    "id": "FORM-027",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+has\\s+['\"]([^'\"]+)['\"]\\s+selected",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveValue('${value}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Verify that a select has a specific option selected"
+  },
+  {
+    "id": "FORM-028",
+    "trigger": "(?:click|expand|open)(?:s|ed|ing)?\\s+(?:the\\s+)?dropdown\\s+trigger\\s+(?:button|icon)\\s+(?:for|of)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').locator('[aria-haspopup=\"listbox\"]').click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Click the trigger button of a custom dropdown"
+  },
+  {
+    "id": "FORM-029",
+    "trigger": "(?:select|choose)(?:s|ed|ing)?\\s+(?:the\\s+)?first\\s+available\\s+option\\s+(?:from|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').selectOption({ index: 0 });",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Select the first option from a dropdown"
+  },
+  {
+    "id": "FORM-030",
+    "trigger": "(?:verify|check|count)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+has\\s+(\\d+)\\s+options?",
+    "pattern": "await expect(page.getByLabel('${label}').locator('option')).toHaveCount(${count});",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Verify that a select has a specific number of options"
+  },
+  {
+    "id": "FORM-031",
+    "trigger": "(?:check|tick|select)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+checkbox",
+    "pattern": "await page.getByLabel('${label}').check();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.96,
+    "description": "Check a checkbox by label"
+  },
+  {
+    "id": "FORM-032",
+    "trigger": "(?:uncheck|untick|deselect|clear)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+checkbox",
+    "pattern": "await page.getByLabel('${label}').uncheck();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.96,
+    "description": "Uncheck a checkbox by label"
+  },
+  {
+    "id": "FORM-033",
+    "trigger": "(?:toggle|switch)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+checkbox",
+    "pattern": "await page.getByLabel('${label}').click();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Toggle a checkbox state"
+  },
+  {
+    "id": "FORM-034",
+    "trigger": "(?:select|choose|click)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+radio\\s+(?:button|option)",
+    "pattern": "await page.getByLabel('${label}').check();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Select a radio button by label"
+  },
+  {
+    "id": "FORM-035",
+    "trigger": "(?:check|select)(?:s|ed|ing)?\\s+(?:all\\s+)?checkboxes?\\s+in\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+group",
+    "pattern": "for (const checkbox of await page.getByRole('group', { name: '${groupName}' }).getByRole('checkbox').all()) { await checkbox.check(); }",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Check all checkboxes in a checkbox group"
+  },
+  {
+    "id": "FORM-036",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+checkbox\\s+is\\s+(?:in\\s+)?indeterminate\\s+state",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveJSProperty('indeterminate', true);",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Verify that a checkbox is in indeterminate state"
+  },
+  {
+    "id": "FORM-037",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:checkbox|radio)\\s+is\\s+disabled",
+    "pattern": "await expect(page.getByLabel('${label}')).toBeDisabled();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Verify that a checkbox or radio button is disabled"
+  },
+  {
+    "id": "FORM-038",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:checkbox|radio)\\s+is\\s+checked",
+    "pattern": "await expect(page.getByLabel('${label}')).toBeChecked();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.96,
+    "description": "Verify that a checkbox or radio button is checked"
+  },
+  {
+    "id": "FORM-039",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:checkbox|radio)\\s+is\\s+(?:not\\s+)?(?:un)?checked",
+    "pattern": "await expect(page.getByLabel('${label}')).not.toBeChecked();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Verify that a checkbox or radio button is not checked"
+  },
+  {
+    "id": "FORM-040",
+    "trigger": "(?:count|verify)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+group\\s+has\\s+(\\d+)\\s+(?:checked|selected)\\s+items?",
+    "pattern": "await expect(page.getByRole('group', { name: '${groupName}' }).getByRole('checkbox', { checked: true })).toHaveCount(${count});",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Verify the number of checked items in a checkbox group"
+  },
+  {
+    "id": "FORM-041",
+    "trigger": "(?:select|pick|choose|enter)(?:s|ed|ing)?\\s+(?:the\\s+)?date\\s+['\"]([^'\"]+)['\"]\\s+(?:in|for)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').fill('${date}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.92,
+    "description": "Fill a native date input field"
+  },
+  {
+    "id": "FORM-042",
+    "trigger": "(?:select|pick|choose|enter)(?:s|ed|ing)?\\s+(?:the\\s+)?time\\s+['\"]([^'\"]+)['\"]\\s+(?:in|for)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').fill('${time}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.92,
+    "description": "Fill a native time input field"
+  },
+  {
+    "id": "FORM-043",
+    "trigger": "(?:select|pick|choose|enter)(?:s|ed|ing)?\\s+(?:the\\s+)?datetime\\s+['\"]([^'\"]+)['\"]\\s+(?:in|for)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').fill('${datetime}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Fill a native datetime-local input field"
+  },
+  {
+    "id": "FORM-044",
+    "trigger": "(?:open|click|show)(?:s|ed|ing)?\\s+(?:the\\s+)?date\\s+picker\\s+(?:for|of)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Open a date picker component"
+  },
+  {
+    "id": "FORM-045",
+    "trigger": "(?:select|pick|choose|click)(?:s|ed|ing)?\\s+(?:the\\s+)?date\\s+['\"]([^'\"]+)['\"]\\s+from\\s+(?:the\\s+)?(?:date\\s+)?picker\\s+(?:calendar|widget)",
+    "pattern": "await page.getByRole('button', { name: '${date}' }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Select a date from a date picker calendar"
+  },
+  {
+    "id": "FORM-046",
+    "trigger": "(?:open|click|show)(?:s|ed|ing)?\\s+(?:the\\s+)?time\\s+picker\\s+(?:for|of)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Open a time picker component"
+  },
+  {
+    "id": "FORM-047",
+    "trigger": "(?:select|pick|set)(?:s|ed|ing)?\\s+(?:a\\s+)?date\\s+range\\s+from\\s+['\"]([^'\"]+)['\"]\\s+to\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.getByLabel('Start date').fill('${startDate}'); await page.getByLabel('End date').fill('${endDate}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Select a date range with start and end dates"
+  },
+  {
+    "id": "FORM-048",
+    "trigger": "(?:clear|reset|remove)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:selected\\s+)?date\\s+(?:from|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').clear();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Clear the selected date from a date picker"
+  },
+  {
+    "id": "FORM-049",
+    "trigger": "(?:navigate|go|move)(?:s|ed|ing)?\\s+to\\s+(?:the\\s+)?(?:next|previous)\\s+(?:month|year)\\s+in\\s+(?:the\\s+)?date\\s+picker",
+    "pattern": "await page.getByRole('button', { name: /${direction} ${unit}/i }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.86,
+    "description": "Navigate to next/previous month or year in date picker"
+  },
+  {
+    "id": "FORM-050",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+has\\s+(?:the\\s+)?date\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveValue('${date}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.93,
+    "description": "Verify that a date input has a specific date value"
+  },
+  {
+    "id": "FORM-051",
+    "trigger": "(?:select|pick)(?:s|ed|ing)?\\s+today(?:'s)?\\s+date\\s+(?:in|from)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|date\\s+picker)",
+    "pattern": "await page.getByLabel('${label}').fill(new Date().toISOString().split('T')[0]);",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Select today's date in a date picker"
+  },
+  {
+    "id": "FORM-052",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+date\\s+is\\s+(?:within|in)\\s+(?:the\\s+)?(?:valid|allowed)\\s+range",
+    "pattern": "const value = await page.getByLabel('${label}').inputValue(); const date = new Date(value); await expect(date >= new Date('${minDate}') && date <= new Date('${maxDate}')).toBeTruthy();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.84,
+    "description": "Verify that a date is within an allowed range"
+  },
+  {
+    "id": "FORM-053",
+    "trigger": "(?:upload|attach|select)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:single\\s+)?file\\s+['\"]([^'\"]+)['\"]\\s+(?:to|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|file\\s+input)",
+    "pattern": "await page.getByLabel('${label}').setInputFiles('${filePath}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.94,
+    "description": "Upload a single file to a file input"
+  },
+  {
+    "id": "FORM-054",
+    "trigger": "(?:upload|attach|select)(?:s|ed|ing)?\\s+multiple\\s+files?\\s+(?:\\[([^\\]]+)\\])?\\s+(?:to|in)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|file\\s+input)",
+    "pattern": "await page.getByLabel('${label}').setInputFiles(['${file1}', '${file2}']);",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Upload multiple files to a file input"
+  },
+  {
+    "id": "FORM-055",
+    "trigger": "(?:drag|drop)(?:s|ed|ing)?\\s+(?:a\\s+)?file\\s+['\"]([^'\"]+)['\"]\\s+(?:to|onto|into)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|upload\\s+area|drop\\s+zone)",
+    "pattern": "const dataTransfer = await page.evaluateHandle(() => new DataTransfer()); await page.getByLabel('${label}').dispatchEvent('drop', { dataTransfer });",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.83,
+    "description": "Drag and drop a file into an upload area"
+  },
+  {
+    "id": "FORM-056",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?file\\s+type\\s+validation\\s+(?:shows|displays|triggers)\\s+(?:an?\\s+)?error",
+    "pattern": "await expect(page.getByText(/invalid file type|unsupported format/i)).toBeVisible();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Verify that file type validation error is displayed"
+  },
+  {
+    "id": "FORM-057",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?file\\s+size\\s+validation\\s+(?:shows|displays|triggers)\\s+(?:an?\\s+)?error",
+    "pattern": "await expect(page.getByText(/file too large|exceeds maximum size/i)).toBeVisible();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Verify that file size validation error is displayed"
+  },
+  {
+    "id": "FORM-058",
+    "trigger": "(?:wait|check|verify)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?upload\\s+progress\\s+(?:to\\s+)?(?:complete|finish|reach\\s+100%)",
+    "pattern": "await page.waitForSelector('[role=\"progressbar\"][aria-valuenow=\"100\"]', { state: 'visible' });",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.85,
+    "description": "Wait for file upload progress to complete"
+  },
+  {
+    "id": "FORM-059",
+    "trigger": "(?:cancel|abort|stop)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:file\\s+)?upload\\s+(?:process|operation)",
+    "pattern": "await page.getByRole('button', { name: /cancel|abort|stop/i }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Cancel an ongoing file upload"
+  },
+  {
+    "id": "FORM-060",
+    "trigger": "(?:remove|delete|clear)(?:s|ed|ing)?\\s+(?:the\\s+)?uploaded\\s+file\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.getByRole('button', { name: new RegExp(`remove.*${fileName}|delete.*${fileName}`, 'i') }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Remove an uploaded file from the list"
+  },
+  {
+    "id": "FORM-061",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?file\\s+['\"]([^'\"]+)['\"]\\s+(?:is|was)\\s+uploaded\\s+successfully",
+    "pattern": "await expect(page.getByText(new RegExp(`${fileName}.*uploaded|${fileName}.*complete`, 'i'))).toBeVisible();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Verify that a file was uploaded successfully"
+  },
+  {
+    "id": "FORM-062",
+    "trigger": "(?:clear|remove)(?:s|ed|ing)?\\s+(?:all\\s+)?uploaded\\s+files?",
+    "pattern": "await page.getByLabel('${label}').setInputFiles([]);",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.92,
+    "description": "Clear all uploaded files from a file input"
+  },
+  {
+    "id": "FORM-063",
+    "trigger": "(?:type|enter|write)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?TinyMCE\\s+editor",
+    "pattern": "await page.frameLocator('iframe[id*=\"tiny\"]').locator('body[contenteditable=\"true\"]').fill('${content}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Type content into a TinyMCE rich text editor"
+  },
+  {
+    "id": "FORM-064",
+    "trigger": "(?:type|enter|write)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?CKEditor",
+    "pattern": "await page.locator('.ck-content[contenteditable=\"true\"]').fill('${content}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Type content into a CKEditor rich text editor"
+  },
+  {
+    "id": "FORM-065",
+    "trigger": "(?:type|enter|write)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?Quill\\s+editor",
+    "pattern": "await page.locator('.ql-editor').fill('${content}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Type content into a Quill rich text editor"
+  },
+  {
+    "id": "FORM-066",
+    "trigger": "(?:type|enter|write)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?ProseMirror\\s+editor",
+    "pattern": "await page.locator('.ProseMirror').fill('${content}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Type content into a ProseMirror rich text editor"
+  },
+  {
+    "id": "FORM-067",
+    "trigger": "(?:type|enter|write)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?contenteditable\\s+(?:div|element|area)",
+    "pattern": "await page.locator('[contenteditable=\"true\"]').fill('${content}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Type content into a contenteditable element"
+  },
+  {
+    "id": "FORM-068",
+    "trigger": "(?:apply|add|format)(?:s|ed|ing)?\\s+(?:bold|italic|underline)\\s+formatting\\s+to\\s+(?:the\\s+)?(?:selected\\s+)?text",
+    "pattern": "await page.getByRole('button', { name: /${format}/i }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Apply text formatting (bold, italic, underline) in rich text editor"
+  },
+  {
+    "id": "FORM-069",
+    "trigger": "(?:insert|add)(?:s|ed|ing)?\\s+(?:a\\s+)?link\\s+['\"]([^'\"]+)['\"]\\s+with\\s+(?:text|label)\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?editor",
+    "pattern": "await page.getByRole('button', { name: /insert link|add link/i }).click(); await page.getByLabel('URL').fill('${url}'); await page.getByLabel('Text').fill('${text}'); await page.getByRole('button', { name: /ok|insert/i }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.84,
+    "description": "Insert a hyperlink in a rich text editor"
+  },
+  {
+    "id": "FORM-070",
+    "trigger": "(?:insert|add|upload)(?:s|ed|ing)?\\s+(?:an?\\s+)?image\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?editor",
+    "pattern": "await page.getByRole('button', { name: /insert image|add image/i }).click(); await page.getByLabel('Image URL').fill('${imageUrl}'); await page.getByRole('button', { name: /ok|insert/i }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.83,
+    "description": "Insert an image in a rich text editor"
+  },
+  {
+    "id": "FORM-071",
+    "trigger": "(?:clear|erase|remove)(?:s|ed|ing)?\\s+(?:all\\s+)?content\\s+from\\s+(?:the\\s+)?(?:rich\\s+text\\s+)?editor",
+    "pattern": "await page.locator('[contenteditable=\"true\"]').clear();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Clear all content from a rich text editor"
+  },
+  {
+    "id": "FORM-072",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?editor\\s+contains\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('[contenteditable=\"true\"]')).toContainText('${text}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Verify that the rich text editor contains specific text"
+  },
+  {
+    "id": "FORM-073",
+    "trigger": "(?:select|pick|choose)(?:s|ed|ing)?\\s+(?:a\\s+)?color\\s+['\"]([^'\"]+)['\"]\\s+from\\s+(?:the\\s+)?color\\s+picker",
+    "pattern": "await page.getByLabel('${label}').fill('${color}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Select a color from a color picker input"
+  },
+  {
+    "id": "FORM-074",
+    "trigger": "(?:set|move|adjust)(?:s|ed|ing)?\\s+(?:the\\s+)?range\\s+slider\\s+to\\s+(?:value\\s+)?(\\d+)",
+    "pattern": "await page.getByLabel('${label}').fill('${value}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Set a range slider to a specific value"
+  },
+  {
+    "id": "FORM-075",
+    "trigger": "(?:click|select|set)(?:s|ed|ing)?\\s+(\\d+)\\s+stars?\\s+(?:in|on)\\s+(?:the\\s+)?rating\\s+(?:component|widget)",
+    "pattern": "await page.getByLabel('${rating} stars').click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Select a star rating"
+  },
+  {
+    "id": "FORM-076",
+    "trigger": "(?:add|enter|create)(?:s|ed|ing)?\\s+(?:a\\s+)?tag\\s+['\"]([^'\"]+)['\"]\\s+(?:to|in)\\s+(?:the\\s+)?tags\\s+input",
+    "pattern": "await page.getByLabel('${label}').fill('${tag}'); await page.getByLabel('${label}').press('Enter');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Add a tag to a tags/chips input component"
+  },
+  {
+    "id": "FORM-077",
+    "trigger": "(?:remove|delete)(?:s|ed|ing)?\\s+(?:the\\s+)?tag\\s+['\"]([^'\"]+)['\"]\\s+from\\s+(?:the\\s+)?tags\\s+input",
+    "pattern": "await page.getByRole('button', { name: new RegExp(`remove.*${tag}|delete.*${tag}`, 'i') }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Remove a tag from a tags/chips input component"
+  },
+  {
+    "id": "FORM-078",
+    "trigger": "(?:type|search)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?autocomplete\\s+(?:field|input)",
+    "pattern": "await page.getByLabel('${label}').fill('${query}'); await page.waitForSelector('[role=\"listbox\"]', { state: 'visible' });",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.89,
+    "description": "Type in an autocomplete field and wait for suggestions"
+  },
+  {
+    "id": "FORM-079",
+    "trigger": "(?:select|choose|click)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+from\\s+(?:the\\s+)?autocomplete\\s+suggestions",
+    "pattern": "await page.getByRole('option', { name: '${suggestion}' }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Select a suggestion from autocomplete results"
+  },
+  {
+    "id": "FORM-080",
+    "trigger": "(?:type|search|enter)(?:s|ed|ing)?\\s+address\\s+['\"]([^'\"]+)['\"]\\s+in\\s+(?:the\\s+)?address\\s+autocomplete",
+    "pattern": "await page.getByLabel('${label}').fill('${address}'); await page.waitForSelector('[role=\"listbox\"]', { state: 'visible' });",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Type an address in an address autocomplete field"
+  },
+  {
+    "id": "FORM-081",
+    "trigger": "(?:select|choose)(?:s|ed|ing)?\\s+(?:the\\s+)?address\\s+suggestion\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.getByRole('option', { name: new RegExp('${address}', 'i') }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Select an address from autocomplete suggestions"
+  },
+  {
+    "id": "FORM-082",
+    "trigger": "(?:enter|type|select)(?:s|ed|ing)?\\s+(?:international\\s+)?phone\\s+number\\s+with\\s+country\\s+code\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.locator('.iti__selected-flag').click(); await page.getByRole('option', { name: new RegExp('${country}', 'i') }).click(); await page.getByLabel('${label}').fill('${phone}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.85,
+    "description": "Enter an international phone number with country code selection"
+  },
+  {
+    "id": "FORM-083",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?color\\s+picker\\s+shows\\s+color\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveValue('${color}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.90,
+    "description": "Verify that a color picker has a specific color value"
+  },
+  {
+    "id": "FORM-084",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?slider\\s+(?:is\\s+at|has\\s+value)\\s+(\\d+)",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveValue('${value}');",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.91,
+    "description": "Verify that a range slider has a specific value"
+  },
+  {
+    "id": "FORM-085",
+    "trigger": "(?:verify|check|count)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:there\\s+are\\s+)?(\\d+)\\s+tags?\\s+in\\s+(?:the\\s+)?tags\\s+input",
+    "pattern": "await expect(page.locator('.tag, .chip')).toHaveCount(${count});",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.88,
+    "description": "Verify the number of tags in a tags input component"
+  },
+  {
+    "id": "FORM-086",
+    "trigger": "(?:submit|send)(?:s|ed|ing)?\\s+(?:the\\s+)?form",
+    "pattern": "await page.getByRole('button', { name: /submit|send|save/i }).click();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Submit a form by clicking the submit button"
+  },
+  {
+    "id": "FORM-087",
+    "trigger": "(?:reset|clear)(?:s|ed|ing)?\\s+(?:the\\s+)?form",
+    "pattern": "await page.getByRole('button', { name: /reset|clear/i }).click();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Reset a form by clicking the reset button"
+  },
+  {
+    "id": "FORM-088",
+    "trigger": "(?:validate|check)(?:s|ed|ing)?\\s+(?:the\\s+)?form\\s+(?:fields|inputs|validation)",
+    "pattern": "await page.getByRole('button', { name: /submit/i }).click(); await page.waitForSelector('[aria-invalid=\"true\"], .error, .invalid', { state: 'attached' });",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Trigger form validation by attempting to submit"
+  },
+  {
+    "id": "FORM-089",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input)\\s+(?:shows|displays|has)\\s+(?:an?\\s+)?(?:validation\\s+)?error\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.getByLabel('${label}').locator('..')).toContainText('${errorMessage}');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Verify that a field displays a specific validation error message"
+  },
+  {
+    "id": "FORM-090",
+    "trigger": "(?:fill|complete)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:entire\\s+)?form\\s+with\\s+(?:test\\s+)?data",
+    "pattern": "await page.getByLabel('${field1}').fill('${value1}'); await page.getByLabel('${field2}').fill('${value2}'); await page.getByLabel('${field3}').check();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Fill an entire form with multiple field values"
+  },
+  {
+    "id": "FORM-091",
+    "trigger": "(?:add|create)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:new\\s+)?(?:dynamic\\s+)?field\\s+(?:by\\s+clicking\\s+)?['\"]([^'\"]+)['\"]",
+    "pattern": "await page.getByRole('button', { name: '${buttonName}' }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.87,
+    "description": "Add a new dynamic field to a form"
+  },
+  {
+    "id": "FORM-092",
+    "trigger": "(?:remove|delete)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:dynamic\\s+)?field\\s+at\\s+index\\s+(\\d+)",
+    "pattern": "await page.locator('.dynamic-field').nth(${index}).getByRole('button', { name: /remove|delete/i }).click();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.86,
+    "description": "Remove a dynamic field at a specific index"
+  },
+  {
+    "id": "FORM-093",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+field\\s+is\\s+visible\\s+when\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+is\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.getByLabel('${conditionalField}')).toBeVisible();",
+    "category": "form",
+    "scope": "specialized",
+    "confidence": 0.85,
+    "description": "Verify conditional field visibility based on another field's value"
+  },
+  {
+    "id": "FORM-094",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?form\\s+has\\s+(\\d+)\\s+(?:validation\\s+)?errors?",
+    "pattern": "await expect(page.locator('[aria-invalid=\"true\"], .error, .invalid')).toHaveCount(${count});",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Verify the number of validation errors in a form"
+  },
+  {
+    "id": "FORM-095",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input)\\s+is\\s+required",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveAttribute('required');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Verify that a field is marked as required"
+  },
+  {
+    "id": "FORM-096",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:field|input)\\s+is\\s+readonly",
+    "pattern": "await expect(page.getByLabel('${label}')).toHaveAttribute('readonly');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Verify that a field is readonly"
+  },
+  {
+    "id": "FORM-097",
+    "trigger": "(?:wait|expect)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?form\\s+(?:to\\s+)?(?:submit|save)\\s+successfully",
+    "pattern": "await expect(page.getByText(/success|saved|submitted/i)).toBeVisible();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for form submission success message"
+  },
+  {
+    "id": "FORM-098",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?submit\\s+button\\s+is\\s+disabled",
+    "pattern": "await expect(page.getByRole('button', { name: /submit|save/i })).toBeDisabled();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Verify that the submit button is disabled"
+  },
+  {
+    "id": "FORM-099",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?form\\s+shows\\s+(?:a\\s+)?loading\\s+(?:state|indicator|spinner)",
+    "pattern": "await expect(page.getByRole('status')).toBeVisible();",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Verify that the form shows a loading indicator during submission"
+  },
+  {
+    "id": "FORM-100",
+    "trigger": "(?:press|submit)(?:s|ed|ing)?\\s+(?:the\\s+)?form\\s+(?:by\\s+)?(?:pressing\\s+)?Enter\\s+(?:key\\s+)?(?:in|on)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.getByLabel('${label}').press('Enter');",
+    "category": "form",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Submit a form by pressing Enter key in a field"
+  }
+]

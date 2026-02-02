@@ -11,6 +11,7 @@ import { upgradeCommand } from './commands/upgrade.js';
 import { doctorCommand } from './commands/doctor.js';
 import { uninstallCommand } from './commands/uninstall.js';
 import { llkbCommand } from './commands/llkb/index.js';
+import { journeyCommand } from './commands/journey/index.js';
 import { getVersion } from './lib/version.js';
 
 const version = getVersion();
@@ -71,6 +72,9 @@ program
 
 // Register LLKB command group
 llkbCommand(program);
+
+// Register Journey command group
+journeyCommand(program);
 
 // Error handling
 program.showHelpAfterError('(add --help for additional information)');

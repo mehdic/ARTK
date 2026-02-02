@@ -40,7 +40,8 @@ Identify ARTK footprint using these signals (in order):
 - `artk-e2e/` directory
 - `artk.config.yml` locations (repo root or subfolders)
 - `vendor/artk-core` / `vendor/artk-core-autogen`
-- `.github/prompts/artk.*.prompt.md`
+- `.github/prompts/artk.*.prompt.md` (stub prompts)
+- `.github/agents/artk.*.agent.md` (full agent implementations - two-tier architecture)
 
 Also detect `.github/instructions/artk.instructions.md` and `journeys.instructions.md` (legacy ARTK installs).
 
@@ -400,9 +401,10 @@ for root in "${ROOTS_UNIQ[@]}"; do
   fi
 done
 
-# Prompt files
+# Prompt files (stubs) and Agent files (full implementations - two-tier architecture)
 shopt -s nullglob
 PROMPT_FILES=("$REPO_ROOT/.github/prompts/artk."*.prompt.md)
+AGENT_FILES=("$REPO_ROOT/.github/agents/artk."*.agent.md)
 INSTRUCTION_FILES=(
   "$REPO_ROOT/.github/instructions/artk.instructions.md"
   "$REPO_ROOT/.github/instructions/artk.instructions.md.backup"
@@ -413,6 +415,10 @@ shopt -u nullglob
 
 for prompt_file in "${PROMPT_FILES[@]}"; do
   REMOVE_FILES+=("$prompt_file")
+done
+
+for agent_file in "${AGENT_FILES[@]}"; do
+  REMOVE_FILES+=("$agent_file")
 done
 
 for instruction_file in "${INSTRUCTION_FILES[@]}"; do
@@ -798,8 +804,15 @@ foreach ($root in $ArtkRoots) {
     }
 }
 
+# Prompt files (stubs) - two-tier architecture
 $promptFiles = Get-ChildItem -Path (Join-Path $RepoRoot ".github\prompts") -Filter "artk.*.prompt.md" -File -ErrorAction SilentlyContinue
 foreach ($file in $promptFiles) {
+    $RemoveFiles += $file.FullName
+}
+
+# Agent files (full implementations) - two-tier architecture
+$agentFiles = Get-ChildItem -Path (Join-Path $RepoRoot ".github\agents") -Filter "artk.*.agent.md" -File -ErrorAction SilentlyContinue
+foreach ($file in $agentFiles) {
     $RemoveFiles += $file.FullName
 }
 

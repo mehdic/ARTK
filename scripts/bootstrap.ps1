@@ -16,7 +16,7 @@
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
 # 2. Copies @artk/core to vendor/
-# 3. Installs prompts to .github/prompts/
+# 3. Installs prompts to .github/prompts/ and agents to .github/agents/
 # 4. Creates package.json, playwright.config.ts, artk.config.yml
 # 5. Runs npm install
 #
@@ -1235,16 +1235,150 @@ If you need to customize Journey schemas:
     Write-Host "Journey System will need manual installation via init-playbook" -ForegroundColor Yellow
 }
 
-# Step 4: Install prompts
-Write-Host "[4/7] Installing prompts to .github/prompts/..." -ForegroundColor Yellow
-$PromptsTarget = Join-Path $TargetProject ".github\prompts"
-New-Item -ItemType Directory -Force -Path $PromptsTarget | Out-Null
+# Step 4: Install prompts AND agents (two-tier architecture)
+# - .github/prompts/*.prompt.md = stub files that delegate to agents
+# - .github/agents/*.agent.md = full implementation with handoffs
+Write-Host "[4/7] Installing prompts and agents (two-tier architecture)..." -ForegroundColor Yellow
 
-Get-ChildItem -Path $ArtkPrompts -Filter "artk.*.md" | ForEach-Object {
-    $filename = $_.Name
-    $newname = $filename -replace '\.md$', '.prompt.md'
-    Copy-Item $_.FullName -Destination (Join-Path $PromptsTarget $newname) -Force
+$PromptsTarget = Join-Path $TargetProject ".github\prompts"
+$AgentsTarget = Join-Path $TargetProject ".github\agents"
+
+# Detect upgrade scenario: prompts exist but agents don't
+if ((Test-Path $PromptsTarget) -and -not (Test-Path $AgentsTarget)) {
+    $OldPromptFile = Join-Path $PromptsTarget "artk.journey-propose.prompt.md"
+    if (Test-Path $OldPromptFile) {
+        # [H2] Improved detection: check for ABSENCE of agent: property (old-style has no delegation)
+        # This is more reliable than checking for "# ARTK" header
+        # [M3] Use -cmatch for case-sensitive matching (consistent with Bash grep)
+        $OldContent = Get-Content $OldPromptFile -ErrorAction SilentlyContinue | Out-String
+        $HasAgentProperty = $OldContent -cmatch "(?m)^agent:"
+        if (-not $HasAgentProperty) {
+            Write-Host "  Detected existing ARTK installation (no agent: property). Upgrading to two-tier architecture..." -ForegroundColor Cyan
+            $BackupDir = "$PromptsTarget.backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            Copy-Item -Path $PromptsTarget -Destination $BackupDir -Recurse -Force
+            Write-Host "  Backed up existing prompts to $BackupDir" -ForegroundColor Cyan
+            # Remove old full-content artk.* prompt files (will be replaced with stubs)
+            Get-ChildItem -Path $PromptsTarget -Filter "artk.*.prompt.md" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
+            # [M2] Backup cleanup: keep only the 3 most recent backups
+            $GithubDir = Join-Path $TargetProject ".github"
+            $AllBackups = Get-ChildItem -Path $GithubDir -Filter "prompts.backup-*" -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending
+            if ($AllBackups.Count -gt 3) {
+                Write-Host "  Cleaning up old backups (keeping 3 most recent)..." -ForegroundColor Cyan
+                $AllBackups | Select-Object -Skip 3 | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
 }
+
+# [M4] Atomic operations: use staging directories for rollback capability
+$PromptsStagingDir = Join-Path $TargetProject ".github\.prompts-staging-$PID"
+$AgentsStagingDir = Join-Path $TargetProject ".github\.agents-staging-$PID"
+
+New-Item -ItemType Directory -Force -Path $PromptsTarget | Out-Null
+New-Item -ItemType Directory -Force -Path $AgentsTarget | Out-Null
+New-Item -ItemType Directory -Force -Path $PromptsStagingDir | Out-Null
+New-Item -ItemType Directory -Force -Path $AgentsStagingDir | Out-Null
+
+# Cleanup function for rollback
+function Remove-StagingDirs {
+    Remove-Item -Path $PromptsStagingDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $AgentsStagingDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# Helper function to extract YAML frontmatter value
+function Get-YamlValue {
+    param(
+        [string]$FilePath,
+        [string]$Key
+    )
+    $content = Get-Content $FilePath -ErrorAction SilentlyContinue
+    foreach ($line in $content) {
+        if ($line -match "^${Key}:\s*[`"']?([^`"']+)[`"']?") {
+            return $matches[1].Trim()
+        }
+    }
+    return ""
+}
+
+# Helper function to generate stub prompt content
+function New-StubPrompt {
+    param(
+        [string]$Name,
+        [string]$Description
+    )
+    return @"
+---
+name: $Name
+description: "$Description"
+agent: $Name
+---
+# ARTK $Name
+
+This prompt delegates to the ``@$Name`` agent for full functionality including suggested next actions (handoffs).
+
+Run ``/$Name`` to start, or select ``@$Name`` from the agent picker.
+"@
+}
+
+# [M4] Install to staging first, then move to final destination
+$InstalledCount = 0
+$InstallFailed = $false
+$PromptFiles = Get-ChildItem -Path $ArtkPrompts -Filter "artk.*.md" -ErrorAction SilentlyContinue
+
+foreach ($file in $PromptFiles) {
+    $filename = $file.Name
+    $basenameNoExt = $filename -replace '\.md$', ''
+
+    # Extract metadata from source file
+    $Name = Get-YamlValue -FilePath $file.FullName -Key "name"
+    if (-not $Name) { $Name = $basenameNoExt }
+
+    $Description = Get-YamlValue -FilePath $file.FullName -Key "description"
+    if (-not $Description) { $Description = "ARTK prompt" }
+
+    try {
+        # 1. Copy full content to staging agents/
+        Copy-Item $file.FullName -Destination (Join-Path $AgentsStagingDir "$basenameNoExt.agent.md") -Force -ErrorAction Stop
+
+        # 2. Generate stub to staging prompts/
+        $stubContent = New-StubPrompt -Name $Name -Description $Description
+        Set-Content -Path (Join-Path $PromptsStagingDir "$basenameNoExt.prompt.md") -Value $stubContent -Encoding UTF8 -ErrorAction Stop
+
+        $InstalledCount++
+    }
+    catch {
+        Write-Host "  Failed to install: $basenameNoExt - $_" -ForegroundColor Red
+        $InstallFailed = $true
+        break
+    }
+}
+
+# [M4] If installation failed, rollback and exit
+if ($InstallFailed) {
+    Write-Host "  Installation failed. Rolling back..." -ForegroundColor Red
+    Remove-StagingDirs
+    # Restore from backup if available
+    if ($BackupDir -and (Test-Path $BackupDir)) {
+        Write-Host "  Restoring from backup: $BackupDir" -ForegroundColor Cyan
+        Remove-Item -Path $PromptsTarget -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path $BackupDir -Destination $PromptsTarget -Recurse -Force
+    }
+    exit 1
+}
+
+# [M4] Move from staging to final destination (atomic move)
+Get-ChildItem -Path $AgentsStagingDir -Filter "*.agent.md" -ErrorAction SilentlyContinue | ForEach-Object {
+    Move-Item $_.FullName -Destination $AgentsTarget -Force
+}
+Get-ChildItem -Path $PromptsStagingDir -Filter "*.prompt.md" -ErrorAction SilentlyContinue | ForEach-Object {
+    Move-Item $_.FullName -Destination $PromptsTarget -Force
+}
+
+# Cleanup staging directories
+Remove-StagingDirs
+
+Write-Host "  Installed $InstalledCount prompts (stubs) + agents (full content)" -ForegroundColor Green
 
 $CommonPromptsSource = Join-Path $ArtkPrompts "common"
 $CommonPromptsTarget = Join-Path $PromptsTarget "common"
@@ -2231,7 +2365,8 @@ Write-Host "  artk-e2e/package.json                 - Test workspace dependencie
 Write-Host "  artk-e2e/playwright.config.ts         - Playwright configuration"
 Write-Host "  artk-e2e/tsconfig.json                - TypeScript configuration"
 Write-Host "  artk-e2e/artk.config.yml              - ARTK configuration"
-Write-Host "  .github/prompts/                      - Copilot prompts"
+Write-Host "  .github/prompts/                      - Copilot prompt stubs (invoke with /)"
+Write-Host "  .github/agents/                       - Copilot agents with handoffs (full content)"
 Write-Host "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
 Write-Host "  artk-e2e/.artk/context.json           - ARTK context"
 Write-Host "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"

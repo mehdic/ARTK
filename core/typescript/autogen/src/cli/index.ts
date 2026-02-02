@@ -7,12 +7,22 @@ import { VERSION } from '../index.js';
 const USAGE = `
 Usage: artk-autogen <command> [options]
 
-Commands:
-  install        Install ARTK autogen instance in a project
-  upgrade        Upgrade ARTK autogen instance to new version
-  generate       Generate Playwright tests from Journey files
+Pipeline Commands (Hybrid Agentic Architecture):
+  analyze        Analyze journey files and output structured analysis
+  plan           Create test generation plan from analysis
+  generate       Generate Playwright tests from plan (or journey files)
+  run            Execute tests via Playwright
+  refine         Analyze failures and generate refinement suggestions
+  status         Show pipeline state
+  clean          Clean autogen artifacts
+
+Validation Commands:
   validate       Validate generated test code
   verify         Run and verify generated tests
+
+Management Commands:
+  install        Install ARTK autogen instance in a project
+  upgrade        Upgrade ARTK autogen instance to new version
   patterns       Analyze blocked step telemetry and pattern gaps
   llkb-patterns  Manage learned patterns from LLKB integration
 
@@ -21,15 +31,20 @@ Options:
   -v, --version   Show version
 
 Examples:
+  # Pipeline workflow
+  artk-autogen analyze "journeys/*.md"
+  artk-autogen plan --strategy scot
+  artk-autogen generate --output tests/
+  artk-autogen run tests/*.spec.ts
+  artk-autogen refine
+  artk-autogen status
+
+  # Legacy workflow (still supported)
+  artk-autogen generate journeys/login.md -o tests/ -m
+
+  # Management
   artk-autogen install --dir ./my-project
-  artk-autogen upgrade --dir ./my-project
-  artk-autogen generate journeys/login.md
-  artk-autogen validate tests/login.spec.ts
-  artk-autogen verify journeys/login.md --heal
   artk-autogen patterns gaps --limit 20
-  artk-autogen patterns stats
-  artk-autogen llkb-patterns list
-  artk-autogen llkb-patterns promote
 `;
 
 async function main(): Promise<void> {
@@ -58,14 +73,17 @@ async function main(): Promise<void> {
 
   try {
     switch (command) {
-      case 'install': {
-        const { runInstall } = await import('./install.js');
-        await runInstall(subArgs);
+      // ─────────────────────────────────────────────────────────────────────
+      // PIPELINE COMMANDS (Hybrid Agentic Architecture)
+      // ─────────────────────────────────────────────────────────────────────
+      case 'analyze': {
+        const { runAnalyze } = await import('./analyze.js');
+        await runAnalyze(subArgs);
         break;
       }
-      case 'upgrade': {
-        const { runUpgrade } = await import('./upgrade.js');
-        await runUpgrade(subArgs);
+      case 'plan': {
+        const { runPlan } = await import('./plan.js');
+        await runPlan(subArgs);
         break;
       }
       case 'generate': {
@@ -73,6 +91,29 @@ async function main(): Promise<void> {
         await runGenerate(subArgs);
         break;
       }
+      case 'run': {
+        const { runRun } = await import('./run.js');
+        await runRun(subArgs);
+        break;
+      }
+      case 'refine': {
+        const { runRefine } = await import('./refine.js');
+        await runRefine(subArgs);
+        break;
+      }
+      case 'status': {
+        const { runStatus } = await import('./status.js');
+        await runStatus(subArgs);
+        break;
+      }
+      case 'clean': {
+        const { runClean } = await import('./clean.js');
+        await runClean(subArgs);
+        break;
+      }
+      // ─────────────────────────────────────────────────────────────────────
+      // VALIDATION COMMANDS
+      // ─────────────────────────────────────────────────────────────────────
       case 'validate': {
         const { runValidate } = await import('./validate.js');
         await runValidate(subArgs);
@@ -81,6 +122,19 @@ async function main(): Promise<void> {
       case 'verify': {
         const { runVerify } = await import('./verify.js');
         await runVerify(subArgs);
+        break;
+      }
+      // ─────────────────────────────────────────────────────────────────────
+      // MANAGEMENT COMMANDS
+      // ─────────────────────────────────────────────────────────────────────
+      case 'install': {
+        const { runInstall } = await import('./install.js');
+        await runInstall(subArgs);
+        break;
+      }
+      case 'upgrade': {
+        const { runUpgrade } = await import('./upgrade.js');
+        await runUpgrade(subArgs);
         break;
       }
       case 'patterns': {

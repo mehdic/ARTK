@@ -5,7 +5,7 @@
  * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md (telemetry)
  */
 import { parseArgs } from 'node:util';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import fg from 'fast-glob';
 import { generateJourneyTests, type GenerateJourneyTestsOptions } from '../index.js';
@@ -13,19 +13,265 @@ import { loadConfigs } from '../config/loader.js';
 import { loadExtendedGlossary, getGlossaryStats } from '../mapping/glossary.js';
 import { recordBlockedStep } from '../mapping/telemetry.js';
 import { analyzeBlockedStep, formatBlockedStepAnalysis } from '../mapping/blockedStepAnalysis.js';
+import { updatePipelineState } from '../pipeline/state.js';
+import { getTelemetry } from '../shared/telemetry.js';
+import type { PlanOutput, TestPlan } from './plan.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PLAN-BASED GENERATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface GenerateOptions {
+  output?: string;
+  modules: boolean;
+  config?: string;
+  'dry-run': boolean;
+  quiet: boolean;
+  'llkb-config'?: string;
+  'llkb-glossary'?: string;
+  'no-llkb': boolean;
+}
+
+/**
+ * Generate tests from a plan file
+ */
+async function runGenerateFromPlan(
+  planPath: string,
+  journeyFilter: string | undefined,
+  options: GenerateOptions
+): Promise<void> {
+  const quiet = options.quiet;
+  const dryRun = options['dry-run'];
+  const outputDir = options.output || './tests/generated';
+
+  // Load plan
+  let planOutput: PlanOutput;
+  try {
+    planOutput = JSON.parse(readFileSync(planPath, 'utf-8'));
+  } catch (e) {
+    console.error(`Error: Failed to parse plan file: ${e}`);
+    process.exit(1);
+  }
+
+  // Filter plans if journey specified
+  let plans = planOutput.plans || [];
+  if (journeyFilter) {
+    plans = plans.filter(p => p.journeyId === journeyFilter);
+    if (plans.length === 0) {
+      console.error(`Error: No plans found for journey "${journeyFilter}"`);
+      process.exit(1);
+    }
+  }
+
+  if (!quiet) {
+    console.log(`Generating tests from plan: ${plans.length} journey(s)`);
+  }
+
+  // Load LLKB configs/glossary if provided
+  await loadLlkbResources(options, quiet);
+
+  // Generate from each plan
+  const allTests: { filename: string; code: string }[] = [];
+  const allModules: { filename: string; code: string }[] = [];
+  const allWarnings: string[] = [];
+  const allErrors: string[] = [];
+
+  for (const plan of plans) {
+    if (!quiet) {
+      console.log(`  Processing: ${plan.journeyId}`);
+    }
+
+    // If plan has a journeyPath, use the existing generation
+    if (plan.journeyPath && existsSync(plan.journeyPath)) {
+      const genOptions: GenerateJourneyTestsOptions = {
+        journeys: [plan.journeyPath],
+        isFilePaths: true,
+        outputDir,
+        generateModules: options.modules,
+      };
+
+      if (options.config) {
+        genOptions.config = options.config;
+      }
+
+      const result = await generateJourneyTests(genOptions);
+      allTests.push(...result.tests);
+      allModules.push(...result.modules);
+      allWarnings.push(...result.warnings);
+      allErrors.push(...result.errors);
+    } else {
+      // Generate directly from plan (for orchestrator-created plans)
+      const code = generateCodeFromPlan(plan);
+      allTests.push({
+        filename: `${plan.journeyId}.spec.ts`,
+        code,
+      });
+    }
+  }
+
+  // Write files
+  if (!dryRun) {
+    if (!existsSync(outputDir)) {
+      mkdirSync(outputDir, { recursive: true });
+    }
+
+    for (const test of allTests) {
+      const filePath = join(outputDir, test.filename);
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, test.code, 'utf-8');
+      if (!quiet) {
+        console.log(`Generated: ${filePath}`);
+      }
+    }
+
+    for (const mod of allModules) {
+      const filePath = join(outputDir, 'modules', mod.filename);
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, mod.code, 'utf-8');
+      if (!quiet) {
+        console.log(`Generated: ${filePath}`);
+      }
+    }
+  } else {
+    if (!quiet) {
+      console.log('\n[Dry run] Would generate:');
+      for (const test of allTests) {
+        console.log(`  - ${join(outputDir, test.filename)}`);
+      }
+      for (const mod of allModules) {
+        console.log(`  - ${join(outputDir, 'modules', mod.filename)}`);
+      }
+    }
+  }
+
+  // Summary
+  if (!quiet) {
+    console.log(`\nSummary:`);
+    console.log(`  Tests: ${allTests.length}`);
+    console.log(`  Modules: ${allModules.length}`);
+    console.log(`  Errors: ${allErrors.length}`);
+    console.log(`  Warnings: ${allWarnings.length}`);
+  }
+
+  if (allErrors.length > 0) {
+    console.error('\nErrors:');
+    for (const error of allErrors) {
+      console.error(`  - ${error}`);
+    }
+    process.exit(1);
+  }
+}
+
+/**
+ * Generate test code directly from a plan
+ * This is used when the orchestrator creates plans without journey files
+ */
+function generateCodeFromPlan(plan: TestPlan): string {
+  const imports = plan.imports.join(', ');
+
+  // Ensure 'page' is always included in fixtures (required for most Playwright operations)
+  // This prevents broken tests when plan.fixtures doesn't include 'page'
+  const fixtureSet = new Set(plan.fixtures);
+  if (fixtureSet.size > 0 && !fixtureSet.has('page')) {
+    fixtureSet.add('page');
+  }
+  const fixtureList = fixtureSet.size > 0 ? Array.from(fixtureSet) : ['page'];
+  const fixtures = `{ ${fixtureList.join(', ')} }`;
+
+  const steps = plan.steps.map((step, idx) => {
+    let code = '';
+    const action = step.action;
+
+    switch (action.type) {
+      case 'navigate':
+        code = `  await page.goto('${action.target || '/'}');`;
+        break;
+      case 'click':
+        code = `  await page.locator('${action.target || 'button'}').click();`;
+        break;
+      case 'fill':
+        code = `  await page.locator('${action.target || 'input'}').fill('${action.value || ''}');`;
+        break;
+      case 'assert':
+        code = `  await expect(page.locator('${action.target || '*'}')).toBeVisible();`;
+        break;
+      case 'wait':
+        code = `  await page.waitForLoadState('${step.waitCondition || 'networkidle'}');`;
+        break;
+      default:
+        code = `  // TODO: ${step.description}`;
+    }
+
+    return `    // Step ${idx + 1}: ${step.description}\n${code}`;
+  }).join('\n\n');
+
+  return `/**
+ * @journey ${plan.journeyId}
+ * @generated ${plan.createdAt}
+ * @strategy ${plan.strategy}
+ */
+import { ${imports} } from '@playwright/test';
+
+test.describe('${plan.journeyId}', () => {
+  test('should complete journey', async (${fixtures}) => {
+${steps}
+  });
+});
+`;
+}
+
+/**
+ * Load LLKB resources (config and glossary)
+ */
+async function loadLlkbResources(options: GenerateOptions, quiet: boolean): Promise<void> {
+  const configPaths: string[] = [];
+  if (options.config) {
+    configPaths.push(options.config);
+  }
+  if (options['llkb-config'] && !options['no-llkb']) {
+    configPaths.push(options['llkb-config']);
+  }
+
+  if (configPaths.length > 1) {
+    loadConfigs(configPaths);
+    if (!quiet) {
+      console.log(`Loaded ${configPaths.length} config file(s)`);
+    }
+  }
+
+  if (options['llkb-glossary'] && !options['no-llkb']) {
+    const glossaryResult = await loadExtendedGlossary(options['llkb-glossary']);
+    if (glossaryResult.loaded) {
+      if (!quiet) {
+        console.log(
+          `Loaded LLKB glossary: ${glossaryResult.entryCount} entries` +
+            (glossaryResult.exportedAt ? ` (exported: ${glossaryResult.exportedAt})` : '')
+        );
+      }
+    } else if (!quiet) {
+      console.warn(`Warning: Failed to load LLKB glossary: ${glossaryResult.error}`);
+    }
+  }
+}
 
 const USAGE = `
-Usage: artk-autogen generate [options] <journey-files...>
+Usage: artk-autogen generate [options] [journey-files...]
 
-Generate Playwright tests from Journey markdown files.
+Generate Playwright tests from plan or Journey markdown files.
+
+This command supports two modes:
+1. Plan-based (recommended): Use --plan to generate from a prepared plan
+2. Direct (legacy): Pass journey files directly for backwards compatibility
 
 Arguments:
-  journey-files    Journey file paths or glob patterns
+  journey-files    Journey file paths or glob patterns (legacy mode)
 
 Options:
   -o, --output <dir>       Output directory for generated files (default: ./tests/generated)
   -m, --modules            Also generate module files
   -c, --config <file>      Path to autogen config file
+  --plan <file>            Path to plan.json (default: .artk/autogen/plan.json if exists)
+  --journey <id>           Generate only for specific journey ID from plan
   --dry-run                Preview generation without writing files
   -q, --quiet              Suppress output except errors
   -h, --help               Show this help message
@@ -36,10 +282,14 @@ LLKB Integration Options:
   --no-llkb                Disable LLKB integration even if config enables it
 
 Examples:
+  # Plan-based generation (recommended)
+  artk-autogen generate --plan .artk/autogen/plan.json
+  artk-autogen generate --plan plan.json --journey JRN-0001
+
+  # Direct generation (legacy, still supported)
   artk-autogen generate journeys/login.md
   artk-autogen generate "journeys/*.md" -o tests/e2e -m
-  artk-autogen generate journeys/*.md --dry-run
-  artk-autogen generate journeys/*.md --llkb-config autogen-llkb.config.yml --llkb-glossary llkb-glossary.ts
+  artk-autogen generate journeys/*.md --llkb-config autogen-llkb.config.yml
 `;
 
 export async function runGenerate(args: string[]): Promise<void> {
@@ -49,6 +299,8 @@ export async function runGenerate(args: string[]): Promise<void> {
       output: { type: 'string', short: 'o' },
       modules: { type: 'boolean', short: 'm', default: false },
       config: { type: 'string', short: 'c' },
+      plan: { type: 'string' },
+      journey: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -65,10 +317,51 @@ export async function runGenerate(args: string[]): Promise<void> {
     return;
   }
 
-  if (positionals.length === 0) {
-    console.error('Error: No journey files specified');
+  // Initialize telemetry
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart('generate');
+
+  // Check for plan-based generation
+  const planPath = values.plan;
+  const journeyFilter = values.journey;
+
+  // If no positionals and no plan specified, check for default plan
+  if (positionals.length === 0 && !planPath) {
+    // Try default plan location
+    const { getAutogenArtifact } = await import('../utils/paths.js');
+    const defaultPlanPath = getAutogenArtifact('plan');
+    if (existsSync(defaultPlanPath)) {
+      // Use plan-based generation
+      await runGenerateFromPlan(defaultPlanPath, journeyFilter, values);
+      // Track completion for plan-based generation
+      await updatePipelineState('generate', 'generated', true, { mode: 'plan' });
+      telemetry.trackCommandEnd(eventId, true, { mode: 'plan-based-default' });
+      await telemetry.save();
+      return;
+    }
+    console.error('Error: No journey files specified and no plan found');
+    console.log('Run "artk-autogen analyze" and "artk-autogen plan" first, or provide journey files.');
     console.log(USAGE);
+    telemetry.trackCommandEnd(eventId, false, { error: 'no_input' });
+    await telemetry.save();
     process.exit(1);
+  }
+
+  // If plan is explicitly specified, use plan-based generation
+  if (planPath) {
+    if (!existsSync(planPath)) {
+      console.error(`Error: Plan file not found: ${planPath}`);
+      telemetry.trackCommandEnd(eventId, false, { error: 'plan_not_found' });
+      await telemetry.save();
+      process.exit(1);
+    }
+    await runGenerateFromPlan(planPath, journeyFilter, values);
+    // Track completion for plan-based generation
+    await updatePipelineState('generate', 'generated', true, { mode: 'plan', planPath });
+    telemetry.trackCommandEnd(eventId, true, { mode: 'plan-based-explicit' });
+    await telemetry.save();
+    return;
   }
 
   const outputDir = values.output || './tests/generated';
@@ -117,6 +410,8 @@ export async function runGenerate(args: string[]): Promise<void> {
 
   if (journeyFiles.length === 0) {
     console.error('Error: No journey files found matching the patterns');
+    telemetry.trackCommandEnd(eventId, false, { error: 'no_matching_files' });
+    await telemetry.save();
     process.exit(1);
   }
 
@@ -264,6 +559,25 @@ export async function runGenerate(args: string[]): Promise<void> {
       console.log(`\n💡 Run 'artk-autogen patterns gaps' to see pattern improvement suggestions.`);
     }
   }
+
+  // Update pipeline state
+  const success = result.errors.length === 0;
+  await updatePipelineState('generate', 'generated', success, {
+    testsGenerated: result.tests.length,
+    modulesGenerated: result.modules.length,
+    blockedSteps: blockedStepAnalyses.length,
+  });
+
+  // Track command completion
+  telemetry.trackCommandEnd(eventId, success, {
+    tests: result.tests.length,
+    modules: result.modules.length,
+    blockedSteps: blockedStepAnalyses.length,
+    errors: result.errors.length,
+    warnings: otherWarnings.length,
+    dryRun,
+  });
+  await telemetry.save();
 
   // Exit with error if there were errors
   if (result.errors.length > 0) {

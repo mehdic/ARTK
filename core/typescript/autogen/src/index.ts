@@ -50,6 +50,23 @@ export * from './utils/version.js';
 export * from './utils/parsing.js';
 export * from './utils/result.js';
 
+// Path utilities (Hybrid Agentic Architecture)
+export {
+  getPackageRoot,
+  getTemplatesDir,
+  getTemplatePath,
+  getHarnessRoot,
+  getArtkDir,
+  getLlkbRoot,
+  // AutoGen pipeline paths
+  getAutogenDir,
+  getAutogenArtifact,
+  ensureAutogenDir,
+  cleanAutogenArtifacts,
+  hasAutogenArtifacts,
+  type AutogenArtifact,
+} from './utils/paths.js';
+
 // Validation
 export * from './validate/index.js';
 
@@ -62,6 +79,19 @@ export * from './heal/index.js';
 // Instance lifecycle
 export * from './instance/install.js';
 export * from './instance/upgrade.js';
+
+// Enhancement strategies (AutoGen 2.0)
+// Shared infrastructure for enhancement strategies
+export * as enhancementShared from './shared/index.js';
+
+// Structured Chain-of-Thought (SCoT) planning
+export * as scot from './scot/index.js';
+
+// Self-Refinement loops for iterative fixing
+export * as refinement from './refinement/index.js';
+
+// Uncertainty Quantification for confidence scoring
+export * as uncertainty from './uncertainty/index.js';
 
 // Main API
 import { parseJourney, parseJourneyContent } from './journey/parseJourney.js';

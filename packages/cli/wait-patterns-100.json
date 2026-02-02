@@ -1,0 +1,902 @@
+[
+  {
+    "id": "WAIT-001",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|component)\\s+(?:to\\s+)?(?:be\\s+)?(?:visible|displayed|shown|appear)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'visible' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Wait for element to become visible"
+  },
+  {
+    "id": "WAIT-002",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|component)\\s+(?:to\\s+)?(?:be\\s+)?(?:hidden|invisible|disappear|vanish)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'hidden' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for element to become hidden"
+  },
+  {
+    "id": "WAIT-003",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|component)\\s+(?:to\\s+)?(?:be\\s+)?(?:attached|present|exist|in\\s+dom)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'attached' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for element to be attached to DOM"
+  },
+  {
+    "id": "WAIT-004",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|component)\\s+(?:to\\s+)?(?:be\\s+)?(?:detached|removed|deleted|gone|not\\s+exist)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'detached' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for element to be detached from DOM"
+  },
+  {
+    "id": "WAIT-005",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|button|input|field)\\s+(?:to\\s+)?(?:be\\s+)?(?:enabled|clickable|interactive)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'visible' });\nawait expect(page.locator('${selector}')).toBeEnabled();",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for element to be enabled"
+  },
+  {
+    "id": "WAIT-006",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|button|input|field)\\s+(?:to\\s+)?(?:be\\s+)?(?:disabled|unclickable|inactive)",
+    "pattern": "await expect(page.locator('${selector}')).toBeDisabled();",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for element to be disabled"
+  },
+  {
+    "id": "WAIT-007",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|input|textarea|field)\\s+(?:to\\s+)?(?:be\\s+)?(?:editable|writable|modifiable)",
+    "pattern": "await expect(page.locator('${selector}')).toBeEditable();",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for element to be editable"
+  },
+  {
+    "id": "WAIT-008",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|component)\\s+(?:to\\s+)?(?:be\\s+)?(?:stable|stop\\s+moving|settle|static)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'visible' });\nawait page.waitForTimeout(100); // Wait for animations to complete",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for element to stop moving/animating"
+  },
+  {
+    "id": "WAIT-009",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector)\\s+(?:to\\s+)?(?:have|contain|show|display)(?:\\s+the)?\\s+text\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText('${text}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Wait for element to contain specific text"
+  },
+  {
+    "id": "WAIT-010",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector)\\s+(?:to\\s+)?(?:have|contain)(?:\\s+the)?\\s+(?:attribute|attr|property)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('${attribute}', /.*/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for element to have specific attribute"
+  },
+  {
+    "id": "WAIT-011",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector)\\s+(?:to\\s+)?(?:match|satisfy)(?:\\s+the)?\\s+(?:selector|css|query)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'attached' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for selector to match an element"
+  },
+  {
+    "id": "WAIT-012",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector)\\s+(?:to\\s+)?(?:have|contain|show)(?:\\s+a)?\\s+(?:count|number)\\s+(?:of\\s+)?(\\d+)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCount(${count});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for specific count of elements"
+  },
+  {
+    "id": "WAIT-013",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|input|field)\\s+(?:to\\s+)?(?:have|contain|show)(?:\\s+the)?\\s+(?:value|val)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveValue('${value}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Wait for input element to have specific value"
+  },
+  {
+    "id": "WAIT-014",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:checkbox|radio)\\s+(?:to\\s+)?(?:be\\s+)?(?:checked|selected|ticked)",
+    "pattern": "await expect(page.locator('${selector}')).toBeChecked();",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for checkbox/radio to be checked"
+  },
+  {
+    "id": "WAIT-015",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector)\\s+(?:to\\s+)?(?:be\\s+)?(?:focused|active|have\\s+focus)",
+    "pattern": "await expect(page.locator('${selector}')).toBeFocused();",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for element to receive focus"
+  },
+  {
+    "id": "WAIT-016",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector)\\s+(?:to\\s+)?(?:have|contain|match)(?:\\s+the)?\\s+(?:class|css\\s+class)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveClass(/.*${className}.*/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for element to have specific CSS class"
+  },
+  {
+    "id": "WAIT-017",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector)\\s+(?:to\\s+)?(?:have|show)(?:\\s+a)?\\s+(?:css|style)\\s+(?:property|value)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('${property}', '${value}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for element to have specific CSS property"
+  },
+  {
+    "id": "WAIT-018",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|component)\\s+(?:to\\s+)?(?:be\\s+)?(?:empty|blank|void|contain\\s+nothing)",
+    "pattern": "await expect(page.locator('${selector}')).toBeEmpty();",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for element to be empty"
+  },
+  {
+    "id": "WAIT-019",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:element|selector|image|img)\\s+(?:to\\s+)?(?:be\\s+)?(?:loaded|ready|complete)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'visible' });\nawait expect(page.locator('${selector}')).toHaveJSProperty('complete', true);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for image element to fully load"
+  },
+  {
+    "id": "WAIT-020",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:any|all)\\s+(?:element|selector)(?:s)?\\s+(?:matching|with|that\\s+match)",
+    "pattern": "await page.locator('${selector}').first().waitFor({ state: 'visible' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for any element matching selector"
+  },
+  {
+    "id": "WAIT-021",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:page|window)\\s+(?:to\\s+)?(?:load|finish\\s+loading|be\\s+ready|complete)",
+    "pattern": "await page.waitForLoadState('load');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.96,
+    "description": "Wait for page load event"
+  },
+  {
+    "id": "WAIT-022",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:dom|document)\\s+(?:to\\s+)?(?:be\\s+)?(?:loaded|ready|parsed|content\\s+loaded)",
+    "pattern": "await page.waitForLoadState('domcontentloaded');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Wait for DOMContentLoaded event"
+  },
+  {
+    "id": "WAIT-023",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:network|requests)\\s+(?:to\\s+)?(?:be\\s+)?(?:idle|quiet|complete|finish)",
+    "pattern": "await page.waitForLoadState('networkidle');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Wait for network to become idle"
+  },
+  {
+    "id": "WAIT-024",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:url|address|location)\\s+(?:to\\s+)?(?:change|update|become|be)",
+    "pattern": "await page.waitForURL('${url}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for URL to change to specific value"
+  },
+  {
+    "id": "WAIT-025",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:url|address)\\s+(?:to\\s+)?(?:contain|include|have)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.waitForURL(/.*${urlPart}.*/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for URL to contain specific string"
+  },
+  {
+    "id": "WAIT-026",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:navigation|page\\s+transition|route\\s+change)\\s+(?:to\\s+)?(?:complete|finish|end)",
+    "pattern": "await page.waitForNavigation({ waitUntil: 'load' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for navigation to complete (deprecated, use waitForURL)"
+  },
+  {
+    "id": "WAIT-027",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:page|window)\\s+(?:to\\s+)?(?:reload|refresh)",
+    "pattern": "const loadPromise = page.waitForLoadState('load');\nawait page.reload();\nawait loadPromise;",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for page reload to complete"
+  },
+  {
+    "id": "WAIT-028",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:new|popup)\\s+(?:tab|window|page|popup)",
+    "pattern": "const [newPage] = await Promise.all([\n  page.context().waitForEvent('page'),\n  page.locator('${selector}').click()\n]);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for new tab/window to open"
+  },
+  {
+    "id": "WAIT-029",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:page|url)\\s+(?:to\\s+)?(?:match|satisfy)\\s+(?:pattern|regex|regexp)",
+    "pattern": "await page.waitForURL(/^${pattern}$/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for URL to match regex pattern"
+  },
+  {
+    "id": "WAIT-030",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:history|navigation\\s+stack)\\s+(?:to\\s+)?(?:change|update)",
+    "pattern": "await page.evaluate(() => new Promise(resolve => window.addEventListener('popstate', resolve, { once: true })));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for browser history change"
+  },
+  {
+    "id": "WAIT-031",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:spa|single\\s+page)\\s+(?:navigation|route\\s+change|transition)",
+    "pattern": "await page.waitForURL(/.*${route}.*/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for SPA route change"
+  },
+  {
+    "id": "WAIT-032",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:all\\s+)?(?:resources|assets)\\s+(?:to\\s+)?(?:load|finish|complete)",
+    "pattern": "await page.waitForLoadState('load');\nawait page.waitForLoadState('networkidle');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for all page resources to load"
+  },
+  {
+    "id": "WAIT-033",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:title|page\\s+title)\\s+(?:to\\s+)?(?:change|update|become|be)",
+    "pattern": "await expect(page).toHaveTitle(/.*${title}.*/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for page title to change"
+  },
+  {
+    "id": "WAIT-034",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:hash|anchor|fragment)\\s+(?:change|update)",
+    "pattern": "await page.waitForURL(/.*#${hash}/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for URL hash/fragment change"
+  },
+  {
+    "id": "WAIT-035",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:query|search)\\s+(?:params|parameters|string)\\s+(?:to\\s+)?(?:change|update|contain)",
+    "pattern": "await page.waitForURL(/.*\\?.*${param}.*/);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for URL query parameters to change"
+  },
+  {
+    "id": "WAIT-036",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:request|http\\s+request|fetch)\\s+(?:to\\s+)?(?:['\"]([^'\"]+)['\"]|${url})",
+    "pattern": "await page.waitForRequest(request => request.url().includes('${url}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Wait for specific HTTP request"
+  },
+  {
+    "id": "WAIT-037",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:response|http\\s+response|reply)\\s+(?:from\\s+)?(?:['\"]([^'\"]+)['\"]|${url})",
+    "pattern": "await page.waitForResponse(response => response.url().includes('${url}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Wait for specific HTTP response"
+  },
+  {
+    "id": "WAIT-038",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:response|reply)\\s+(?:with\\s+)?(?:status|code)\\s+(\\d{3})",
+    "pattern": "await page.waitForResponse(response => response.url().includes('${url}') && response.status() === ${status});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for response with specific status code"
+  },
+  {
+    "id": "WAIT-039",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:all|any)\\s+(?:requests|calls|fetches)\\s+(?:to\\s+)?(?:complete|finish|end)",
+    "pattern": "await page.waitForLoadState('networkidle');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for all network requests to complete"
+  },
+  {
+    "id": "WAIT-040",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:network|requests)\\s+(?:to\\s+)?(?:become|be)\\s+(?:idle|quiet|still)",
+    "pattern": "await page.waitForLoadState('networkidle');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Wait for network idle state"
+  },
+  {
+    "id": "WAIT-041",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:api|rest|endpoint)\\s+(?:response|call|request)",
+    "pattern": "const response = await page.waitForResponse(response => response.url().includes('/api/') && response.status() === 200);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for API endpoint response"
+  },
+  {
+    "id": "WAIT-042",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:graphql|gql)\\s+(?:query|mutation|request)",
+    "pattern": "await page.waitForResponse(response => response.url().includes('/graphql') && response.request().postDataJSON()?.operationName === '${operationName}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for GraphQL query/mutation"
+  },
+  {
+    "id": "WAIT-043",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:websocket|ws|socket)\\s+(?:message|event|data)",
+    "pattern": "await page.waitForEvent('websocket', { predicate: ws => ws.url().includes('${wsUrl}') });\nawait page.waitForEvent('websocketmessage');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for WebSocket message"
+  },
+  {
+    "id": "WAIT-044",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:xhr|xmlhttprequest)\\s+(?:to\\s+)?(?:complete|finish)",
+    "pattern": "await page.waitForResponse(response => response.request().resourceType() === 'xhr' && response.url().includes('${url}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for XHR request to complete"
+  },
+  {
+    "id": "WAIT-045",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:fetch|ajax)\\s+(?:request|call)\\s+(?:to\\s+)?(?:complete|finish)",
+    "pattern": "await page.waitForResponse(response => response.request().resourceType() === 'fetch' && response.url().includes('${url}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for fetch request to complete"
+  },
+  {
+    "id": "WAIT-046",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:response|reply)\\s+(?:to\\s+)?(?:contain|include|have)\\s+(?:json|data)",
+    "pattern": "const response = await page.waitForResponse(async r => r.url().includes('${url}') && (await r.json()).${property} !== undefined);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for response with specific JSON data"
+  },
+  {
+    "id": "WAIT-047",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:post|put|patch|delete|get)\\s+(?:request|call)",
+    "pattern": "await page.waitForRequest(request => request.method() === '${method}' && request.url().includes('${url}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for specific HTTP method request"
+  },
+  {
+    "id": "WAIT-048",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:upload|file\\s+upload|form\\s+submission)\\s+(?:to\\s+)?(?:complete|finish)",
+    "pattern": "await page.waitForResponse(response => response.url().includes('${uploadUrl}') && response.status() === 200);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for file upload to complete"
+  },
+  {
+    "id": "WAIT-049",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:download|file\\s+download)\\s+(?:to\\s+)?(?:start|begin|initiate)",
+    "pattern": "const downloadPromise = page.waitForEvent('download');\nawait page.locator('${selector}').click();\nconst download = await downloadPromise;",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for download to start"
+  },
+  {
+    "id": "WAIT-050",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:all\\s+)?(?:pending|inflight|active)\\s+(?:requests|calls)\\s+(?:to\\s+)?(?:finish|complete)",
+    "pattern": "await page.waitForLoadState('networkidle');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for all pending requests to finish"
+  },
+  {
+    "id": "WAIT-051",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:preflight|options)\\s+(?:request|call)",
+    "pattern": "await page.waitForRequest(request => request.method() === 'OPTIONS' && request.url().includes('${url}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for CORS preflight request"
+  },
+  {
+    "id": "WAIT-052",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:sse|server\\s+sent\\s+events|event\\s+source)",
+    "pattern": "await page.waitForRequest(request => request.url().includes('${sseUrl}') && request.headers()['accept'] === 'text/event-stream');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Wait for Server-Sent Events connection"
+  },
+  {
+    "id": "WAIT-053",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:polling|heartbeat)\\s+(?:request|call)",
+    "pattern": "await page.waitForRequest(request => request.url().includes('/poll') || request.url().includes('/heartbeat'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for polling/heartbeat request"
+  },
+  {
+    "id": "WAIT-054",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:retry|retried)\\s+(?:request|call)",
+    "pattern": "let requestCount = 0;\nawait page.waitForRequest(request => {\n  if (request.url().includes('${url}')) requestCount++;\n  return requestCount >= ${count};\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Wait for request retry attempts"
+  },
+  {
+    "id": "WAIT-055",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:cached|304)\\s+(?:response|reply)",
+    "pattern": "await page.waitForResponse(response => response.url().includes('${url}') && response.status() === 304);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for cached response (304)"
+  },
+  {
+    "id": "WAIT-056",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:animation|transition)\\s+(?:to\\s+)?(?:end|finish|complete)",
+    "pattern": "await page.locator('${selector}').evaluate(el => {\n  return Promise.all(el.getAnimations().map(animation => animation.finished));\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for CSS animation to end"
+  },
+  {
+    "id": "WAIT-057",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:all\\s+)?(?:animations|transitions)\\s+(?:to\\s+)?(?:finish|complete|end)",
+    "pattern": "await page.evaluate(() => {\n  return Promise.all(\n    document.getAnimations()\n      .filter(anim => anim.playState === 'running')\n      .map(anim => anim.finished)\n  );\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for all animations to complete"
+  },
+  {
+    "id": "WAIT-058",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:transition|css\\s+transition)\\s+(?:to\\s+)?(?:end|finish|complete)",
+    "pattern": "await page.locator('${selector}').evaluate(el => {\n  return new Promise(resolve => el.addEventListener('transitionend', resolve, { once: true }));\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for CSS transition to end"
+  },
+  {
+    "id": "WAIT-059",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:no|zero)\\s+(?:animations|transitions)",
+    "pattern": "await page.evaluate(() => {\n  return new Promise(resolve => {\n    const check = () => {\n      const anims = document.getAnimations().filter(a => a.playState === 'running');\n      if (anims.length === 0) resolve();\n      else requestAnimationFrame(check);\n    };\n    check();\n  });\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait until no animations are running"
+  },
+  {
+    "id": "WAIT-060",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:layout|reflow)\\s+(?:to\\s+)?(?:stabilize|settle|stop\\s+shifting)",
+    "pattern": "await page.evaluate(() => {\n  return new Promise(resolve => {\n    let lastSize = JSON.stringify([document.documentElement.scrollWidth, document.documentElement.scrollHeight]);\n    const check = () => {\n      const currentSize = JSON.stringify([document.documentElement.scrollWidth, document.documentElement.scrollHeight]);\n      if (currentSize === lastSize) {\n        resolve();\n      } else {\n        lastSize = currentSize;\n        requestAnimationFrame(check);\n      }\n    };\n    requestAnimationFrame(check);\n  });\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for layout to stabilize"
+  },
+  {
+    "id": "WAIT-061",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:no|zero)\\s+(?:layout\\s+)?(?:shift|reflow|repaint)",
+    "pattern": "await page.evaluate(() => {\n  return new Promise(resolve => {\n    if ('PerformanceObserver' in window) {\n      const observer = new PerformanceObserver(list => {\n        if (list.getEntries().length === 0) resolve();\n      });\n      observer.observe({ type: 'layout-shift', buffered: true });\n      setTimeout(() => { observer.disconnect(); resolve(); }, 1000);\n    } else {\n      setTimeout(resolve, 100);\n    }\n  });\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Wait for no layout shifts (CLS)"
+  },
+  {
+    "id": "WAIT-062",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:animation|raf|request\\s+animation)\\s+frame",
+    "pattern": "await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for next animation frame (requestAnimationFrame)"
+  },
+  {
+    "id": "WAIT-063",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(\\d+)\\s+(?:animation|raf)\\s+frames",
+    "pattern": "await page.evaluate(count => {\n  return new Promise(resolve => {\n    let remaining = count;\n    const loop = () => {\n      if (--remaining <= 0) resolve();\n      else requestAnimationFrame(loop);\n    };\n    requestAnimationFrame(loop);\n  });\n}, ${count});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for multiple animation frames"
+  },
+  {
+    "id": "WAIT-064",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:spinner|loader|loading)\\s+(?:to\\s+)?(?:disappear|hide|vanish|be\\s+gone)",
+    "pattern": "await page.locator('${spinner}').waitFor({ state: 'hidden' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Wait for loading spinner to disappear"
+  },
+  {
+    "id": "WAIT-065",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:fade|slide|zoom)\\s+(?:animation|transition|effect)",
+    "pattern": "await page.locator('${selector}').waitFor({ state: 'visible' });\nawait page.locator('${selector}').evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for fade/slide/zoom animation"
+  },
+  {
+    "id": "WAIT-066",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:function|callback|condition)\\s+(?:to\\s+)?(?:return|be)\\s+(?:true|truthy)",
+    "pattern": "await page.waitForFunction(() => ${condition});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for function to return truthy value"
+  },
+  {
+    "id": "WAIT-067",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:condition|predicate|expression)\\s+(?:to\\s+)?(?:be|become)\\s+(?:true|met|satisfied)",
+    "pattern": "await page.waitForFunction(() => ${condition});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for condition to become true"
+  },
+  {
+    "id": "WAIT-068",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:js|javascript)\\s+(?:expression|code|function)\\s+(?:to\\s+)?(?:evaluate|run|execute)",
+    "pattern": "await page.waitForFunction(() => ${expression});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for JavaScript expression to evaluate"
+  },
+  {
+    "id": "WAIT-069",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:global|window)\\s+(?:variable|property)\\s+(?:to\\s+)?(?:exist|be\\s+defined|be\\s+set)",
+    "pattern": "await page.waitForFunction(() => typeof window.${variable} !== 'undefined');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for global variable to be defined"
+  },
+  {
+    "id": "WAIT-070",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:document|page)\\s+(?:to\\s+)?(?:contain|have)\\s+(?:text|content)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.waitForFunction(text => document.body.textContent.includes(text), '${text}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for document to contain text"
+  },
+  {
+    "id": "WAIT-071",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:polling|retry|retrying)\\s+(?:until|till)\\s+(?:success|true|condition)",
+    "pattern": "await page.waitForFunction(() => ${condition}, { polling: 'raf', timeout: ${timeout} });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Poll until condition is true"
+  },
+  {
+    "id": "WAIT-072",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:state|data|store)\\s+(?:change|update|mutation)",
+    "pattern": "await page.waitForFunction(() => window.__STORE_STATE__.${property} === '${value}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for state change in store"
+  },
+  {
+    "id": "WAIT-073",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:redux|vuex|mobx|zustand)\\s+(?:state|store)\\s+(?:change|update)",
+    "pattern": "await page.waitForFunction(() => window.__REDUX_DEVTOOLS_EXTENSION__.store.getState().${property} === '${value}');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for Redux/Vuex state change"
+  },
+  {
+    "id": "WAIT-074",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:react|vue|angular)\\s+(?:state|component)\\s+(?:update|change|render)",
+    "pattern": "await page.waitForFunction(() => {\n  const component = document.querySelector('${selector}')\n  return component && component.__reactInternalInstance$?.memoizedState?.${property} === '${value}';\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Wait for React/Vue component state update"
+  },
+  {
+    "id": "WAIT-075",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:console|log)\\s+(?:message|output|entry)",
+    "pattern": "await page.waitForEvent('console', msg => msg.text().includes('${text}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for console message"
+  },
+  {
+    "id": "WAIT-076",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(\\d+)\\s+(?:ms|milliseconds?|millis)",
+    "pattern": "await page.waitForTimeout(${ms});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for fixed milliseconds"
+  },
+  {
+    "id": "WAIT-077",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(\\d+(?:\\.\\d+)?)\\s+(?:s|seconds?|secs?)",
+    "pattern": "await page.waitForTimeout(${seconds} * 1000);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for fixed seconds"
+  },
+  {
+    "id": "WAIT-078",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:timeout|delay)\\s+(?:of\\s+)?(\\d+)",
+    "pattern": "await page.waitForTimeout(${timeout});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for timeout duration"
+  },
+  {
+    "id": "WAIT-079",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:briefly|a\\s+bit|a\\s+moment|shortly)",
+    "pattern": "await page.waitForTimeout(500);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Wait briefly (default 500ms)"
+  },
+  {
+    "id": "WAIT-080",
+    "trigger": "(?:debounce|throttle)\\s+(?:wait|delay)\\s+(\\d+)",
+    "pattern": "await page.waitForTimeout(${delay});\nawait page.waitForFunction(() => {\n  return !document.querySelector('${selector}')?.classList.contains('debouncing');\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Wait for debounce/throttle period"
+  },
+  {
+    "id": "WAIT-081",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:idle|browser\\s+idle)\\s+(?:callback|state)",
+    "pattern": "await page.evaluate(() => new Promise(resolve => requestIdleCallback(resolve)));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for browser idle callback"
+  },
+  {
+    "id": "WAIT-082",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:main\\s+thread|cpu)\\s+(?:to\\s+)?(?:be\\s+)?(?:idle|free|quiet)",
+    "pattern": "await page.evaluate(() => new Promise(resolve => requestIdleCallback(resolve, { timeout: 5000 })));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Wait for main thread to be idle"
+  },
+  {
+    "id": "WAIT-083",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:until|till)\\s+(?:next\\s+)?(?:tick|microtask|cycle)",
+    "pattern": "await page.evaluate(() => new Promise(resolve => queueMicrotask(resolve)));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for next microtask"
+  },
+  {
+    "id": "WAIT-084",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:render|paint|repaint)\\s+(?:to\\s+)?(?:complete|finish)",
+    "pattern": "await page.evaluate(() => new Promise(resolve => {\n  requestAnimationFrame(() => requestAnimationFrame(resolve));\n}));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for render/paint to complete"
+  },
+  {
+    "id": "WAIT-085",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:async|asynchronous)\\s+(?:operation|task|work)",
+    "pattern": "await page.waitForFunction(() => window.__ASYNC_COMPLETE__ === true);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Wait for async operation to complete"
+  },
+  {
+    "id": "WAIT-086",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:an?\\s+)?(?:iframe|frame)\\s+(?:to\\s+)?(?:load|be\\s+ready|finish\\s+loading)",
+    "pattern": "const frame = page.frameLocator('${frameSelector}');\nawait frame.locator('body').waitFor({ state: 'attached' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for iframe to load"
+  },
+  {
+    "id": "WAIT-087",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:frame|iframe)\\s+(?:to\\s+)?(?:be\\s+)?(?:attached|added|present)",
+    "pattern": "await page.waitForEvent('frameattached', frame => frame.url().includes('${frameUrl}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for frame to be attached"
+  },
+  {
+    "id": "WAIT-088",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:a\\s+)?(?:frame|iframe)\\s+(?:to\\s+)?(?:be\\s+)?(?:detached|removed|gone)",
+    "pattern": "await page.waitForEvent('framedetached', frame => frame.url().includes('${frameUrl}'));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for frame to be detached"
+  },
+  {
+    "id": "WAIT-089",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:frame|iframe)\\s+(?:navigation|to\\s+navigate)",
+    "pattern": "const frame = page.frame({ url: /.*${frameUrl}.*/ });\nawait frame.waitForLoadState('load');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for frame navigation"
+  },
+  {
+    "id": "WAIT-090",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:nested|child)\\s+(?:frame|iframe)",
+    "pattern": "const parentFrame = page.frame({ url: /.*${parentUrl}.*/ });\nconst childFrame = parentFrame.childFrames().find(f => f.url().includes('${childUrl}'));\nawait childFrame.waitForLoadState('load');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for nested frame"
+  },
+  {
+    "id": "WAIT-091",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:all\\s+)?(?:frames|iframes)\\s+(?:to\\s+)?(?:load|be\\s+ready)",
+    "pattern": "await Promise.all(page.frames().map(frame => frame.waitForLoadState('load')));",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for all frames to load"
+  },
+  {
+    "id": "WAIT-092",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:frame|iframe)\\s+(?:element|content|body)",
+    "pattern": "const frame = page.frameLocator('${frameSelector}');\nawait frame.locator('${elementSelector}').waitFor({ state: 'visible' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for element inside frame"
+  },
+  {
+    "id": "WAIT-093",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:cross-origin|external)\\s+(?:frame|iframe)",
+    "pattern": "await page.waitForEvent('frameattached', frame => {\n  try { return frame.url().includes('${domain}'); } catch { return false; }\n});",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Wait for cross-origin frame"
+  },
+  {
+    "id": "WAIT-094",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:shadow\\s+dom|shadow\\s+root)",
+    "pattern": "await page.locator('${hostSelector}').waitFor({ state: 'attached' });\nawait page.locator('${hostSelector} >>> ${shadowSelector}').waitFor({ state: 'visible' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Wait for Shadow DOM element"
+  },
+  {
+    "id": "WAIT-095",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:multiple|several|all)\\s+(?:conditions|criteria|requirements)",
+    "pattern": "await Promise.all([\n  page.locator('${selector1}').waitFor({ state: 'visible' }),\n  page.locator('${selector2}').waitFor({ state: 'visible' }),\n  page.waitForLoadState('networkidle')\n]);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for multiple conditions simultaneously"
+  },
+  {
+    "id": "WAIT-096",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:any|either)\\s+(?:of|condition)",
+    "pattern": "await Promise.race([\n  page.locator('${selector1}').waitFor({ state: 'visible' }),\n  page.locator('${selector2}').waitFor({ state: 'visible' })\n]);",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Wait for any of multiple conditions (race)"
+  },
+  {
+    "id": "WAIT-097",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:modal|dialog|popup|overlay)\\s+(?:to\\s+)?(?:appear|show|open)",
+    "pattern": "await page.locator('[role=\"dialog\"], .modal, ${modalSelector}').waitFor({ state: 'visible' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Wait for modal/dialog to appear"
+  },
+  {
+    "id": "WAIT-098",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:tooltip|popover|dropdown)\\s+(?:to\\s+)?(?:appear|show|display)",
+    "pattern": "await page.locator('[role=\"tooltip\"], .tooltip, ${tooltipSelector}').waitFor({ state: 'visible' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for tooltip/popover to appear"
+  },
+  {
+    "id": "WAIT-099",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:notification|toast|snackbar|alert)\\s+(?:to\\s+)?(?:appear|show|display)",
+    "pattern": "await page.locator('[role=\"alert\"], .toast, .notification, ${notificationSelector}').waitFor({ state: 'visible' });",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for notification/toast to appear"
+  },
+  {
+    "id": "WAIT-100",
+    "trigger": "(?:wait|await|pause|hold)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:the\\s+)?(?:data|content|results)\\s+(?:to\\s+)?(?:load|finish|be\\s+ready|populate)",
+    "pattern": "await page.waitForFunction(() => document.querySelectorAll('${dataSelector}').length > 0);\nawait page.waitForLoadState('networkidle');",
+    "category": "wait",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Wait for data/content to load and populate"
+  }
+]

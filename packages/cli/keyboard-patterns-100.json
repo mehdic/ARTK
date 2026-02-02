@@ -1,0 +1,902 @@
+[
+  {
+    "id": "KEY-001",
+    "trigger": "(?:press|hit|type|enter|input|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Enter|Return|enter|return|ENTER|RETURN)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('Enter');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Enter key"
+  },
+  {
+    "id": "KEY-002",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Tab|tab|TAB)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Tab key"
+  },
+  {
+    "id": "KEY-003",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Escape|Esc|escape|esc|ESC)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('Escape');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Escape key"
+  },
+  {
+    "id": "KEY-004",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Space|space|SPACE|spacebar|Spacebar)(?:\\s+(?:key|button|bar))?",
+    "pattern": "await page.keyboard.press('Space');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Space key"
+  },
+  {
+    "id": "KEY-005",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Backspace|backspace|BACKSPACE)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('Backspace');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Backspace key"
+  },
+  {
+    "id": "KEY-006",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Delete|Del|delete|del|DELETE|DEL)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('Delete');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Delete key"
+  },
+  {
+    "id": "KEY-007",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:up|Up|UP)\\s+(?:arrow|Arrow|ARROW)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('ArrowUp');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Arrow Up key"
+  },
+  {
+    "id": "KEY-008",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:down|Down|DOWN)\\s+(?:arrow|Arrow|ARROW)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('ArrowDown');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Arrow Down key"
+  },
+  {
+    "id": "KEY-009",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:left|Left|LEFT)\\s+(?:arrow|Arrow|ARROW)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('ArrowLeft');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Arrow Left key"
+  },
+  {
+    "id": "KEY-010",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:right|Right|RIGHT)\\s+(?:arrow|Arrow|ARROW)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('ArrowRight');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Arrow Right key"
+  },
+  {
+    "id": "KEY-011",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Home|home|HOME)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('Home');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Home key"
+  },
+  {
+    "id": "KEY-012",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:End|end|END)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('End');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the End key"
+  },
+  {
+    "id": "KEY-013",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:PageUp|Page\\s+Up|page\\s+up|PAGEUP)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('PageUp');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Page Up key"
+  },
+  {
+    "id": "KEY-014",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:PageDown|Page\\s+Down|page\\s+down|PAGEDOWN)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('PageDown');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Page Down key"
+  },
+  {
+    "id": "KEY-015",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:Insert|Ins|insert|ins|INSERT|INS)(?:\\s+(?:key|button))?",
+    "pattern": "await page.keyboard.press('Insert');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press the Insert key"
+  },
+  {
+    "id": "KEY-016",
+    "trigger": "(?:type|enter|input|fill)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.keyboard.type('$1');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Type text into the active element"
+  },
+  {
+    "id": "KEY-017",
+    "trigger": "(?:type|enter|input)(?:s|ed|ing)?\\s+(?:text|string|value)\\s+['\"]([^'\"]+)['\"]\\s+(?:slowly|with\\s+delay)",
+    "pattern": "await page.keyboard.type('$1', { delay: 100 });",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Type text slowly with delay between keystrokes"
+  },
+  {
+    "id": "KEY-018",
+    "trigger": "(?:clear|erase|delete)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:input|field|textbox)\\s+(?:and\\s+)?(?:type|enter|input)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.keyboard.press('Control+A');\nawait page.keyboard.press('Backspace');\nawait page.keyboard.type('$1');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Clear input and type new text"
+  },
+  {
+    "id": "KEY-019",
+    "trigger": "(?:type|enter|input)(?:s|ed|ing)?\\s+(?:special\\s+characters?|symbols?)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.keyboard.type('$1');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Type special characters"
+  },
+  {
+    "id": "KEY-020",
+    "trigger": "(?:type|enter|input)(?:s|ed|ing)?\\s+(?:unicode|UTF-8|emoji)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.keyboard.type('$1');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Type unicode or emoji characters"
+  },
+  {
+    "id": "KEY-021",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:A|a)",
+    "pattern": "await page.keyboard.press('Control+A');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+A (Select All)"
+  },
+  {
+    "id": "KEY-022",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:C|c)",
+    "pattern": "await page.keyboard.press('Control+C');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+C (Copy)"
+  },
+  {
+    "id": "KEY-023",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:V|v)",
+    "pattern": "await page.keyboard.press('Control+V');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+V (Paste)"
+  },
+  {
+    "id": "KEY-024",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:X|x)",
+    "pattern": "await page.keyboard.press('Control+X');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+X (Cut)"
+  },
+  {
+    "id": "KEY-025",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Z|z)",
+    "pattern": "await page.keyboard.press('Control+Z');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Z (Undo)"
+  },
+  {
+    "id": "KEY-026",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Y|y)",
+    "pattern": "await page.keyboard.press('Control+Y');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Y (Redo)"
+  },
+  {
+    "id": "KEY-027",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:S|s)",
+    "pattern": "await page.keyboard.press('Control+S');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+S (Save)"
+  },
+  {
+    "id": "KEY-028",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:F|f)",
+    "pattern": "await page.keyboard.press('Control+F');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+F (Find)"
+  },
+  {
+    "id": "KEY-029",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:H|h)",
+    "pattern": "await page.keyboard.press('Control+H');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+H (Replace)"
+  },
+  {
+    "id": "KEY-030",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:N|n)",
+    "pattern": "await page.keyboard.press('Control+N');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+N (New)"
+  },
+  {
+    "id": "KEY-031",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:O|o)",
+    "pattern": "await page.keyboard.press('Control+O');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+O (Open)"
+  },
+  {
+    "id": "KEY-032",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:P|p)",
+    "pattern": "await page.keyboard.press('Control+P');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+P (Print)"
+  },
+  {
+    "id": "KEY-033",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:W|w)",
+    "pattern": "await page.keyboard.press('Control+W');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+W (Close)"
+  },
+  {
+    "id": "KEY-034",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:B|b)",
+    "pattern": "await page.keyboard.press('Control+B');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+B (Bold)"
+  },
+  {
+    "id": "KEY-035",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:I|i)",
+    "pattern": "await page.keyboard.press('Control+I');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+I (Italic)"
+  },
+  {
+    "id": "KEY-036",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:U|u)",
+    "pattern": "await page.keyboard.press('Control+U');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+U (Underline)"
+  },
+  {
+    "id": "KEY-037",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Shift|shift|SHIFT)\\s*\\+\\s*(?:Tab|tab|TAB)",
+    "pattern": "await page.keyboard.press('Shift+Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Shift+Tab (Reverse Tab)"
+  },
+  {
+    "id": "KEY-038",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Shift|shift|SHIFT)\\s*\\+\\s*(?:Enter|Return|enter|return)",
+    "pattern": "await page.keyboard.press('Shift+Enter');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Shift+Enter (New Line)"
+  },
+  {
+    "id": "KEY-039",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Shift|shift|SHIFT)\\s*\\+\\s*(?:N|n)",
+    "pattern": "await page.keyboard.press('Control+Shift+N');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Shift+N (New Incognito Window)"
+  },
+  {
+    "id": "KEY-040",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Shift|shift|SHIFT)\\s*\\+\\s*(?:T|t)",
+    "pattern": "await page.keyboard.press('Control+Shift+T');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Shift+T (Reopen Closed Tab)"
+  },
+  {
+    "id": "KEY-041",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Shift|shift|SHIFT)\\s*\\+\\s*(?:P|p)",
+    "pattern": "await page.keyboard.press('Control+Shift+P');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Shift+P (Command Palette)"
+  },
+  {
+    "id": "KEY-042",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Shift|shift|SHIFT)\\s*\\+\\s*(?:K|k)",
+    "pattern": "await page.keyboard.press('Control+Shift+K');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Shift+K (Delete Line)"
+  },
+  {
+    "id": "KEY-043",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Alt|alt|ALT)\\s*\\+\\s*(?:Delete|Del|delete|del)",
+    "pattern": "await page.keyboard.press('Control+Alt+Delete');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Alt+Delete"
+  },
+  {
+    "id": "KEY-044",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Alt|alt|ALT)\\s*\\+\\s*(?:T|t)",
+    "pattern": "await page.keyboard.press('Control+Alt+T');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+Alt+T (Terminal)"
+  },
+  {
+    "id": "KEY-045",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Alt|alt|ALT)\\s*\\+\\s*(?:Tab|tab|TAB)",
+    "pattern": "await page.keyboard.press('Alt+Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Alt+Tab (Switch Application)"
+  },
+  {
+    "id": "KEY-046",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Alt|alt|ALT)\\s*\\+\\s*(?:F4|f4)",
+    "pattern": "await page.keyboard.press('Alt+F4');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Alt+F4 (Close Window)"
+  },
+  {
+    "id": "KEY-047",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Alt|alt|ALT)\\s*\\+\\s*(?:Enter|Return|enter|return)",
+    "pattern": "await page.keyboard.press('Alt+Enter');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Alt+Enter (Full Screen/Properties)"
+  },
+  {
+    "id": "KEY-048",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:A|a)",
+    "pattern": "await page.keyboard.press('Meta+A');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+A (Select All - Mac)"
+  },
+  {
+    "id": "KEY-049",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:C|c)",
+    "pattern": "await page.keyboard.press('Meta+C');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+C (Copy - Mac)"
+  },
+  {
+    "id": "KEY-050",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:V|v)",
+    "pattern": "await page.keyboard.press('Meta+V');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+V (Paste - Mac)"
+  },
+  {
+    "id": "KEY-051",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:X|x)",
+    "pattern": "await page.keyboard.press('Meta+X');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+X (Cut - Mac)"
+  },
+  {
+    "id": "KEY-052",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:Z|z)",
+    "pattern": "await page.keyboard.press('Meta+Z');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+Z (Undo - Mac)"
+  },
+  {
+    "id": "KEY-053",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:Shift|shift|SHIFT)\\s*\\+\\s*(?:Z|z)",
+    "pattern": "await page.keyboard.press('Meta+Shift+Z');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+Shift+Z (Redo - Mac)"
+  },
+  {
+    "id": "KEY-054",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:S|s)",
+    "pattern": "await page.keyboard.press('Meta+S');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+S (Save - Mac)"
+  },
+  {
+    "id": "KEY-055",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:Q|q)",
+    "pattern": "await page.keyboard.press('Meta+Q');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+Q (Quit - Mac)"
+  },
+  {
+    "id": "KEY-056",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:W|w)",
+    "pattern": "await page.keyboard.press('Meta+W');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+W (Close Window - Mac)"
+  },
+  {
+    "id": "KEY-057",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Cmd|Command|Meta|cmd|command|meta)\\s*\\+\\s*(?:Tab|tab|TAB)",
+    "pattern": "await page.keyboard.press('Meta+Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Cmd+Tab (Switch App - Mac)"
+  },
+  {
+    "id": "KEY-058",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F1|f1)",
+    "pattern": "await page.keyboard.press('F1');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F1 key"
+  },
+  {
+    "id": "KEY-059",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F2|f2)",
+    "pattern": "await page.keyboard.press('F2');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F2 key"
+  },
+  {
+    "id": "KEY-060",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F3|f3)",
+    "pattern": "await page.keyboard.press('F3');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F3 key"
+  },
+  {
+    "id": "KEY-061",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F4|f4)",
+    "pattern": "await page.keyboard.press('F4');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F4 key"
+  },
+  {
+    "id": "KEY-062",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F5|f5)",
+    "pattern": "await page.keyboard.press('F5');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F5 key (Refresh)"
+  },
+  {
+    "id": "KEY-063",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F6|f6)",
+    "pattern": "await page.keyboard.press('F6');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F6 key"
+  },
+  {
+    "id": "KEY-064",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F7|f7)",
+    "pattern": "await page.keyboard.press('F7');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F7 key"
+  },
+  {
+    "id": "KEY-065",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F8|f8)",
+    "pattern": "await page.keyboard.press('F8');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F8 key"
+  },
+  {
+    "id": "KEY-066",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F9|f9)",
+    "pattern": "await page.keyboard.press('F9');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F9 key"
+  },
+  {
+    "id": "KEY-067",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F10|f10)",
+    "pattern": "await page.keyboard.press('F10');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F10 key"
+  },
+  {
+    "id": "KEY-068",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F11|f11)",
+    "pattern": "await page.keyboard.press('F11');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F11 key (Full Screen)"
+  },
+  {
+    "id": "KEY-069",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:F12|f12)",
+    "pattern": "await page.keyboard.press('F12');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press F12 key (Developer Tools)"
+  },
+  {
+    "id": "KEY-070",
+    "trigger": "(?:select\\s+all|select\\s+everything|highlight\\s+all)",
+    "pattern": "await page.keyboard.press('Control+A');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Select all content"
+  },
+  {
+    "id": "KEY-071",
+    "trigger": "(?:copy|copy\\s+(?:the\\s+)?(?:text|content|selection))",
+    "pattern": "await page.keyboard.press('Control+C');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Copy selected content"
+  },
+  {
+    "id": "KEY-072",
+    "trigger": "(?:paste|paste\\s+(?:the\\s+)?(?:text|content|clipboard))",
+    "pattern": "await page.keyboard.press('Control+V');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Paste clipboard content"
+  },
+  {
+    "id": "KEY-073",
+    "trigger": "(?:cut|cut\\s+(?:the\\s+)?(?:text|content|selection))",
+    "pattern": "await page.keyboard.press('Control+X');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Cut selected content"
+  },
+  {
+    "id": "KEY-074",
+    "trigger": "(?:undo|undo\\s+(?:the\\s+)?(?:last\\s+)?(?:action|change))",
+    "pattern": "await page.keyboard.press('Control+Z');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Undo last action"
+  },
+  {
+    "id": "KEY-075",
+    "trigger": "(?:redo|redo\\s+(?:the\\s+)?(?:last\\s+)?(?:action|change))",
+    "pattern": "await page.keyboard.press('Control+Y');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Redo last undone action"
+  },
+  {
+    "id": "KEY-076",
+    "trigger": "(?:make\\s+)?(?:text\\s+)?bold",
+    "pattern": "await page.keyboard.press('Control+B');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Make text bold"
+  },
+  {
+    "id": "KEY-077",
+    "trigger": "(?:make\\s+)?(?:text\\s+)?italic",
+    "pattern": "await page.keyboard.press('Control+I');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Make text italic"
+  },
+  {
+    "id": "KEY-078",
+    "trigger": "(?:indent|increase\\s+indent)",
+    "pattern": "await page.keyboard.press('Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Indent content"
+  },
+  {
+    "id": "KEY-079",
+    "trigger": "(?:outdent|unindent|decrease\\s+indent)",
+    "pattern": "await page.keyboard.press('Shift+Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Outdent content"
+  },
+  {
+    "id": "KEY-080",
+    "trigger": "(?:comment|toggle\\s+comment|comment\\s+(?:out|line))",
+    "pattern": "await page.keyboard.press('Control+/');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Toggle comment in code editor"
+  },
+  {
+    "id": "KEY-081",
+    "trigger": "(?:find|search|find\\s+text)",
+    "pattern": "await page.keyboard.press('Control+F');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Open find dialog"
+  },
+  {
+    "id": "KEY-082",
+    "trigger": "(?:find\\s+and\\s+replace|replace|find\\s+replace)",
+    "pattern": "await page.keyboard.press('Control+H');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Open find and replace dialog"
+  },
+  {
+    "id": "KEY-083",
+    "trigger": "(?:save|save\\s+(?:file|document))",
+    "pattern": "await page.keyboard.press('Control+S');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Save file"
+  },
+  {
+    "id": "KEY-084",
+    "trigger": "(?:save\\s+as|save\\s+a\\s+copy)",
+    "pattern": "await page.keyboard.press('Control+Shift+S');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Save as new file"
+  },
+  {
+    "id": "KEY-085",
+    "trigger": "(?:refresh|reload|refresh\\s+page)",
+    "pattern": "await page.keyboard.press('F5');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Refresh page"
+  },
+  {
+    "id": "KEY-086",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:R|r)",
+    "pattern": "await page.keyboard.press('Control+R');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Press Ctrl+R (Refresh)"
+  },
+  {
+    "id": "KEY-087",
+    "trigger": "(?:hard\\s+refresh|force\\s+refresh|clear\\s+cache\\s+and\\s+refresh)",
+    "pattern": "await page.keyboard.press('Control+Shift+R');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Hard refresh (bypass cache)"
+  },
+  {
+    "id": "KEY-088",
+    "trigger": "(?:open\\s+developer\\s+tools|dev\\s+tools|inspect\\s+element)",
+    "pattern": "await page.keyboard.press('F12');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Open developer tools"
+  },
+  {
+    "id": "KEY-089",
+    "trigger": "(?:zoom\\s+in|increase\\s+zoom)",
+    "pattern": "await page.keyboard.press('Control+Plus');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Zoom in"
+  },
+  {
+    "id": "KEY-090",
+    "trigger": "(?:zoom\\s+out|decrease\\s+zoom)",
+    "pattern": "await page.keyboard.press('Control+Minus');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Zoom out"
+  },
+  {
+    "id": "KEY-091",
+    "trigger": "(?:reset\\s+zoom|default\\s+zoom|zoom\\s+100)",
+    "pattern": "await page.keyboard.press('Control+0');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Reset zoom to 100%"
+  },
+  {
+    "id": "KEY-092",
+    "trigger": "(?:navigate\\s+(?:to\\s+)?(?:next|forward)|skip\\s+to\\s+next|go\\s+to\\s+next)\\s+(?:heading|landmark|region)",
+    "pattern": "await page.keyboard.press('H');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.8,
+    "description": "Navigate to next heading (screen reader)"
+  },
+  {
+    "id": "KEY-093",
+    "trigger": "(?:navigate\\s+(?:to\\s+)?(?:previous|back)|skip\\s+to\\s+previous|go\\s+to\\s+previous)\\s+(?:heading|landmark|region)",
+    "pattern": "await page.keyboard.press('Shift+H');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.8,
+    "description": "Navigate to previous heading (screen reader)"
+  },
+  {
+    "id": "KEY-094",
+    "trigger": "(?:skip\\s+to\\s+(?:main\\s+)?content|bypass\\s+navigation|skip\\s+nav)",
+    "pattern": "await page.keyboard.press('Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.8,
+    "description": "Skip to main content link"
+  },
+  {
+    "id": "KEY-095",
+    "trigger": "(?:navigate\\s+(?:to\\s+)?form\\s+(?:field|control|element)|tab\\s+to\\s+(?:next\\s+)?(?:form|input|field))",
+    "pattern": "await page.keyboard.press('Tab');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Navigate to next form field"
+  },
+  {
+    "id": "KEY-096",
+    "trigger": "(?:navigate\\s+(?:to\\s+)?(?:next|forward)\\s+link|jump\\s+to\\s+next\\s+link)",
+    "pattern": "await page.keyboard.press('K');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.8,
+    "description": "Navigate to next link (screen reader)"
+  },
+  {
+    "id": "KEY-097",
+    "trigger": "(?:navigate\\s+(?:to\\s+)?(?:next|forward)\\s+button|jump\\s+to\\s+next\\s+button)",
+    "pattern": "await page.keyboard.press('B');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.8,
+    "description": "Navigate to next button (screen reader)"
+  },
+  {
+    "id": "KEY-098",
+    "trigger": "(?:press|hit|type|strike)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:PrintScreen|Print\\s+Screen|PrtSc|print\\s+screen)",
+    "pattern": "await page.keyboard.press('PrintScreen');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Press Print Screen key"
+  },
+  {
+    "id": "KEY-099",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:Home|home|HOME)",
+    "pattern": "await page.keyboard.press('Control+Home');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Press Ctrl+Home (Go to top)"
+  },
+  {
+    "id": "KEY-100",
+    "trigger": "(?:press|hit|use|type)(?:s|ed|ing)?\\s+(?:Ctrl|Control|CTRL|ctrl)\\s*\\+\\s*(?:End|end|END)",
+    "pattern": "await page.keyboard.press('Control+End');",
+    "category": "keyboard",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Press Ctrl+End (Go to bottom)"
+  }
+]
