@@ -67,6 +67,12 @@ export class DashboardPanel {
           case 'llkbStats':
             vscode.commands.executeCommand('artk.llkb.stats');
             break;
+          case 'llkbSeed':
+            vscode.commands.executeCommand('artk.llkb.seed');
+            break;
+          case 'journeyValidate':
+            vscode.commands.executeCommand('artk.journey.validate');
+            break;
           case 'init':
             vscode.commands.executeCommand('artk.init');
             break;
@@ -353,7 +359,7 @@ export class DashboardPanel {
     ` : ''}
 
     <div class="card" role="region" aria-labelledby="llkb-heading">
-      <h2 id="llkb-heading">LLKB</h2>
+      <h2 id="llkb-heading">LLKB (Lessons Learned Knowledge Base)</h2>
       <div class="card-content">
         <div class="stat">
           <span class="stat-label">Status</span>
@@ -366,6 +372,7 @@ export class DashboardPanel {
       <div class="actions">
         <button onclick="runCommand('llkbHealth')" aria-label="Run LLKB health check">Health Check</button>
         <button onclick="runCommand('llkbStats')" aria-label="View LLKB statistics">Statistics</button>
+        <button onclick="runCommand('llkbSeed')" aria-label="Seed LLKB with universal patterns">Seed Patterns</button>
       </div>
       ` : ''}
     </div>

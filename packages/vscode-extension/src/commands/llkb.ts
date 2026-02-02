@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { llkbHealth, llkbStats, llkbExport } from '../cli';
+import { llkbHealth, llkbStats, llkbExport, llkbSeed } from '../cli';
 import { getWorkspaceContextManager } from '../workspace';
 
 /**
@@ -185,5 +185,114 @@ export async function runLLKBExport(): Promise<void> {
     }
   } else {
     vscode.window.showErrorMessage(`LLKB export failed: ${result.error}`);
+  }
+}
+
+/**
+ * Seed LLKB with universal patterns
+ */
+export async function runLLKBSeed(): Promise<void> {
+  const contextManager = getWorkspaceContextManager();
+
+  if (!contextManager.isInstalled) {
+    vscode.window.showWarningMessage('ARTK is not installed in this workspace.');
+    return;
+  }
+
+  if (!contextManager.llkbEnabled) {
+    const action = await vscode.window.showWarningMessage(
+      'LLKB is not enabled in this workspace.',
+      'Run Doctor'
+    );
+
+    if (action === 'Run Doctor') {
+      await vscode.commands.executeCommand('artk.doctor');
+    }
+    return;
+  }
+
+  const llkbRoot = contextManager.workspaceInfo?.llkbPath;
+  if (!llkbRoot) {
+    vscode.window.showErrorMessage('LLKB path not found.');
+    return;
+  }
+
+  // Ask which patterns to seed
+  const patternChoice = await vscode.window.showQuickPick(
+    [
+      {
+        label: '$(symbol-misc) Universal Patterns',
+        description: 'Common Playwright patterns for forms, tables, navigation',
+        value: 'universal',
+      },
+    ],
+    {
+      title: 'LLKB Seed',
+      placeHolder: 'Select pattern set to seed',
+    }
+  );
+
+  if (!patternChoice) {
+    return; // User cancelled
+  }
+
+  // Confirm seeding
+  const confirm = await vscode.window.showWarningMessage(
+    `This will add ${patternChoice.label} to your LLKB. Existing patterns with the same ID will be skipped.`,
+    'Seed LLKB',
+    'Preview First'
+  );
+
+  if (!confirm) {
+    return;
+  }
+
+  const dryRun = confirm === 'Preview First';
+
+  const result = await llkbSeed({
+    patterns: patternChoice.value,
+    llkbRoot,
+    dryRun,
+  });
+
+  if (result.success) {
+    const outputChannel = vscode.window.createOutputChannel('ARTK');
+    outputChannel.clear();
+    outputChannel.appendLine('LLKB Seed');
+    outputChannel.appendLine('='.repeat(50));
+    outputChannel.appendLine('');
+    outputChannel.appendLine(result.data || 'Seeding completed.');
+    outputChannel.show();
+
+    if (dryRun) {
+      const action = await vscode.window.showInformationMessage(
+        'Preview completed. Would you like to apply these patterns?',
+        'Apply Now',
+        'Cancel'
+      );
+
+      if (action === 'Apply Now') {
+        // Run again without dry-run
+        const applyResult = await llkbSeed({
+          patterns: patternChoice.value,
+          llkbRoot,
+          dryRun: false,
+        });
+
+        if (applyResult.success) {
+          vscode.window.showInformationMessage('LLKB seeded successfully!');
+          // Refresh LLKB view
+          contextManager.refresh();
+        } else {
+          vscode.window.showErrorMessage(`LLKB seeding failed: ${applyResult.error}`);
+        }
+      }
+    } else {
+      vscode.window.showInformationMessage('LLKB seeded successfully!');
+      // Refresh LLKB view
+      contextManager.refresh();
+    }
+  } else {
+    vscode.window.showErrorMessage(`LLKB seeding failed: ${result.error}`);
   }
 }

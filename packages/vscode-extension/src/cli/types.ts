@@ -74,3 +74,60 @@ export interface CheckPrerequisitesResult {
   };
   issues: string[];
 }
+
+export interface CLILLKBSeedOptions {
+  /** Pattern set to seed (e.g., 'universal') */
+  patterns: string;
+  /** LLKB root directory */
+  llkbRoot?: string;
+  /** Dry run mode */
+  dryRun?: boolean;
+  /** List available seeds */
+  list?: boolean;
+}
+
+export interface CLIJourneyValidateOptions {
+  /** Journey IDs to validate */
+  journeyIds: string[];
+  /** Harness root directory */
+  harnessRoot: string;
+  /** Output as JSON */
+  json?: boolean;
+}
+
+export interface CLIJourneyImplementOptions {
+  /** Journey IDs to implement */
+  journeyIds: string[];
+  /** Harness root directory */
+  harnessRoot: string;
+  /** Batch mode */
+  batchMode?: 'serial';
+  /** Learning mode */
+  learningMode?: 'strict' | 'batch' | 'none';
+  /** Dry run mode */
+  dryRun?: boolean;
+  /** Verbose output */
+  verbose?: boolean;
+}
+
+export interface LLKBStatsResult {
+  lessons: number;
+  components: number;
+  avgConfidence: number;
+  lastUpdated?: string;
+  indexes?: {
+    byCategory: Record<string, number>;
+    byScope: Record<string, number>;
+  };
+}
+
+export interface JourneySummary {
+  proposed: number;
+  defined: number;
+  clarified: number;
+  implemented: number;
+  quarantined: number;
+  deprecated: number;
+  total: number;
+  readyToImplement: string[];
+}

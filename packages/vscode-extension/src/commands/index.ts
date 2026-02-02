@@ -7,7 +7,7 @@ import { runInitWizard } from './init';
 import { runDoctor } from './doctor';
 import { runCheck } from './check';
 import { openConfig, openJourney } from './config';
-import { runLLKBHealth, runLLKBStats, runLLKBExport } from './llkb';
+import { runLLKBHealth, runLLKBStats, runLLKBExport, runLLKBSeed } from './llkb';
 import { getWorkspaceContextManager } from '../workspace';
 import { upgrade, uninstall } from '../cli';
 import { DashboardPanel } from '../views/dashboard/DashboardPanel';
@@ -98,7 +98,8 @@ export function registerCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('artk.llkb.health', runLLKBHealth),
     vscode.commands.registerCommand('artk.llkb.stats', runLLKBStats),
-    vscode.commands.registerCommand('artk.llkb.export', runLLKBExport)
+    vscode.commands.registerCommand('artk.llkb.export', runLLKBExport),
+    vscode.commands.registerCommand('artk.llkb.seed', runLLKBSeed)
   );
 
   // Refresh command

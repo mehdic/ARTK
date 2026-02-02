@@ -17,6 +17,9 @@ import type {
   CLIUpgradeOptions,
   CLILLKBOptions,
   CLILLKBExportOptions,
+  CLILLKBSeedOptions,
+  CLIJourneyValidateOptions,
+  CLIJourneyImplementOptions,
   CheckPrerequisitesResult,
 } from './types';
 
@@ -356,4 +359,81 @@ export async function llkbExport(options: CLILLKBExportOptions): Promise<CLIResu
   }
 
   return runCLIWithProgress('Exporting LLKB...', args);
+}
+
+/**
+ * Seed LLKB with universal patterns
+ */
+export async function llkbSeed(options: CLILLKBSeedOptions): Promise<CLIResult> {
+  const args = ['llkb', 'seed'];
+
+  if (options.list) {
+    args.push('--list');
+    return runCLI(args);
+  }
+
+  args.push('--patterns', options.patterns);
+
+  if (options.llkbRoot) {
+    args.push('--llkb-root', options.llkbRoot);
+  }
+  if (options.dryRun) {
+    args.push('--dry-run');
+  }
+
+  return runCLIWithProgress('Seeding LLKB with patterns...', args);
+}
+
+/**
+ * Validate journey(s) for implementation
+ */
+export async function journeyValidate(options: CLIJourneyValidateOptions): Promise<CLIResult> {
+  const args = [
+    'journey',
+    'validate',
+    ...options.journeyIds,
+    '--harness-root',
+    options.harnessRoot,
+  ];
+
+  if (options.json) {
+    args.push('--json');
+  }
+
+  return runCLIWithProgress('Validating journey(s)...', args);
+}
+
+/**
+ * Check if LLKB is configured and ready
+ */
+export async function journeyCheckLlkb(harnessRoot: string): Promise<CLIResult> {
+  return runCLI(['journey', 'check-llkb', '--harness-root', harnessRoot, '--json']);
+}
+
+/**
+ * Implement journey(s) - generate tests
+ */
+export async function journeyImplement(options: CLIJourneyImplementOptions): Promise<CLIResult> {
+  const args = [
+    'journey',
+    'implement',
+    ...options.journeyIds,
+    '--harness-root',
+    options.harnessRoot,
+  ];
+
+  if (options.batchMode) {
+    args.push('--batch-mode', options.batchMode);
+  }
+  if (options.learningMode) {
+    args.push('--learning-mode', options.learningMode);
+  }
+  if (options.dryRun) {
+    args.push('--dry-run');
+  }
+  if (options.verbose) {
+    args.push('--verbose');
+  }
+
+  return runCLIWithProgress('Implementing journey(s)...', args);
 }
