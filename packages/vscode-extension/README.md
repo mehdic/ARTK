@@ -99,3 +99,4 @@ npm run package
 ## License
 
 MIT
+
