@@ -158,7 +158,7 @@ function loadRefinementStates(): RefinementStateInfo[] {
             attempts: data.attempts?.length || 0,
             lastStatus: lastAttempt?.errors?.length > 0 ? 'failed' : 'passed',
             trend: 'unknown', // Would need convergence detector
-            isBlocked: data.circuitBreaker?.isOpen || false,
+            isBlocked: data.circuitBreakerState?.isOpen ?? false,  // Fixed: was incorrectly reading circuitBreaker
           });
         } catch {
           // Skip corrupted files

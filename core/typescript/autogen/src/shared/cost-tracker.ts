@@ -102,16 +102,24 @@ export class CostTracker {
   }
 
   /**
-   * Check if a limit has been exceeded
+   * Check if we are still under budget (have not exceeded limit)
+   * @returns true if cost is UNDER the limit (can continue), false if limit exceeded
    */
-  checkLimit(type: 'test' | 'session'): boolean {
-    if (!this.limits.enabled) return true;
+  isUnderBudget(type: 'test' | 'session'): boolean {
+    if (!this.limits.enabled) return true;  // No limits = always under budget
 
     if (type === 'test') {
       return this.state.testCost < this.limits.perTestUsd;
     } else {
       return this.state.sessionCost < this.limits.perSessionUsd;
     }
+  }
+
+  /**
+   * @deprecated Use isUnderBudget() instead - clearer naming
+   */
+  checkLimit(type: 'test' | 'session'): boolean {
+    return this.isUnderBudget(type);
   }
 
   /**
