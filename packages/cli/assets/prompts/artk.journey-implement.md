@@ -1993,6 +1993,66 @@ Assertions mapping:
 - Prefer user-visible assertions.
 - No sleeps - use core assertions for async completion.
 
+### 5.9 MANDATORY: Record Blocked Step Patterns (Learning Loop)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  📚 BLOCKED STEP LEARNING: Close the Learning Loop                        ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  When you manually implement code for a BLOCKED step from AutoGen,        ║
+# ║  you MUST record the pattern so LLKB can learn from it.                   ║
+# ║                                                                           ║
+# ║  This is how the system improves over time:                               ║
+# ║  1. AutoGen blocks on complex step                                        ║
+# ║  2. You (LLM) write the Playwright code                                   ║
+# ║  3. You record the pattern to LLKB                                        ║
+# ║  4. Next time, AutoGen may be able to generate it                         ║
+# ║                                                                           ║
+# ║  WITHOUT this step, LLKB never learns and blocked rates stay high.        ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+**For EACH blocked step you implemented manually, run:**
+
+```bash
+cd <ARTK_ROOT>/<harnessRoot>
+
+artk llkb learn --type pattern --journey <JRN-ID> --success \
+  --context "<original step text from journey>" \
+  --selector-strategy <testid|role|label|css> \
+  --selector-value "<the selector you used>"
+```
+
+**Example: If AutoGen blocked on "Verify the order summary shows correct total":**
+
+```bash
+# You wrote this code:
+#   await expect(page.getByTestId('order-total')).toHaveText(expectedTotal);
+
+# Record it to LLKB:
+artk llkb learn --type pattern --journey JRN-0042 --success \
+  --context "Verify the order summary shows correct total" \
+  --selector-strategy testid \
+  --selector-value "order-total"
+```
+
+**Blocked Step Learning Checklist:**
+- [ ] Identified all blocked steps from AutoGen output
+- [ ] Wrote Playwright code for each blocked step
+- [ ] Recorded pattern to LLKB for each blocked step
+- [ ] Verified command succeeded (no errors)
+
+**Output after recording blocked step patterns:**
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  BLOCKED STEPS → LLKB PATTERNS RECORDED                            ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Journey: {JRN-ID}                                                 ║
+║  Blocked steps fixed: {count}                                      ║
+║  Patterns recorded: {count}                                        ║
+║                                                                    ║
+║  These patterns will improve AutoGen for future journeys.          ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
 ---
 
 ## Step 6 — LLKB Component Matching and Usage Recording
