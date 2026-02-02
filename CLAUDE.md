@@ -600,11 +600,17 @@ C:\data\workspaces\ARTK-public\scripts\bootstrap.ps1 .
 |----------|----------|
 | `artk-e2e/` | Test directory structure (tests, journeys, docs, .auth-states) |
 | `artk-e2e/vendor/artk-core/` | @artk/core library (auth, config, fixtures) |
-| `.github/prompts/` | Copilot slash commands (`/artk.init-playbook`, `/artk.journey-implement`, etc.) |
+| `.github/prompts/` | Stub prompt files that delegate to agents (invoke with `/artk.*`) |
+| `.github/agents/` | Full agent implementations with handoffs (invoke with `@artk.*`) |
 | `.artk/context.json` | ARTK context metadata |
 | `artk-e2e/package.json` | Dependencies and scripts |
 | `artk-e2e/playwright.config.ts` | Playwright configuration |
 | `artk-e2e/artk.config.yml` | ARTK configuration |
+
+**Two-Tier Prompt/Agent Architecture:**
+- **Prompts** (`.github/prompts/artk.*.prompt.md`): Minimal stub files with `agent:` property that delegate to full agents
+- **Agents** (`.github/agents/artk.*.agent.md`): Full implementation with handoffs (suggested next actions)
+- User invokes with `/artk.journey-define` (loads prompt → delegates to agent → handoffs appear after execution)
 
 **After installation:**
 1. Open VS Code in the target project
@@ -1143,3 +1149,19 @@ This ensures tests continuously benefit from LLKB improvements while maintaining
 ## Recent Changes
 
 - 001-artk-core-v1: Added TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.57.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)
+
+## Architecture Status (2026-02-01)
+
+**See:** `research/2026-02-01_journey-implement-architecture-analysis.md`
+
+The journey-implement system is a **hybrid architecture**:
+- **CLI** (`artk journey implement`): Validates, orchestrates, tracks session state
+- **AutoGen**: Deterministic pattern-based code generation (handles ~40-60% of steps)
+- **LLM**: Semantic understanding for complex/blocked steps (handles ~40-60% of steps)
+- **LLKB**: Learning system to improve over time (currently incomplete)
+
+**Critical Issues to Address:**
+1. LLKB CLI commands not implemented (`artk llkb export` etc.)
+2. No feedback loop from LLM fixes to LLKB learning
+3. Cold start problem - LLKB needs pre-seeding
+4. No telemetry for blocked step analysis

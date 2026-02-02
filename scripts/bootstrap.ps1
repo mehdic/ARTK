@@ -16,7 +16,7 @@
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
 # 2. Copies @artk/core to vendor/
-# 3. Installs prompts to .github/prompts/
+# 3. Installs prompts to .github/prompts/ and agents to .github/agents/
 # 4. Creates package.json, playwright.config.ts, artk.config.yml
 # 5. Runs npm install
 #
@@ -1235,16 +1235,91 @@ If you need to customize Journey schemas:
     Write-Host "Journey System will need manual installation via init-playbook" -ForegroundColor Yellow
 }
 
-# Step 4: Install prompts
-Write-Host "[4/7] Installing prompts to .github/prompts/..." -ForegroundColor Yellow
-$PromptsTarget = Join-Path $TargetProject ".github\prompts"
-New-Item -ItemType Directory -Force -Path $PromptsTarget | Out-Null
+# Step 4: Install prompts AND agents (two-tier architecture)
+# - .github/prompts/*.prompt.md = stub files that delegate to agents
+# - .github/agents/*.agent.md = full implementation with handoffs
+Write-Host "[4/7] Installing prompts and agents (two-tier architecture)..." -ForegroundColor Yellow
 
+$PromptsTarget = Join-Path $TargetProject ".github\prompts"
+$AgentsTarget = Join-Path $TargetProject ".github\agents"
+
+# Detect upgrade scenario: prompts exist but agents don't
+if ((Test-Path $PromptsTarget) -and -not (Test-Path $AgentsTarget)) {
+    $OldPromptFile = Join-Path $PromptsTarget "artk.journey-propose.prompt.md"
+    if (Test-Path $OldPromptFile) {
+        $OldContent = Get-Content $OldPromptFile -First 50 -ErrorAction SilentlyContinue | Out-String
+        if ($OldContent -match "^# ARTK") {
+            Write-Host "  Detected existing ARTK installation. Upgrading to two-tier architecture..." -ForegroundColor Cyan
+            $BackupDir = "$PromptsTarget.backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            Copy-Item -Path $PromptsTarget -Destination $BackupDir -Recurse -Force
+            Write-Host "  Backed up existing prompts to $BackupDir" -ForegroundColor Cyan
+            # Remove old full-content artk.* prompt files (will be replaced with stubs)
+            Get-ChildItem -Path $PromptsTarget -Filter "artk.*.prompt.md" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+New-Item -ItemType Directory -Force -Path $PromptsTarget | Out-Null
+New-Item -ItemType Directory -Force -Path $AgentsTarget | Out-Null
+
+# Helper function to extract YAML frontmatter value
+function Get-YamlValue {
+    param(
+        [string]$FilePath,
+        [string]$Key
+    )
+    $content = Get-Content $FilePath -ErrorAction SilentlyContinue
+    foreach ($line in $content) {
+        if ($line -match "^${Key}:\s*[`"']?([^`"']+)[`"']?") {
+            return $matches[1].Trim()
+        }
+    }
+    return ""
+}
+
+# Helper function to generate stub prompt content
+function New-StubPrompt {
+    param(
+        [string]$Name,
+        [string]$Description
+    )
+    return @"
+---
+name: $Name
+description: "$Description"
+agent: $Name
+---
+# ARTK $Name
+
+This prompt delegates to the ``@$Name`` agent for full functionality including suggested next actions (handoffs).
+
+Run ``/$Name`` to start, or select ``@$Name`` from the agent picker.
+"@
+}
+
+$InstalledCount = 0
 Get-ChildItem -Path $ArtkPrompts -Filter "artk.*.md" | ForEach-Object {
     $filename = $_.Name
-    $newname = $filename -replace '\.md$', '.prompt.md'
-    Copy-Item $_.FullName -Destination (Join-Path $PromptsTarget $newname) -Force
+    $basenameNoExt = $filename -replace '\.md$', ''
+
+    # Extract metadata from source file
+    $Name = Get-YamlValue -FilePath $_.FullName -Key "name"
+    if (-not $Name) { $Name = $basenameNoExt }
+
+    $Description = Get-YamlValue -FilePath $_.FullName -Key "description"
+    if (-not $Description) { $Description = "ARTK prompt" }
+
+    # 1. Copy full content to agents/ as .agent.md
+    Copy-Item $_.FullName -Destination (Join-Path $AgentsTarget "$basenameNoExt.agent.md") -Force
+
+    # 2. Generate stub for prompts/ as .prompt.md
+    $stubContent = New-StubPrompt -Name $Name -Description $Description
+    Set-Content -Path (Join-Path $PromptsTarget "$basenameNoExt.prompt.md") -Value $stubContent -Encoding UTF8
+
+    $script:InstalledCount++
 }
+
+Write-Host "  Installed $InstalledCount prompts (stubs) + agents (full content)" -ForegroundColor Green
 
 $CommonPromptsSource = Join-Path $ArtkPrompts "common"
 $CommonPromptsTarget = Join-Path $PromptsTarget "common"
@@ -2231,7 +2306,8 @@ Write-Host "  artk-e2e/package.json                 - Test workspace dependencie
 Write-Host "  artk-e2e/playwright.config.ts         - Playwright configuration"
 Write-Host "  artk-e2e/tsconfig.json                - TypeScript configuration"
 Write-Host "  artk-e2e/artk.config.yml              - ARTK configuration"
-Write-Host "  .github/prompts/                      - Copilot prompts"
+Write-Host "  .github/prompts/                      - Copilot prompt stubs (invoke with /)"
+Write-Host "  .github/agents/                       - Copilot agents with handoffs (full content)"
 Write-Host "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
 Write-Host "  artk-e2e/.artk/context.json           - ARTK context"
 Write-Host "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"

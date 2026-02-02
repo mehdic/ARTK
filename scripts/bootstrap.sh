@@ -18,7 +18,7 @@
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
 # 2. Copies @artk/core to vendor/
-# 3. Installs prompts to .github/prompts/
+# 3. Installs prompts to .github/prompts/ and agents to .github/agents/
 # 4. Creates package.json, playwright.config.ts, artk.config.yml
 # 5. Runs npm install
 #
@@ -1123,18 +1123,80 @@ else
     echo -e "${YELLOW}Journey System will need manual installation via init-playbook${NC}"
 fi
 
-# Step 4: Install prompts
-echo -e "${YELLOW}[4/7] Installing prompts to .github/prompts/...${NC}"
-PROMPTS_TARGET="$TARGET_PROJECT/.github/prompts"
-mkdir -p "$PROMPTS_TARGET"
+# Step 4: Install prompts AND agents (two-tier architecture)
+# - .github/prompts/*.prompt.md = stub files that delegate to agents
+# - .github/agents/*.agent.md = full implementation with handoffs
+echo -e "${YELLOW}[4/7] Installing prompts and agents (two-tier architecture)...${NC}"
 
+PROMPTS_TARGET="$TARGET_PROJECT/.github/prompts"
+AGENTS_TARGET="$TARGET_PROJECT/.github/agents"
+
+# Detect upgrade scenario: prompts exist but agents don't
+if [ -d "$PROMPTS_TARGET" ] && [ ! -d "$AGENTS_TARGET" ]; then
+    # Check if old-style full content prompts exist
+    OLD_PROMPT_CHECK=$(head -50 "$PROMPTS_TARGET/artk.journey-propose.prompt.md" 2>/dev/null | grep -c "^# ARTK" || echo "0")
+    if [ "$OLD_PROMPT_CHECK" -gt 0 ]; then
+        echo -e "${CYAN}  Detected existing ARTK installation. Upgrading to two-tier architecture...${NC}"
+        BACKUP_DIR="$PROMPTS_TARGET.backup-$(date +%Y%m%d-%H%M%S)"
+        cp -r "$PROMPTS_TARGET" "$BACKUP_DIR"
+        echo -e "${CYAN}  Backed up existing prompts to $BACKUP_DIR${NC}"
+        # Remove old full-content artk.* prompt files (will be replaced with stubs)
+        rm -f "$PROMPTS_TARGET"/artk.*.prompt.md 2>/dev/null || true
+    fi
+fi
+
+mkdir -p "$PROMPTS_TARGET"
+mkdir -p "$AGENTS_TARGET"
+
+# Helper function to extract YAML frontmatter value
+extract_yaml_value() {
+    local file="$1"
+    local key="$2"
+    grep -m1 "^${key}:" "$file" 2>/dev/null | sed "s/^${key}: *//; s/^[\"']//; s/[\"']$//" || echo ""
+}
+
+# Helper function to generate stub prompt content
+generate_stub_prompt() {
+    local name="$1"
+    local description="$2"
+    cat << STUBEOF
+---
+name: ${name}
+description: "${description}"
+agent: ${name}
+---
+# ARTK ${name}
+
+This prompt delegates to the \`@${name}\` agent for full functionality including suggested next actions (handoffs).
+
+Run \`/${name}\` to start, or select \`@${name}\` from the agent picker.
+STUBEOF
+}
+
+INSTALLED_COUNT=0
 for file in "$ARTK_PROMPTS"/artk.*.md; do
     if [ -f "$file" ]; then
         filename=$(basename "$file")
-        newname="${filename%.md}.prompt.md"
-        cp "$file" "$PROMPTS_TARGET/$newname"
+        basename_no_ext="${filename%.md}"
+
+        # Extract metadata from source file
+        NAME=$(extract_yaml_value "$file" "name")
+        [ -z "$NAME" ] && NAME="$basename_no_ext"
+
+        DESCRIPTION=$(extract_yaml_value "$file" "description")
+        [ -z "$DESCRIPTION" ] && DESCRIPTION="ARTK prompt"
+
+        # 1. Copy full content to agents/ as .agent.md
+        cp "$file" "$AGENTS_TARGET/${basename_no_ext}.agent.md"
+
+        # 2. Generate stub for prompts/ as .prompt.md
+        generate_stub_prompt "$NAME" "$DESCRIPTION" > "$PROMPTS_TARGET/${basename_no_ext}.prompt.md"
+
+        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
     fi
 done
+
+echo -e "${GREEN}✓ Installed $INSTALLED_COUNT prompts (stubs) + agents (full content)${NC}"
 
 COMMON_PROMPTS_SOURCE="$ARTK_PROMPTS/common"
 COMMON_PROMPTS_TARGET="$PROMPTS_TARGET/common"
@@ -2241,7 +2303,8 @@ echo "  artk-e2e/package.json                 - Test workspace dependencies"
 echo "  artk-e2e/playwright.config.ts         - Playwright configuration"
 echo "  artk-e2e/tsconfig.json                - TypeScript configuration"
 echo "  artk-e2e/artk.config.yml              - ARTK configuration"
-echo "  .github/prompts/                      - Copilot prompts"
+echo "  .github/prompts/                      - Copilot prompt stubs (invoke with /)"
+echo "  .github/agents/                       - Copilot agents with handoffs (full content)"
 echo "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
 echo "  artk-e2e/.artk/context.json           - ARTK context"
 echo "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"

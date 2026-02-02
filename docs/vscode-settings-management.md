@@ -223,6 +223,60 @@ The PowerShell script works on both:
 
 It uses a custom `ConvertTo-Hashtable` function instead of the PS7-only `-AsHashtable` parameter.
 
+## Two-Tier Prompt/Agent Architecture
+
+ARTK uses a two-tier architecture for VS Code Copilot integration:
+
+### File Structure
+
+| Directory | File Pattern | Purpose |
+|-----------|--------------|---------|
+| `.github/prompts/` | `artk.*.prompt.md` | Stub files that delegate to agents |
+| `.github/agents/` | `artk.*.agent.md` | Full implementations with handoffs |
+
+### How It Works
+
+1. **User invokes** `/artk.journey-define` (prompt file)
+2. **Prompt stub** contains `agent:` property that delegates to the agent
+3. **Agent executes** with full instructions and YAML frontmatter
+4. **Handoffs appear** as clickable "Suggested Next Actions" buttons
+
+### Stub Prompt Format
+
+```markdown
+---
+name: artk.journey-define
+description: "Create or promote a Journey to canonical structure"
+agent: artk.journey-define
+---
+# ARTK artk.journey-define
+
+This prompt delegates to the `@artk.journey-define` agent for full functionality.
+```
+
+### Agent File Format
+
+```markdown
+---
+name: artk.journey-define
+mode: agent
+description: "Full implementation details..."
+handoffs:
+  - label: "Clarify Journey"
+    agent: artk.journey-clarify
+  - label: "Implement Tests"
+    agent: artk.journey-implement
+---
+# Full prompt content with instructions, examples, and rules...
+```
+
+### Why Two-Tier?
+
+- **Handoffs only work in `.agent.md` files** (VS Code limitation)
+- **Users invoke with `/` prefix** (familiar slash command pattern)
+- **Clean separation** between invocation (prompt) and implementation (agent)
+- **Upgrade path**: Old installations get prompts replaced with stubs, agents added
+
 ## Full Settings Template
 
 The complete settings template is at `templates/vscode/settings.json` and includes:
@@ -233,7 +287,7 @@ The complete settings template is at `templates/vscode/settings.json` and includ
 - Legacy Copilot settings (backward compatibility)
 - Editor settings for TypeScript
 - Playwright test explorer integration
-- File associations and search exclusions
+- File associations and search exclusions (including `*.agent.md` as markdown)
 
 ## Troubleshooting
 
