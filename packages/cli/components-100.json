@@ -1,0 +1,1002 @@
+[
+  {
+    "id": "COMP-001",
+    "name": "loginWithCredentials",
+    "trigger": "(?:login|sign\\s*in|log\\s*in|authenticate)(?:s|ed|ing)?\\s+(?:with\\s+)?(?:username|email|credentials)",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Complete login flow with username and password",
+    "code": "async function loginWithCredentials(page: Page, username: string, password: string, options?: { rememberMe?: boolean; timeout?: number }) {\n  const timeout = options?.timeout ?? 30000;\n  await page.goto('/login', { waitUntil: 'domcontentloaded' });\n  await page.getByLabel(/username|email/i).fill(username);\n  await page.getByLabel(/password/i).fill(password);\n  if (options?.rememberMe) {\n    await page.getByLabel(/remember/i).check();\n  }\n  await page.getByRole('button', { name: /login|sign\\s*in/i }).click();\n  await page.waitForURL(/dashboard|home/i, { timeout });\n  await expect(page.locator('[data-testid=\"user-menu\"]')).toBeVisible({ timeout: 5000 });\n}"
+  },
+  {
+    "id": "COMP-002",
+    "name": "loginWithOAuth",
+    "trigger": "(?:login|sign\\s*in|authenticate)(?:s|ed|ing)?\\s+(?:with\\s+|via\\s+|using\\s+)?(?:oauth|google|github|microsoft|facebook|twitter)",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "OAuth authentication flow with provider selection",
+    "code": "async function loginWithOAuth(page: Page, provider: 'google' | 'github' | 'microsoft', credentials: { email: string; password: string }) {\n  await page.goto('/login');\n  await page.getByRole('button', { name: new RegExp(provider, 'i') }).click();\n  const popupPromise = page.waitForEvent('popup');\n  const popup = await popupPromise;\n  await popup.waitForLoadState('domcontentloaded');\n  await popup.getByLabel(/email|username/i).fill(credentials.email);\n  await popup.getByLabel(/password/i).fill(credentials.password);\n  await popup.getByRole('button', { name: /sign\\s*in|login|continue/i }).click();\n  await popup.waitForEvent('close');\n  await page.waitForURL(/dashboard|home/i, { timeout: 30000 });\n}"
+  },
+  {
+    "id": "COMP-003",
+    "name": "loginWithSSO",
+    "trigger": "(?:login|sign\\s*in|authenticate)(?:s|ed|ing)?\\s+(?:with\\s+|via\\s+|using\\s+)?(?:sso|single\\s*sign\\s*on|saml)",
+    "category": "auth",
+    "scope": "enterprise",
+    "confidence": 0.87,
+    "description": "Single Sign-On authentication flow",
+    "code": "async function loginWithSSO(page: Page, domain: string, credentials: { email: string; password: string }) {\n  await page.goto('/login');\n  await page.getByRole('link', { name: /sso|enterprise\\s*login/i }).click();\n  await page.getByLabel(/domain|organization/i).fill(domain);\n  await page.getByRole('button', { name: /continue|next/i }).click();\n  await page.waitForNavigation({ waitUntil: 'domcontentloaded' });\n  await page.getByLabel(/email|username/i).fill(credentials.email);\n  await page.getByLabel(/password/i).fill(credentials.password);\n  await page.getByRole('button', { name: /sign\\s*in/i }).click();\n  await page.waitForURL(/dashboard|home/i, { timeout: 30000 });\n}"
+  },
+  {
+    "id": "COMP-004",
+    "name": "loginWithMFA",
+    "trigger": "(?:login|sign\\s*in|authenticate)(?:s|ed|ing)?\\s+(?:with\\s+)?(?:mfa|2fa|two\\s*factor|multi\\s*factor|totp)",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Multi-factor authentication login flow",
+    "code": "async function loginWithMFA(page: Page, username: string, password: string, totpSecret: string) {\n  const otplib = require('otplib');\n  await page.goto('/login');\n  await page.getByLabel(/username|email/i).fill(username);\n  await page.getByLabel(/password/i).fill(password);\n  await page.getByRole('button', { name: /login|sign\\s*in/i }).click();\n  await page.waitForSelector('[data-testid=\"mfa-code-input\"]', { timeout: 10000 });\n  const token = otplib.authenticator.generate(totpSecret);\n  await page.getByLabel(/code|token|otp/i).fill(token);\n  await page.getByRole('button', { name: /verify|continue|submit/i }).click();\n  await page.waitForURL(/dashboard|home/i, { timeout: 30000 });\n}"
+  },
+  {
+    "id": "COMP-005",
+    "name": "logout",
+    "trigger": "(?:logout|sign\\s*out|log\\s*out)(?:s|ed|ing)?",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Complete logout flow with confirmation",
+    "code": "async function logout(page: Page, options?: { skipConfirmation?: boolean }) {\n  await page.getByRole('button', { name: /user\\s*menu|profile|account/i }).click();\n  await page.getByRole('menuitem', { name: /logout|sign\\s*out/i }).click();\n  if (!options?.skipConfirmation) {\n    const confirmButton = page.getByRole('button', { name: /confirm|yes|logout/i });\n    if (await confirmButton.isVisible()) {\n      await confirmButton.click();\n    }\n  }\n  await page.waitForURL(/login|signin|auth/i, { timeout: 10000 });\n  await expect(page.getByRole('heading', { name: /login|sign\\s*in/i })).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-006",
+    "name": "register",
+    "trigger": "(?:register|sign\\s*up|create\\s*account)(?:s|ed|ing)?",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "User registration flow with validation",
+    "code": "async function register(page: Page, userData: { email: string; password: string; firstName: string; lastName: string }) {\n  await page.goto('/register');\n  await page.getByLabel(/first\\s*name/i).fill(userData.firstName);\n  await page.getByLabel(/last\\s*name/i).fill(userData.lastName);\n  await page.getByLabel(/email/i).fill(userData.email);\n  await page.getByLabel(/^password$/i).fill(userData.password);\n  await page.getByLabel(/confirm\\s*password/i).fill(userData.password);\n  await page.getByRole('checkbox', { name: /terms|agreement/i }).check();\n  await page.getByRole('button', { name: /sign\\s*up|register|create/i }).click();\n  await expect(page.getByText(/success|verification\\s*email|check\\s*your\\s*email/i)).toBeVisible({ timeout: 10000 });\n}"
+  },
+  {
+    "id": "COMP-007",
+    "name": "forgotPassword",
+    "trigger": "(?:forgot|reset|recover)(?:s|ed|ing)?\\s+password",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Password recovery flow initiation",
+    "code": "async function forgotPassword(page: Page, email: string) {\n  await page.goto('/login');\n  await page.getByRole('link', { name: /forgot\\s*password/i }).click();\n  await page.waitForURL(/forgot|reset/i);\n  await page.getByLabel(/email/i).fill(email);\n  await page.getByRole('button', { name: /send|submit|reset/i }).click();\n  await expect(page.getByText(/email\\s*sent|check\\s*your\\s*email/i)).toBeVisible({ timeout: 10000 });\n}"
+  },
+  {
+    "id": "COMP-008",
+    "name": "resetPassword",
+    "trigger": "(?:reset|change|update)(?:s|ed|ing)?\\s+password\\s+(?:with\\s+)?(?:token|link)",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Complete password reset with token",
+    "code": "async function resetPassword(page: Page, resetToken: string, newPassword: string) {\n  await page.goto(`/reset-password?token=${resetToken}`);\n  await page.waitForSelector('[data-testid=\"new-password-input\"]');\n  await page.getByLabel(/new\\s*password/i).fill(newPassword);\n  await page.getByLabel(/confirm\\s*password/i).fill(newPassword);\n  await page.getByRole('button', { name: /reset|update|change/i }).click();\n  await expect(page.getByText(/success|updated|changed/i)).toBeVisible({ timeout: 10000 });\n  await page.waitForURL(/login/i, { timeout: 5000 });\n}"
+  },
+  {
+    "id": "COMP-009",
+    "name": "changePassword",
+    "trigger": "(?:change|update|modify)(?:s|ed|ing)?\\s+password(?:\\s+in\\s+settings)?",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Change password from settings page",
+    "code": "async function changePassword(page: Page, currentPassword: string, newPassword: string) {\n  await page.goto('/settings/security');\n  await page.getByLabel(/current\\s*password/i).fill(currentPassword);\n  await page.getByLabel(/new\\s*password/i).fill(newPassword);\n  await page.getByLabel(/confirm\\s*password/i).fill(newPassword);\n  await page.getByRole('button', { name: /change|update|save/i }).click();\n  await expect(page.getByText(/success|updated|changed/i)).toBeVisible({ timeout: 10000 });\n}"
+  },
+  {
+    "id": "COMP-010",
+    "name": "verifyEmail",
+    "trigger": "(?:verify|confirm)(?:s|ed|ing)?\\s+email",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Email verification flow with token",
+    "code": "async function verifyEmail(page: Page, verificationToken: string) {\n  await page.goto(`/verify-email?token=${verificationToken}`);\n  await page.waitForLoadState('domcontentloaded');\n  const verifyButton = page.getByRole('button', { name: /verify|confirm/i });\n  if (await verifyButton.isVisible()) {\n    await verifyButton.click();\n  }\n  await expect(page.getByText(/verified|success|confirmed/i)).toBeVisible({ timeout: 10000 });\n}"
+  },
+  {
+    "id": "COMP-011",
+    "name": "refreshSession",
+    "trigger": "(?:refresh|renew|extend)(?:s|ed|ing)?\\s+(?:session|token)",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Refresh authentication session token",
+    "code": "async function refreshSession(page: Page) {\n  const response = await page.evaluate(async () => {\n    const res = await fetch('/api/auth/refresh', {\n      method: 'POST',\n      credentials: 'include'\n    });\n    return res.ok;\n  });\n  if (!response) {\n    throw new Error('Session refresh failed');\n  }\n  await page.reload({ waitUntil: 'domcontentloaded' });\n  await expect(page.locator('[data-testid=\"user-menu\"]')).toBeVisible({ timeout: 5000 });\n}"
+  },
+  {
+    "id": "COMP-012",
+    "name": "rememberMe",
+    "trigger": "(?:remember|save|persist)(?:s|ed|ing)?\\s+(?:me|credentials|login)",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Login with remember me option",
+    "code": "async function rememberMe(page: Page, username: string, password: string) {\n  await page.goto('/login');\n  await page.getByLabel(/username|email/i).fill(username);\n  await page.getByLabel(/password/i).fill(password);\n  await page.getByRole('checkbox', { name: /remember/i }).check();\n  await page.getByRole('button', { name: /login|sign\\s*in/i }).click();\n  await page.waitForURL(/dashboard|home/i);\n  await page.context().storageState({ path: '.auth-states/remembered.json' });\n}"
+  },
+  {
+    "id": "COMP-013",
+    "name": "accountLock",
+    "trigger": "(?:lock|block|suspend)(?:s|ed|ing)?\\s+account",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Handle account lockout after failed attempts",
+    "code": "async function accountLock(page: Page, username: string, maxAttempts: number = 3) {\n  await page.goto('/login');\n  for (let i = 0; i < maxAttempts; i++) {\n    await page.getByLabel(/username|email/i).fill(username);\n    await page.getByLabel(/password/i).fill('wrong-password');\n    await page.getByRole('button', { name: /login|sign\\s*in/i }).click();\n    await page.waitForTimeout(1000);\n  }\n  await expect(page.getByText(/locked|blocked|suspended/i)).toBeVisible({ timeout: 10000 });\n}"
+  },
+  {
+    "id": "COMP-014",
+    "name": "passwordStrength",
+    "trigger": "(?:check|validate|verify)(?:s|ed|ing)?\\s+password\\s+strength",
+    "category": "auth",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Validate password strength indicator",
+    "code": "async function passwordStrength(page: Page, password: string, expectedStrength: 'weak' | 'medium' | 'strong') {\n  await page.goto('/register');\n  const passwordInput = page.getByLabel(/^password$/i);\n  await passwordInput.fill(password);\n  const strengthIndicator = page.locator('[data-testid=\"password-strength\"]');\n  await expect(strengthIndicator).toHaveText(new RegExp(expectedStrength, 'i'));\n  const strengthClass = await strengthIndicator.getAttribute('class');\n  expect(strengthClass).toContain(expectedStrength);\n}"
+  },
+  {
+    "id": "COMP-015",
+    "name": "biometricAuth",
+    "trigger": "(?:authenticate|login|sign\\s*in)(?:s|ed|ing)?\\s+(?:with\\s+)?(?:biometric|fingerprint|face\\s*id|touch\\s*id)",
+    "category": "auth",
+    "scope": "mobile",
+    "confidence": 0.79,
+    "description": "Biometric authentication flow (simulated)",
+    "code": "async function biometricAuth(page: Page) {\n  await page.goto('/login');\n  await page.getByRole('button', { name: /biometric|fingerprint|face\\s*id/i }).click();\n  await page.evaluate(() => {\n    window.dispatchEvent(new CustomEvent('biometric-success'));\n  });\n  await page.waitForURL(/dashboard|home/i, { timeout: 30000 });\n  await expect(page.locator('[data-testid=\"user-menu\"]')).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-016",
+    "name": "navigateViaSidebar",
+    "trigger": "(?:navigate|go|click)(?:s|ed|ing)?\\s+(?:via|through|using)?\\s+(?:sidebar|side\\s*menu|navigation)",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Navigate through sidebar menu items",
+    "code": "async function navigateViaSidebar(page: Page, menuItem: string, options?: { expandParent?: string }) {\n  const sidebar = page.locator('[data-testid=\"sidebar\"]');\n  if (options?.expandParent) {\n    const parent = sidebar.getByRole('button', { name: new RegExp(options.expandParent, 'i') });\n    if (await parent.getAttribute('aria-expanded') === 'false') {\n      await parent.click();\n    }\n  }\n  await sidebar.getByRole('link', { name: new RegExp(menuItem, 'i') }).click();\n  await page.waitForLoadState('domcontentloaded');\n  await expect(page).toHaveURL(new RegExp(menuItem.toLowerCase().replace(/\\s+/g, '-')));\n}"
+  },
+  {
+    "id": "COMP-017",
+    "name": "navigateViaBreadcrumb",
+    "trigger": "(?:navigate|go|click)(?:s|ed|ing)?\\s+(?:via|through|using)?\\s+breadcrumb",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Navigate using breadcrumb trail",
+    "code": "async function navigateViaBreadcrumb(page: Page, breadcrumbText: string) {\n  const breadcrumb = page.locator('[data-testid=\"breadcrumb\"]').getByRole('link', { name: new RegExp(breadcrumbText, 'i') });\n  await expect(breadcrumb).toBeVisible();\n  await breadcrumb.click();\n  await page.waitForLoadState('domcontentloaded');\n  await expect(page.getByRole('heading', { name: new RegExp(breadcrumbText, 'i') })).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-018",
+    "name": "navigateViaTabs",
+    "trigger": "(?:navigate|switch|select)(?:s|ed|ing)?\\s+(?:tab|view)(?:s)?",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Navigate between tabs in tabbed interface",
+    "code": "async function navigateViaTabs(page: Page, tabName: string) {\n  const tab = page.getByRole('tab', { name: new RegExp(tabName, 'i') });\n  await expect(tab).toBeVisible();\n  await tab.click();\n  await expect(tab).toHaveAttribute('aria-selected', 'true');\n  const tabPanel = page.locator(`[aria-labelledby=\"${await tab.getAttribute('id')}\"]`);\n  await expect(tabPanel).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-019",
+    "name": "usePagination",
+    "trigger": "(?:navigate|go|click|use)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:page|pagination|next|previous)",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Navigate through paginated content",
+    "code": "async function usePagination(page: Page, pageNumber: number) {\n  const pagination = page.locator('[data-testid=\"pagination\"]');\n  await pagination.getByRole('button', { name: String(pageNumber) }).click();\n  await page.waitForLoadState('networkidle');\n  await expect(pagination.getByRole('button', { name: String(pageNumber) })).toHaveAttribute('aria-current', 'page');\n  await expect(page.locator('[data-testid=\"page-content\"]')).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-020",
+    "name": "useInfinitePagination",
+    "trigger": "(?:scroll|load|trigger)(?:s|ed|ing)?\\s+(?:infinite|endless|continuous)\\s+(?:scroll|pagination)",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Trigger infinite scroll pagination",
+    "code": "async function useInfinitePagination(page: Page, scrollCount: number = 3) {\n  const container = page.locator('[data-testid=\"scrollable-content\"]');\n  for (let i = 0; i < scrollCount; i++) {\n    await container.evaluate(el => el.scrollTop = el.scrollHeight);\n    await page.waitForTimeout(1000);\n    await page.waitForLoadState('networkidle');\n  }\n  const items = await page.locator('[data-testid=\"list-item\"]').count();\n  expect(items).toBeGreaterThan(scrollCount * 10);\n}"
+  },
+  {
+    "id": "COMP-021",
+    "name": "completeWizardStep",
+    "trigger": "(?:complete|finish|proceed|advance)(?:s|ed|ing)?\\s+(?:wizard|step|stage)",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Complete a step in multi-step wizard",
+    "code": "async function completeWizardStep(page: Page, stepNumber: number, fillData?: Record<string, string>) {\n  const wizard = page.locator('[data-testid=\"wizard\"]');\n  const currentStep = wizard.locator(`[data-step=\"${stepNumber}\"]`);\n  await expect(currentStep).toBeVisible();\n  if (fillData) {\n    for (const [label, value] of Object.entries(fillData)) {\n      await currentStep.getByLabel(new RegExp(label, 'i')).fill(value);\n    }\n  }\n  await currentStep.getByRole('button', { name: /next|continue|proceed/i }).click();\n  await expect(wizard.locator(`[data-step=\"${stepNumber + 1}\"]`)).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-022",
+    "name": "expandTreeNode",
+    "trigger": "(?:expand|open|unfold)(?:s|ed|ing)?\\s+(?:tree|node|folder)",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Expand tree view node",
+    "code": "async function expandTreeNode(page: Page, nodeName: string) {\n  const node = page.getByRole('treeitem', { name: new RegExp(nodeName, 'i') });\n  await expect(node).toBeVisible();\n  if (await node.getAttribute('aria-expanded') === 'false') {\n    await node.getByRole('button', { name: /expand|toggle/i }).click();\n    await expect(node).toHaveAttribute('aria-expanded', 'true');\n  }\n  await page.waitForTimeout(300);\n}"
+  },
+  {
+    "id": "COMP-023",
+    "name": "useCommandPalette",
+    "trigger": "(?:open|use|trigger)(?:s|ed|ing)?\\s+(?:command|quick|search)\\s+(?:palette|menu|bar)",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Use command palette for navigation",
+    "code": "async function useCommandPalette(page: Page, command: string) {\n  await page.keyboard.press('Meta+K');\n  const palette = page.locator('[data-testid=\"command-palette\"]');\n  await expect(palette).toBeVisible();\n  await palette.getByRole('textbox').fill(command);\n  await page.waitForTimeout(300);\n  await palette.getByRole('option', { name: new RegExp(command, 'i') }).first().click();\n  await expect(palette).not.toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-024",
+    "name": "useMegaMenu",
+    "trigger": "(?:open|hover|navigate)(?:s|ed|ing)?\\s+(?:mega|dropdown|flyout)\\s+menu",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Navigate through mega menu",
+    "code": "async function useMegaMenu(page: Page, mainMenu: string, subMenuItem: string) {\n  const menuTrigger = page.getByRole('button', { name: new RegExp(mainMenu, 'i') });\n  await menuTrigger.hover();\n  const megaMenu = page.locator('[data-testid=\"mega-menu\"]');\n  await expect(megaMenu).toBeVisible();\n  await megaMenu.getByRole('link', { name: new RegExp(subMenuItem, 'i') }).click();\n  await page.waitForLoadState('domcontentloaded');\n}"
+  },
+  {
+    "id": "COMP-025",
+    "name": "useContextMenu",
+    "trigger": "(?:open|right\\s*click|trigger)(?:s|ed|ing)?\\s+(?:context|right\\s*click)\\s+menu",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Open and use context menu",
+    "code": "async function useContextMenu(page: Page, targetSelector: string, menuItem: string) {\n  await page.locator(targetSelector).click({ button: 'right' });\n  const contextMenu = page.locator('[role=\"menu\"]');\n  await expect(contextMenu).toBeVisible();\n  await contextMenu.getByRole('menuitem', { name: new RegExp(menuItem, 'i') }).click();\n  await expect(contextMenu).not.toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-026",
+    "name": "navigateToUrl",
+    "trigger": "(?:navigate|go|visit)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:url|page|route)",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Navigate to specific URL with wait",
+    "code": "async function navigateToUrl(page: Page, url: string, options?: { waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }) {\n  const waitUntil = options?.waitUntil ?? 'domcontentloaded';\n  await page.goto(url, { waitUntil });\n  await expect(page).toHaveURL(new RegExp(url.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')));\n  await page.waitForLoadState('domcontentloaded');\n}"
+  },
+  {
+    "id": "COMP-027",
+    "name": "waitForNavigation",
+    "trigger": "(?:wait|await)(?:s|ed|ing)?\\s+(?:for\\s+)?navigation",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Wait for navigation to complete",
+    "code": "async function waitForNavigation(page: Page, options?: { timeout?: number; url?: string | RegExp }) {\n  const timeout = options?.timeout ?? 30000;\n  if (options?.url) {\n    await page.waitForURL(options.url, { timeout });\n  } else {\n    await page.waitForLoadState('networkidle', { timeout });\n  }\n  await expect(page.locator('body')).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-028",
+    "name": "sortTableColumn",
+    "trigger": "(?:sort|order)(?:s|ed|ing)?\\s+(?:table|column|list)(?:\\s+by)?",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Sort table by column with direction",
+    "code": "async function sortTableColumn(page: Page, columnName: string, direction: 'asc' | 'desc' = 'asc') {\n  const header = page.getByRole('columnheader', { name: new RegExp(columnName, 'i') });\n  await expect(header).toBeVisible();\n  const currentSort = await header.getAttribute('aria-sort');\n  if ((direction === 'asc' && currentSort !== 'ascending') || (direction === 'desc' && currentSort !== 'descending')) {\n    await header.click();\n  }\n  if ((direction === 'desc' && currentSort === 'ascending') || (direction === 'asc' && currentSort === 'descending')) {\n    await header.click();\n  }\n  await page.waitForTimeout(500);\n  await expect(header).toHaveAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');\n}"
+  },
+  {
+    "id": "COMP-029",
+    "name": "filterTable",
+    "trigger": "(?:filter|search|narrow)(?:s|ed|ing)?\\s+(?:table|list|grid)",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Apply filters to table data",
+    "code": "async function filterTable(page: Page, filters: Record<string, string>) {\n  const filterPanel = page.locator('[data-testid=\"filter-panel\"]');\n  const filterButton = page.getByRole('button', { name: /filter/i });\n  if (!await filterPanel.isVisible()) {\n    await filterButton.click();\n  }\n  for (const [field, value] of Object.entries(filters)) {\n    await filterPanel.getByLabel(new RegExp(field, 'i')).fill(value);\n  }\n  await filterPanel.getByRole('button', { name: /apply|filter|search/i }).click();\n  await page.waitForLoadState('networkidle');\n}"
+  },
+  {
+    "id": "COMP-030",
+    "name": "searchTable",
+    "trigger": "(?:search|find|query)(?:s|ed|ing)?\\s+(?:in\\s+)?(?:table|list|grid)",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Search within table content",
+    "code": "async function searchTable(page: Page, searchTerm: string) {\n  const searchInput = page.locator('[data-testid=\"table-search\"]');\n  await searchInput.fill(searchTerm);\n  await page.keyboard.press('Enter');\n  await page.waitForLoadState('networkidle');\n  const rows = page.getByRole('row');\n  const visibleRows = await rows.count();\n  expect(visibleRows).toBeGreaterThan(0);\n  const firstRow = await rows.first().textContent();\n  expect(firstRow?.toLowerCase()).toContain(searchTerm.toLowerCase());\n}"
+  },
+  {
+    "id": "COMP-031",
+    "name": "selectTableRow",
+    "trigger": "(?:select|choose|pick)(?:s|ed|ing)?\\s+(?:table|grid)?\\s*row",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Select one or multiple table rows",
+    "code": "async function selectTableRow(page: Page, rowIdentifier: string | number, options?: { selectMultiple?: boolean }) {\n  const table = page.locator('[role=\"grid\"], table');\n  const row = typeof rowIdentifier === 'number' \n    ? table.getByRole('row').nth(rowIdentifier)\n    : table.getByRole('row', { name: new RegExp(rowIdentifier, 'i') });\n  await expect(row).toBeVisible();\n  const checkbox = row.getByRole('checkbox');\n  if (await checkbox.isVisible()) {\n    await checkbox.check();\n  } else {\n    await row.click({ modifiers: options?.selectMultiple ? ['Shift'] : [] });\n  }\n  await expect(row).toHaveAttribute('aria-selected', 'true');\n}"
+  },
+  {
+    "id": "COMP-032",
+    "name": "expandTableRow",
+    "trigger": "(?:expand|open|unfold)(?:s|ed|ing)?\\s+(?:table|grid)?\\s*row",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Expand row to show details",
+    "code": "async function expandTableRow(page: Page, rowIdentifier: string | number) {\n  const row = typeof rowIdentifier === 'number'\n    ? page.getByRole('row').nth(rowIdentifier)\n    : page.getByRole('row', { name: new RegExp(rowIdentifier, 'i') });\n  const expandButton = row.getByRole('button', { name: /expand|show\\s*details/i });\n  await expandButton.click();\n  await expect(expandButton).toHaveAttribute('aria-expanded', 'true');\n  const detailsRow = row.locator('+ tr[data-testid=\"row-details\"]');\n  await expect(detailsRow).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-033",
+    "name": "exportTableData",
+    "trigger": "(?:export|download|save)(?:s|ed|ing)?\\s+(?:table|grid|data)(?:\\s+as)?\\s*(?:csv|excel|pdf)?",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Export table data to file",
+    "code": "async function exportTableData(page: Page, format: 'csv' | 'excel' | 'pdf' = 'csv') {\n  const exportButton = page.getByRole('button', { name: /export|download/i });\n  const downloadPromise = page.waitForEvent('download');\n  await exportButton.click();\n  const formatOption = page.getByRole('menuitem', { name: new RegExp(format, 'i') });\n  if (await formatOption.isVisible()) {\n    await formatOption.click();\n  }\n  const download = await downloadPromise;\n  expect(download.suggestedFilename()).toMatch(new RegExp(`\\\\.(${format}|xlsx?)$`, 'i'));\n  await download.saveAs(`./downloads/${download.suggestedFilename()}`);\n}"
+  },
+  {
+    "id": "COMP-034",
+    "name": "getTableRowData",
+    "trigger": "(?:get|retrieve|extract|read)(?:s|ed|ing)?\\s+(?:table|grid)?\\s*row\\s*data",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Extract data from table row",
+    "code": "async function getTableRowData(page: Page, rowIdentifier: string | number): Promise<Record<string, string>> {\n  const row = typeof rowIdentifier === 'number'\n    ? page.getByRole('row').nth(rowIdentifier)\n    : page.getByRole('row', { name: new RegExp(rowIdentifier, 'i') });\n  const cells = row.getByRole('cell');\n  const headers = page.getByRole('columnheader');\n  const data: Record<string, string> = {};\n  const headerCount = await headers.count();\n  for (let i = 0; i < headerCount; i++) {\n    const headerText = await headers.nth(i).textContent();\n    const cellText = await cells.nth(i).textContent();\n    if (headerText) data[headerText.trim()] = cellText?.trim() ?? '';\n  }\n  return data;\n}"
+  },
+  {
+    "id": "COMP-035",
+    "name": "scrollVirtualList",
+    "trigger": "(?:scroll|navigate)(?:s|ed|ing)?\\s+(?:virtual|virtualized)\\s+(?:list|table)",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Scroll through virtualized list",
+    "code": "async function scrollVirtualList(page: Page, targetIndex: number) {\n  const virtualList = page.locator('[data-testid=\"virtual-list\"]');\n  await virtualList.evaluate((el, index) => {\n    const itemHeight = 50;\n    el.scrollTop = index * itemHeight;\n  }, targetIndex);\n  await page.waitForTimeout(300);\n  const targetItem = virtualList.locator(`[data-index=\"${targetIndex}\"]`);\n  await expect(targetItem).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-036",
+    "name": "interactWithChart",
+    "trigger": "(?:click|hover|interact|select)(?:s|ed|ing)?\\s+(?:chart|graph|visualization)",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Interact with chart elements",
+    "code": "async function interactWithChart(page: Page, dataPoint: string | number) {\n  const chart = page.locator('[data-testid=\"chart\"]');\n  await expect(chart).toBeVisible();\n  const selector = typeof dataPoint === 'number'\n    ? `[data-index=\"${dataPoint}\"]`\n    : `[data-label=\"${dataPoint}\"]`;\n  const element = chart.locator(selector);\n  await element.hover();\n  const tooltip = page.locator('[data-testid=\"chart-tooltip\"]');\n  await expect(tooltip).toBeVisible();\n  const tooltipText = await tooltip.textContent();\n  expect(tooltipText).toBeTruthy();\n}"
+  },
+  {
+    "id": "COMP-037",
+    "name": "selectCalendarDate",
+    "trigger": "(?:select|choose|pick)(?:s|ed|ing)?\\s+(?:calendar)?\\s*date",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Select date from calendar widget",
+    "code": "async function selectCalendarDate(page: Page, date: string) {\n  const datePicker = page.locator('[data-testid=\"date-picker\"]');\n  await datePicker.click();\n  const calendar = page.locator('[role=\"dialog\"][aria-label*=\"calendar\" i]');\n  await expect(calendar).toBeVisible();\n  const targetDate = new Date(date);\n  const dateButton = calendar.getByRole('button', { name: String(targetDate.getDate()) });\n  await dateButton.click();\n  await expect(calendar).not.toBeVisible();\n  const inputValue = await datePicker.inputValue();\n  expect(inputValue).toContain(String(targetDate.getDate()));\n}"
+  },
+  {
+    "id": "COMP-038",
+    "name": "dragKanbanCard",
+    "trigger": "(?:drag|move|transfer)(?:s|ed|ing)?\\s+(?:kanban)?\\s*(?:card|item)",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Drag and drop kanban card",
+    "code": "async function dragKanbanCard(page: Page, cardTitle: string, targetColumn: string) {\n  const card = page.locator(`[data-testid=\"kanban-card\"]`).filter({ hasText: cardTitle });\n  await expect(card).toBeVisible();\n  const target = page.locator(`[data-testid=\"kanban-column\"]`).filter({ hasText: targetColumn });\n  await card.dragTo(target);\n  await page.waitForTimeout(500);\n  await expect(target.locator(`[data-testid=\"kanban-card\"]`).filter({ hasText: cardTitle })).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-039",
+    "name": "expandAccordion",
+    "trigger": "(?:expand|open|toggle)(?:s|ed|ing)?\\s+accordion",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Expand accordion panel",
+    "code": "async function expandAccordion(page: Page, panelName: string) {\n  const accordion = page.getByRole('button', { name: new RegExp(panelName, 'i') });\n  await expect(accordion).toBeVisible();\n  if (await accordion.getAttribute('aria-expanded') === 'false') {\n    await accordion.click();\n  }\n  await expect(accordion).toHaveAttribute('aria-expanded', 'true');\n  const panel = page.locator(`[id=\"${await accordion.getAttribute('aria-controls')}\"]`);\n  await expect(panel).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-040",
+    "name": "selectListItem",
+    "trigger": "(?:select|choose|pick)(?:s|ed|ing)?\\s+(?:list)?\\s*item",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Select item from list",
+    "code": "async function selectListItem(page: Page, itemText: string, options?: { listTestId?: string }) {\n  const list = options?.listTestId \n    ? page.locator(`[data-testid=\"${options.listTestId}\"]`)\n    : page.locator('[role=\"list\"], [role=\"listbox\"]');\n  const item = list.getByRole('listitem', { name: new RegExp(itemText, 'i') });\n  await expect(item).toBeVisible();\n  await item.click();\n  await expect(item).toHaveAttribute('aria-selected', 'true');\n}"
+  },
+  {
+    "id": "COMP-041",
+    "name": "compareItems",
+    "trigger": "(?:compare|diff|contrast)(?:s|ed|ing)?\\s+items",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Compare multiple items side-by-side",
+    "code": "async function compareItems(page: Page, itemIds: string[]) {\n  for (const id of itemIds) {\n    const checkbox = page.locator(`[data-item-id=\"${id}\"]`).getByRole('checkbox', { name: /compare/i });\n    await checkbox.check();\n  }\n  await page.getByRole('button', { name: /compare/i }).click();\n  const compareView = page.locator('[data-testid=\"compare-view\"]');\n  await expect(compareView).toBeVisible();\n  for (const id of itemIds) {\n    await expect(compareView.locator(`[data-item-id=\"${id}\"]`)).toBeVisible();\n  }\n}"
+  },
+  {
+    "id": "COMP-042",
+    "name": "viewDiff",
+    "trigger": "(?:view|show|display)(?:s|ed|ing)?\\s+(?:diff|difference|changes)",
+    "category": "data-display",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "View diff between versions",
+    "code": "async function viewDiff(page: Page, version1: string, version2: string) {\n  await page.getByRole('button', { name: /compare|diff/i }).click();\n  await page.locator('[data-testid=\"version-1-select\"]').selectOption(version1);\n  await page.locator('[data-testid=\"version-2-select\"]').selectOption(version2);\n  await page.getByRole('button', { name: /show\\s*diff|compare/i }).click();\n  const diffView = page.locator('[data-testid=\"diff-view\"]');\n  await expect(diffView).toBeVisible();\n  await expect(diffView.locator('.diff-added, .diff-removed')).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-043",
+    "name": "fillForm",
+    "trigger": "(?:fill|complete|populate)(?:s|ed|ing)?\\s+form",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Fill out form with multiple fields",
+    "code": "async function fillForm(page: Page, formData: Record<string, string | boolean>, options?: { formSelector?: string }) {\n  const form = options?.formSelector ? page.locator(options.formSelector) : page.locator('form');\n  for (const [label, value] of Object.entries(formData)) {\n    const field = form.getByLabel(new RegExp(label, 'i'));\n    if (typeof value === 'boolean') {\n      await field.setChecked(value);\n    } else {\n      await field.fill(value);\n    }\n  }\n  await page.waitForTimeout(300);\n}"
+  },
+  {
+    "id": "COMP-044",
+    "name": "submitForm",
+    "trigger": "(?:submit|send|post)(?:s|ed|ing)?\\s+form",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Submit form and wait for response",
+    "code": "async function submitForm(page: Page, options?: { formSelector?: string; waitForNavigation?: boolean }) {\n  const form = options?.formSelector ? page.locator(options.formSelector) : page.locator('form');\n  const submitButton = form.getByRole('button', { name: /submit|save|send|create/i });\n  if (options?.waitForNavigation) {\n    await Promise.all([\n      page.waitForNavigation({ waitUntil: 'domcontentloaded' }),\n      submitButton.click()\n    ]);\n  } else {\n    await submitButton.click();\n    await page.waitForLoadState('networkidle');\n  }\n}"
+  },
+  {
+    "id": "COMP-045",
+    "name": "resetForm",
+    "trigger": "(?:reset|clear|empty)(?:s|ed|ing)?\\s+form",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Reset form to initial state",
+    "code": "async function resetForm(page: Page, options?: { formSelector?: string }) {\n  const form = options?.formSelector ? page.locator(options.formSelector) : page.locator('form');\n  const resetButton = form.getByRole('button', { name: /reset|clear|cancel/i });\n  await resetButton.click();\n  await page.waitForTimeout(300);\n  const inputs = await form.locator('input:not([type=\"hidden\"]), textarea').all();\n  for (const input of inputs) {\n    const value = await input.inputValue();\n    expect(value).toBe('');\n  }\n}"
+  },
+  {
+    "id": "COMP-046",
+    "name": "validateForm",
+    "trigger": "(?:validate|check|verify)(?:s|ed|ing)?\\s+form(?:\\s+validation)?",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Trigger and verify form validation",
+    "code": "async function validateForm(page: Page, expectedErrors: Record<string, string>) {\n  const submitButton = page.getByRole('button', { name: /submit|save/i });\n  await submitButton.click();\n  await page.waitForTimeout(500);\n  for (const [field, errorMessage] of Object.entries(expectedErrors)) {\n    const fieldError = page.locator(`[data-field=\"${field}\"] .error, #${field}-error`);\n    await expect(fieldError).toHaveText(new RegExp(errorMessage, 'i'));\n  }\n}"
+  },
+  {
+    "id": "COMP-047",
+    "name": "handleFormErrors",
+    "trigger": "(?:handle|fix|resolve)(?:s|ed|ing)?\\s+form\\s+errors",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Handle and fix form validation errors",
+    "code": "async function handleFormErrors(page: Page, corrections: Record<string, string>) {\n  const errorFields = await page.locator('.error, [aria-invalid=\"true\"]').all();\n  expect(errorFields.length).toBeGreaterThan(0);\n  for (const [field, value] of Object.entries(corrections)) {\n    const input = page.getByLabel(new RegExp(field, 'i'));\n    await input.clear();\n    await input.fill(value);\n    await page.waitForTimeout(300);\n  }\n  const submitButton = page.getByRole('button', { name: /submit|save/i });\n  await submitButton.click();\n  await page.waitForLoadState('networkidle');\n}"
+  },
+  {
+    "id": "COMP-048",
+    "name": "addDynamicField",
+    "trigger": "(?:add|create|insert)(?:s|ed|ing)?\\s+(?:dynamic|new)?\\s*(?:field|row|item)",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Add dynamic field to form",
+    "code": "async function addDynamicField(page: Page, fieldGroupName: string, fieldData?: Record<string, string>) {\n  const addButton = page.getByRole('button', { name: new RegExp(`add.*${fieldGroupName}`, 'i') });\n  const initialCount = await page.locator(`[data-field-group=\"${fieldGroupName}\"]`).count();\n  await addButton.click();\n  await page.waitForTimeout(300);\n  const newCount = await page.locator(`[data-field-group=\"${fieldGroupName}\"]`).count();\n  expect(newCount).toBe(initialCount + 1);\n  if (fieldData) {\n    const newField = page.locator(`[data-field-group=\"${fieldGroupName}\"]`).last();\n    for (const [label, value] of Object.entries(fieldData)) {\n      await newField.getByLabel(new RegExp(label, 'i')).fill(value);\n    }\n  }\n}"
+  },
+  {
+    "id": "COMP-049",
+    "name": "removeDynamicField",
+    "trigger": "(?:remove|delete|drop)(?:s|ed|ing)?\\s+(?:dynamic)?\\s*(?:field|row|item)",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Remove dynamic field from form",
+    "code": "async function removeDynamicField(page: Page, fieldGroupName: string, index: number = 0) {\n  const fieldGroup = page.locator(`[data-field-group=\"${fieldGroupName}\"]`).nth(index);\n  const initialCount = await page.locator(`[data-field-group=\"${fieldGroupName}\"]`).count();\n  const removeButton = fieldGroup.getByRole('button', { name: /remove|delete/i });\n  await removeButton.click();\n  await page.waitForTimeout(300);\n  const newCount = await page.locator(`[data-field-group=\"${fieldGroupName}\"]`).count();\n  expect(newCount).toBe(initialCount - 1);\n}"
+  },
+  {
+    "id": "COMP-050",
+    "name": "fillMultiStepForm",
+    "trigger": "(?:fill|complete)(?:s|ed|ing)?\\s+(?:multi\\s*step|wizard)\\s+form",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Complete multi-step form wizard",
+    "code": "async function fillMultiStepForm(page: Page, steps: Array<Record<string, string>>) {\n  for (let i = 0; i < steps.length; i++) {\n    const stepData = steps[i];\n    for (const [label, value] of Object.entries(stepData)) {\n      await page.getByLabel(new RegExp(label, 'i')).fill(value);\n    }\n    const nextButton = page.getByRole('button', { name: i === steps.length - 1 ? /submit|finish/i : /next|continue/i });\n    await nextButton.click();\n    await page.waitForTimeout(500);\n  }\n  await page.waitForLoadState('networkidle');\n}"
+  },
+  {
+    "id": "COMP-051",
+    "name": "inlineEdit",
+    "trigger": "(?:inline|quick)\\s*(?:edit|modify|update)(?:s|ed|ing)?",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Perform inline editing",
+    "code": "async function inlineEdit(page: Page, targetText: string, newValue: string) {\n  const element = page.locator(`[data-editable=\"true\"]`).filter({ hasText: targetText });\n  await element.dblclick();\n  const input = element.locator('input, textarea');\n  await expect(input).toBeVisible();\n  await input.fill(newValue);\n  await input.press('Enter');\n  await page.waitForTimeout(500);\n  await expect(element).toHaveText(new RegExp(newValue));\n}"
+  },
+  {
+    "id": "COMP-052",
+    "name": "bulkEdit",
+    "trigger": "(?:bulk|batch|mass)\\s*(?:edit|update|modify)(?:s|ed|ing)?",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Perform bulk edit operation",
+    "code": "async function bulkEdit(page: Page, itemIds: string[], updates: Record<string, string>) {\n  for (const id of itemIds) {\n    await page.locator(`[data-item-id=\"${id}\"]`).getByRole('checkbox').check();\n  }\n  await page.getByRole('button', { name: /bulk\\s*edit|edit\\s*selected/i }).click();\n  const editPanel = page.locator('[data-testid=\"bulk-edit-panel\"]');\n  await expect(editPanel).toBeVisible();\n  for (const [field, value] of Object.entries(updates)) {\n    await editPanel.getByLabel(new RegExp(field, 'i')).fill(value);\n  }\n  await editPanel.getByRole('button', { name: /apply|save|update/i }).click();\n  await expect(editPanel).not.toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-053",
+    "name": "importFromFile",
+    "trigger": "(?:import|upload|load)(?:s|ed|ing)?\\s+(?:from\\s+)?(?:file|csv|excel)",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Import data from file upload",
+    "code": "async function importFromFile(page: Page, filePath: string) {\n  const fileInput = page.locator('input[type=\"file\"]');\n  await fileInput.setInputFiles(filePath);\n  await page.waitForTimeout(500);\n  const importButton = page.getByRole('button', { name: /import|upload|process/i });\n  if (await importButton.isVisible()) {\n    await importButton.click();\n  }\n  await page.waitForLoadState('networkidle');\n  await expect(page.getByText(/success|imported|uploaded/i)).toBeVisible({ timeout: 30000 });\n}"
+  },
+  {
+    "id": "COMP-054",
+    "name": "exportToFile",
+    "trigger": "(?:export|download|save)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:file|csv|excel)",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Export form data to file",
+    "code": "async function exportToFile(page: Page, format: 'csv' | 'excel' | 'json' = 'csv') {\n  const exportButton = page.getByRole('button', { name: /export|download/i });\n  const downloadPromise = page.waitForEvent('download');\n  await exportButton.click();\n  const formatOption = page.getByRole('menuitem', { name: new RegExp(format, 'i') });\n  if (await formatOption.isVisible()) {\n    await formatOption.click();\n  }\n  const download = await downloadPromise;\n  await download.saveAs(`./downloads/${download.suggestedFilename()}`);\n  return download.suggestedFilename();\n}"
+  },
+  {
+    "id": "COMP-055",
+    "name": "autoSave",
+    "trigger": "(?:auto|automatically)?\\s*(?:save|persist)(?:s|ed|ing)?",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Verify auto-save functionality",
+    "code": "async function autoSave(page: Page, fieldLabel: string, value: string) {\n  const field = page.getByLabel(new RegExp(fieldLabel, 'i'));\n  await field.fill(value);\n  await page.waitForTimeout(2000);\n  const saveIndicator = page.locator('[data-testid=\"auto-save-indicator\"]');\n  await expect(saveIndicator).toHaveText(/saved|synced/i);\n  await page.reload();\n  await expect(field).toHaveValue(value);\n}"
+  },
+  {
+    "id": "COMP-056",
+    "name": "fillAddressForm",
+    "trigger": "(?:fill|enter|complete)(?:s|ed|ing)?\\s+address(?:\\s+form)?",
+    "category": "forms",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Fill address form with autocomplete",
+    "code": "async function fillAddressForm(page: Page, address: { street: string; city: string; state: string; zip: string; country: string }) {\n  await page.getByLabel(/street|address\\s*line/i).fill(address.street);\n  await page.getByLabel(/city/i).fill(address.city);\n  await page.getByLabel(/state|province/i).fill(address.state);\n  await page.getByLabel(/zip|postal/i).fill(address.zip);\n  await page.getByLabel(/country/i).fill(address.country);\n  await page.keyboard.press('ArrowDown');\n  await page.keyboard.press('Enter');\n  await page.waitForTimeout(500);\n}"
+  },
+  {
+    "id": "COMP-057",
+    "name": "fillPaymentForm",
+    "trigger": "(?:fill|enter|complete)(?:s|ed|ing)?\\s+payment(?:\\s+form)?",
+    "category": "forms",
+    "scope": "ecommerce",
+    "confidence": 0.87,
+    "description": "Fill payment form with card details",
+    "code": "async function fillPaymentForm(page: Page, payment: { cardNumber: string; expiry: string; cvv: string; name: string }) {\n  await page.getByLabel(/card\\s*number/i).fill(payment.cardNumber);\n  await page.getByLabel(/expir/i).fill(payment.expiry);\n  await page.getByLabel(/cvv|cvc|security/i).fill(payment.cvv);\n  await page.getByLabel(/name\\s*on\\s*card|cardholder/i).fill(payment.name);\n  await page.waitForTimeout(500);\n}"
+  },
+  {
+    "id": "COMP-058",
+    "name": "confirmDialog",
+    "trigger": "(?:confirm|accept|ok)(?:s|ed|ing)?\\s+(?:dialog|modal|popup)",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Confirm dialog action",
+    "code": "async function confirmDialog(page: Page) {\n  page.once('dialog', async dialog => {\n    expect(dialog.type()).toBe('confirm');\n    await dialog.accept();\n  });\n  await page.waitForTimeout(100);\n}"
+  },
+  {
+    "id": "COMP-059",
+    "name": "dismissDialog",
+    "trigger": "(?:dismiss|cancel|close|reject)(?:s|ed|ing)?\\s+(?:dialog|modal|popup)",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Dismiss dialog without action",
+    "code": "async function dismissDialog(page: Page) {\n  page.once('dialog', async dialog => {\n    await dialog.dismiss();\n  });\n  await page.waitForTimeout(100);\n}"
+  },
+  {
+    "id": "COMP-060",
+    "name": "alertDialog",
+    "trigger": "(?:handle|accept|ok)(?:s|ed|ing)?\\s+alert(?:\\s+dialog)?",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Handle alert dialog",
+    "code": "async function alertDialog(page: Page, expectedMessage?: string): Promise<string> {\n  return new Promise((resolve) => {\n    page.once('dialog', async dialog => {\n      expect(dialog.type()).toBe('alert');\n      const message = dialog.message();\n      if (expectedMessage) {\n        expect(message).toContain(expectedMessage);\n      }\n      await dialog.accept();\n      resolve(message);\n    });\n  });\n}"
+  },
+  {
+    "id": "COMP-061",
+    "name": "promptDialog",
+    "trigger": "(?:handle|respond|fill)(?:s|ed|ing)?\\s+prompt(?:\\s+dialog)?",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Handle prompt dialog with input",
+    "code": "async function promptDialog(page: Page, inputValue: string) {\n  page.once('dialog', async dialog => {\n    expect(dialog.type()).toBe('prompt');\n    await dialog.accept(inputValue);\n  });\n  await page.waitForTimeout(100);\n}"
+  },
+  {
+    "id": "COMP-062",
+    "name": "openModal",
+    "trigger": "(?:open|show|display)(?:s|ed|ing)?\\s+modal",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.9,
+    "description": "Open modal dialog",
+    "code": "async function openModal(page: Page, triggerSelector: string) {\n  await page.locator(triggerSelector).click();\n  const modal = page.locator('[role=\"dialog\"]');\n  await expect(modal).toBeVisible();\n  await expect(modal).toHaveAttribute('aria-modal', 'true');\n  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');\n}"
+  },
+  {
+    "id": "COMP-063",
+    "name": "closeModal",
+    "trigger": "(?:close|dismiss|hide)(?:s|ed|ing)?\\s+modal",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Close modal dialog",
+    "code": "async function closeModal(page: Page, method: 'button' | 'escape' | 'backdrop' = 'button') {\n  const modal = page.locator('[role=\"dialog\"]');\n  await expect(modal).toBeVisible();\n  if (method === 'button') {\n    await modal.getByRole('button', { name: /close|cancel|dismiss/i }).click();\n  } else if (method === 'escape') {\n    await page.keyboard.press('Escape');\n  } else if (method === 'backdrop') {\n    await page.locator('.modal-backdrop').click({ position: { x: 0, y: 0 } });\n  }\n  await expect(modal).not.toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-064",
+    "name": "openDrawer",
+    "trigger": "(?:open|show|slide)(?:s|ed|ing)?\\s+(?:drawer|sidebar|panel)",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Open slide-out drawer",
+    "code": "async function openDrawer(page: Page, position: 'left' | 'right' = 'right') {\n  await page.getByRole('button', { name: /menu|open|drawer/i }).click();\n  const drawer = page.locator(`[data-testid=\"drawer-${position}\"]`);\n  await expect(drawer).toBeVisible();\n  await expect(drawer).toHaveAttribute('data-state', 'open');\n}"
+  },
+  {
+    "id": "COMP-065",
+    "name": "closeDrawer",
+    "trigger": "(?:close|hide|collapse)(?:s|ed|ing)?\\s+(?:drawer|sidebar|panel)",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Close slide-out drawer",
+    "code": "async function closeDrawer(page: Page) {\n  const drawer = page.locator('[data-testid^=\"drawer-\"]');\n  await expect(drawer).toBeVisible();\n  const closeButton = drawer.getByRole('button', { name: /close/i });\n  await closeButton.click();\n  await expect(drawer).not.toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-066",
+    "name": "showTooltip",
+    "trigger": "(?:show|display|hover)(?:s|ed|ing)?\\s+(?:for\\s+)?tooltip",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Show tooltip on hover",
+    "code": "async function showTooltip(page: Page, targetSelector: string, expectedText?: string) {\n  const target = page.locator(targetSelector);\n  await target.hover();\n  const tooltip = page.locator('[role=\"tooltip\"]');\n  await expect(tooltip).toBeVisible();\n  if (expectedText) {\n    await expect(tooltip).toHaveText(new RegExp(expectedText, 'i'));\n  }\n  return tooltip;\n}"
+  },
+  {
+    "id": "COMP-067",
+    "name": "openPopover",
+    "trigger": "(?:open|show|toggle)(?:s|ed|ing)?\\s+popover",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Open popover menu",
+    "code": "async function openPopover(page: Page, triggerSelector: string) {\n  await page.locator(triggerSelector).click();\n  const popover = page.locator('[data-testid=\"popover\"]');\n  await expect(popover).toBeVisible();\n  const position = await popover.boundingBox();\n  expect(position).toBeTruthy();\n}"
+  },
+  {
+    "id": "COMP-068",
+    "name": "openLightbox",
+    "trigger": "(?:open|show|view)(?:s|ed|ing)?\\s+(?:lightbox|image\\s*viewer|gallery\\s*modal)",
+    "category": "dialogs",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Open lightbox image viewer",
+    "code": "async function openLightbox(page: Page, imageSelector: string) {\n  await page.locator(imageSelector).click();\n  const lightbox = page.locator('[data-testid=\"lightbox\"]');\n  await expect(lightbox).toBeVisible();\n  const image = lightbox.locator('img');\n  await expect(image).toBeVisible();\n  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');\n}"
+  },
+  {
+    "id": "COMP-069",
+    "name": "waitForToast",
+    "trigger": "(?:wait|check|verify)(?:s|ed|ing)?\\s+(?:for\\s+)?toast",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for toast notification to appear",
+    "code": "async function waitForToast(page: Page, expectedMessage?: string, type?: 'success' | 'error' | 'warning' | 'info') {\n  const toast = page.locator('[data-testid=\"toast\"]');\n  await expect(toast).toBeVisible({ timeout: 10000 });\n  if (expectedMessage) {\n    await expect(toast).toHaveText(new RegExp(expectedMessage, 'i'));\n  }\n  if (type) {\n    await expect(toast).toHaveAttribute('data-type', type);\n  }\n}"
+  },
+  {
+    "id": "COMP-070",
+    "name": "dismissToast",
+    "trigger": "(?:dismiss|close|hide)(?:s|ed|ing)?\\s+toast",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Dismiss toast notification",
+    "code": "async function dismissToast(page: Page) {\n  const toast = page.locator('[data-testid=\"toast\"]');\n  await expect(toast).toBeVisible();\n  const closeButton = toast.getByRole('button', { name: /close|dismiss/i });\n  await closeButton.click();\n  await expect(toast).not.toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-071",
+    "name": "verifyBanner",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+banner",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Verify banner notification",
+    "code": "async function verifyBanner(page: Page, expectedMessage: string, type?: 'info' | 'warning' | 'error' | 'success') {\n  const banner = page.locator('[data-testid=\"banner\"]');\n  await expect(banner).toBeVisible();\n  await expect(banner).toHaveText(new RegExp(expectedMessage, 'i'));\n  if (type) {\n    await expect(banner).toHaveAttribute('data-type', type);\n  }\n}"
+  },
+  {
+    "id": "COMP-072",
+    "name": "checkBadge",
+    "trigger": "(?:check|verify|assert)(?:s|ed|ing)?\\s+badge(?:\\s+count)?",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Check notification badge count",
+    "code": "async function checkBadge(page: Page, targetSelector: string, expectedCount?: number) {\n  const badge = page.locator(`${targetSelector} [data-testid=\"badge\"]`);\n  await expect(badge).toBeVisible();\n  if (expectedCount !== undefined) {\n    const text = await badge.textContent();\n    const count = parseInt(text?.trim() ?? '0');\n    expect(count).toBe(expectedCount);\n  }\n}"
+  },
+  {
+    "id": "COMP-073",
+    "name": "verifyProgressBar",
+    "trigger": "(?:verify|check|wait)(?:s|ed|ing)?\\s+(?:for\\s+)?progress(?:\\s+bar)?",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Verify progress bar value",
+    "code": "async function verifyProgressBar(page: Page, expectedValue?: number) {\n  const progressBar = page.locator('[role=\"progressbar\"]');\n  await expect(progressBar).toBeVisible();\n  if (expectedValue !== undefined) {\n    await expect(progressBar).toHaveAttribute('aria-valuenow', String(expectedValue));\n  }\n  const value = await progressBar.getAttribute('aria-valuenow');\n  return parseInt(value ?? '0');\n}"
+  },
+  {
+    "id": "COMP-074",
+    "name": "waitForSkeleton",
+    "trigger": "(?:wait|check)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:skeleton|loading\\s*placeholder)",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Wait for skeleton loader to disappear",
+    "code": "async function waitForSkeleton(page: Page, timeout: number = 30000) {\n  const skeleton = page.locator('[data-testid=\"skeleton\"]');\n  if (await skeleton.isVisible()) {\n    await expect(skeleton).not.toBeVisible({ timeout });\n  }\n  await page.waitForLoadState('networkidle');\n}"
+  },
+  {
+    "id": "COMP-075",
+    "name": "waitForSpinner",
+    "trigger": "(?:wait|check)(?:s|ed|ing)?\\s+(?:for\\s+)?(?:spinner|loader|loading)",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for loading spinner to disappear",
+    "code": "async function waitForSpinner(page: Page, timeout: number = 30000) {\n  const spinner = page.locator('[data-testid=\"spinner\"], .loading-spinner');\n  if (await spinner.isVisible()) {\n    await expect(spinner).not.toBeVisible({ timeout });\n  }\n}"
+  },
+  {
+    "id": "COMP-076",
+    "name": "verifyIndicator",
+    "trigger": "(?:verify|check)(?:s|ed|ing)?\\s+(?:status\\s+)?indicator",
+    "category": "notifications",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Verify status indicator state",
+    "code": "async function verifyIndicator(page: Page, targetSelector: string, expectedState: 'active' | 'inactive' | 'warning' | 'error') {\n  const indicator = page.locator(`${targetSelector} [data-testid=\"indicator\"]`);\n  await expect(indicator).toBeVisible();\n  await expect(indicator).toHaveAttribute('data-state', expectedState);\n}"
+  },
+  {
+    "id": "COMP-077",
+    "name": "uploadFile",
+    "trigger": "(?:upload|attach|select)(?:s|ed|ing)?\\s+file",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Upload file via input",
+    "code": "async function uploadFile(page: Page, filePath: string, options?: { waitForUpload?: boolean }) {\n  const fileInput = page.locator('input[type=\"file\"]');\n  await fileInput.setInputFiles(filePath);\n  if (options?.waitForUpload !== false) {\n    await page.waitForLoadState('networkidle');\n    await expect(page.getByText(/uploaded|success/i)).toBeVisible({ timeout: 30000 });\n  }\n}"
+  },
+  {
+    "id": "COMP-078",
+    "name": "downloadFile",
+    "trigger": "(?:download|save)(?:s|ed|ing)?\\s+file",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Download file and verify",
+    "code": "async function downloadFile(page: Page, triggerSelector: string): Promise<string> {\n  const downloadPromise = page.waitForEvent('download');\n  await page.locator(triggerSelector).click();\n  const download = await downloadPromise;\n  const path = `./downloads/${download.suggestedFilename()}`;\n  await download.saveAs(path);\n  return path;\n}"
+  },
+  {
+    "id": "COMP-079",
+    "name": "playVideo",
+    "trigger": "(?:play|start)(?:s|ed|ing)?\\s+video",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Play video element",
+    "code": "async function playVideo(page: Page, videoSelector: string = 'video') {\n  const video = page.locator(videoSelector);\n  await expect(video).toBeVisible();\n  await video.evaluate(el => (el as HTMLVideoElement).play());\n  await page.waitForTimeout(1000);\n  const paused = await video.evaluate(el => (el as HTMLVideoElement).paused);\n  expect(paused).toBe(false);\n}"
+  },
+  {
+    "id": "COMP-080",
+    "name": "pauseVideo",
+    "trigger": "(?:pause|stop)(?:s|ed|ing)?\\s+video",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Pause video element",
+    "code": "async function pauseVideo(page: Page, videoSelector: string = 'video') {\n  const video = page.locator(videoSelector);\n  await video.evaluate(el => (el as HTMLVideoElement).pause());\n  await page.waitForTimeout(300);\n  const paused = await video.evaluate(el => (el as HTMLVideoElement).paused);\n  expect(paused).toBe(true);\n}"
+  },
+  {
+    "id": "COMP-081",
+    "name": "seekVideo",
+    "trigger": "(?:seek|jump|skip)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:video\\s+)?(?:time|position)",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Seek video to specific time",
+    "code": "async function seekVideo(page: Page, seconds: number, videoSelector: string = 'video') {\n  const video = page.locator(videoSelector);\n  await video.evaluate((el, time) => {\n    (el as HTMLVideoElement).currentTime = time;\n  }, seconds);\n  await page.waitForTimeout(300);\n  const currentTime = await video.evaluate(el => (el as HTMLVideoElement).currentTime);\n  expect(Math.abs(currentTime - seconds)).toBeLessThan(1);\n}"
+  },
+  {
+    "id": "COMP-082",
+    "name": "muteAudio",
+    "trigger": "(?:mute|unmute|toggle)(?:s|ed|ing)?\\s+(?:audio|sound|volume)",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Mute or unmute audio/video",
+    "code": "async function muteAudio(page: Page, muted: boolean, selector: string = 'video, audio') {\n  const media = page.locator(selector);\n  await media.evaluate((el, shouldMute) => {\n    (el as HTMLMediaElement).muted = shouldMute;\n  }, muted);\n  await page.waitForTimeout(200);\n  const isMuted = await media.evaluate(el => (el as HTMLMediaElement).muted);\n  expect(isMuted).toBe(muted);\n}"
+  },
+  {
+    "id": "COMP-083",
+    "name": "viewImageGallery",
+    "trigger": "(?:view|browse|navigate)(?:s|ed|ing)?\\s+(?:image\\s+)?gallery",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Navigate through image gallery",
+    "code": "async function viewImageGallery(page: Page, imageIndex: number) {\n  const gallery = page.locator('[data-testid=\"gallery\"]');\n  const currentIndex = parseInt(await gallery.getAttribute('data-current-index') ?? '0');\n  const nextButton = gallery.getByRole('button', { name: /next/i });\n  const prevButton = gallery.getByRole('button', { name: /prev/i });\n  if (imageIndex > currentIndex) {\n    for (let i = 0; i < imageIndex - currentIndex; i++) {\n      await nextButton.click();\n      await page.waitForTimeout(300);\n    }\n  } else if (imageIndex < currentIndex) {\n    for (let i = 0; i < currentIndex - imageIndex; i++) {\n      await prevButton.click();\n      await page.waitForTimeout(300);\n    }\n  }\n  await expect(gallery).toHaveAttribute('data-current-index', String(imageIndex));\n}"
+  },
+  {
+    "id": "COMP-084",
+    "name": "previewDocument",
+    "trigger": "(?:preview|view|display)(?:s|ed|ing)?\\s+document",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Preview document in viewer",
+    "code": "async function previewDocument(page: Page, documentSelector: string) {\n  await page.locator(documentSelector).click();\n  const preview = page.locator('[data-testid=\"document-preview\"]');\n  await expect(preview).toBeVisible({ timeout: 10000 });\n  const iframe = preview.locator('iframe, embed, object');\n  await expect(iframe).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-085",
+    "name": "viewCodeWithHighlight",
+    "trigger": "(?:view|display|show)(?:s|ed|ing)?\\s+(?:code|syntax)(?:\\s+highlight)?",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.81,
+    "description": "View code with syntax highlighting",
+    "code": "async function viewCodeWithHighlight(page: Page, language?: string) {\n  const codeBlock = page.locator('[data-testid=\"code-block\"], pre code');\n  await expect(codeBlock).toBeVisible();\n  if (language) {\n    const langClass = await codeBlock.getAttribute('class');\n    expect(langClass).toContain(language.toLowerCase());\n  }\n  const highlighted = await codeBlock.locator('.token, .hljs-keyword').count();\n  expect(highlighted).toBeGreaterThan(0);\n}"
+  },
+  {
+    "id": "COMP-086",
+    "name": "carouselNavigate",
+    "trigger": "(?:navigate|browse|slide)(?:s|ed|ing)?\\s+(?:carousel|slider)",
+    "category": "media",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Navigate carousel slides",
+    "code": "async function carouselNavigate(page: Page, direction: 'next' | 'prev' | number) {\n  const carousel = page.locator('[data-testid=\"carousel\"]');\n  if (typeof direction === 'number') {\n    await carousel.locator(`[data-slide=\"${direction}\"]`).click();\n  } else {\n    await carousel.getByRole('button', { name: new RegExp(direction, 'i') }).click();\n  }\n  await page.waitForTimeout(500);\n  const activeSlide = carousel.locator('[data-active=\"true\"]');\n  await expect(activeSlide).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-087",
+    "name": "addToCart",
+    "trigger": "(?:add|put)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:cart|basket)",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.94,
+    "description": "Add product to shopping cart",
+    "code": "async function addToCart(page: Page, productSelector: string, options?: { quantity?: number }) {\n  const product = page.locator(productSelector);\n  if (options?.quantity) {\n    await product.getByLabel(/quantity/i).fill(String(options.quantity));\n  }\n  await product.getByRole('button', { name: /add.*cart/i }).click();\n  await expect(page.getByText(/added.*cart/i)).toBeVisible({ timeout: 5000 });\n  const cartBadge = page.locator('[data-testid=\"cart-badge\"]');\n  await expect(cartBadge).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-088",
+    "name": "removeFromCart",
+    "trigger": "(?:remove|delete)(?:s|ed|ing)?\\s+(?:from\\s+)?(?:cart|basket)",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.91,
+    "description": "Remove item from cart",
+    "code": "async function removeFromCart(page: Page, productName: string) {\n  await page.goto('/cart');\n  const cartItem = page.locator('[data-testid=\"cart-item\"]').filter({ hasText: productName });\n  await expect(cartItem).toBeVisible();\n  await cartItem.getByRole('button', { name: /remove|delete/i }).click();\n  await expect(cartItem).not.toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-089",
+    "name": "updateCartQuantity",
+    "trigger": "(?:update|change|modify)(?:s|ed|ing)?\\s+(?:cart\\s+)?quantity",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.89,
+    "description": "Update item quantity in cart",
+    "code": "async function updateCartQuantity(page: Page, productName: string, newQuantity: number) {\n  await page.goto('/cart');\n  const cartItem = page.locator('[data-testid=\"cart-item\"]').filter({ hasText: productName });\n  const quantityInput = cartItem.getByLabel(/quantity/i);\n  await quantityInput.fill(String(newQuantity));\n  await page.waitForLoadState('networkidle');\n  await expect(quantityInput).toHaveValue(String(newQuantity));\n}"
+  },
+  {
+    "id": "COMP-090",
+    "name": "proceedToCheckout",
+    "trigger": "(?:proceed|go|continue)(?:s|ed|ing)?\\s+(?:to\\s+)?checkout",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.93,
+    "description": "Proceed from cart to checkout",
+    "code": "async function proceedToCheckout(page: Page) {\n  await page.goto('/cart');\n  await page.getByRole('button', { name: /checkout|proceed/i }).click();\n  await page.waitForURL(/checkout/i);\n  await expect(page.getByRole('heading', { name: /checkout/i })).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-091",
+    "name": "applyPromoCode",
+    "trigger": "(?:apply|use|enter)(?:s|ed|ing)?\\s+(?:promo|discount|coupon)(?:\\s+code)?",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.9,
+    "description": "Apply promotional code",
+    "code": "async function applyPromoCode(page: Page, code: string) {\n  const promoInput = page.getByLabel(/promo|coupon|discount/i);\n  await promoInput.fill(code);\n  await page.getByRole('button', { name: /apply/i }).click();\n  await expect(page.getByText(/applied|discount.*applied/i)).toBeVisible({ timeout: 5000 });\n}"
+  },
+  {
+    "id": "COMP-092",
+    "name": "selectShipping",
+    "trigger": "(?:select|choose|pick)(?:s|ed|ing)?\\s+shipping(?:\\s+method)?",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.88,
+    "description": "Select shipping method",
+    "code": "async function selectShipping(page: Page, method: string) {\n  const shippingOption = page.getByRole('radio', { name: new RegExp(method, 'i') });\n  await shippingOption.check();\n  await expect(shippingOption).toBeChecked();\n  await page.waitForTimeout(500);\n}"
+  },
+  {
+    "id": "COMP-093",
+    "name": "completePayment",
+    "trigger": "(?:complete|finish|submit)(?:s|ed|ing)?\\s+(?:payment|order|purchase)",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.92,
+    "description": "Complete payment and order",
+    "code": "async function completePayment(page: Page) {\n  await page.getByRole('button', { name: /place.*order|complete.*payment|pay/i }).click();\n  await page.waitForURL(/confirmation|success|thank.*you/i, { timeout: 30000 });\n  await expect(page.getByText(/order.*confirmed|thank.*you|success/i)).toBeVisible();\n  const orderNumber = await page.locator('[data-testid=\"order-number\"]').textContent();\n  expect(orderNumber).toBeTruthy();\n  return orderNumber?.trim();\n}"
+  },
+  {
+    "id": "COMP-094",
+    "name": "trackOrder",
+    "trigger": "(?:track|check|view)(?:s|ed|ing)?\\s+order(?:\\s+status)?",
+    "category": "ecommerce",
+    "scope": "ecommerce",
+    "confidence": 0.86,
+    "description": "Track order status",
+    "code": "async function trackOrder(page: Page, orderNumber: string) {\n  await page.goto('/orders');\n  await page.getByPlaceholder(/order.*number/i).fill(orderNumber);\n  await page.getByRole('button', { name: /track|search/i }).click();\n  const orderStatus = page.locator('[data-testid=\"order-status\"]');\n  await expect(orderStatus).toBeVisible();\n  const status = await orderStatus.textContent();\n  expect(status).toBeTruthy();\n  return status?.trim();\n}"
+  },
+  {
+    "id": "COMP-095",
+    "name": "postComment",
+    "trigger": "(?:post|add|write)(?:s|ed|ing)?\\s+comment",
+    "category": "social",
+    "scope": "social",
+    "confidence": 0.9,
+    "description": "Post comment on content",
+    "code": "async function postComment(page: Page, commentText: string) {\n  const commentInput = page.getByPlaceholder(/comment|write/i);\n  await commentInput.fill(commentText);\n  await page.getByRole('button', { name: /post|submit|send/i }).click();\n  await expect(page.locator('[data-testid=\"comment\"]').filter({ hasText: commentText })).toBeVisible({ timeout: 5000 });\n}"
+  },
+  {
+    "id": "COMP-096",
+    "name": "addReaction",
+    "trigger": "(?:add|give|click)(?:s|ed|ing)?\\s+(?:reaction|like|emoji)",
+    "category": "social",
+    "scope": "social",
+    "confidence": 0.88,
+    "description": "Add reaction to content",
+    "code": "async function addReaction(page: Page, contentSelector: string, reaction: string = 'like') {\n  const content = page.locator(contentSelector);\n  const reactionButton = content.getByRole('button', { name: new RegExp(reaction, 'i') });\n  await reactionButton.click();\n  await expect(reactionButton).toHaveAttribute('aria-pressed', 'true');\n  const count = await content.locator('[data-testid=\"reaction-count\"]').textContent();\n  expect(parseInt(count ?? '0')).toBeGreaterThan(0);\n}"
+  },
+  {
+    "id": "COMP-097",
+    "name": "shareContent",
+    "trigger": "(?:share|send|forward)(?:s|ed|ing)?\\s+content",
+    "category": "social",
+    "scope": "social",
+    "confidence": 0.87,
+    "description": "Share content via various methods",
+    "code": "async function shareContent(page: Page, method: 'link' | 'email' | 'social') {\n  await page.getByRole('button', { name: /share/i }).click();\n  const shareMenu = page.locator('[data-testid=\"share-menu\"]');\n  await expect(shareMenu).toBeVisible();\n  if (method === 'link') {\n    await shareMenu.getByRole('button', { name: /copy.*link/i }).click();\n    await expect(page.getByText(/copied|link.*copied/i)).toBeVisible();\n  } else {\n    await shareMenu.getByRole('button', { name: new RegExp(method, 'i') }).click();\n  }\n}"
+  },
+  {
+    "id": "COMP-098",
+    "name": "followUser",
+    "trigger": "(?:follow|subscribe)(?:s|ed|ing)?\\s+(?:user|account|profile)",
+    "category": "social",
+    "scope": "social",
+    "confidence": 0.89,
+    "description": "Follow user or profile",
+    "code": "async function followUser(page: Page, username: string) {\n  await page.goto(`/users/${username}`);\n  const followButton = page.getByRole('button', { name: /follow/i });\n  await expect(followButton).toBeVisible();\n  await followButton.click();\n  await expect(followButton).toHaveText(/following|unfollow/i);\n  await expect(page.locator('[data-testid=\"follower-count\"]')).toBeVisible();\n}"
+  },
+  {
+    "id": "COMP-099",
+    "name": "mentionUser",
+    "trigger": "(?:mention|tag)(?:s|ed|ing)?\\s+user",
+    "category": "social",
+    "scope": "social",
+    "confidence": 0.85,
+    "description": "Mention user in text input",
+    "code": "async function mentionUser(page: Page, username: string, inputSelector: string) {\n  const input = page.locator(inputSelector);\n  await input.fill(`@${username}`);\n  const mentionDropdown = page.locator('[data-testid=\"mention-dropdown\"]');\n  await expect(mentionDropdown).toBeVisible();\n  await mentionDropdown.getByText(username).click();\n  await expect(input).toContainText(`@${username}`);\n}"
+  },
+  {
+    "id": "COMP-100",
+    "name": "scrollToElement",
+    "trigger": "(?:scroll|move)(?:s|ed|ing)?\\s+(?:to\\s+)?element",
+    "category": "navigation",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Scroll element into view",
+    "code": "async function scrollToElement(page: Page, selector: string, options?: { behavior?: 'smooth' | 'auto'; block?: 'start' | 'center' | 'end' }) {\n  const element = page.locator(selector);\n  await element.scrollIntoViewIfNeeded();\n  await expect(element).toBeInViewport();\n  if (options?.behavior === 'smooth') {\n    await element.evaluate((el, opts) => {\n      el.scrollIntoView({ behavior: 'smooth', block: opts.block ?? 'center' });\n    }, { block: options.block });\n    await page.waitForTimeout(500);\n  }\n}"
+  }
+]

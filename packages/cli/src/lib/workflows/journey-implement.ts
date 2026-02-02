@@ -300,6 +300,18 @@ export function buildImplementPlan(
     description: 'Export LLKB for AutoGen consumption',
   };
 
+  // AutoGen commands - uses the generate command with journey files
+  // Note: The new pipeline commands (analyze, plan, generate, run, refine)
+  // are available for orchestrator-driven workflows. This workflow uses
+  // the direct generation approach for backward compatibility.
+  //
+  // Pipeline approach (for orchestrators):
+  //   artk-autogen analyze journeys/*.md
+  //   artk-autogen plan --strategy direct
+  //   artk-autogen generate --plan .artk/autogen/plan.json
+  //   artk-autogen run tests/*.spec.ts
+  //   artk-autogen refine
+  //   artk-autogen status
   const autogenCommands: CommandSpec[] = journeys.map(j => {
     const testsDir = path.join(ctx.harnessRoot, 'tests');
     const llkbConfig = path.join(ctx.harnessRoot, 'autogen-llkb.config.yml');

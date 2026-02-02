@@ -292,3 +292,104 @@ export function getArtkDir(explicitBaseDir?: string): string {
   }
   return join(getHarnessRoot(), '.artk');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTOGEN ARTIFACT PATHS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Autogen artifact types
+ */
+export type AutogenArtifact =
+  | 'analysis'      // analysis.json - Journey analysis results
+  | 'plan'          // plan.json - Test generation plan
+  | 'state'         // pipeline-state.json - Pipeline execution state
+  | 'results'       // results.json - Test execution results
+  | 'samples'       // samples/ directory - Multi-sample outputs
+  | 'agreement'     // samples/agreement.json - Sample agreement analysis
+  | 'telemetry';    // telemetry.json - Session telemetry
+
+/**
+ * Get the autogen artifacts directory (.artk/autogen inside harness root).
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ * @returns Path to the autogen directory
+ */
+export function getAutogenDir(explicitBaseDir?: string): string {
+  return join(getArtkDir(explicitBaseDir), 'autogen');
+}
+
+/**
+ * Get the path to a specific autogen artifact.
+ *
+ * @param artifact - The artifact type to get path for
+ * @param explicitBaseDir - Optional explicit path override
+ * @returns Path to the artifact
+ */
+export function getAutogenArtifact(artifact: AutogenArtifact, explicitBaseDir?: string): string {
+  const dir = getAutogenDir(explicitBaseDir);
+  switch (artifact) {
+    case 'analysis':
+      return join(dir, 'analysis.json');
+    case 'plan':
+      return join(dir, 'plan.json');
+    case 'state':
+      return join(dir, 'pipeline-state.json');
+    case 'results':
+      return join(dir, 'results.json');
+    case 'samples':
+      return join(dir, 'samples');
+    case 'agreement':
+      return join(dir, 'samples', 'agreement.json');
+    case 'telemetry':
+      return join(dir, 'telemetry.json');
+  }
+}
+
+/**
+ * Ensure the autogen directory structure exists.
+ *
+ * Creates:
+ * - <harnessRoot>/.artk/autogen/
+ * - <harnessRoot>/.artk/autogen/samples/
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ */
+export async function ensureAutogenDir(explicitBaseDir?: string): Promise<void> {
+  const { mkdir } = await import('node:fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  await mkdir(dir, { recursive: true });
+  await mkdir(join(dir, 'samples'), { recursive: true });
+}
+
+/**
+ * Clean all autogen artifacts for a fresh start.
+ *
+ * Removes and recreates the autogen directory.
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ */
+export async function cleanAutogenArtifacts(explicitBaseDir?: string): Promise<void> {
+  const { rm } = await import('node:fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  if (existsSync(dir)) {
+    await rm(dir, { recursive: true });
+  }
+  await ensureAutogenDir(explicitBaseDir);
+}
+
+/**
+ * Check if autogen artifacts exist.
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ * @returns true if the autogen directory exists and contains artifacts
+ */
+export function hasAutogenArtifacts(explicitBaseDir?: string): boolean {
+  const dir = getAutogenDir(explicitBaseDir);
+  if (!existsSync(dir)) {
+    return false;
+  }
+  // Check for at least one artifact
+  const artifactTypes: AutogenArtifact[] = ['analysis', 'plan', 'state', 'results'];
+  return artifactTypes.some(artifact => existsSync(getAutogenArtifact(artifact, explicitBaseDir)));
+}

@@ -983,6 +983,66 @@ artk llkb stats
 artk llkb prune --history-retention-days 90
 ```
 
+### AutoGen CLI Commands
+
+AutoGen provides test generation capabilities through a pipeline of CLI commands:
+
+**Direct Generation (Simple - Recommended for most cases):**
+```bash
+# Generate tests directly from a journey file
+npx artk-autogen generate ../journeys/clarified/JRN-0001__user-login.md \
+  -o tests/smoke/ \
+  -m \
+  --llkb-config ./autogen-llkb.config.yml \
+  --llkb-glossary ./llkb-glossary.ts
+```
+
+**Pipeline Commands (Advanced - For complex journeys requiring iteration):**
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `analyze` | Analyze journey and output structured JSON | `npx artk-autogen analyze --journey <path>` |
+| `plan` | Create test generation plan from analysis | `npx artk-autogen plan --analysis <path>` |
+| `generate` | Generate tests (from plan or journey directly) | `npx artk-autogen generate --plan <path>` |
+| `run` | Execute Playwright tests and output results | `npx artk-autogen run --tests <path>` |
+| `refine` | Analyze failures and suggest refinements | `npx artk-autogen refine --results <path>` |
+| `status` | Show current pipeline state | `npx artk-autogen status` |
+| `clean` | Clean autogen artifacts for fresh start | `npx artk-autogen clean` |
+
+**Pipeline artifacts are stored in:** `<harnessRoot>/.artk/autogen/`
+- `analysis.json` - Journey analysis output
+- `plan.json` - Test generation plan
+- `pipeline-state.json` - Current pipeline state
+- `results.json` - Test execution results
+- `samples/` - Multi-sample code generation artifacts
+- `telemetry.json` - Cost and performance tracking
+
+**Pipeline Flow Example:**
+```bash
+cd artk-e2e
+
+# Step 1: Analyze the journey
+npx artk-autogen analyze --journey ../journeys/clarified/JRN-0001__user-login.md
+
+# Step 2: Create test plan (review plan.json before proceeding)
+npx artk-autogen plan --analysis .artk/autogen/analysis.json
+
+# Step 3: Generate tests from plan
+npx artk-autogen generate --plan .artk/autogen/plan.json -o tests/smoke/
+
+# Step 4: Run generated tests
+npx artk-autogen run --tests tests/smoke/jrn-0001__user-login.spec.ts
+
+# Step 5: If tests fail, get refinement suggestions
+npx artk-autogen refine --results .artk/autogen/results.json
+
+# Step 6: Check pipeline status anytime
+npx artk-autogen status
+
+# Step 7: Start fresh
+npx artk-autogen clean
+```
+
 ### Test File Versioning
 
 Generated tests include LLKB version metadata in headers:

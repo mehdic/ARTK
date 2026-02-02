@@ -1,0 +1,902 @@
+[
+  {
+    "id": "INT-001",
+    "trigger": "(?:click|press|tap|hit|select|choose|activate)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:a\\s+)?(?:an\\s+)?button(?:\\s+(?:labeled|named|with\\s+text|saying))?(?:\\s+['\"]([^'\"]+)['\"])?",
+    "pattern": "await page.getByRole('button', { name: '${name}' }).click();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Click a button by name or label"
+  },
+  {
+    "id": "INT-002",
+    "trigger": "double[\\s-]?(?:click|tap)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').dblclick();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Double-click an element"
+  },
+  {
+    "id": "INT-003",
+    "trigger": "triple[\\s-]?(?:click|tap)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ clickCount: 3 });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Triple-click an element (select all text)"
+  },
+  {
+    "id": "INT-004",
+    "trigger": "(?:long[\\s-]?press|hold)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))(?:\\s+for\\s+(\\d+)\\s*(?:ms|milliseconds|seconds?))?",
+    "pattern": "await page.locator('${selector}').click({ delay: ${duration} });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Long-press or click-and-hold an element"
+  },
+  {
+    "id": "INT-005",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:with|while\\s+holding)\\s+(?:ctrl|control)(?:\\s+(?:key|modifier))?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ modifiers: ['Control'] });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Click with Ctrl modifier key"
+  },
+  {
+    "id": "INT-006",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:with|while\\s+holding)\\s+shift(?:\\s+(?:key|modifier))?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ modifiers: ['Shift'] });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Click with Shift modifier key"
+  },
+  {
+    "id": "INT-007",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:with|while\\s+holding)\\s+alt(?:\\s+(?:key|modifier))?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ modifiers: ['Alt'] });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Click with Alt modifier key"
+  },
+  {
+    "id": "INT-008",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:with|while\\s+holding)\\s+(?:meta|command|cmd|super)(?:\\s+(?:key|modifier))?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ modifiers: ['Meta'] });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Click with Meta/Command modifier key"
+  },
+  {
+    "id": "INT-009",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:with|while\\s+holding)\\s+ctrl\\s*\\+\\s*shift\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ modifiers: ['Control', 'Shift'] });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Click with Ctrl+Shift modifiers"
+  },
+  {
+    "id": "INT-010",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+at\\s+coordinates\\s+\\(?(\\d+)\\s*,\\s*(\\d+)\\)?",
+    "pattern": "await page.mouse.click(${x}, ${y});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Click at specific X,Y coordinates"
+  },
+  {
+    "id": "INT-011",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:at\\s+)?(?:the\\s+)?(center|middle|top|bottom|left|right|top-left|top-right|bottom-left|bottom-right)(?:\\s+of)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ position: { x: ${x}, y: ${y} } });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Click at specific position within element"
+  },
+  {
+    "id": "INT-012",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:the\\s+)?(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|last|nth)(?:\\s+(['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "await page.locator('${selector}').nth(${index}).click();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Click nth element in a list"
+  },
+  {
+    "id": "INT-013",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:element|item)\\s+(?:at\\s+)?(?:index|position)\\s+(\\d+)",
+    "pattern": "await page.locator('${selector}').nth(${index}).click();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Click element by numeric index"
+  },
+  {
+    "id": "INT-014",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:text|link)(?:\\s+saying)?\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.getByText('${text}', { exact: true }).click();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Click element by exact text content"
+  },
+  {
+    "id": "INT-015",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:link|anchor)(?:\\s+with\\s+text)?\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await page.getByRole('link', { name: '${name}' }).click();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Click a link by accessible name"
+  },
+  {
+    "id": "INT-016",
+    "trigger": "force[\\s-]?(?:click|press|tap)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ force: true });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Force click bypassing actionability checks"
+  },
+  {
+    "id": "INT-017",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:outside|away\\s+from)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "const box = await page.locator('${selector}').boundingBox(); await page.mouse.click(box.x + box.width + 10, box.y);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Click outside an element"
+  },
+  {
+    "id": "INT-018",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:through|via)\\s+(?:the\\s+)?(?:overlay|modal|backdrop)\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ force: true, trial: false });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Click through overlay to element beneath"
+  },
+  {
+    "id": "INT-019",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:and\\s+)?(?:hold|holding)\\s+(?:the\\s+)?(?:mouse\\s+)?(?:button\\s+)?(?:down\\s+)?(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover(); await page.mouse.down();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Mouse down without releasing (hold)"
+  },
+  {
+    "id": "INT-020",
+    "trigger": "(?:release|let\\s+go\\s+of)\\s+(?:the\\s+)?(?:mouse\\s+)?(?:button|click)",
+    "pattern": "await page.mouse.up();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Release mouse button after hold"
+  },
+  {
+    "id": "INT-021",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:all|every)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "const elements = await page.locator('${selector}').all(); for (const el of elements) { await el.click(); }",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Click all matching elements sequentially"
+  },
+  {
+    "id": "INT-022",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:if|when)\\s+(?:visible|shown|displayed)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "if (await page.locator('${selector}').isVisible()) { await page.locator('${selector}').click(); }",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Conditional click only if element is visible"
+  },
+  {
+    "id": "INT-023",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:and\\s+)?(?:wait|waiting)(?:\\s+for)?\\s+(?:the\\s+)?(?:navigation|page\\s+load)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await Promise.all([page.waitForNavigation(), page.locator('${selector}').click()]);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Click and wait for navigation"
+  },
+  {
+    "id": "INT-024",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:disabled|inactive)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ force: true });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Force click disabled element"
+  },
+  {
+    "id": "INT-025",
+    "trigger": "(?:click|press|tap)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:hidden|invisible)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ force: true });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.81,
+    "description": "Force click hidden element"
+  },
+  {
+    "id": "INT-026",
+    "trigger": "right[\\s-]?(?:click|tap)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ button: 'right' });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Right-click to open context menu"
+  },
+  {
+    "id": "INT-027",
+    "trigger": "(?:open|show|display)(?:s|ed|ing)?\\s+(?:the\\s+)?context\\s+menu\\s+(?:on|for)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').click({ button: 'right' });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Open context menu"
+  },
+  {
+    "id": "INT-028",
+    "trigger": "(?:select|choose|click)(?:s|ed|ing)?\\s+['\"]([^'\"]+)['\"]\\s+(?:from|in)\\s+(?:the\\s+)?context\\s+menu",
+    "pattern": "await page.locator('${selector}').click({ button: 'right' }); await page.getByText('${option}').click();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Select item from context menu"
+  },
+  {
+    "id": "INT-029",
+    "trigger": "(?:navigate|go)(?:s|ed|ing)?\\s+(?:to|through)\\s+(?:nested|submenu)\\s+['\"]([^'\"]+)['\"](?:\\s*>\\s*['\"]([^'\"]+)['\"])+",
+    "pattern": "await page.locator('${selector}').click({ button: 'right' }); await page.getByText('${menu1}').hover(); await page.getByText('${menu2}').click();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Navigate nested context menus"
+  },
+  {
+    "id": "INT-030",
+    "trigger": "(?:close|dismiss|hide)(?:s|ed|ing)?\\s+(?:the\\s+)?context\\s+menu",
+    "pattern": "await page.keyboard.press('Escape');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Close context menu"
+  },
+  {
+    "id": "INT-031",
+    "trigger": "right[\\s-]?(?:click|tap)(?:s|ed|ing)?\\s+(?:at\\s+)?coordinates\\s+\\(?(\\d+)\\s*,\\s*(\\d+)\\)?",
+    "pattern": "await page.mouse.click(${x}, ${y}, { button: 'right' });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Right-click at specific coordinates"
+  },
+  {
+    "id": "INT-032",
+    "trigger": "(?:wait\\s+for|expect)\\s+(?:the\\s+)?context\\s+menu\\s+(?:to\\s+)?(?:appear|show|be\\s+visible)",
+    "pattern": "await page.locator('[role=\"menu\"]').waitFor({ state: 'visible' });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for context menu to appear"
+  },
+  {
+    "id": "INT-033",
+    "trigger": "(?:verify|check|assert)\\s+context\\s+menu\\s+(?:has|contains|includes)\\s+(?:option|item)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.getByRole('menu').getByText('${option}')).toBeVisible();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Verify context menu has specific option"
+  },
+  {
+    "id": "INT-034",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Basic hover over element"
+  },
+  {
+    "id": "INT-035",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:for|duration\\s+of)\\s+(\\d+)\\s*(?:ms|milliseconds|seconds?)\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover(); await page.waitForTimeout(${duration});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Hover with specific duration"
+  },
+  {
+    "id": "INT-036",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))(?:\\s+then\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))+",
+    "pattern": "await page.locator('${selector1}').hover(); await page.locator('${selector2}').hover();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Chain multiple hovers"
+  },
+  {
+    "id": "INT-037",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:and\\s+)?(?:wait\\s+for|until)\\s+(?:the\\s+)?tooltip(?:\\s+(?:appears|shows|is\\s+visible))?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover(); await page.locator('[role=\"tooltip\"]').waitFor({ state: 'visible' });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Hover and wait for tooltip"
+  },
+  {
+    "id": "INT-038",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:reveal|show|display)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${trigger}').hover(); await page.locator('${target}').waitFor({ state: 'visible' });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Hover to reveal hidden element"
+  },
+  {
+    "id": "INT-039",
+    "trigger": "(?:un-?hover|mouse\\s+off|move\\s+away\\s+from)\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.mouse.move(0, 0);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Move mouse away from element"
+  },
+  {
+    "id": "INT-040",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:with|after)\\s+(?:a\\s+)?(\\d+)\\s*(?:ms|milliseconds|seconds?)\\s+delay\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.waitForTimeout(${delay}); await page.locator('${selector}').hover();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Hover with delay before action"
+  },
+  {
+    "id": "INT-041",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:disabled|inactive)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover({ force: true });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Hover over disabled element"
+  },
+  {
+    "id": "INT-042",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:at\\s+)?(?:the\\s+)?(center|middle|top|bottom|left|right|top-left|top-right|bottom-left|bottom-right)(?:\\s+of)?\\s+(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover({ position: { x: ${x}, y: ${y} } });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Hover at specific position within element"
+  },
+  {
+    "id": "INT-043",
+    "trigger": "(?:hover|mouse\\s+over)(?:s|ed|ing)?\\s+(?:and\\s+)?(?:wait|waiting)\\s+(?:for\\s+)?(\\d+)\\s*(?:ms|milliseconds|seconds?)\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover(); await page.waitForTimeout(${duration});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Hover and wait specified duration"
+  },
+  {
+    "id": "INT-044",
+    "trigger": "(?:verify|check|assert)\\s+(?:hover|mouseover)\\s+(?:effect|state|style)\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').hover(); await expect(page.locator('${selector}')).toHaveCSS('${property}', '${value}');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Verify hover state/effect"
+  },
+  {
+    "id": "INT-045",
+    "trigger": "(?:simulate|trigger)\\s+(?:mouse\\s+)?(?:enter|over)\\s+(?:event\\s+)?(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').dispatchEvent('mouseenter');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Dispatch mouseenter event"
+  },
+  {
+    "id": "INT-046",
+    "trigger": "(?:drag|drag\\s+and\\s+drop)(?:s|ged|ging)?\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:to|onto|into)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${source}').dragTo(page.locator('${target}'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Basic drag and drop"
+  },
+  {
+    "id": "INT-047",
+    "trigger": "(?:reorder|sort|rearrange)(?:s|ed|ing)?\\s+(?:list\\s+)?(?:item\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:to|into)\\s+position\\s+(\\d+|first|last)",
+    "pattern": "await page.locator('${source}').dragTo(page.locator('${target}'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Drag to reorder list items"
+  },
+  {
+    "id": "INT-048",
+    "trigger": "(?:drop|upload)(?:s|ped|ping)?\\s+(?:file|files)\\s+(?:into|onto|on)\\s+(?:the\\s+)?(?:drop\\s+zone|dropzone|upload\\s+area)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').setInputFiles('${filepath}');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Drop files into drop zone"
+  },
+  {
+    "id": "INT-049",
+    "trigger": "(?:drag|resize)(?:s|ged|ging)?\\s+(?:the\\s+)?(?:resize\\s+)?handle\\s+(?:of|on|for)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:by|to)\\s+(\\d+)\\s+(?:pixels|px)",
+    "pattern": "await page.locator('${selector}').hover(); await page.mouse.down(); await page.mouse.move(${x}, ${y}); await page.mouse.up();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Drag resize handle"
+  },
+  {
+    "id": "INT-050",
+    "trigger": "(?:multi[\\s-]?select|select\\s+multiple)(?:s|ed|ing)?\\s+(?:and\\s+)?(?:drag|dragging)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))(?:\\s+and\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))+",
+    "pattern": "await page.keyboard.down('Control'); await page.locator('${selector1}').click(); await page.locator('${selector2}').click(); await page.keyboard.up('Control'); await page.locator('${selector1}').dragTo(page.locator('${target}'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Multi-select and drag items"
+  },
+  {
+    "id": "INT-051",
+    "trigger": "(?:drag|dragging)(?:s|ged|ging)?\\s+(?:with|to)\\s+(?:snap|snapping|grid\\s+snap)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${source}').dragTo(page.locator('${target}'), { force: false });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Drag with snap-to-grid"
+  },
+  {
+    "id": "INT-052",
+    "trigger": "(?:cancel|abort|stop)(?:s|ed|ing)?\\s+(?:the\\s+)?drag(?:\\s+operation)?",
+    "pattern": "await page.keyboard.press('Escape');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Cancel drag operation"
+  },
+  {
+    "id": "INT-053",
+    "trigger": "(?:drag|dragging)(?:s|ged|ging)?\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:to|by)\\s+(?:coordinates|position)\\s+\\(?(\\d+)\\s*,\\s*(\\d+)\\)?",
+    "pattern": "await page.locator('${selector}').hover(); await page.mouse.down(); await page.mouse.move(${x}, ${y}); await page.mouse.up();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Drag to specific coordinates"
+  },
+  {
+    "id": "INT-054",
+    "trigger": "(?:drag|move)(?:s|ged|ging)?\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:from|out\\s+of)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:to|into)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${source}').dragTo(page.locator('${target}'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Drag between containers"
+  },
+  {
+    "id": "INT-055",
+    "trigger": "(?:drag|move)(?:s|ged|ging)?\\s+(?:kanban\\s+)?card\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:to|into)\\s+(?:column|lane|status)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${card}').dragTo(page.locator('${column}'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Drag kanban card between columns"
+  },
+  {
+    "id": "INT-056",
+    "trigger": "(?:reorder|rearrange|sort)(?:s|ed|ing)?\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:before|after|above|below)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${source}').dragTo(page.locator('${target}'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Reorder items relative to each other"
+  },
+  {
+    "id": "INT-057",
+    "trigger": "(?:drag|click)(?:s|ged|ging)?\\s+(?:the\\s+)?(?:drag\\s+)?handle\\s+(?:of|on|for)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector} [data-drag-handle]').dragTo(page.locator('${target}'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Drag using drag handle"
+  },
+  {
+    "id": "INT-058",
+    "trigger": "(?:verify|check|assert)\\s+(?:drag\\s+)?preview\\s+(?:shows|displays|contains)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('[data-drag-preview]')).toContainText('${text}');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Verify drag preview content"
+  },
+  {
+    "id": "INT-059",
+    "trigger": "(?:drag|dragging)(?:s|ged|ging)?\\s+(?:with|holding)\\s+(\\d+)\\s*(?:ms|milliseconds|seconds?)\\s+(?:delay|pause)",
+    "pattern": "await page.locator('${selector}').hover(); await page.mouse.down(); await page.waitForTimeout(${delay}); await page.mouse.move(${x}, ${y}); await page.mouse.up();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Drag with delay/pause"
+  },
+  {
+    "id": "INT-060",
+    "trigger": "(?:drag|move)(?:s|ged|ging)?\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(left|right|up|down)\\s+(?:by\\s+)?(\\d+)\\s*(?:pixels|px)",
+    "pattern": "const box = await page.locator('${selector}').boundingBox(); await page.locator('${selector}').hover(); await page.mouse.down(); await page.mouse.move(box.x + ${dx}, box.y + ${dy}); await page.mouse.up();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Drag element by offset"
+  },
+  {
+    "id": "INT-061",
+    "trigger": "(?:verify|check|assert)\\s+(?:can|able\\s+to)\\s+drag\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('draggable', 'true');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Verify element is draggable"
+  },
+  {
+    "id": "INT-062",
+    "trigger": "(?:verify|check|assert)\\s+(?:drag|drop)\\s+(?:zone|area|target)\\s+(?:accepts|allows)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${source}').dragTo(page.locator('${target}')); await expect(page.locator('${target}')).toContainText('${text}');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Verify drop zone accepts draggable"
+  },
+  {
+    "id": "INT-063",
+    "trigger": "(?:simulate|trigger)\\s+(?:drag|drop)\\s+event\\s+(?:on\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').dispatchEvent('drop', { dataTransfer: {} });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.81,
+    "description": "Dispatch drag/drop event"
+  },
+  {
+    "id": "INT-064",
+    "trigger": "(?:drag|move)(?:s|ged|ging)?\\s+(?:using|via)\\s+(?:keyboard|arrow\\s+keys)",
+    "pattern": "await page.locator('${selector}').focus(); await page.keyboard.press('Space'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Space');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Keyboard-accessible drag (accessibility)"
+  },
+  {
+    "id": "INT-065",
+    "trigger": "(?:wait\\s+for|expect)\\s+(?:drag\\s+)?(?:operation|action)\\s+(?:to\\s+)?(?:complete|finish)",
+    "pattern": "await page.waitForFunction(() => !document.querySelector('[data-dragging=\"true\"]'));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Wait for drag operation to complete"
+  },
+  {
+    "id": "INT-066",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:into|to)\\s+view",
+    "pattern": "await page.locator('${selector}').scrollIntoViewIfNeeded();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Scroll element into view"
+  },
+  {
+    "id": "INT-067",
+    "trigger": "(?:trigger|activate|load)(?:s|ed|ing)?\\s+(?:the\\s+)?infinite\\s+scroll(?:\\s+at\\s+(?:the\\s+)?bottom)?",
+    "pattern": "await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Trigger infinite scroll"
+  },
+  {
+    "id": "INT-068",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:virtual\\s+list|virtualized\\s+content)\\s+(?:to|by)\\s+(\\d+)\\s*(?:items|rows|elements)",
+    "pattern": "await page.locator('${container}').evaluate((el, offset) => el.scrollTop += offset, ${offset});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Scroll virtual list"
+  },
+  {
+    "id": "INT-069",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:horizontally|sideways)\\s+(?:to|by)\\s+(\\d+)\\s*(?:pixels|px)",
+    "pattern": "await page.evaluate((x) => window.scrollBy(x, 0), ${amount});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Horizontal scroll"
+  },
+  {
+    "id": "INT-070",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:to\\s+)?(\\d+)(?:%|\\s*percent)(?:\\s+(?:of|down)\\s+(?:the\\s+)?page)?",
+    "pattern": "await page.evaluate((percent) => window.scrollTo(0, document.body.scrollHeight * (percent / 100)), ${percent});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Scroll to percentage of page"
+  },
+  {
+    "id": "INT-071",
+    "trigger": "(?:smooth\\s+)?(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:the\\s+)?(?:top|bottom)(?:\\s+of\\s+(?:the\\s+)?page)?",
+    "pattern": "await page.evaluate(() => window.scrollTo({ top: ${position}, behavior: 'smooth' }));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Smooth scroll to top/bottom"
+  },
+  {
+    "id": "INT-072",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:container|element)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:by|to)\\s+(\\d+)\\s*(?:pixels|px)",
+    "pattern": "await page.locator('${selector}').evaluate((el, offset) => el.scrollTop += offset, ${offset});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Scroll container element"
+  },
+  {
+    "id": "INT-073",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').scrollIntoViewIfNeeded();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Scroll to specific element"
+  },
+  {
+    "id": "INT-074",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:by|down)\\s+(\\d+)\\s*(?:pixels|px)",
+    "pattern": "await page.evaluate((y) => window.scrollBy(0, y), ${amount});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Scroll by pixel amount"
+  },
+  {
+    "id": "INT-075",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:the\\s+)?(?:top|start)(?:\\s+of)?",
+    "pattern": "await page.evaluate(() => window.scrollTo(0, 0));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Scroll to top of page"
+  },
+  {
+    "id": "INT-076",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:the\\s+)?(?:bottom|end)(?:\\s+of)?",
+    "pattern": "await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Scroll to bottom of page"
+  },
+  {
+    "id": "INT-077",
+    "trigger": "(?:detect|verify|check)\\s+scroll\\s+snap\\s+(?:at|to)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').scrollIntoViewIfNeeded(); await expect(page.locator('${selector}')).toBeInViewport();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Detect scroll snap alignment"
+  },
+  {
+    "id": "INT-078",
+    "trigger": "(?:wait\\s+for|until)\\s+(?:scroll|scrolling)\\s+(?:stops|ends|completes)",
+    "pattern": "await page.waitForFunction(() => { let lastPos = window.scrollY; return new Promise(resolve => { const check = () => { const currentPos = window.scrollY; if (lastPos === currentPos) resolve(true); else { lastPos = currentPos; setTimeout(check, 100); } }; check(); }); });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Wait for scroll to stop"
+  },
+  {
+    "id": "INT-079",
+    "trigger": "(?:verify|check|assert)\\s+(?:element\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))\\s+(?:is\\s+)?(?:in\\s+)?(?:the\\s+)?viewport",
+    "pattern": "await expect(page.locator('${selector}')).toBeInViewport();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Verify element is in viewport"
+  },
+  {
+    "id": "INT-080",
+    "trigger": "(?:scroll|scrolling)(?:s|ed|ing)?\\s+(?:using|via|with)\\s+(?:mouse\\s+)?wheel",
+    "pattern": "await page.mouse.wheel(0, ${amount});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Scroll using mouse wheel"
+  },
+  {
+    "id": "INT-081",
+    "trigger": "(?:tap|tapping)(?:s|ped|ping)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').tap();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Mobile tap gesture"
+  },
+  {
+    "id": "INT-082",
+    "trigger": "double[\\s-]?(?:tap|tapping)(?:s|ped|ping)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').tap({ clickCount: 2 });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Mobile double-tap gesture"
+  },
+  {
+    "id": "INT-083",
+    "trigger": "(?:long[\\s-]?press|hold)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))(?:\\s+for\\s+(\\d+)\\s*(?:ms|milliseconds|seconds?))?",
+    "pattern": "await page.touchscreen.tap(${x}, ${y}, { delay: ${duration} });",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Mobile long-press gesture"
+  },
+  {
+    "id": "INT-084",
+    "trigger": "(?:swipe|swiping)(?:s|ed|ing)?\\s+(left|right|up|down)(?:\\s+on\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "const box = await page.locator('${selector}').boundingBox(); await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.move(box.x + ${endX}, box.y + ${endY});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Mobile swipe gesture"
+  },
+  {
+    "id": "INT-085",
+    "trigger": "(?:pinch|pinching)(?:s|ed|ing)?\\s+(?:to\\s+)?(?:zoom\\s+)?(?:in|out)(?:\\s+on\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "await page.touchscreen.tap(${x1}, ${y1}); await page.touchscreen.tap(${x2}, ${y2}); await page.mouse.move(${newX1}, ${newY1});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Mobile pinch gesture"
+  },
+  {
+    "id": "INT-086",
+    "trigger": "(?:zoom|zooming)(?:s|ed|ing)?\\s+(in|out)(?:\\s+on\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "await page.evaluate((scale) => { document.body.style.transform = `scale(${scale})`; }, ${scale});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Mobile zoom gesture"
+  },
+  {
+    "id": "INT-087",
+    "trigger": "(?:multi[\\s-]?touch|two[\\s-]?finger)\\s+(?:tap|touch)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.touchscreen.tap(${x1}, ${y1}); await page.touchscreen.tap(${x2}, ${y2});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Multi-touch gesture"
+  },
+  {
+    "id": "INT-088",
+    "trigger": "(?:perform|execute)\\s+(?:gesture\\s+)?(?:sequence|chain)\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.touchscreen.tap(${x1}, ${y1}); await page.waitForTimeout(${delay}); await page.touchscreen.tap(${x2}, ${y2});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.81,
+    "description": "Touch gesture sequence"
+  },
+  {
+    "id": "INT-089",
+    "trigger": "(?:swipe|swiping)(?:s|ed|ing)?\\s+(?:from|at)\\s+(?:coordinates\\s+)?\\(?(\\d+)\\s*,\\s*(\\d+)\\)?\\s+(?:to|until)\\s+\\(?(\\d+)\\s*,\\s*(\\d+)\\)?",
+    "pattern": "await page.touchscreen.tap(${x1}, ${y1}); await page.mouse.move(${x2}, ${y2});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Swipe with coordinates"
+  },
+  {
+    "id": "INT-090",
+    "trigger": "(?:rotate|rotation)(?:s|d|ing)?\\s+(?:by\\s+)?(\\d+)\\s*(?:degrees?|°)(?:\\s+on\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "await page.evaluate((deg) => { document.querySelector('${selector}').style.transform = `rotate(${deg}deg)`; }, ${degrees});",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Rotate gesture"
+  },
+  {
+    "id": "INT-091",
+    "trigger": "(?:focus|focusing)(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').focus();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Focus on element"
+  },
+  {
+    "id": "INT-092",
+    "trigger": "(?:blur|unfocus|remove\\s+focus)(?:s|red|ing)?\\s+(?:from\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').blur();",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Blur (remove focus from) element"
+  },
+  {
+    "id": "INT-093",
+    "trigger": "(?:press|hit|type)(?:s|ed|ing)?\\s+(?:the\\s+)?tab(?:\\s+key)?(?:\\s+(\\d+)\\s+times?)?",
+    "pattern": "await page.keyboard.press('Tab');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Tab navigation"
+  },
+  {
+    "id": "INT-094",
+    "trigger": "(?:detect|verify|check)\\s+(?:focus\\s+)?trap(?:\\s+in\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "await page.keyboard.press('Tab'); const focused = await page.evaluate(() => document.activeElement); await expect(page.locator('${container}')).toContainElement(focused);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Detect focus trap"
+  },
+  {
+    "id": "INT-095",
+    "trigger": "(?:verify|check|assert)\\s+(?:focus\\s+)?ring(?:\\s+(?:on|around)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('outline', /.*${value}.*/);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Verify focus ring styling"
+  },
+  {
+    "id": "INT-096",
+    "trigger": "(?:verify|check|assert)\\s+focus\\s+(?:is\\s+)?within\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "const activeEl = await page.evaluate(() => document.activeElement); await expect(page.locator('${container}')).toContainElement(activeEl);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Verify focus is within container"
+  },
+  {
+    "id": "INT-097",
+    "trigger": "(?:verify|check|assert)\\s+focus[\\s-]visible(?:\\s+(?:on|state)\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "await expect(page.locator('${selector}')).toHaveClass(/.*focus-visible.*/);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Verify focus-visible state"
+  },
+  {
+    "id": "INT-098",
+    "trigger": "(?:programmatically|programmatic)\\s+focus(?:s|ed|ing)?\\s+(?:on\\s+)?(?:the\\s+)?(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+))",
+    "pattern": "await page.locator('${selector}').evaluate((el) => el.focus());",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Programmatic focus (JavaScript)"
+  },
+  {
+    "id": "INT-099",
+    "trigger": "(?:verify|check|assert)\\s+(?:currently\\s+)?focused\\s+element(?:\\s+is\\s+(?:['\"]([^'\"]+)['\"]|([\\w\\s-]+)))?",
+    "pattern": "const focused = await page.evaluate(() => document.activeElement); await expect(page.locator('${selector}')).toBe(focused);",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Verify currently focused element"
+  },
+  {
+    "id": "INT-100",
+    "trigger": "(?:shift[\\s-]?tab|reverse\\s+tab)(?:s|bed|bing)?(?:\\s+(\\d+)\\s+times?)?",
+    "pattern": "await page.keyboard.press('Shift+Tab');",
+    "category": "interaction",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Reverse tab navigation (Shift+Tab)"
+  }
+]

@@ -1,7 +1,7 @@
 ---
 name: artk.journey-implement
 description: "Phase 8: Turn a clarified Journey into stable Playwright tests + modules using the foundation harness. Includes post-implementation quality gates: /artk.journey-validate (static) and /artk.journey-verify (run + stabilize). Updates Journey status/tests links, module registry, backlog/index."
-argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false batchMode=subagent|serial batchSize=2|3|4|5 subagentTimeout=60000-600000"
+argument-hint: "mode=standard|quick|max artkRoot=<path> id=<JRN-0001> file=<path> harnessRoot=e2e tier=auto|smoke|release|regression testFileStrategy=per-journey|groupedByScope splitStrategy=auto|single|multi createFeatureModules=auto|true|false updateModulesRegistry=true|false useDiscovery=auto|true|false strictGates=true|false allowNonClarified=false|true allowBlocked=false|true authActor=auto|<role> multiActor=auto|true|false artifacts=inherit|minimal|standard|max redactPII=auto|true|false flakyBudget=low|medium|high postValidate=auto|true|false validateMode=quick|standard|max postVerify=auto|true|false verifyMode=quick|standard|max heal=auto|off healAttempts=2 repeatGate=auto|0|2|3 failOnFlaky=auto|true|false dryRun=true|false batchMode=subagent|serial batchSize=2|3|4|5 subagentTimeout=60000-600000 autogenMode=direct|pipeline multiSampling=auto|true|false"
 agent: agent
 tools: ['edit', 'search', 'runSubagent']
 handoffs:
@@ -70,6 +70,7 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║                                                                           ║
 # ║  GATE 3: Use AutoGen CLI (Step 3)                                         ║
 # ║    □ Run `npx artk-autogen generate` with --llkb-config and --llkb-glossary ║
+# ║    □ Alternative: Use pipeline commands (analyze → plan → generate → run)  ║
 # ║    □ Only use manual implementation if AutoGen fails or has blocked steps ║
 # ║    □ In subagent mode, subagents run AutoGen (main agent does NOT)         ║
 # ║                                                                           ║
@@ -245,6 +246,12 @@ Key args:
   - `serial`: Process journeys one at a time (fallback for non-VS Code environments)
 - `batchSize`: 2|3|4|5 (default: 3) — journeys per parallel batch (only applies when batchMode=subagent)
 - `subagentTimeout`: 60000-600000 (default: 300000 = 5 minutes) — max time per subagent before timeout
+- `autogenMode`: direct|pipeline (default: direct)
+  - `direct`: Single `generate` command (simple, recommended for most cases)
+  - `pipeline`: Granular commands (analyze → plan → generate → run → refine) for complex journeys
+- `multiSampling`: auto|true|false (default: auto)
+  - When enabled, generates multiple code samples at different temperatures to improve quality
+  - `auto`: Enable for complex journeys (many steps, conditionals, loops)
 
 ---
 
@@ -1420,6 +1427,93 @@ and proceed with core patterns only.
 | `--llkb-glossary <file>` | **NEW:** LLKB-generated glossary (from Step 2.5) |
 | `--no-llkb` | Disable LLKB integration (use core patterns only) |
 | `-q, --quiet` | Suppress output except errors |
+
+### 3.3.2 Pipeline Commands (Advanced - Hybrid Agentic Architecture)
+
+The AutoGen CLI now supports a **Pipeline Architecture** where the CLI provides granular,
+stateless tools and the orchestrating LLM (Copilot/Claude Code) serves as the "brain"
+making all decisions. This is useful for complex journeys that need iterative refinement.
+
+**Pipeline Commands:**
+
+| Command | Description | Usage |
+|---------|-------------|-------|
+| `analyze` | Analyze journey and output structured JSON | `npx artk-autogen analyze --journey <path>` |
+| `plan` | Create test generation plan from analysis | `npx artk-autogen plan --analysis <path>` |
+| `generate` | Generate tests (from plan or journey directly) | `npx artk-autogen generate --plan <path>` |
+| `run` | Execute Playwright tests and output results | `npx artk-autogen run --tests <path>` |
+| `refine` | Analyze failures and suggest refinements | `npx artk-autogen refine --results <path>` |
+| `status` | Show current pipeline state | `npx artk-autogen status` |
+| `clean` | Clean autogen artifacts for fresh start | `npx artk-autogen clean` |
+
+**Artifacts location:** All pipeline artifacts are stored in `<harnessRoot>/.artk/autogen/`:
+- `analysis.json` - Journey analysis output
+- `plan.json` - Test generation plan
+- `pipeline-state.json` - Current pipeline state
+- `results.json` - Test execution results
+- `samples/` - Multi-sample code generation artifacts
+- `telemetry.json` - Cost and performance tracking
+
+**When to use Pipeline vs Direct:**
+
+| Scenario | Approach | Command |
+|----------|----------|---------|
+| Simple journey, first-time generation | Direct | `npx artk-autogen generate <journey>` |
+| Complex journey needing iteration | Pipeline | `analyze → plan → generate → run → refine` |
+| Debugging flaky tests | Pipeline | Use `run` + `refine` for targeted fixes |
+| Multiple journeys in batch | Direct | `npx artk-autogen generate *.md` |
+| Understanding generation decisions | Pipeline | `analyze` shows structured reasoning |
+
+**Pipeline Flow Example (orchestrator-driven):**
+
+```bash
+# Step 1: Analyze the journey
+npx artk-autogen analyze --journey ../journeys/clarified/JRN-0001__user-login.md
+# Outputs: .artk/autogen/analysis.json
+
+# Step 2: Create test plan (orchestrator reviews plan.json before proceeding)
+npx artk-autogen plan --analysis .artk/autogen/analysis.json
+# Outputs: .artk/autogen/plan.json
+
+# Step 3: Generate tests from plan
+npx artk-autogen generate --plan .artk/autogen/plan.json -o tests/smoke/
+# Outputs: tests/smoke/jrn-0001__user-login.spec.ts
+
+# Step 4: Run generated tests
+npx artk-autogen run --tests tests/smoke/jrn-0001__user-login.spec.ts
+# Outputs: .artk/autogen/results.json
+
+# Step 5: If tests fail, get refinement suggestions
+npx artk-autogen refine --results .artk/autogen/results.json
+# Outputs: Structured refinement suggestions for the orchestrator to apply
+
+# Step 6: Check pipeline status anytime
+npx artk-autogen status
+# Shows: current stage, last command, artifacts present
+
+# Step 7: Start fresh
+npx artk-autogen clean
+```
+
+**SCoT Planning (Structured Chain-of-Thought):**
+
+The `plan` command uses SCoT to generate a structured test plan that includes:
+- Reasoning about test structure (sequential, branch, loop)
+- Step-to-action mappings
+- Confidence scores
+- Selector strategies
+
+This plan can be reviewed by the orchestrator before proceeding to generation.
+
+**Multi-Sampling for Uncertainty Quantification:**
+
+The `generate` command can use multi-sampling to improve code quality:
+```bash
+npx artk-autogen generate --plan .artk/autogen/plan.json -o tests/smoke/ --samples 3
+```
+
+This generates multiple code samples at different temperatures and analyzes agreement
+to select the best one, stored in `.artk/autogen/samples/agreement.json`.
 
 **Example CLI output:**
 ```
