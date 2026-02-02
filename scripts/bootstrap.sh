@@ -1133,20 +1133,43 @@ AGENTS_TARGET="$TARGET_PROJECT/.github/agents"
 
 # Detect upgrade scenario: prompts exist but agents don't
 if [ -d "$PROMPTS_TARGET" ] && [ ! -d "$AGENTS_TARGET" ]; then
-    # Check if old-style full content prompts exist
-    OLD_PROMPT_CHECK=$(head -50 "$PROMPTS_TARGET/artk.journey-propose.prompt.md" 2>/dev/null | grep -c "^# ARTK" || echo "0")
-    if [ "$OLD_PROMPT_CHECK" -gt 0 ]; then
-        echo -e "${CYAN}  Detected existing ARTK installation. Upgrading to two-tier architecture...${NC}"
-        BACKUP_DIR="$PROMPTS_TARGET.backup-$(date +%Y%m%d-%H%M%S)"
-        cp -r "$PROMPTS_TARGET" "$BACKUP_DIR"
-        echo -e "${CYAN}  Backed up existing prompts to $BACKUP_DIR${NC}"
-        # Remove old full-content artk.* prompt files (will be replaced with stubs)
-        rm -f "$PROMPTS_TARGET"/artk.*.prompt.md 2>/dev/null || true
+    # [H2] Improved detection: check for ABSENCE of agent: property (old-style has no delegation)
+    # This is more reliable than checking for "# ARTK" header
+    OLD_PROMPT_FILE="$PROMPTS_TARGET/artk.journey-propose.prompt.md"
+    if [ -f "$OLD_PROMPT_FILE" ]; then
+        # Use grep -q for clean boolean check (no output parsing issues)
+        if ! grep -q "^agent:" "$OLD_PROMPT_FILE" 2>/dev/null; then
+            echo -e "${CYAN}  Detected existing ARTK installation (no agent: property). Upgrading to two-tier architecture...${NC}"
+            BACKUP_DIR="$PROMPTS_TARGET.backup-$(date +%Y%m%d-%H%M%S)"
+            cp -r "$PROMPTS_TARGET" "$BACKUP_DIR"
+            echo -e "${CYAN}  Backed up existing prompts to $BACKUP_DIR${NC}"
+            # Remove old full-content artk.* prompt files (will be replaced with stubs)
+            rm -f "$PROMPTS_TARGET"/artk.*.prompt.md 2>/dev/null || true
+
+            # [M2] Backup cleanup: keep only the 3 most recent backups
+            BACKUP_COUNT=$(ls -1d "$TARGET_PROJECT/.github/prompts.backup-"* 2>/dev/null | wc -l)
+            if [ "$BACKUP_COUNT" -gt 3 ]; then
+                echo -e "${CYAN}  Cleaning up old backups (keeping 3 most recent)...${NC}"
+                ls -1dt "$TARGET_PROJECT/.github/prompts.backup-"* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+            fi
+        fi
     fi
 fi
 
+# [M4] Atomic operations: use staging directories for rollback capability
+PROMPTS_STAGING="$TARGET_PROJECT/.github/.prompts-staging-$$"
+AGENTS_STAGING="$TARGET_PROJECT/.github/.agents-staging-$$"
+
 mkdir -p "$PROMPTS_TARGET"
 mkdir -p "$AGENTS_TARGET"
+mkdir -p "$PROMPTS_STAGING"
+mkdir -p "$AGENTS_STAGING"
+
+# Cleanup function for rollback
+cleanup_staging() {
+    rm -rf "$PROMPTS_STAGING" 2>/dev/null || true
+    rm -rf "$AGENTS_STAGING" 2>/dev/null || true
+}
 
 # Helper function to extract YAML frontmatter value
 extract_yaml_value() {
@@ -1173,7 +1196,9 @@ Run \`/${name}\` to start, or select \`@${name}\` from the agent picker.
 STUBEOF
 }
 
+# [M4] Install to staging first, then move to final destination
 INSTALLED_COUNT=0
+INSTALL_FAILED=false
 for file in "$ARTK_PROMPTS"/artk.*.md; do
     if [ -f "$file" ]; then
         filename=$(basename "$file")
@@ -1186,15 +1211,47 @@ for file in "$ARTK_PROMPTS"/artk.*.md; do
         DESCRIPTION=$(extract_yaml_value "$file" "description")
         [ -z "$DESCRIPTION" ] && DESCRIPTION="ARTK prompt"
 
-        # 1. Copy full content to agents/ as .agent.md
-        cp "$file" "$AGENTS_TARGET/${basename_no_ext}.agent.md"
+        # 1. Copy full content to staging agents/
+        if ! cp "$file" "$AGENTS_STAGING/${basename_no_ext}.agent.md" 2>/dev/null; then
+            echo -e "${RED}  Failed to copy agent: ${basename_no_ext}${NC}"
+            INSTALL_FAILED=true
+            break
+        fi
 
-        # 2. Generate stub for prompts/ as .prompt.md
-        generate_stub_prompt "$NAME" "$DESCRIPTION" > "$PROMPTS_TARGET/${basename_no_ext}.prompt.md"
+        # 2. Generate stub to staging prompts/
+        if ! generate_stub_prompt "$NAME" "$DESCRIPTION" > "$PROMPTS_STAGING/${basename_no_ext}.prompt.md" 2>/dev/null; then
+            echo -e "${RED}  Failed to generate stub: ${basename_no_ext}${NC}"
+            INSTALL_FAILED=true
+            break
+        fi
 
         INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
     fi
 done
+
+# [M4] If installation failed, rollback and exit
+if [ "$INSTALL_FAILED" = true ]; then
+    echo -e "${RED}  Installation failed. Rolling back...${NC}"
+    cleanup_staging
+    # Restore from backup if available
+    if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
+        echo -e "${CYAN}  Restoring from backup: $BACKUP_DIR${NC}"
+        rm -rf "$PROMPTS_TARGET"
+        cp -r "$BACKUP_DIR" "$PROMPTS_TARGET"
+    fi
+    exit 1
+fi
+
+# [M4] Move from staging to final destination (atomic move)
+for file in "$AGENTS_STAGING"/*.agent.md; do
+    [ -f "$file" ] && mv "$file" "$AGENTS_TARGET/" 2>/dev/null
+done
+for file in "$PROMPTS_STAGING"/*.prompt.md; do
+    [ -f "$file" ] && mv "$file" "$PROMPTS_TARGET/" 2>/dev/null
+done
+
+# Cleanup staging directories
+cleanup_staging
 
 echo -e "${GREEN}✓ Installed $INSTALLED_COUNT prompts (stubs) + agents (full content)${NC}"
 

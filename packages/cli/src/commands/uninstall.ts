@@ -19,6 +19,7 @@ export async function uninstallCommand(targetPath: string, options: UninstallOpt
   const artkE2ePath = path.join(resolvedPath, 'artk-e2e');
   const artkDir = path.join(resolvedPath, '.artk');
   const promptsDir = path.join(resolvedPath, '.github', 'prompts');
+  const agentsDir = path.join(resolvedPath, '.github', 'agents');
 
   logger.header('ARTK Uninstall');
 
@@ -60,17 +61,34 @@ export async function uninstallCommand(targetPath: string, options: UninstallOpt
     });
   }
 
-  if (!options.keepPrompts && fs.existsSync(promptsDir)) {
-    // Only remove ARTK prompts
-    const artkPrompts = fs.readdirSync(promptsDir)
-      .filter(f => f.startsWith('artk.') && f.endsWith('.prompt.md'));
+  if (!options.keepPrompts) {
+    // Remove ARTK prompts (stub files)
+    if (fs.existsSync(promptsDir)) {
+      const artkPrompts = fs.readdirSync(promptsDir)
+        .filter(f => f.startsWith('artk.') && f.endsWith('.prompt.md'));
 
-    if (artkPrompts.length > 0) {
-      for (const prompt of artkPrompts) {
-        toRemove.push({
-          path: path.join(promptsDir, prompt),
-          description: `.github/prompts/${prompt}`,
-        });
+      if (artkPrompts.length > 0) {
+        for (const prompt of artkPrompts) {
+          toRemove.push({
+            path: path.join(promptsDir, prompt),
+            description: `.github/prompts/${prompt}`,
+          });
+        }
+      }
+    }
+
+    // Remove ARTK agents (full implementation files) - two-tier architecture
+    if (fs.existsSync(agentsDir)) {
+      const artkAgents = fs.readdirSync(agentsDir)
+        .filter(f => f.startsWith('artk.') && f.endsWith('.agent.md'));
+
+      if (artkAgents.length > 0) {
+        for (const agent of artkAgents) {
+          toRemove.push({
+            path: path.join(agentsDir, agent),
+            description: `.github/agents/${agent}`,
+          });
+        }
       }
     }
   }
@@ -113,6 +131,14 @@ export async function uninstallCommand(targetPath: string, options: UninstallOpt
       }
     }
 
+    // Clean up empty .github/agents directory
+    if (fs.existsSync(agentsDir)) {
+      const remaining = fs.readdirSync(agentsDir);
+      if (remaining.length === 0) {
+        await fs.remove(agentsDir);
+      }
+    }
+
     // Clean up empty .github directory
     const githubDir = path.join(resolvedPath, '.github');
     if (fs.existsSync(githubDir)) {
@@ -131,7 +157,7 @@ export async function uninstallCommand(targetPath: string, options: UninstallOpt
       logger.info('Test files were preserved in artk-e2e/');
     }
     if (options.keepPrompts) {
-      logger.info('Prompts were preserved in .github/prompts/');
+      logger.info('Prompts and agents were preserved in .github/prompts/ and .github/agents/');
     }
   } catch (error) {
     logger.failSpinner('Uninstall failed');

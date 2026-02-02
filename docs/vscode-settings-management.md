@@ -277,6 +277,17 @@ handoffs:
 - **Clean separation** between invocation (prompt) and implementation (agent)
 - **Upgrade path**: Old installations get prompts replaced with stubs, agents added
 
+### Special Case: `artk.variant-info.prompt.md`
+
+The `artk.variant-info.prompt.md` file is **NOT a stub** - it's a standalone prompt generated during bootstrap with variant-specific information:
+
+- **Generated dynamically** based on detected Node.js version and module system
+- **No corresponding agent file** (no `artk.variant-info.agent.md`)
+- **Contains:** Import patterns (ESM/CJS), Playwright version info, legacy limitations
+- **Purpose:** Provides AI assistants with project-specific context
+
+This file is excluded from stub validation tests and cross-reference checks.
+
 ## Full Settings Template
 
 The complete settings template is at `templates/vscode/settings.json` and includes:

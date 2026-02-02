@@ -194,11 +194,11 @@ export async function bootstrap(
     await installVendorPackages(artkE2ePath, selectedVariant, logger);
     logger.success(`@artk/core installed to vendor/ (${variantDef.displayName})`);
 
-    // Step 4: Install prompts
+    // Step 4: Install prompts AND agents (two-tier architecture)
     if (options.prompts !== false) {
-      logger.step(4, 7, 'Installing prompts to .github/prompts/...');
+      logger.step(4, 7, 'Installing prompts and agents (two-tier architecture)...');
       await installPrompts(resolvedPath, logger);
-      logger.success('Prompts installed');
+      logger.success('Prompts (stubs) + agents (full content) installed');
     } else {
       logger.step(4, 7, 'Skipping prompts installation (--no-prompts)');
     }
@@ -484,14 +484,79 @@ async function installVendorPackages(artkE2ePath: string, variant: VariantId, lo
 }
 
 /**
- * Install prompts to .github/prompts/
+ * Extract a YAML frontmatter value from a file
+ */
+function extractYamlValue(content: string, key: string): string {
+  const match = content.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?`, 'm'));
+  return match ? match[1].trim() : '';
+}
+
+/**
+ * Generate stub prompt content that delegates to an agent
+ */
+function generateStubPrompt(name: string, description: string): string {
+  return `---
+name: ${name}
+description: "${description}"
+agent: ${name}
+---
+# ARTK ${name}
+
+This prompt delegates to the \`@${name}\` agent for full functionality including suggested next actions (handoffs).
+
+Run \`/${name}\` to start, or select \`@${name}\` from the agent picker.
+`;
+}
+
+/**
+ * Install prompts AND agents using two-tier architecture
+ * - .github/prompts/*.prompt.md = stub files that delegate to agents
+ * - .github/agents/*.agent.md = full implementation with handoffs
  */
 async function installPrompts(projectPath: string, logger: Logger): Promise<void> {
   const assetsDir = getAssetsDir();
   const promptsSource = path.join(assetsDir, 'prompts');
   const promptsTarget = path.join(projectPath, '.github', 'prompts');
+  const agentsTarget = path.join(projectPath, '.github', 'agents');
+
+  // Detect upgrade scenario: prompts exist but agents don't
+  if (fs.existsSync(promptsTarget) && !fs.existsSync(agentsTarget)) {
+    const oldPromptFile = path.join(promptsTarget, 'artk.journey-propose.prompt.md');
+    if (fs.existsSync(oldPromptFile)) {
+      const content = await fs.readFile(oldPromptFile, 'utf8');
+      // Check if it's old-style full content (has no agent: property in frontmatter)
+      const hasAgentProperty = /^agent:/m.test(content);
+      if (!hasAgentProperty) {
+        logger.debug('Detected old ARTK installation. Upgrading to two-tier architecture...');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const backupDir = `${promptsTarget}.backup-${timestamp}`;
+        await fs.copy(promptsTarget, backupDir);
+        logger.debug(`Backed up existing prompts to ${backupDir}`);
+
+        // Remove old full-content artk.* prompt files (will be replaced with stubs)
+        const oldFiles = await fs.readdir(promptsTarget);
+        for (const file of oldFiles) {
+          if (file.startsWith('artk.') && file.endsWith('.prompt.md')) {
+            await fs.remove(path.join(promptsTarget, file));
+          }
+        }
+
+        // Keep only the 3 most recent backups
+        const githubDir = path.join(projectPath, '.github');
+        const allBackups = (await fs.readdir(githubDir))
+          .filter(f => f.startsWith('prompts.backup-'))
+          .sort()
+          .reverse();
+        for (const backup of allBackups.slice(3)) {
+          await fs.remove(path.join(githubDir, backup));
+          logger.debug(`Cleaned up old backup: ${backup}`);
+        }
+      }
+    }
+  }
 
   await fs.ensureDir(promptsTarget);
+  await fs.ensureDir(agentsTarget);
 
   if (fs.existsSync(promptsSource)) {
     const promptFiles = await fs.readdir(promptsSource);
@@ -500,17 +565,31 @@ async function installPrompts(projectPath: string, logger: Logger): Promise<void
     for (const file of promptFiles) {
       if (file.endsWith('.md') && file.startsWith('artk.')) {
         const source = path.join(promptsSource, file);
-        // Rename artk.*.md to artk.*.prompt.md
-        const targetName = file.replace(/\.md$/, '.prompt.md');
-        const target = path.join(promptsTarget, targetName);
+        const content = await fs.readFile(source, 'utf8');
 
-        await fs.copy(source, target, { overwrite: true });
+        // Extract metadata from source file
+        const name = extractYamlValue(content, 'name') || file.replace(/\.md$/, '');
+        const description = extractYamlValue(content, 'description') || 'ARTK prompt';
+
+        // Generate base filename (artk.journey-define)
+        const baseName = file.replace(/\.md$/, '');
+
+        // 1. Copy full content to agents/ as .agent.md
+        const agentTarget = path.join(agentsTarget, `${baseName}.agent.md`);
+        await fs.copy(source, agentTarget, { overwrite: true });
+        logger.debug(`Installed agent: ${baseName}.agent.md`);
+
+        // 2. Generate stub for prompts/ as .prompt.md
+        const stubContent = generateStubPrompt(name, description);
+        const promptTarget = path.join(promptsTarget, `${baseName}.prompt.md`);
+        await fs.writeFile(promptTarget, stubContent, 'utf8');
+        logger.debug(`Installed stub prompt: ${baseName}.prompt.md`);
+
         installed++;
-        logger.debug(`Installed prompt: ${targetName}`);
       }
     }
 
-    logger.debug(`Installed ${installed} prompt files`);
+    logger.debug(`Installed ${installed} prompt/agent pairs (two-tier architecture)`);
   } else {
     logger.warning(`Prompts assets not found at ${promptsSource}`);
   }

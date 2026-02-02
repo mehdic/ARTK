@@ -4,9 +4,9 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { z } from 'zod';
 import * as fs2 from 'fs';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, copyFileSync, writeFileSync } from 'fs';
 import * as path5 from 'path';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import * as yaml2 from 'yaml';
 import yaml2__default from 'yaml';
 import { execSync, spawn } from 'child_process';
@@ -19,9 +19,15 @@ import * as semver from 'semver';
 import * as readline from 'readline';
 import { initializeLLKB, runExportForAutogen, formatExportResultForConsole, runHealthCheck, formatHealthCheck, getStats, formatStats, prune, formatPruneResult, runLearnCommand, formatLearnResult, runCheckUpdates, formatCheckUpdatesResult, runUpdateTest, formatUpdateTestResult, runUpdateTests, formatUpdateTestsResult } from '@artk/core/llkb';
 
-createRequire(import.meta.url);
+const require$1 = createRequire(import.meta.url);
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require$1 !== "undefined" ? require$1 : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require$1 !== "undefined" ? require$1 : a)[b]
+}) : x)(function(x) {
+  if (typeof require$1 !== "undefined") return require$1.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -710,6 +716,71 @@ function getTestFileName(stdout, journey) {
   }
   return `${journey.id}.spec.ts`;
 }
+function parseBlockedSteps(stdout, testFileContent) {
+  const blockedSteps = [];
+  const content = stdout;
+  const blockedPattern = /\/\/\s*ARTK BLOCKED:\s*(.+)\n\s*\/\/\s*Source:\s*(.+)/gi;
+  let match;
+  let stepNumber = 1;
+  while ((match = blockedPattern.exec(content)) !== null) {
+    blockedSteps.push({
+      stepNumber: stepNumber++,
+      reason: match[1].trim(),
+      sourceText: match[2].trim()
+    });
+  }
+  const countMatch = stdout.match(/Blocked Steps:\s*(\d+)/i);
+  if (countMatch && blockedSteps.length === 0) {
+    const count = parseInt(countMatch[1], 10);
+    for (let i = 0; i < count; i++) {
+      blockedSteps.push({
+        stepNumber: i + 1,
+        reason: "Blocked step (details in generated test file)",
+        sourceText: "See test file for source text"
+      });
+    }
+  }
+  return blockedSteps;
+}
+function calculateTelemetry(stdout, testFileContent) {
+  const blockedDetails = parseBlockedSteps(stdout);
+  const blockedSteps = blockedDetails.length;
+  const totalMatch = stdout.match(/Total Steps:\s*(\d+)/i) || stdout.match(/(\d+)\s*steps?\s*processed/i);
+  const totalSteps = totalMatch ? parseInt(totalMatch[1], 10) : blockedSteps;
+  const generatedSteps = totalSteps - blockedSteps;
+  const blockedRate = totalSteps > 0 ? blockedSteps / totalSteps * 100 : 0;
+  return {
+    totalSteps,
+    generatedSteps,
+    blockedSteps,
+    blockedRate: Math.round(blockedRate * 10) / 10,
+    // Round to 1 decimal
+    blockedDetails
+  };
+}
+function formatTelemetry(telemetry) {
+  const lines = [];
+  lines.push("\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
+  lines.push("\u2551  AUTOGEN TELEMETRY                                             \u2551");
+  lines.push("\u2560\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2563");
+  lines.push(`\u2551  Total Steps: ${telemetry.totalSteps.toString().padEnd(47)}\u2551`);
+  lines.push(`\u2551  Generated:   ${telemetry.generatedSteps.toString().padEnd(47)}\u2551`);
+  lines.push(`\u2551  Blocked:     ${telemetry.blockedSteps.toString().padEnd(47)}\u2551`);
+  lines.push(`\u2551  Blocked Rate: ${(telemetry.blockedRate.toFixed(1) + "%").padEnd(46)}\u2551`);
+  if (telemetry.blockedDetails.length > 0) {
+    lines.push("\u2551                                                                \u2551");
+    lines.push("\u2551  Blocked Steps (require manual implementation):                \u2551");
+    for (const step of telemetry.blockedDetails.slice(0, 5)) {
+      const truncatedReason = step.reason.length > 50 ? step.reason.substring(0, 47) + "..." : step.reason;
+      lines.push(`\u2551    ${step.stepNumber}. ${truncatedReason.padEnd(56)}\u2551`);
+    }
+    if (telemetry.blockedDetails.length > 5) {
+      lines.push(`\u2551    ... and ${telemetry.blockedDetails.length - 5} more                                         \u2551`);
+    }
+  }
+  lines.push("\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D");
+  return lines.join("\n");
+}
 function formatImplementPlan(plan) {
   const lines = [];
   lines.push("\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
@@ -801,6 +872,13 @@ async function executeImplementation(ctx, plan, options) {
   );
   await saveSessionState(ctx.harnessRoot, sessionState);
   const testsGenerated = [];
+  const aggregateTelemetry = {
+    totalSteps: 0,
+    generatedSteps: 0,
+    blockedSteps: 0,
+    blockedRate: 0,
+    blockedDetails: []
+  };
   if (options.verbose) {
     console.log("\n\u{1F4E6} Exporting LLKB for AutoGen...");
     console.log(`   ${formatCommand(plan.llkbExportCommand)}`);
@@ -843,16 +921,29 @@ async function executeImplementation(ctx, plan, options) {
       return {
         success: false,
         error: errorMsg,
-        data: { testsGenerated, sessionState, warnings }
+        data: { testsGenerated, sessionState, warnings, telemetry: aggregateTelemetry }
       };
     }
     const testFile = getTestFileName(result.stdout, journey);
     testsGenerated.push(testFile);
     sessionState.testsGenerated.push(testFile);
     sessionState.journeysCompleted.push(journey.id);
+    const journeyTelemetry = calculateTelemetry(result.stdout);
+    aggregateTelemetry.totalSteps += journeyTelemetry.totalSteps;
+    aggregateTelemetry.generatedSteps += journeyTelemetry.generatedSteps;
+    aggregateTelemetry.blockedSteps += journeyTelemetry.blockedSteps;
+    aggregateTelemetry.blockedDetails.push(
+      ...journeyTelemetry.blockedDetails.map((d) => ({
+        ...d,
+        sourceText: `[${journey.id}] ${d.sourceText}`
+      }))
+    );
     await saveSessionState(ctx.harnessRoot, sessionState);
     if (options.verbose) {
       console.log(`   \u2705 Generated: ${testFile}`);
+      if (journeyTelemetry.blockedSteps > 0) {
+        console.log(`   \u26A0\uFE0F  Blocked steps: ${journeyTelemetry.blockedSteps} (require manual implementation)`);
+      }
     }
     if (plan.learningMode === "strict" && i < plan.journeys.length - 1) {
       if (options.verbose) {
@@ -877,9 +968,13 @@ async function executeImplementation(ctx, plan, options) {
   sessionState.currentJourneyId = null;
   sessionState.verificationPassed = true;
   await saveSessionState(ctx.harnessRoot, sessionState);
+  aggregateTelemetry.blockedRate = aggregateTelemetry.totalSteps > 0 ? Math.round(aggregateTelemetry.blockedSteps / aggregateTelemetry.totalSteps * 1e3) / 10 : 0;
+  if (options.verbose && aggregateTelemetry.totalSteps > 0) {
+    console.log("\n" + formatTelemetry(aggregateTelemetry));
+  }
   return {
     success: true,
-    data: { testsGenerated, sessionState, warnings },
+    data: { testsGenerated, sessionState, warnings, telemetry: aggregateTelemetry },
     warnings: warnings.length > 0 ? warnings : void 0
   };
 }
@@ -2140,9 +2235,9 @@ async function bootstrap(targetPath, options = {}) {
     await installVendorPackages(artkE2ePath, selectedVariant, logger2);
     logger2.success(`@artk/core installed to vendor/ (${variantDef.displayName})`);
     if (options.prompts !== false) {
-      logger2.step(4, 7, "Installing prompts to .github/prompts/...");
+      logger2.step(4, 7, "Installing prompts and agents (two-tier architecture)...");
       await installPrompts(resolvedPath, logger2);
-      logger2.success("Prompts installed");
+      logger2.success("Prompts (stubs) + agents (full content) installed");
     } else {
       logger2.step(4, 7, "Skipping prompts installation (--no-prompts)");
     }
@@ -2352,25 +2447,77 @@ async function installVendorPackages(artkE2ePath, variant, logger2) {
     });
   }
 }
+function extractYamlValue(content, key) {
+  const match = content.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?`, "m"));
+  return match ? match[1].trim() : "";
+}
+function generateStubPrompt(name, description) {
+  return `---
+name: ${name}
+description: "${description}"
+agent: ${name}
+---
+# ARTK ${name}
+
+This prompt delegates to the \`@${name}\` agent for full functionality including suggested next actions (handoffs).
+
+Run \`/${name}\` to start, or select \`@${name}\` from the agent picker.
+`;
+}
 async function installPrompts(projectPath, logger2) {
   const assetsDir = getAssetsDir();
   const promptsSource = path5.join(assetsDir, "prompts");
   const promptsTarget = path5.join(projectPath, ".github", "prompts");
+  const agentsTarget = path5.join(projectPath, ".github", "agents");
+  if (fs6.existsSync(promptsTarget) && !fs6.existsSync(agentsTarget)) {
+    const oldPromptFile = path5.join(promptsTarget, "artk.journey-propose.prompt.md");
+    if (fs6.existsSync(oldPromptFile)) {
+      const content = await fs6.readFile(oldPromptFile, "utf8");
+      const hasAgentProperty = /^agent:/m.test(content);
+      if (!hasAgentProperty) {
+        logger2.debug("Detected old ARTK installation. Upgrading to two-tier architecture...");
+        const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const backupDir = `${promptsTarget}.backup-${timestamp}`;
+        await fs6.copy(promptsTarget, backupDir);
+        logger2.debug(`Backed up existing prompts to ${backupDir}`);
+        const oldFiles = await fs6.readdir(promptsTarget);
+        for (const file of oldFiles) {
+          if (file.startsWith("artk.") && file.endsWith(".prompt.md")) {
+            await fs6.remove(path5.join(promptsTarget, file));
+          }
+        }
+        const githubDir = path5.join(projectPath, ".github");
+        const allBackups = (await fs6.readdir(githubDir)).filter((f) => f.startsWith("prompts.backup-")).sort().reverse();
+        for (const backup of allBackups.slice(3)) {
+          await fs6.remove(path5.join(githubDir, backup));
+          logger2.debug(`Cleaned up old backup: ${backup}`);
+        }
+      }
+    }
+  }
   await fs6.ensureDir(promptsTarget);
+  await fs6.ensureDir(agentsTarget);
   if (fs6.existsSync(promptsSource)) {
     const promptFiles = await fs6.readdir(promptsSource);
     let installed = 0;
     for (const file of promptFiles) {
       if (file.endsWith(".md") && file.startsWith("artk.")) {
         const source = path5.join(promptsSource, file);
-        const targetName = file.replace(/\.md$/, ".prompt.md");
-        const target = path5.join(promptsTarget, targetName);
-        await fs6.copy(source, target, { overwrite: true });
+        const content = await fs6.readFile(source, "utf8");
+        const name = extractYamlValue(content, "name") || file.replace(/\.md$/, "");
+        const description = extractYamlValue(content, "description") || "ARTK prompt";
+        const baseName = file.replace(/\.md$/, "");
+        const agentTarget = path5.join(agentsTarget, `${baseName}.agent.md`);
+        await fs6.copy(source, agentTarget, { overwrite: true });
+        logger2.debug(`Installed agent: ${baseName}.agent.md`);
+        const stubContent = generateStubPrompt(name, description);
+        const promptTarget = path5.join(promptsTarget, `${baseName}.prompt.md`);
+        await fs6.writeFile(promptTarget, stubContent, "utf8");
+        logger2.debug(`Installed stub prompt: ${baseName}.prompt.md`);
         installed++;
-        logger2.debug(`Installed prompt: ${targetName}`);
       }
     }
-    logger2.debug(`Installed ${installed} prompt files`);
+    logger2.debug(`Installed ${installed} prompt/agent pairs (two-tier architecture)`);
   } else {
     logger2.warning(`Prompts assets not found at ${promptsSource}`);
   }
@@ -3622,6 +3769,7 @@ async function uninstallCommand(targetPath, options) {
   const artkE2ePath = path5.join(resolvedPath, "artk-e2e");
   const artkDir = path5.join(resolvedPath, ".artk");
   const promptsDir = path5.join(resolvedPath, ".github", "prompts");
+  const agentsDir = path5.join(resolvedPath, ".github", "agents");
   logger2.header("ARTK Uninstall");
   if (!fs6.existsSync(artkE2ePath) && !fs6.existsSync(artkDir)) {
     logger2.error("ARTK is not installed in this project.");
@@ -3653,14 +3801,27 @@ async function uninstallCommand(targetPath, options) {
       description: ".artk/ (ARTK metadata and browser cache)"
     });
   }
-  if (!options.keepPrompts && fs6.existsSync(promptsDir)) {
-    const artkPrompts = fs6.readdirSync(promptsDir).filter((f) => f.startsWith("artk.") && f.endsWith(".prompt.md"));
-    if (artkPrompts.length > 0) {
-      for (const prompt of artkPrompts) {
-        toRemove.push({
-          path: path5.join(promptsDir, prompt),
-          description: `.github/prompts/${prompt}`
-        });
+  if (!options.keepPrompts) {
+    if (fs6.existsSync(promptsDir)) {
+      const artkPrompts = fs6.readdirSync(promptsDir).filter((f) => f.startsWith("artk.") && f.endsWith(".prompt.md"));
+      if (artkPrompts.length > 0) {
+        for (const prompt of artkPrompts) {
+          toRemove.push({
+            path: path5.join(promptsDir, prompt),
+            description: `.github/prompts/${prompt}`
+          });
+        }
+      }
+    }
+    if (fs6.existsSync(agentsDir)) {
+      const artkAgents = fs6.readdirSync(agentsDir).filter((f) => f.startsWith("artk.") && f.endsWith(".agent.md"));
+      if (artkAgents.length > 0) {
+        for (const agent of artkAgents) {
+          toRemove.push({
+            path: path5.join(agentsDir, agent),
+            description: `.github/agents/${agent}`
+          });
+        }
       }
     }
   }
@@ -3692,6 +3853,12 @@ async function uninstallCommand(targetPath, options) {
         await fs6.remove(promptsDir);
       }
     }
+    if (fs6.existsSync(agentsDir)) {
+      const remaining = fs6.readdirSync(agentsDir);
+      if (remaining.length === 0) {
+        await fs6.remove(agentsDir);
+      }
+    }
     const githubDir = path5.join(resolvedPath, ".github");
     if (fs6.existsSync(githubDir)) {
       const remaining = fs6.readdirSync(githubDir);
@@ -3706,7 +3873,7 @@ async function uninstallCommand(targetPath, options) {
       logger2.info("Test files were preserved in artk-e2e/");
     }
     if (options.keepPrompts) {
-      logger2.info("Prompts were preserved in .github/prompts/");
+      logger2.info("Prompts and agents were preserved in .github/prompts/ and .github/agents/");
     }
   } catch (error) {
     logger2.failSpinner("Uninstall failed");
@@ -3752,6 +3919,264 @@ function initCommand2(program2) {
       }
     } catch (error) {
       console.error(`\u274C Failed to initialize LLKB: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
+function validateSeedName(seedName) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(seedName)) {
+    throw new Error(
+      `Invalid seed name: "${seedName}". Seed names must contain only alphanumeric characters, hyphens, and underscores.`
+    );
+  }
+  const reserved = ["..", ".", "schema", "node_modules"];
+  if (reserved.includes(seedName.toLowerCase())) {
+    throw new Error(`Invalid seed name: "${seedName}" is a reserved name.`);
+  }
+}
+function validateSeedFile(data, seedName) {
+  if (!data || typeof data !== "object") {
+    throw new Error(`Invalid seed file structure: expected object`);
+  }
+  const obj = data;
+  if (typeof obj.schemaVersion !== "string") {
+    throw new Error(`Invalid seed file: missing or invalid schemaVersion`);
+  }
+  if (typeof obj.name !== "string") {
+    throw new Error(`Invalid seed file: missing or invalid name`);
+  }
+  if (!Array.isArray(obj.lessons)) {
+    throw new Error(`Invalid seed file: lessons must be an array`);
+  }
+  if (!Array.isArray(obj.components)) {
+    throw new Error(`Invalid seed file: components must be an array`);
+  }
+  for (let i = 0; i < obj.lessons.length; i++) {
+    const lesson = obj.lessons[i];
+    if (!lesson.id || typeof lesson.id !== "string") {
+      throw new Error(`Invalid lesson at index ${i}: missing id`);
+    }
+    if (!lesson.trigger || typeof lesson.trigger !== "string") {
+      throw new Error(`Invalid lesson at index ${i}: missing trigger`);
+    }
+    if (!lesson.pattern || typeof lesson.pattern !== "string") {
+      throw new Error(`Invalid lesson at index ${i}: missing pattern`);
+    }
+    if (typeof lesson.confidence !== "number" || lesson.confidence < 0 || lesson.confidence > 1) {
+      throw new Error(`Invalid lesson at index ${i}: confidence must be between 0 and 1`);
+    }
+  }
+  for (let i = 0; i < obj.components.length; i++) {
+    const comp = obj.components[i];
+    if (!comp.id || typeof comp.id !== "string") {
+      throw new Error(`Invalid component at index ${i}: missing id`);
+    }
+    if (!comp.name || typeof comp.name !== "string") {
+      throw new Error(`Invalid component at index ${i}: missing name`);
+    }
+    if (!comp.code || typeof comp.code !== "string") {
+      throw new Error(`Invalid component at index ${i}: missing code`);
+    }
+  }
+  return {
+    $schema: obj.$schema,
+    schemaVersion: obj.schemaVersion,
+    name: obj.name,
+    description: obj.description || "",
+    createdAt: obj.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+    lessons: obj.lessons,
+    components: obj.components
+  };
+}
+function getAssetsDir3() {
+  const possiblePaths = [
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "assets"),
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "assets"),
+    join(process.cwd(), "node_modules", "@artk", "cli", "assets")
+  ];
+  for (const p of possiblePaths) {
+    if (existsSync(p)) {
+      return p;
+    }
+  }
+  throw new Error("Could not find CLI assets directory");
+}
+function loadSeedFile(seedName) {
+  validateSeedName(seedName);
+  const assetsDir = getAssetsDir3();
+  const seedPath = join(assetsDir, "llkb-seeds", `${seedName}.json`);
+  if (!existsSync(seedPath)) {
+    throw new Error(`Seed file not found: ${seedPath}`);
+  }
+  const content = readFileSync(seedPath, "utf-8");
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (e) {
+    throw new Error(`Invalid JSON in seed file: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return validateSeedFile(parsed);
+}
+function listAvailableSeeds() {
+  const assetsDir = getAssetsDir3();
+  const seedsDir = join(assetsDir, "llkb-seeds");
+  if (!existsSync(seedsDir)) {
+    return [];
+  }
+  const files = readdirSync(seedsDir);
+  return files.filter((f) => f.endsWith(".json") && !f.includes("schema")).map((f) => f.replace(".json", ""));
+}
+function writeFileAtomic(filePath, content) {
+  const backupPath = `${filePath}.backup`;
+  const tempPath = `${filePath}.tmp`;
+  if (existsSync(filePath)) {
+    copyFileSync(filePath, backupPath);
+  }
+  try {
+    writeFileSync(tempPath, content, "utf-8");
+    const { renameSync } = __require("fs");
+    renameSync(tempPath, filePath);
+    if (existsSync(backupPath)) {
+      const { unlinkSync: unlinkSync2 } = __require("fs");
+      unlinkSync2(backupPath);
+    }
+  } catch (error) {
+    if (existsSync(backupPath)) {
+      copyFileSync(backupPath, filePath);
+    }
+    if (existsSync(tempPath)) {
+      const { unlinkSync: unlinkSync2 } = __require("fs");
+      unlinkSync2(tempPath);
+    }
+    throw error;
+  }
+}
+function seedCommand(program2) {
+  program2.command("seed").description("Pre-seed LLKB with universal patterns").option("--llkb-root <path>", "LLKB root directory", ".artk/llkb").option("--patterns <name>", "Seed patterns to load (e.g., universal)", "universal").option("--list", "List available seed files").option("--dry-run", "Show what would be seeded without writing").action(async (options) => {
+    const llkbRoot = options.llkbRoot;
+    const seedName = options.patterns;
+    if (options.list) {
+      const seeds = listAvailableSeeds();
+      console.log("Available seed patterns:");
+      for (const seed of seeds) {
+        console.log(`  - ${seed}`);
+      }
+      return;
+    }
+    try {
+      validateSeedName(seedName);
+    } catch (error) {
+      console.error(`\u274C ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+    if (!existsSync(join(llkbRoot, "config.yml"))) {
+      console.error(`\u274C LLKB not initialized at ${llkbRoot}`);
+      console.error("   Run: artk llkb init --llkb-root " + llkbRoot);
+      process.exit(1);
+    }
+    console.log(`Loading seed: ${seedName}...`);
+    try {
+      const seed = loadSeedFile(seedName);
+      console.log(`\u{1F4E6} Seed: ${seed.name}`);
+      console.log(`   ${seed.description}`);
+      console.log(`   Lessons: ${seed.lessons.length}`);
+      console.log(`   Components: ${seed.components.length}`);
+      if (options.dryRun) {
+        console.log("\n\u{1F4CB} Dry-run mode - showing what would be seeded:\n");
+        console.log("Lessons by category:");
+        const lessonsByCategory = /* @__PURE__ */ new Map();
+        for (const lesson of seed.lessons) {
+          const cat = lesson.category || "uncategorized";
+          if (!lessonsByCategory.has(cat)) {
+            lessonsByCategory.set(cat, []);
+          }
+          lessonsByCategory.get(cat).push(lesson);
+        }
+        for (const [category, lessons2] of lessonsByCategory) {
+          console.log(`
+  ${category} (${lessons2.length}):`);
+          for (const lesson of lessons2.slice(0, 5)) {
+            console.log(`    - ${lesson.id}: ${lesson.description}`);
+          }
+          if (lessons2.length > 5) {
+            console.log(`    ... and ${lessons2.length - 5} more`);
+          }
+        }
+        console.log("\n\nComponents:");
+        for (const comp of seed.components) {
+          console.log(`  - ${comp.id}: ${comp.name} (${comp.category})`);
+        }
+        return;
+      }
+      const lessonsPath = join(llkbRoot, "lessons.json");
+      const componentsPath = join(llkbRoot, "components.json");
+      let lessons;
+      let components;
+      try {
+        lessons = JSON.parse(readFileSync(lessonsPath, "utf-8"));
+      } catch (e) {
+        throw new Error(`Failed to read lessons.json: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      try {
+        components = JSON.parse(readFileSync(componentsPath, "utf-8"));
+      } catch (e) {
+        throw new Error(`Failed to read components.json: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      let lessonsAdded = 0;
+      let componentsAdded = 0;
+      let lessonsSkipped = 0;
+      let componentsSkipped = 0;
+      const existingLessonIds = new Set(lessons.lessons.map((l) => l.id));
+      for (const lesson of seed.lessons) {
+        if (existingLessonIds.has(lesson.id)) {
+          lessonsSkipped++;
+        } else {
+          lessons.lessons.push(lesson);
+          lessonsAdded++;
+        }
+      }
+      const existingComponentIds = new Set(components.components.map((c) => c.id));
+      for (const comp of seed.components) {
+        if (existingComponentIds.has(comp.id)) {
+          componentsSkipped++;
+        } else {
+          components.components.push(comp);
+          if (!components.componentsByCategory[comp.category]) {
+            components.componentsByCategory[comp.category] = [];
+          }
+          components.componentsByCategory[comp.category].push(comp.id);
+          if (!components.componentsByScope[comp.scope]) {
+            components.componentsByScope[comp.scope] = [];
+          }
+          components.componentsByScope[comp.scope].push(comp.id);
+          componentsAdded++;
+        }
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      lessons.lastUpdated = now;
+      components.lastUpdated = now;
+      writeFileAtomic(lessonsPath, JSON.stringify(lessons, null, 2));
+      writeFileAtomic(componentsPath, JSON.stringify(components, null, 2));
+      console.log("\n\u2705 Seed applied successfully:");
+      console.log(`   Lessons added: ${lessonsAdded}`);
+      console.log(`   Lessons skipped (already exist): ${lessonsSkipped}`);
+      console.log(`   Components added: ${componentsAdded}`);
+      console.log(`   Components skipped (already exist): ${componentsSkipped}`);
+      try {
+        const { appendToHistory } = await import('@artk/core/llkb');
+        await appendToHistory(
+          {
+            event: "seed_applied",
+            seedName,
+            lessonsAdded,
+            componentsAdded
+          },
+          llkbRoot
+        );
+      } catch {
+      }
+    } catch (error) {
+      console.error(`\u274C Failed to apply seed: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
@@ -3925,6 +4350,7 @@ function updateTestsCommand(program2) {
 function llkbCommand(program2) {
   const llkb = program2.command("llkb").description("LLKB (Lessons Learned Knowledge Base) operations");
   initCommand2(llkb);
+  seedCommand(llkb);
   exportCommand(llkb);
   healthCommand(llkb);
   statsCommand(llkb);

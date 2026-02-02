@@ -56,11 +56,19 @@ test_fresh_install() {
     log_test "Fresh Install - Two-Tier Architecture"
 
     local PROJECT_DIR="$TEST_DIR/fresh-install"
+    local LOG_FILE="$TEST_DIR/fresh-install-bootstrap.log"
     mkdir -p "$PROJECT_DIR"
 
     echo -e "${CYAN}Running bootstrap on fresh project...${NC}"
-    # Bootstrap may fail at later steps (TypeScript generation), but Step 4 should complete
-    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > /dev/null 2>&1 || true || true
+    # [H3] Capture bootstrap output to log file for debugging
+    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > "$LOG_FILE" 2>&1 || true
+
+    # Verify Step 4 completed (check for success message in log)
+    if grep -q "Installing prompts and agents" "$LOG_FILE"; then
+        log_pass "Bootstrap Step 4 started (two-tier installation)"
+    else
+        log_fail "Bootstrap Step 4 NOT started - check $LOG_FILE"
+    fi
 
     # Test 1.1: .github/prompts/ directory exists
     if [ -d "$PROJECT_DIR/.github/prompts" ]; then
@@ -147,6 +155,39 @@ test_fresh_install() {
             log_fail "Prompt/agent pair missing: $prompt"
         fi
     done
+
+    # Test 1.9: [H1] Cross-reference validation - verify stub's agent: property references existing agent
+    echo -e "${CYAN}Validating cross-references (stub -> agent)...${NC}"
+    CROSS_REF_ERRORS=0
+    for stub in "$PROJECT_DIR/.github/prompts"/artk.*.prompt.md; do
+        if [ -f "$stub" ]; then
+            filename=$(basename "$stub")
+            # Skip variant-info - it's not a delegation stub
+            if [[ "$filename" == *"variant-info"* ]]; then
+                continue
+            fi
+
+            # Extract agent: property value
+            AGENT_REF=$(grep "^agent:" "$stub" 2>/dev/null | sed 's/^agent: *//')
+            if [ -n "$AGENT_REF" ]; then
+                # Check if referenced agent file exists
+                EXPECTED_AGENT="$PROJECT_DIR/.github/agents/${AGENT_REF}.agent.md"
+                if [ -f "$EXPECTED_AGENT" ]; then
+                    log_pass "Cross-ref valid: $filename -> ${AGENT_REF}.agent.md"
+                else
+                    log_fail "Cross-ref BROKEN: $filename references non-existent agent: $AGENT_REF"
+                    CROSS_REF_ERRORS=$((CROSS_REF_ERRORS + 1))
+                fi
+            else
+                log_fail "Cross-ref MISSING: $filename has no agent: property"
+                CROSS_REF_ERRORS=$((CROSS_REF_ERRORS + 1))
+            fi
+        fi
+    done
+
+    if [ "$CROSS_REF_ERRORS" -eq 0 ]; then
+        log_pass "All stub->agent cross-references are valid"
+    fi
 }
 
 # ============================================================================
@@ -156,10 +197,11 @@ test_upgrade_install() {
     log_test "Upgrade Install - Migration from Old Structure"
 
     local PROJECT_DIR="$TEST_DIR/upgrade-install"
+    local LOG_FILE="$TEST_DIR/upgrade-install-bootstrap.log"
     mkdir -p "$PROJECT_DIR/.github/prompts"
     mkdir -p "$PROJECT_DIR/artk-e2e"
 
-    # Create old-style full content prompt file
+    # Create old-style full content prompt file (NO agent: property - key detection heuristic)
     cat > "$PROJECT_DIR/.github/prompts/artk.journey-propose.prompt.md" << 'OLD_CONTENT'
 ---
 name: artk.journey-propose
@@ -177,7 +219,7 @@ This is old full content that should be backed up and replaced.
 - Old content here
 OLD_CONTENT
 
-    # Create another old prompt
+    # Create another old prompt (also no agent: property)
     cat > "$PROJECT_DIR/.github/prompts/artk.journey-define.prompt.md" << 'OLD_CONTENT2'
 ---
 name: artk.journey-define
@@ -189,8 +231,15 @@ Old content
 OLD_CONTENT2
 
     echo -e "${CYAN}Running bootstrap on existing project (upgrade scenario)...${NC}"
-    # Bootstrap may fail at later steps, but Step 4 (prompts/agents) should complete
-    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > /dev/null 2>&1 || true || true
+    # [H3] Capture bootstrap output to log file for debugging
+    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > "$LOG_FILE" 2>&1 || true
+
+    # Verify upgrade was detected
+    if grep -qi "upgrading to two-tier" "$LOG_FILE"; then
+        log_pass "Bootstrap detected upgrade scenario"
+    else
+        echo -e "${YELLOW}! WARN: Bootstrap may not have detected upgrade (check $LOG_FILE)${NC}"
+    fi
 
     # Test 2.1: Backup was created
     BACKUP_COUNT=$(ls -1d "$PROJECT_DIR/.github/prompts.backup-"* 2>/dev/null | wc -l)
@@ -243,9 +292,10 @@ test_stub_format() {
     log_test "Stub File Format Validation"
 
     local PROJECT_DIR="$TEST_DIR/format-test"
+    local LOG_FILE="$TEST_DIR/format-test-bootstrap.log"
     mkdir -p "$PROJECT_DIR"
 
-    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > /dev/null 2>&1 || true
+    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > "$LOG_FILE" 2>&1 || true
 
     # Check each stub file for required format (excluding variant-info which is generated separately)
     for stub in "$PROJECT_DIR/.github/prompts"/artk.*.prompt.md; do
@@ -303,9 +353,10 @@ test_agent_content() {
     log_test "Agent File Content Validation"
 
     local PROJECT_DIR="$TEST_DIR/agent-test"
+    local LOG_FILE="$TEST_DIR/agent-test-bootstrap.log"
     mkdir -p "$PROJECT_DIR"
 
-    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > /dev/null 2>&1 || true
+    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > "$LOG_FILE" 2>&1 || true
 
     # Check each agent file for required content
     for agent in "$PROJECT_DIR/.github/agents"/artk.*.agent.md; do
@@ -345,9 +396,10 @@ test_common_files() {
     log_test "Common Files and Next-Commands Installation"
 
     local PROJECT_DIR="$TEST_DIR/common-test"
+    local LOG_FILE="$TEST_DIR/common-test-bootstrap.log"
     mkdir -p "$PROJECT_DIR"
 
-    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > /dev/null 2>&1 || true
+    "$ARTK_REPO/scripts/bootstrap.sh" "$PROJECT_DIR" --skip-npm --skip-llkb --yes > "$LOG_FILE" 2>&1 || true
 
     # Test common/GENERAL_RULES.md still installed
     if [ -f "$PROJECT_DIR/.github/prompts/common/GENERAL_RULES.md" ]; then

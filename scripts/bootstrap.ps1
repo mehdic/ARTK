@@ -1247,20 +1247,44 @@ $AgentsTarget = Join-Path $TargetProject ".github\agents"
 if ((Test-Path $PromptsTarget) -and -not (Test-Path $AgentsTarget)) {
     $OldPromptFile = Join-Path $PromptsTarget "artk.journey-propose.prompt.md"
     if (Test-Path $OldPromptFile) {
-        $OldContent = Get-Content $OldPromptFile -First 50 -ErrorAction SilentlyContinue | Out-String
-        if ($OldContent -match "^# ARTK") {
-            Write-Host "  Detected existing ARTK installation. Upgrading to two-tier architecture..." -ForegroundColor Cyan
+        # [H2] Improved detection: check for ABSENCE of agent: property (old-style has no delegation)
+        # This is more reliable than checking for "# ARTK" header
+        # [M3] Use -cmatch for case-sensitive matching (consistent with Bash grep)
+        $OldContent = Get-Content $OldPromptFile -ErrorAction SilentlyContinue | Out-String
+        $HasAgentProperty = $OldContent -cmatch "(?m)^agent:"
+        if (-not $HasAgentProperty) {
+            Write-Host "  Detected existing ARTK installation (no agent: property). Upgrading to two-tier architecture..." -ForegroundColor Cyan
             $BackupDir = "$PromptsTarget.backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
             Copy-Item -Path $PromptsTarget -Destination $BackupDir -Recurse -Force
             Write-Host "  Backed up existing prompts to $BackupDir" -ForegroundColor Cyan
             # Remove old full-content artk.* prompt files (will be replaced with stubs)
             Get-ChildItem -Path $PromptsTarget -Filter "artk.*.prompt.md" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
+            # [M2] Backup cleanup: keep only the 3 most recent backups
+            $GithubDir = Join-Path $TargetProject ".github"
+            $AllBackups = Get-ChildItem -Path $GithubDir -Filter "prompts.backup-*" -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending
+            if ($AllBackups.Count -gt 3) {
+                Write-Host "  Cleaning up old backups (keeping 3 most recent)..." -ForegroundColor Cyan
+                $AllBackups | Select-Object -Skip 3 | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
 
+# [M4] Atomic operations: use staging directories for rollback capability
+$PromptsStagingDir = Join-Path $TargetProject ".github\.prompts-staging-$PID"
+$AgentsStagingDir = Join-Path $TargetProject ".github\.agents-staging-$PID"
+
 New-Item -ItemType Directory -Force -Path $PromptsTarget | Out-Null
 New-Item -ItemType Directory -Force -Path $AgentsTarget | Out-Null
+New-Item -ItemType Directory -Force -Path $PromptsStagingDir | Out-Null
+New-Item -ItemType Directory -Force -Path $AgentsStagingDir | Out-Null
+
+# Cleanup function for rollback
+function Remove-StagingDirs {
+    Remove-Item -Path $PromptsStagingDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $AgentsStagingDir -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # Helper function to extract YAML frontmatter value
 function Get-YamlValue {
@@ -1297,27 +1321,62 @@ Run ``/$Name`` to start, or select ``@$Name`` from the agent picker.
 "@
 }
 
+# [M4] Install to staging first, then move to final destination
 $InstalledCount = 0
-Get-ChildItem -Path $ArtkPrompts -Filter "artk.*.md" | ForEach-Object {
-    $filename = $_.Name
+$InstallFailed = $false
+$PromptFiles = Get-ChildItem -Path $ArtkPrompts -Filter "artk.*.md" -ErrorAction SilentlyContinue
+
+foreach ($file in $PromptFiles) {
+    $filename = $file.Name
     $basenameNoExt = $filename -replace '\.md$', ''
 
     # Extract metadata from source file
-    $Name = Get-YamlValue -FilePath $_.FullName -Key "name"
+    $Name = Get-YamlValue -FilePath $file.FullName -Key "name"
     if (-not $Name) { $Name = $basenameNoExt }
 
-    $Description = Get-YamlValue -FilePath $_.FullName -Key "description"
+    $Description = Get-YamlValue -FilePath $file.FullName -Key "description"
     if (-not $Description) { $Description = "ARTK prompt" }
 
-    # 1. Copy full content to agents/ as .agent.md
-    Copy-Item $_.FullName -Destination (Join-Path $AgentsTarget "$basenameNoExt.agent.md") -Force
+    try {
+        # 1. Copy full content to staging agents/
+        Copy-Item $file.FullName -Destination (Join-Path $AgentsStagingDir "$basenameNoExt.agent.md") -Force -ErrorAction Stop
 
-    # 2. Generate stub for prompts/ as .prompt.md
-    $stubContent = New-StubPrompt -Name $Name -Description $Description
-    Set-Content -Path (Join-Path $PromptsTarget "$basenameNoExt.prompt.md") -Value $stubContent -Encoding UTF8
+        # 2. Generate stub to staging prompts/
+        $stubContent = New-StubPrompt -Name $Name -Description $Description
+        Set-Content -Path (Join-Path $PromptsStagingDir "$basenameNoExt.prompt.md") -Value $stubContent -Encoding UTF8 -ErrorAction Stop
 
-    $script:InstalledCount++
+        $InstalledCount++
+    }
+    catch {
+        Write-Host "  Failed to install: $basenameNoExt - $_" -ForegroundColor Red
+        $InstallFailed = $true
+        break
+    }
 }
+
+# [M4] If installation failed, rollback and exit
+if ($InstallFailed) {
+    Write-Host "  Installation failed. Rolling back..." -ForegroundColor Red
+    Remove-StagingDirs
+    # Restore from backup if available
+    if ($BackupDir -and (Test-Path $BackupDir)) {
+        Write-Host "  Restoring from backup: $BackupDir" -ForegroundColor Cyan
+        Remove-Item -Path $PromptsTarget -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path $BackupDir -Destination $PromptsTarget -Recurse -Force
+    }
+    exit 1
+}
+
+# [M4] Move from staging to final destination (atomic move)
+Get-ChildItem -Path $AgentsStagingDir -Filter "*.agent.md" -ErrorAction SilentlyContinue | ForEach-Object {
+    Move-Item $_.FullName -Destination $AgentsTarget -Force
+}
+Get-ChildItem -Path $PromptsStagingDir -Filter "*.prompt.md" -ErrorAction SilentlyContinue | ForEach-Object {
+    Move-Item $_.FullName -Destination $PromptsTarget -Force
+}
+
+# Cleanup staging directories
+Remove-StagingDirs
 
 Write-Host "  Installed $InstalledCount prompts (stubs) + agents (full content)" -ForegroundColor Green
 
