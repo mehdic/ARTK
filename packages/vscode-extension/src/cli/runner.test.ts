@@ -17,6 +17,7 @@ const mockState = vi.hoisted(() => ({
   fsStatIsFile: true,
   showWarningMessages: [] as string[],
   spawnCalls: [] as any[],
+  readFileResult: '' as string | Error,
 }));
 
 // Mock child_process
@@ -49,7 +50,12 @@ vi.mock('fs', () => ({
   statSync: () => ({ isFile: () => mockState.fsStatIsFile }),
   promises: {
     access: () => Promise.resolve(),
-    readFile: () => Promise.resolve(''),
+    readFile: () => {
+      if (mockState.readFileResult instanceof Error) {
+        return Promise.reject(mockState.readFileResult);
+      }
+      return Promise.resolve(mockState.readFileResult);
+    },
     writeFile: () => Promise.resolve(),
   },
 }));
@@ -92,6 +98,7 @@ import {
   journeyCheckLlkb,
   journeyImplement,
   journeySummary,
+  readSessionState,
 } from './runner';
 
 describe('CLI Runner', () => {
@@ -102,6 +109,7 @@ describe('CLI Runner', () => {
     mockState.fsStatIsFile = true;
     mockState.showWarningMessages = [];
     mockState.spawnCalls = [];
+    mockState.readFileResult = '';
   });
 
   describe('Security: CLI Path Validation', () => {
@@ -480,6 +488,42 @@ describe('CLI Runner', () => {
         expect(args).toContain('--harness-root');
         expect(args).toContain('/path/to/harness');
         expect(args).toContain('--json');
+      });
+    });
+
+    describe('readSessionState', () => {
+      it('should return parsed session state from file', async () => {
+        const mockSession = {
+          sessionId: 'test-123',
+          startedAt: '2024-01-01T00:00:00Z',
+          status: 'running',
+          totalJourneys: 5,
+          completedJourneys: ['JRN-0001'],
+          failedJourneys: [],
+          currentJourney: 'JRN-0002',
+        };
+        mockState.readFileResult = JSON.stringify(mockSession);
+
+        const result = await readSessionState('/path/to/harness');
+
+        expect(result).toEqual(mockSession);
+      });
+
+      it('should return undefined when file does not exist', async () => {
+        mockState.readFileResult = new Error('ENOENT');
+
+        const result = await readSessionState('/path/to/harness');
+
+        expect(result).toBeUndefined();
+      });
+
+      it('should return undefined when file contains invalid JSON', async () => {
+        mockState.readFileResult = 'not valid json';
+
+        const result = await readSessionState('/path/to/harness');
+
+        // Will throw on JSON.parse but our implementation catches it
+        expect(result).toBeUndefined();
       });
     });
   });

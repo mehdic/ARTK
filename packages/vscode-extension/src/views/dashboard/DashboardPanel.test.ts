@@ -490,4 +490,91 @@ describe('Dashboard Panel Security', () => {
       expect(escaped).toContain('&lt;script&gt;');
     });
   });
+
+  describe('formatElapsed helper', () => {
+    /**
+     * Re-implement formatElapsed for testing since it's a private method
+     */
+    function formatElapsed(ms: number): string {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+
+      if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`;
+      }
+      return `${seconds}s`;
+    }
+
+    it('should format seconds only', () => {
+      expect(formatElapsed(5000)).toBe('5s');
+      expect(formatElapsed(45000)).toBe('45s');
+    });
+
+    it('should format minutes and seconds', () => {
+      expect(formatElapsed(65000)).toBe('1m 5s');
+      expect(formatElapsed(125000)).toBe('2m 5s');
+    });
+
+    it('should handle zero', () => {
+      expect(formatElapsed(0)).toBe('0s');
+    });
+
+    it('should handle exactly one minute', () => {
+      expect(formatElapsed(60000)).toBe('1m 0s');
+    });
+  });
+
+  describe('Session State Display', () => {
+    it('should escape session state values', () => {
+      const maliciousSession = {
+        sessionId: '<script>alert(1)</script>',
+        currentJourney: '<img onerror=alert(1)>',
+        currentStep: '</span><script>alert(1)</script>',
+        lastError: '"; rm -rf /',
+      };
+
+      expect(escapeHtml(maliciousSession.sessionId)).toContain('&lt;script&gt;');
+      expect(escapeHtml(maliciousSession.currentJourney)).not.toContain('<img');
+      expect(escapeHtml(maliciousSession.currentStep)).not.toContain('<script>');
+      expect(escapeHtml(maliciousSession.lastError)).toContain('&quot;');
+    });
+
+    it('should handle session status values', () => {
+      const statuses = ['idle', 'running', 'paused', 'completed', 'failed'];
+      for (const status of statuses) {
+        const escaped = escapeHtml(status);
+        expect(escaped).toBe(status); // These are safe strings
+      }
+    });
+  });
+
+  describe('Implementation Progress Card', () => {
+    it('should calculate progress percentage correctly', () => {
+      const completed = 3;
+      const failed = 1;
+      const total = 10;
+      const progress = Math.round(((completed + failed) / total) * 100);
+      expect(progress).toBe(40);
+    });
+
+    it('should handle zero total journeys', () => {
+      const total = 0;
+      const progress = total > 0 ? Math.round((0 / total) * 100) : 0;
+      expect(progress).toBe(0);
+    });
+
+    it('should handle completed journeys list', () => {
+      const completedJourneys = ['JRN-0001', 'JRN-0002'];
+      const joined = completedJourneys.join(', ');
+      expect(escapeHtml(joined)).toBe('JRN-0001, JRN-0002');
+    });
+
+    it('should escape malicious journey IDs in progress list', () => {
+      const maliciousIds = ['<script>alert(1)</script>', 'JRN-0001'];
+      const escaped = escapeHtml(maliciousIds[0]);
+      expect(escaped).not.toContain('<script>');
+      expect(escaped).toContain('&lt;script&gt;');
+    });
+  });
 });

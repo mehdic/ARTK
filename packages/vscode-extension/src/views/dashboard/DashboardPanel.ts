@@ -6,9 +6,11 @@
 
 import * as vscode from 'vscode';
 import { getWorkspaceContextManager } from '../../workspace';
-import { llkbStatsJson, journeySummary } from '../../cli';
+import { llkbStatsJson, journeySummary, readSessionState } from '../../cli';
 import type { ArtkContext, ArtkConfig } from '../../types';
-import type { LLKBStatsResult, JourneySummary } from '../../cli/types';
+import type { LLKBStatsResult, JourneySummary, SessionState } from '../../cli/types';
+
+const SESSION_POLL_INTERVAL = 2000; // Poll every 2 seconds during implementation
 
 /**
  * Escape HTML to prevent XSS attacks
@@ -34,6 +36,8 @@ export class DashboardPanel {
   private disposables: vscode.Disposable[] = [];
   private llkbStats: LLKBStatsResult | undefined;
   private journeySummaryData: JourneySummary | undefined;
+  private sessionState: SessionState | undefined;
+  private sessionPollInterval: ReturnType<typeof setInterval> | undefined;
 
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
     this.panel = panel;
@@ -51,7 +55,7 @@ export class DashboardPanel {
 
     // Handle messages from the webview
     this.panel.webview.onDidReceiveMessage(
-      (message: { command: string }) => {
+      (message: { command: string; journeyIds?: string[] }) => {
         switch (message.command) {
           case 'runDoctor':
             vscode.commands.executeCommand('artk.doctor');
@@ -77,6 +81,17 @@ export class DashboardPanel {
           case 'journeyValidate':
             vscode.commands.executeCommand('artk.journey.validate');
             break;
+          case 'journeyImplementReady':
+            this.implementReadyJourneys();
+            break;
+          case 'journeyImplementSelected':
+            if (message.journeyIds?.length) {
+              vscode.commands.executeCommand('artk.journey.implement', { journeyIds: message.journeyIds });
+            }
+            break;
+          case 'viewJourneys':
+            vscode.commands.executeCommand('artk.openJourney');
+            break;
           case 'init':
             vscode.commands.executeCommand('artk.init');
             break;
@@ -85,6 +100,81 @@ export class DashboardPanel {
       null,
       this.disposables
     );
+  }
+
+  /**
+   * Implement all ready journeys (clarified status)
+   */
+  private async implementReadyJourneys(): Promise<void> {
+    const readyJourneys = this.journeySummaryData?.readyToImplement;
+    if (!readyJourneys?.length) {
+      vscode.window.showInformationMessage('No journeys are ready to implement.');
+      return;
+    }
+
+    const confirm = await vscode.window.showInformationMessage(
+      `Implement ${readyJourneys.length} ready journey(s)?`,
+      { detail: readyJourneys.join(', ') },
+      'Implement',
+      'Cancel'
+    );
+
+    if (confirm === 'Implement') {
+      vscode.commands.executeCommand('artk.journey.implement', { journeyIds: readyJourneys });
+      // Start polling for progress
+      this.startSessionPolling();
+    }
+  }
+
+  /**
+   * Start polling for session state during implementation
+   */
+  private startSessionPolling(): void {
+    // Clear any existing interval
+    this.stopSessionPolling();
+
+    const contextManager = getWorkspaceContextManager();
+    const harnessRoot = contextManager.workspaceInfo?.artkE2ePath;
+
+    if (!harnessRoot) {
+      return;
+    }
+
+    this.sessionPollInterval = setInterval(async () => {
+      try {
+        const state = await readSessionState(harnessRoot);
+        const previousStatus = this.sessionState?.status;
+        this.sessionState = state;
+
+        // Re-render to show progress
+        this.renderCurrentState();
+
+        // Stop polling when session completes or fails
+        if (state?.status === 'completed' || state?.status === 'failed' || !state) {
+          this.stopSessionPolling();
+
+          // Refresh journey summary after implementation
+          if (previousStatus === 'running') {
+            this.fetchAsyncData(
+              contextManager.workspaceInfo?.llkbPath,
+              harnessRoot
+            );
+          }
+        }
+      } catch {
+        // Ignore errors during polling
+      }
+    }, SESSION_POLL_INTERVAL);
+  }
+
+  /**
+   * Stop polling for session state
+   */
+  private stopSessionPolling(): void {
+    if (this.sessionPollInterval) {
+      clearInterval(this.sessionPollInterval);
+      this.sessionPollInterval = undefined;
+    }
   }
 
   /**
@@ -316,6 +406,67 @@ export class DashboardPanel {
     .not-installed h2 {
       margin-bottom: 16px;
     }
+    .progress-container {
+      margin: 12px 0;
+    }
+    .progress-bar {
+      height: 8px;
+      background: var(--vscode-progressBar-background);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--vscode-progressBar-background);
+      background: var(--vscode-button-background);
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-top: 4px;
+    }
+    .journey-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .journey-item {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+    }
+    .journey-item.completed {
+      background: var(--vscode-testing-iconPassed);
+      color: var(--vscode-editor-background);
+    }
+    .journey-item.current {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      animation: pulse 1.5s infinite;
+    }
+    .journey-item.failed {
+      background: var(--vscode-editorError-foreground);
+      color: var(--vscode-editor-background);
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .card.highlight {
+      border-color: var(--vscode-button-background);
+      border-width: 2px;
+    }
+    .button-primary {
+      background: var(--vscode-button-background);
+    }
+    .button-secondary {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+    }
   </style>
 </head>
 <body>
@@ -464,6 +615,8 @@ export class DashboardPanel {
       ` : ''}
     </div>
 
+    ${this.getImplementationProgressCard()}
+
     ${this.getJourneySummaryCard()}
 
     <div class="card" role="region" aria-labelledby="actions-heading">
@@ -478,7 +631,116 @@ export class DashboardPanel {
   }
 
   /**
-   * Generate journey summary card
+   * Generate implementation progress card
+   */
+  private getImplementationProgressCard(): string {
+    const session = this.sessionState;
+
+    // Only show if there's an active or recently completed session
+    if (!session || session.status === 'idle') {
+      return '';
+    }
+
+    const completed = session.completedJourneys?.length ?? 0;
+    const failed = session.failedJourneys?.length ?? 0;
+    const total = session.totalJourneys;
+    const progress = total > 0 ? Math.round(((completed + failed) / total) * 100) : 0;
+    const elapsed = session.elapsedMs ? this.formatElapsed(session.elapsedMs) : '';
+
+    const isRunning = session.status === 'running';
+    const isCompleted = session.status === 'completed';
+    const isFailed = session.status === 'failed';
+
+    return `
+    <div class="card ${isRunning ? 'highlight' : ''}" role="region" aria-labelledby="progress-heading">
+      <h2 id="progress-heading">Implementation Progress</h2>
+      <div class="card-content">
+        <div class="stat">
+          <span class="stat-label">Status</span>
+          <span class="stat-value ${isCompleted ? 'status-ok' : isFailed ? 'status-error' : ''}" role="status">
+            ${escapeHtml(session.status.charAt(0).toUpperCase() + session.status.slice(1))}
+          </span>
+        </div>
+
+        ${session.currentJourney && isRunning ? `
+        <div class="stat">
+          <span class="stat-label">Current</span>
+          <span class="stat-value">${escapeHtml(session.currentJourney)}</span>
+        </div>
+        ` : ''}
+
+        ${session.currentStep && isRunning ? `
+        <div class="stat">
+          <span class="stat-label">Step</span>
+          <span class="stat-value" title="${escapeHtml(session.currentStep)}">${escapeHtml(session.currentStep)}</span>
+        </div>
+        ` : ''}
+
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${progress}%"></div>
+          </div>
+          <div class="progress-text">${completed + failed}/${total} journeys (${progress}%)${elapsed ? ` • ${elapsed}` : ''}</div>
+        </div>
+
+        ${this.getJourneyProgressList(session)}
+
+        ${session.lastError ? `
+        <div class="stat">
+          <span class="stat-label">Last Error</span>
+          <span class="stat-value status-error" title="${escapeHtml(session.lastError)}">${escapeHtml(session.lastError.substring(0, 50))}${session.lastError.length > 50 ? '...' : ''}</span>
+        </div>
+        ` : ''}
+      </div>
+    </div>`;
+  }
+
+  /**
+   * Generate journey progress list showing completed/current/pending
+   */
+  private getJourneyProgressList(session: SessionState): string {
+    const completed = new Set(session.completedJourneys || []);
+    const failed = new Set(session.failedJourneys || []);
+    const current = session.currentJourney;
+
+    // We don't have full list of journeys, so just show completed, failed, and current
+    const items: string[] = [];
+
+    for (const id of completed) {
+      items.push(`<span class="journey-item completed" title="Completed">✓ ${escapeHtml(id)}</span>`);
+    }
+
+    for (const id of failed) {
+      items.push(`<span class="journey-item failed" title="Failed">✗ ${escapeHtml(id)}</span>`);
+    }
+
+    if (current && !completed.has(current) && !failed.has(current)) {
+      items.push(`<span class="journey-item current" title="In Progress">◉ ${escapeHtml(current)}</span>`);
+    }
+
+    if (items.length === 0) {
+      return '';
+    }
+
+    return `<div class="journey-list">${items.join('')}</div>`;
+  }
+
+  /**
+   * Format elapsed time for display
+   */
+  private formatElapsed(ms: number): string {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  /**
+   * Generate journey summary card with quick actions
    */
   private getJourneySummaryCard(): string {
     if (!this.journeySummaryData || this.journeySummaryData.total === 0) {
@@ -540,7 +802,11 @@ export class DashboardPanel {
         ` : ''}
       </div>
       <div class="actions">
-        <button onclick="runCommand('journeyValidate')" aria-label="Validate journeys">Validate</button>
+        <button onclick="runCommand('viewJourneys')" class="button-secondary" aria-label="View all journeys">View Journeys</button>
+        <button onclick="runCommand('journeyValidate')" class="button-secondary" aria-label="Validate journeys">Validate All</button>
+        ${readyCount > 0 ? `
+        <button onclick="runCommand('journeyImplementReady')" class="button-primary" aria-label="Implement ${readyCount} ready journeys">Implement Ready (${readyCount})</button>
+        ` : ''}
       </div>
     </div>`;
   }
@@ -586,6 +852,9 @@ export class DashboardPanel {
    */
   public dispose(): void {
     DashboardPanel.currentPanel = undefined;
+
+    // Stop session polling
+    this.stopSessionPolling();
 
     this.panel.dispose();
 

@@ -131,3 +131,41 @@ export interface JourneySummary {
   total: number;
   readyToImplement: string[];
 }
+
+/**
+ * Session state for journey implementation progress tracking
+ */
+export interface SessionState {
+  /** Session ID */
+  sessionId: string;
+  /** When the session started */
+  startedAt: string;
+  /** Current status */
+  status: 'idle' | 'running' | 'paused' | 'completed' | 'failed';
+  /** Total journeys in this session */
+  totalJourneys: number;
+  /** Journeys completed successfully */
+  completedJourneys: string[];
+  /** Journeys that failed */
+  failedJourneys: string[];
+  /** Currently processing journey (if any) */
+  currentJourney?: string;
+  /** Progress within current journey (0-100) */
+  currentProgress?: number;
+  /** Current step description */
+  currentStep?: string;
+  /** Elapsed time in milliseconds */
+  elapsedMs?: number;
+  /** Last error message */
+  lastError?: string;
+}
+
+/**
+ * Journey validation result
+ */
+export interface JourneyValidationResult {
+  journeyId: string;
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}

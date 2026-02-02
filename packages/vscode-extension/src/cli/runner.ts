@@ -23,6 +23,7 @@ import type {
   CheckPrerequisitesResult,
   LLKBStatsResult,
   JourneySummary,
+  SessionState,
 } from './types';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
@@ -452,4 +453,20 @@ export async function journeyImplement(options: CLIJourneyImplementOptions): Pro
  */
 export async function journeySummary(harnessRoot: string): Promise<CLIResult<JourneySummary>> {
   return runCLI(['journey', 'summary', '--harness-root', harnessRoot, '--json']) as Promise<CLIResult<JourneySummary>>;
+}
+
+/**
+ * Read session state from file (for fast polling during implementation)
+ * Returns undefined if no session exists or file cannot be read
+ */
+export async function readSessionState(harnessRoot: string): Promise<SessionState | undefined> {
+  const sessionPath = path.join(harnessRoot, '.artk', 'session.json');
+
+  try {
+    const content = await fs.promises.readFile(sessionPath, 'utf-8');
+    return JSON.parse(content) as SessionState;
+  } catch {
+    // File doesn't exist or can't be read - no active session
+    return undefined;
+  }
 }
