@@ -190,7 +190,7 @@ function parseTestCounts(output: string): PlaywrightRunResult['counts'] {
   // Try to parse Playwright summary line
   // Format: "X passed, Y failed, Z skipped"
   const summaryMatch = output.match(/(\d+)\s+passed.*?(\d+)\s+failed.*?(\d+)\s+skipped/i);
-  if (summaryMatch) {
+  if (summaryMatch && summaryMatch[1] && summaryMatch[2] && summaryMatch[3]) {
     counts.passed = parseInt(summaryMatch[1], 10);
     counts.failed = parseInt(summaryMatch[2], 10);
     counts.skipped = parseInt(summaryMatch[3], 10);
@@ -210,7 +210,7 @@ function parseTestCounts(output: string): PlaywrightRunResult['counts'] {
 
   // Check for flaky tests
   const flakyMatch = output.match(/(\d+)\s+flaky/i);
-  if (flakyMatch) {
+  if (flakyMatch && flakyMatch[1]) {
     counts.flaky = parseInt(flakyMatch[1], 10);
   }
 
@@ -234,16 +234,16 @@ function parseFailures(stdout: string, stderr: string): TestFailure[] {
 
     // Extract test title
     const titleMatch = block.match(/(?:✘|✗|\d+\))\s+(?:\[.*?\])?\s*(.+?)(?:\(|at\s|Error)/);
-    const title = titleMatch?.[1]?.trim() || 'Unknown test';
+    const title = (titleMatch && titleMatch[1]) ? titleMatch[1].trim() : 'Unknown test';
 
     // Extract file location
     const fileMatch = block.match(/([^\s:]+\.(?:ts|js)):(\d+)/);
-    const file = fileMatch?.[1] || '';
-    const line = fileMatch?.[2] ? parseInt(fileMatch[2], 10) : undefined;
+    const file = (fileMatch && fileMatch[1]) ? fileMatch[1] : '';
+    const line = (fileMatch && fileMatch[2]) ? parseInt(fileMatch[2], 10) : undefined;
 
     // Extract error message
     const errorMatch = block.match(/Error:\s*([^\n]+)/);
-    const error = errorMatch?.[1]?.trim() || block.split('\n')[0]?.trim() || 'Unknown error';
+    const error = (errorMatch && errorMatch[1]) ? errorMatch[1].trim() : (block.split('\n')[0]?.trim() || 'Unknown error');
 
     // Extract stack trace (first few lines)
     const stackLines = block.split('\n')
@@ -253,7 +253,7 @@ function parseFailures(stdout: string, stderr: string): TestFailure[] {
 
     // Extract duration if available
     const durationMatch = block.match(/(\d+(?:\.\d+)?)\s*(?:ms|s)/);
-    const duration = durationMatch
+    const duration = (durationMatch && durationMatch[1])
       ? parseFloat(durationMatch[1]) * (durationMatch[0].includes('s') && !durationMatch[0].includes('ms') ? 1000 : 1)
       : undefined;
 
@@ -470,7 +470,7 @@ export async function checkPlaywrightInstalled(cwd?: string): Promise<{
         const versionMatch = stdout.match(/(\d+\.\d+\.\d+)/);
         resolve({
           installed: true,
-          version: versionMatch?.[1],
+          version: (versionMatch && versionMatch[1]) ? versionMatch[1] : undefined,
         });
       } else {
         resolve({

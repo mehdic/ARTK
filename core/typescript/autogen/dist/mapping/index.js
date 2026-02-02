@@ -463,6 +463,59 @@ var init_glossary = __esm({
     extendedGlossaryMeta = null;
   }
 });
+function getHarnessRoot() {
+  if (cachedHarnessRoot) {
+    return cachedHarnessRoot;
+  }
+  const envRoot = process.env["ARTK_HARNESS_ROOT"];
+  if (envRoot && existsSync(envRoot)) {
+    cachedHarnessRoot = envRoot;
+    return cachedHarnessRoot;
+  }
+  const artkE2eFromCwd = join(process.cwd(), "artk-e2e");
+  if (existsSync(artkE2eFromCwd)) {
+    cachedHarnessRoot = artkE2eFromCwd;
+    return cachedHarnessRoot;
+  }
+  const configInCwd = join(process.cwd(), "artk.config.yml");
+  if (existsSync(configInCwd)) {
+    cachedHarnessRoot = process.cwd();
+    return cachedHarnessRoot;
+  }
+  let searchDir = process.cwd();
+  const root = dirname(searchDir);
+  while (searchDir !== root) {
+    if (existsSync(join(searchDir, "artk.config.yml"))) {
+      cachedHarnessRoot = searchDir;
+      return cachedHarnessRoot;
+    }
+    const sibling = join(searchDir, "artk-e2e");
+    if (existsSync(sibling)) {
+      cachedHarnessRoot = sibling;
+      return cachedHarnessRoot;
+    }
+    searchDir = dirname(searchDir);
+  }
+  cachedHarnessRoot = process.cwd();
+  return cachedHarnessRoot;
+}
+function getLlkbRoot(explicitRoot) {
+  if (explicitRoot) {
+    return explicitRoot;
+  }
+  return join(getHarnessRoot(), ".artk", "llkb");
+}
+function getArtkDir(explicitBaseDir) {
+  if (explicitBaseDir) {
+    return join(explicitBaseDir, ".artk");
+  }
+  return join(getHarnessRoot(), ".artk");
+}
+var cachedHarnessRoot;
+var init_paths = __esm({
+  "src/utils/paths.ts"() {
+  }
+});
 
 // src/llkb/patternExtension.ts
 var patternExtension_exports = {};
@@ -488,14 +541,14 @@ function invalidatePatternCache() {
   patternCache = null;
 }
 function getPatternsFilePath(llkbRoot) {
-  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const root = getLlkbRoot(llkbRoot);
   return join(root, PATTERNS_FILE);
 }
 function generatePatternId() {
   return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
 }
 function loadLearnedPatterns(options = {}) {
-  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const llkbRoot = getLlkbRoot(options.llkbRoot);
   const now = Date.now();
   if (!options.bypassCache && patternCache && patternCache.llkbRoot === llkbRoot && now - patternCache.loadedAt < CACHE_TTL_MS) {
     return patternCache.patterns;
@@ -572,7 +625,7 @@ function recordPatternSuccess(originalText, primitive, journeyId, options = {}) 
   saveLearnedPatterns(patterns, options);
   return pattern;
 }
-function recordPatternFailure(originalText, journeyId, options = {}) {
+function recordPatternFailure(originalText, _journeyId, options = {}) {
   const patterns = loadLearnedPatterns(options);
   const normalizedText = normalizeStepText(originalText);
   const pattern = patterns.find((p) => p.normalizedText === normalizedText);
@@ -602,7 +655,7 @@ function matchLlkbPattern(text, options = {}) {
   return null;
 }
 function generateRegexFromText(text) {
-  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  const pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
   return `^${pattern}$`;
 }
 function getPromotablePatterns(options = {}) {
@@ -708,12 +761,12 @@ function clearLearnedPatterns(options = {}) {
   }
   invalidatePatternCache();
 }
-var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
+var PATTERNS_FILE, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
     init_glossary();
+    init_paths();
     PATTERNS_FILE = "learned-patterns.json";
-    DEFAULT_LLKB_ROOT = ".artk/llkb";
     patternCache = null;
     CACHE_TTL_MS = 5e3;
   }
@@ -2370,11 +2423,13 @@ function formatBlockedStepAnalysis(analysis) {
   }
   return lines.join("\n");
 }
-var DEFAULT_TELEMETRY_DIR = ".artk";
+
+// src/mapping/telemetry.ts
+init_paths();
 var TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
 function getTelemetryPath(baseDir) {
-  const dir = baseDir || process.cwd();
-  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
+  const artkDir = getArtkDir(baseDir);
+  return join(artkDir, TELEMETRY_FILE);
 }
 function ensureTelemetryDir(telemetryPath) {
   const dir = dirname(telemetryPath);

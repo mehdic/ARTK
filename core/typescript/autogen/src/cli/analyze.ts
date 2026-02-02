@@ -231,7 +231,7 @@ function parseJourneyFile(filePath: string): JourneyAnalysis {
   // Extract frontmatter
   let frontmatter: JourneyFrontmatter = {};
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  if (fmMatch) {
+  if (fmMatch && fmMatch[1]) {
     try {
       frontmatter = yaml.parse(fmMatch[1]) || {};
     } catch (e) {
@@ -242,7 +242,7 @@ function parseJourneyFile(filePath: string): JourneyAnalysis {
   // Extract acceptance criteria (## Acceptance Criteria section)
   const acceptanceCriteria: string[] = [];
   const acMatch = content.match(/##\s*Acceptance Criteria\s*\n([\s\S]*?)(?=\n##|\n---|\z)/i);
-  if (acMatch) {
+  if (acMatch && acMatch[1]) {
     const lines = acMatch[1].split('\n');
     for (const line of lines) {
       const trimmed = line.trim();
@@ -255,7 +255,7 @@ function parseJourneyFile(filePath: string): JourneyAnalysis {
   // Extract steps (## Steps or ## Procedure section)
   const steps: StepAnalysis[] = [];
   const stepsMatch = content.match(/##\s*(?:Steps|Procedure|Test Steps)\s*\n([\s\S]*?)(?=\n##|\n---|\z)/i);
-  if (stepsMatch) {
+  if (stepsMatch && stepsMatch[1]) {
     const lines = stepsMatch[1].split('\n');
     let stepIndex = 0;
     for (const line of lines) {
@@ -385,7 +385,10 @@ export async function runAnalyze(args: string[]): Promise<void> {
     complex: 0,
   };
   for (const j of journeys) {
-    complexityDistribution[j.complexity.overall]++;
+    const level = j.complexity.overall;
+    if (complexityDistribution[level] !== undefined) {
+      complexityDistribution[level]++;
+    }
   }
 
   // Find common keywords

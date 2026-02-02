@@ -202,12 +202,12 @@ function parseTextFormat(
 
 function extractReasoning(text: string): string {
   const match = text.match(PATTERNS.REASONING);
-  return match ? match[1].trim() : '';
+  return (match && match[1]) ? match[1].trim() : '';
 }
 
 function extractConfidence(text: string): number {
   const match = text.match(PATTERNS.CONFIDENCE);
-  if (match) {
+  if (match && match[1]) {
     const value = parseFloat(match[1]);
     if (!isNaN(value) && value >= 0 && value <= 1) {
       return value;
@@ -218,7 +218,7 @@ function extractConfidence(text: string): number {
 
 function extractWarnings(text: string): string[] {
   const match = text.match(PATTERNS.WARNINGS);
-  if (!match || match[1].trim().toLowerCase() === 'none') {
+  if (!match || !match[1] || match[1].trim().toLowerCase() === 'none') {
     return [];
   }
   return match[1]
@@ -234,11 +234,16 @@ function extractStructures(text: string): SCoTStructure[] {
 
   let i = 0;
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
 
     // Check for SEQUENTIAL
     const seqMatch = line.match(PATTERNS.SEQUENTIAL);
-    if (seqMatch) {
+    if (seqMatch && seqMatch[1]) {
       const { structure, endIndex } = parseSequentialBlock(lines, i, seqMatch[1]);
       structures.push(structure);
       i = endIndex + 1;
@@ -247,7 +252,7 @@ function extractStructures(text: string): SCoTStructure[] {
 
     // Check for BRANCH
     const branchMatch = line.match(PATTERNS.BRANCH);
-    if (branchMatch) {
+    if (branchMatch && branchMatch[1]) {
       const { structure, endIndex } = parseBranchBlock(lines, i, branchMatch[1]);
       structures.push(structure);
       i = endIndex + 1;
@@ -256,7 +261,7 @@ function extractStructures(text: string): SCoTStructure[] {
 
     // Check for LOOP
     const loopMatch = line.match(PATTERNS.LOOP);
-    if (loopMatch) {
+    if (loopMatch && loopMatch[1]) {
       const { structure, endIndex } = parseLoopBlock(lines, i, loopMatch[1]);
       structures.push(structure);
       i = endIndex + 1;
@@ -278,7 +283,12 @@ function parseSequentialBlock(
   let i = startIndex + 1;
 
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
 
     // Check for end of block (next structure or empty lines followed by structure)
     if (PATTERNS.SEQUENTIAL.test(line) || PATTERNS.BRANCH.test(line) || PATTERNS.LOOP.test(line)) {
@@ -287,13 +297,13 @@ function parseSequentialBlock(
 
     // Parse numbered step
     const stepMatch = line.match(PATTERNS.STEP);
-    if (stepMatch) {
+    if (stepMatch && stepMatch[2]) {
       steps.push(parseStepText(stepMatch[2]));
     }
 
     // Parse bullet point step
     const bulletMatch = line.match(PATTERNS.ACTION_STEP);
-    if (bulletMatch) {
+    if (bulletMatch && bulletMatch[1]) {
       steps.push(parseStepText(bulletMatch[1]));
     }
 
@@ -318,11 +328,16 @@ function parseBranchBlock(
   let i = startIndex + 1;
 
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
 
     // Check for IF condition
     const ifMatch = line.match(PATTERNS.IF);
-    if (ifMatch) {
+    if (ifMatch && ifMatch[1]) {
       condition = parseConditionText(ifMatch[1]);
       i++;
       continue;
@@ -347,7 +362,7 @@ function parseBranchBlock(
 
     // Parse step
     const bulletMatch = line.match(PATTERNS.ACTION_STEP);
-    if (bulletMatch) {
+    if (bulletMatch && bulletMatch[1]) {
       const step = parseStepText(bulletMatch[1]);
       if (inElse) {
         elseBranch.push(step);
@@ -381,11 +396,16 @@ function parseLoopBlock(
   let i = startIndex + 1;
 
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (!currentLine) {
+      i++;
+      continue;
+    }
+    const line = currentLine.trim();
 
     // Check for FOR EACH
     const forMatch = line.match(PATTERNS.FOR_EACH);
-    if (forMatch) {
+    if (forMatch && forMatch[1] && forMatch[2]) {
       iterator = { variable: forMatch[1], collection: forMatch[2] };
       i++;
       continue;
@@ -403,7 +423,7 @@ function parseLoopBlock(
 
     // Parse step
     const bulletMatch = line.match(PATTERNS.ACTION_STEP);
-    if (bulletMatch) {
+    if (bulletMatch && bulletMatch[1]) {
       body.push(parseStepText(bulletMatch[1]));
     }
 

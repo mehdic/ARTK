@@ -178,7 +178,7 @@ function extractElementDescription(fix: CodeFix, error: ErrorAnalysis): string {
 
   // Try to extract from fixed code
   const locatorMatch = fix.fixedCode.match(/getBy\w+\(['"]([^'"]+)['"]\)/);
-  if (locatorMatch) {
+  if (locatorMatch && locatorMatch[1]) {
     return locatorMatch[1];
   }
 
@@ -188,17 +188,17 @@ function extractElementDescription(fix: CodeFix, error: ErrorAnalysis): string {
 function extractElementFromSelector(selector: string): string {
   // Extract meaningful element description from selector
   const testIdMatch = selector.match(/data-testid[=~*^$]*["']?([^"'\]]+)/);
-  if (testIdMatch) {
+  if (testIdMatch && testIdMatch[1]) {
     return testIdMatch[1];
   }
 
   const roleMatch = selector.match(/role=["']?([^"'\]]+)/);
-  if (roleMatch) {
+  if (roleMatch && roleMatch[1]) {
     return roleMatch[1];
   }
 
   const classMatch = selector.match(/\.([a-zA-Z0-9_-]+)/);
-  if (classMatch) {
+  if (classMatch && classMatch[1]) {
     return classMatch[1];
   }
 
@@ -296,7 +296,7 @@ export function aggregateLessons(lessons: LessonLearned[]): AggregatedPattern[] 
       occurrences: data.occurrences,
       averageConfidence: data.totalConfidence / data.occurrences,
       contexts: Array.from(data.contexts),
-      representativeCode: data.codes[0], // Use first occurrence as representative
+      representativeCode: data.codes[0] || '', // Use first occurrence as representative
     }))
     .sort((a, b) => b.occurrences - a.occurrences);
 }

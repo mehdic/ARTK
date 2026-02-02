@@ -159,7 +159,8 @@ export async function calculateConfidenceWithSamples(
 
   if (samples.length === 1) {
     // Single sample - just calculate normally
-    return calculateConfidence(samples[0].code, options);
+    const sample = samples[0]!;
+    return calculateConfidence(sample.code, options);
   }
 
   const { config, customPatterns, llkbPatterns } = options;
@@ -201,21 +202,21 @@ export async function calculateConfidenceWithSamples(
   const dimensions: DimensionScore[] = [
     {
       dimension: 'syntax',
-      score: syntaxScores[medianIndex],
+      score: syntaxScores[medianIndex] ?? 0,
       weight: weights.syntax,
       reasoning: `Median of ${samples.length} samples`,
       subScores: [],
     },
     {
       dimension: 'pattern',
-      score: patternScores[medianIndex],
+      score: patternScores[medianIndex] ?? 0,
       weight: weights.pattern,
       reasoning: `Median of ${samples.length} samples`,
       subScores: [],
     },
     {
       dimension: 'selector',
-      score: selectorScores[medianIndex],
+      score: selectorScores[medianIndex] ?? 0,
       weight: weights.selector,
       reasoning: `Median of ${samples.length} samples`,
       subScores: [],
@@ -337,7 +338,7 @@ function extractAssertions(code: string): string[] {
   const assertions: string[] = [];
   const assertionMatches = code.match(/expect\([^)]+\)\.\w+/g) || [];
   for (const match of assertionMatches) {
-    const method = match.match(/\.(\w+)$/)?.[1];
+    const method = match.match(/\.(\w+)$/)?.[1] || '';
     if (method) assertions.push(method);
   }
   return assertions;
@@ -387,10 +388,14 @@ function calculateSelectorAgreement(features: CodeFeatures[]): number {
 
   for (let i = 0; i < features.length; i++) {
     for (let j = i + 1; j < features.length; j++) {
-      const set1 = new Set(features[i].selectorStrategies);
-      const set2 = new Set(features[j].selectorStrategies);
-      totalSimilarity += jaccardSimilarity(set1, set2);
-      comparisons++;
+      const featureI = features[i];
+      const featureJ = features[j];
+      if (featureI && featureJ) {
+        const set1 = new Set(featureI.selectorStrategies);
+        const set2 = new Set(featureJ.selectorStrategies);
+        totalSimilarity += jaccardSimilarity(set1, set2);
+        comparisons++;
+      }
     }
   }
 
@@ -426,10 +431,14 @@ function calculateAssertionAgreement(features: CodeFeatures[]): number {
 
   for (let i = 0; i < features.length; i++) {
     for (let j = i + 1; j < features.length; j++) {
-      const set1 = new Set(features[i].assertions);
-      const set2 = new Set(features[j].assertions);
-      totalSimilarity += jaccardSimilarity(set1, set2);
-      comparisons++;
+      const featureI = features[i];
+      const featureJ = features[j];
+      if (featureI && featureJ) {
+        const set1 = new Set(featureI.assertions);
+        const set2 = new Set(featureJ.assertions);
+        totalSimilarity += jaccardSimilarity(set1, set2);
+        comparisons++;
+      }
     }
   }
 
@@ -465,11 +474,12 @@ function findDisagreementAreas(features: CodeFeatures[]): DisagreementArea[] {
     for (const s of allStrategies) {
       voteCounts[s] = (voteCounts[s] || 0) + 1;
     }
+    const voteValues = Object.values(voteCounts);
     areas.push({
       area: 'Selector Strategies',
       variants: [...new Set(allStrategies)],
       voteCounts,
-      confidence: Math.max(...Object.values(voteCounts)) / features.length,
+      confidence: voteValues.length > 0 ? Math.max(...voteValues) / features.length : 0,
     });
   }
 
@@ -480,11 +490,12 @@ function findDisagreementAreas(features: CodeFeatures[]): DisagreementArea[] {
     for (const f of flows) {
       voteCounts[f] = (voteCounts[f] || 0) + 1;
     }
+    const voteValues = Object.values(voteCounts);
     areas.push({
       area: 'Test Flow',
       variants: [...new Set(flows)],
       voteCounts,
-      confidence: Math.max(...Object.values(voteCounts)) / features.length,
+      confidence: voteValues.length > 0 ? Math.max(...voteValues) / features.length : 0,
     });
   }
 
@@ -505,7 +516,7 @@ function selectConsensusCode(codes: string[], features: CodeFeatures[]): string 
   }
 
   let maxCount = 0;
-  let consensusStructure = structures[0];
+  let consensusStructure = structures[0] || '';
   for (const [structure, count] of structureCounts) {
     if (count > maxCount) {
       maxCount = count;
@@ -515,7 +526,7 @@ function selectConsensusCode(codes: string[], features: CodeFeatures[]): string 
 
   // Return the first code with the consensus structure
   const index = structures.indexOf(consensusStructure);
-  return codes[index];
+  return codes[index] || codes[0] || '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -585,14 +596,14 @@ function createDiagnostics(dimensions: DimensionScore[]): ConfidenceDiagnostics 
   }
 
   return {
-    lowestDimension: {
+    lowestDimension: lowest ? {
       name: lowest.dimension,
       score: lowest.score,
-    },
-    highestDimension: {
+    } : { name: 'syntax' as const, score: 0 },
+    highestDimension: highest ? {
       name: highest.dimension,
       score: highest.score,
-    },
+    } : { name: 'syntax' as const, score: 0 },
     improvementSuggestions: suggestions.slice(0, 5),
     riskAreas,
   };

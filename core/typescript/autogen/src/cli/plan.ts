@@ -196,11 +196,11 @@ function convertStepToAction(step: JourneyAnalysis['steps'][0]): PlannedAction {
 function extractTarget(text: string): string {
   // Try to extract quoted strings
   const quoted = text.match(/["']([^"']+)["']/);
-  if (quoted) return quoted[1];
+  if (quoted && quoted[1]) return quoted[1];
 
   // Try to extract button/link names
   const buttonMatch = text.match(/(?:button|link|input|field)\s+(?:called|named|labeled)?\s*["']?(\w+)/i);
-  if (buttonMatch) return buttonMatch[1];
+  if (buttonMatch && buttonMatch[1]) return buttonMatch[1];
 
   // Return last noun-like word
   const words = text.split(/\s+/).filter(w => w.length > 2);
@@ -213,7 +213,7 @@ function inferSelectors(step: JourneyAnalysis['steps'][0]): SelectorHint[] {
 
   // Check for data-testid hints
   const testIdMatch = text.match(/data-testid\s*[=:]\s*["']?([^"'\s]+)/i);
-  if (testIdMatch) {
+  if (testIdMatch && testIdMatch[1]) {
     selectors.push({
       strategy: 'testId',
       value: testIdMatch[1],
@@ -223,7 +223,7 @@ function inferSelectors(step: JourneyAnalysis['steps'][0]): SelectorHint[] {
 
   // Check for button/link names (suggest role-based)
   const buttonMatch = text.match(/(?:click|press)\s+(?:the\s+)?["']?(\w+)["']?\s*button/i);
-  if (buttonMatch) {
+  if (buttonMatch && buttonMatch[1]) {
     selectors.push({
       strategy: 'role',
       value: `button[name="${buttonMatch[1]}"]`,
@@ -233,7 +233,7 @@ function inferSelectors(step: JourneyAnalysis['steps'][0]): SelectorHint[] {
 
   // Check for links
   const linkMatch = text.match(/(?:click|press)\s+(?:the\s+)?["']?([^"']+)["']?\s*link/i);
-  if (linkMatch) {
+  if (linkMatch && linkMatch[1]) {
     selectors.push({
       strategy: 'role',
       value: `link[name="${linkMatch[1]}"]`,
@@ -243,7 +243,7 @@ function inferSelectors(step: JourneyAnalysis['steps'][0]): SelectorHint[] {
 
   // Check for text content
   const textMatch = text.match(/(?:with|containing|text)\s+["']([^"']+)["']/i);
-  if (textMatch) {
+  if (textMatch && textMatch[1]) {
     selectors.push({
       strategy: 'text',
       value: textMatch[1],
