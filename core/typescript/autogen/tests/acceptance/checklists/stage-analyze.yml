@@ -29,46 +29,46 @@ checks:
   # ANALYSIS CONTENT
   # ═══════════════════════════════════════════════════════════════════════════
   - id: ANAL-010
-    name: "Journey ID extracted"
+    name: "Journeys array exists"
     type: json_contains
     path: ".artk/autogen/analysis.json"
-    field: "journeyId"
+    field: "journeys"
     severity: critical
 
   - id: ANAL-011
-    name: "Journey title extracted"
+    name: "Summary generated"
     type: json_contains
     path: ".artk/autogen/analysis.json"
-    field: "title"
+    field: "summary"
     severity: high
 
   - id: ANAL-012
-    name: "Steps array populated"
+    name: "Journeys array populated"
     type: json_array_length
     path: ".artk/autogen/analysis.json"
-    field: "steps"
+    field: "journeys"
     min: 1
     severity: critical
 
   - id: ANAL-013
-    name: "Each step has action"
-    type: json_array_field_exists
+    name: "Total steps counted"
+    type: json_contains
     path: ".artk/autogen/analysis.json"
-    field: "steps[*].action"
+    field: "summary.totalSteps"
     severity: high
 
   - id: ANAL-014
-    name: "Preconditions captured"
+    name: "Complexity distribution captured"
     type: json_contains
     path: ".artk/autogen/analysis.json"
-    field: "preconditions"
+    field: "summary.complexityDistribution"
     severity: medium
 
   - id: ANAL-015
-    name: "Expected result captured"
+    name: "Analysis timestamp recorded"
     type: json_contains
     path: ".artk/autogen/analysis.json"
-    field: "expectedResult"
+    field: "analyzedAt"
     severity: medium
 
   # ═══════════════════════════════════════════════════════════════════════════

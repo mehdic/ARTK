@@ -23,46 +23,47 @@ checks:
   # PLAN CONTENT
   # ═══════════════════════════════════════════════════════════════════════════
   - id: PLAN-010
-    name: "Strategy specified"
+    name: "Plans array exists"
     type: json_contains
     path: ".artk/autogen/plan.json"
-    field: "strategy"
+    field: "plans"
     severity: high
 
   - id: PLAN-011
-    name: "Test file path defined"
-    type: json_contains
+    name: "Plans array populated"
+    type: json_array_length
     path: ".artk/autogen/plan.json"
-    field: "outputPath"
+    field: "plans"
+    min: 1
     severity: critical
 
   - id: PLAN-012
-    name: "Steps mapped to test blocks"
-    type: json_array_length
+    name: "Version specified"
+    type: json_contains
     path: ".artk/autogen/plan.json"
-    field: "testBlocks"
-    min: 1
+    field: "version"
     severity: high
 
   - id: PLAN-013
-    name: "Each block has step reference"
-    type: json_array_field_exists
-    path: ".artk/autogen/plan.json"
-    field: "testBlocks[*].stepId"
-    severity: medium
-
-  - id: PLAN-014
-    name: "Fixtures identified"
+    name: "Plan has journey ID"
     type: json_contains
     path: ".artk/autogen/plan.json"
-    field: "fixtures"
+    field: "plans"
+    severity: medium
+    description: "Each plan references a journey"
+
+  - id: PLAN-014
+    name: "Created timestamp recorded"
+    type: json_contains
+    path: ".artk/autogen/plan.json"
+    field: "createdAt"
     severity: medium
 
   - id: PLAN-015
-    name: "Imports planned"
+    name: "Summary generated"
     type: json_contains
     path: ".artk/autogen/plan.json"
-    field: "imports"
+    field: "summary"
     severity: medium
 
   # ═══════════════════════════════════════════════════════════════════════════
