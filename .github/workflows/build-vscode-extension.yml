@@ -16,6 +16,9 @@ on:
           - major
           - none
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build & Package
