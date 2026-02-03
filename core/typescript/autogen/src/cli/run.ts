@@ -20,6 +20,8 @@ import {
 import { updatePipelineState, loadPipelineState, canProceedTo } from '../pipeline/state.js';
 import { getTelemetry } from '../shared/telemetry.js';
 import { checkPlaywrightInstalled } from '../refinement/playwright-runner.js';
+import { recordPatternFailure } from '../llkb/patternExtension.js';
+import { trackBlockedStep } from '../shared/blocked-step-telemetry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -648,6 +650,43 @@ export async function runRun(args: string[]): Promise<void> {
   // Determine pipeline stage based on results
   const allPassed = summary.failed === 0 && summary.error === 0 && summary.timeout === 0;
   const pipelineStage = allPassed ? 'completed' : 'tested';
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LLKB FEEDBACK LOOP: Record pattern failures for confidence adjustment
+  // Fire-and-forget: don't block main pipeline, just log errors
+  // @see research/2026-02-03_multi-ai-debate-llkb-feedback.md
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (!allPassed) {
+    for (const result of results) {
+      if (result.status !== 'passed' && result.journeyId) {
+        // Record each error type as a pattern failure for LLKB learning
+        for (const error of result.errors) {
+          // Fire-and-forget: async call without await, catch errors silently
+          Promise.resolve().then(() => {
+            try {
+              // Record failure to decrease pattern confidence
+              recordPatternFailure(
+                error.message.substring(0, 200), // Truncate for pattern matching
+                result.journeyId!
+              );
+              // Track blocked step for telemetry analysis
+              trackBlockedStep({
+                stepText: error.message.substring(0, 200),
+                journeyId: result.journeyId!,
+                errorType: error.type,
+                timestamp: new Date().toISOString(),
+              });
+            } catch (e) {
+              // Silent catch - LLKB failures should never crash the pipeline
+              if (!quiet) {
+                console.warn(`LLKB recording skipped: ${e instanceof Error ? e.message : 'unknown error'}`);
+              }
+            }
+          });
+        }
+      }
+    }
+  }
 
   // Update pipeline state
   await updatePipelineState('run', pipelineStage, allPassed, {
