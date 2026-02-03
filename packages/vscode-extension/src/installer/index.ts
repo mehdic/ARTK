@@ -24,6 +24,7 @@ export interface InstallResult {
   success: boolean;
   error?: string;
   artkE2ePath?: string;
+  backupPath?: string; // Path to backup if force reinstall was used
 }
 
 type Variant = 'modern-esm' | 'modern-cjs' | 'legacy-16' | 'legacy-14';
@@ -36,13 +37,18 @@ function getAssetsPath(context: vscode.ExtensionContext): string {
 }
 
 /**
- * Copy directory recursively
+ * Copy directory recursively (skips symlinks for security)
  */
 async function copyDir(src: string, dest: string): Promise<void> {
   await fs.promises.mkdir(dest, { recursive: true });
   const entries = await fs.promises.readdir(src, { withFileTypes: true });
 
   for (const entry of entries) {
+    // Skip symlinks for security (prevents path traversal attacks)
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
+
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
@@ -52,6 +58,60 @@ async function copyDir(src: string, dest: string): Promise<void> {
       await fs.promises.copyFile(srcPath, destPath);
     }
   }
+}
+
+/**
+ * Strip JSON comments safely without corrupting URLs
+ * Handles // and /* comments while preserving strings containing //
+ */
+function stripJsonComments(content: string): string {
+  let result = '';
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    const next = content[i + 1];
+
+    if (escape) {
+      result += char;
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\' && inString) {
+      result += char;
+      escape = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    // Only strip comments when NOT inside a string
+    if (!inString && char === '/' && next === '/') {
+      // Skip to end of line
+      while (i < content.length && content[i] !== '\n') i++;
+      i--; // Back up so the loop increment lands on \n
+      continue;
+    }
+
+    if (!inString && char === '/' && next === '*') {
+      // Skip to */
+      i += 2;
+      while (i < content.length - 1 && !(content[i] === '*' && content[i + 1] === '/')) i++;
+      i++; // Skip past /
+      continue;
+    }
+
+    result += char;
+  }
+
+  // Also remove trailing commas
+  return result.replace(/,(\s*[}\]])/g, '$1');
 }
 
 /**
@@ -408,34 +468,43 @@ llkb:
 }
 
 /**
- * Create .artk/context.json with full metadata
+ * Create .artk/context.json with full metadata (matches bootstrap.sh schema)
  */
 async function createContext(
   artkE2ePath: string,
   variant: Variant,
-  targetPath: string
+  targetPath: string,
+  backupPath?: string | null
 ): Promise<void> {
   const nodeVersion = process.versions.node;
   const playwrightVersion = getPlaywrightVersion(variant).replace('^', '');
   const moduleSystem = variant.includes('esm') ? 'esm' : 'cjs';
+  const templateVariant = moduleSystem === 'esm' ? 'esm' : 'commonjs';
 
   const context = {
     version: '1.0',
     artkVersion: '1.0.0',
     variant,
+    variantInstalledAt: new Date().toISOString(),
     nodeVersion,
     playwrightVersion,
     moduleSystem,
+    templateVariant, // Legacy compatibility field
     installedAt: new Date().toISOString(),
     installMethod: 'vscode-extension',
+    overrideUsed: false,
     projectRoot: targetPath,
+    artkRoot: artkE2ePath, // Alias for harnessRoot
     harnessRoot: artkE2ePath,
+    next_suggested: '/artk.init-playbook', // UI hint for next action
     browser: {
       channel: 'chromium',
       version: null,
       path: null,
       detected_at: new Date().toISOString(),
     },
+    // Track backup if force reinstall was used
+    ...(backupPath ? { previousInstallBackup: backupPath } : {}),
   };
 
   await fs.promises.writeFile(
@@ -513,11 +582,8 @@ async function installVscodeSettings(
     // Merge with existing settings (preserve user settings, add ARTK settings)
     try {
       const existingContent = await fs.promises.readFile(settingsPath, 'utf-8');
-      // Strip comments for parsing (simple regex - handles // and /* */ comments)
-      const stripped = existingContent
-        .replace(/\/\/.*$/gm, '')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/,(\s*[}\]])/g, '$1');
+      // Use safe comment stripping that preserves URLs containing //
+      const stripped = stripJsonComments(existingContent);
 
       const existing = JSON.parse(stripped);
 
@@ -546,9 +612,10 @@ async function installVscodeSettings(
       const existingContent = await fs.promises.readFile(settingsPath, 'utf-8');
       const settingsToAdd: string[] = [];
 
-      for (const [key] of Object.entries(artkSettings)) {
+      for (const [key, value] of Object.entries(artkSettings)) {
         if (!existingContent.includes(key)) {
-          settingsToAdd.push(`  "${key}": true`);
+          const jsonValue = typeof value === 'string' ? `"${value}"` : String(value);
+          settingsToAdd.push(`  "${key}": ${jsonValue}`);
         }
       }
 
@@ -864,7 +931,48 @@ overrides:
 }
 
 /**
+ * Check if existing prompts need upgrade (old-style without agent: property)
+ */
+async function detectUpgradeNeeded(promptsDir: string, agentsDir: string): Promise<boolean> {
+  // Upgrade needed if: prompts exist but agents don't
+  if (!fs.existsSync(promptsDir)) return false;
+  if (fs.existsSync(agentsDir)) return false;
+
+  // Check if any artk prompt lacks agent: property (old-style full content)
+  const oldPromptFile = path.join(promptsDir, 'artk.journey-propose.prompt.md');
+  if (fs.existsSync(oldPromptFile)) {
+    const content = await fs.promises.readFile(oldPromptFile, 'utf-8');
+    if (!content.match(/^agent:/m)) {
+      return true; // Old-style prompt without agent delegation
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Clean up old backups, keeping only the 3 most recent
+ */
+async function cleanupOldBackups(targetPath: string): Promise<void> {
+  const githubDir = path.join(targetPath, '.github');
+  if (!fs.existsSync(githubDir)) return;
+
+  const entries = await fs.promises.readdir(githubDir);
+  const backups = entries
+    .filter(e => e.startsWith('prompts.backup-'))
+    .sort()
+    .reverse();
+
+  // Keep only 3 most recent
+  for (const backup of backups.slice(3)) {
+    const backupPath = path.join(githubDir, backup);
+    await fs.promises.rm(backupPath, { recursive: true, force: true });
+  }
+}
+
+/**
  * Install prompts with two-tier architecture (prompts + agents)
+ * Uses staging directories for atomic operations with rollback
  * Also installs common prompts and next-commands (matches bootstrap.sh)
  */
 async function installPrompts(
@@ -879,41 +987,71 @@ async function installPrompts(
     return;
   }
 
-  await fs.promises.mkdir(promptsDest, { recursive: true });
-  await fs.promises.mkdir(agentsDest, { recursive: true });
+  // Check for upgrade scenario (old-style prompts without agent: property)
+  const needsUpgrade = await detectUpgradeNeeded(promptsDest, agentsDest);
+  let backupDir: string | null = null;
 
-  // Read all artk.*.md files
-  const files = await fs.promises.readdir(promptsSrc);
-  for (const file of files) {
-    if (!file.startsWith('artk.') || !file.endsWith('.md')) {
-      continue;
+  if (needsUpgrade) {
+    // Backup old prompts before upgrade
+    backupDir = path.join(targetPath, '.github', `prompts.backup-${Date.now()}`);
+    await copyDir(promptsDest, backupDir);
+    // Remove old artk.* prompts (will be replaced with stubs)
+    const oldFiles = await fs.promises.readdir(promptsDest);
+    for (const file of oldFiles) {
+      if (file.startsWith('artk.') && file.endsWith('.prompt.md')) {
+        await fs.promises.unlink(path.join(promptsDest, file));
+      }
     }
+    // Cleanup old backups (keep only 3 most recent)
+    await cleanupOldBackups(targetPath);
+  }
 
-    const srcPath = path.join(promptsSrc, file);
-    const stat = await fs.promises.stat(srcPath);
-    if (!stat.isFile()) {
-      continue;
-    }
+  // Use staging directories for atomic operations
+  const stagingId = Date.now();
+  const promptsStaging = path.join(targetPath, '.github', `.prompts-staging-${stagingId}`);
+  const agentsStaging = path.join(targetPath, '.github', `.agents-staging-${stagingId}`);
 
-    const content = await fs.promises.readFile(srcPath, 'utf-8');
-    const basename = file.replace('.md', '');
+  const cleanupStaging = async () => {
+    await fs.promises.rm(promptsStaging, { recursive: true, force: true }).catch(() => {});
+    await fs.promises.rm(agentsStaging, { recursive: true, force: true }).catch(() => {});
+  };
 
-    // Extract name from frontmatter
-    const nameMatch = content.match(/^name:\s*["']?([^"'\n]+)["']?/m);
-    const name = nameMatch ? nameMatch[1].trim() : basename;
+  try {
+    await fs.promises.mkdir(promptsStaging, { recursive: true });
+    await fs.promises.mkdir(agentsStaging, { recursive: true });
 
-    // Extract description from frontmatter
-    const descMatch = content.match(/^description:\s*["']?([^"'\n]+)["']?/m);
-    const description = descMatch ? descMatch[1].trim() : 'ARTK prompt';
+    // Read all artk.*.md files and write to staging
+    const files = await fs.promises.readdir(promptsSrc);
+    for (const file of files) {
+      if (!file.startsWith('artk.') || !file.endsWith('.md')) {
+        continue;
+      }
 
-    // 1. Copy full content to agents/
-    await fs.promises.writeFile(
-      path.join(agentsDest, `${basename}.agent.md`),
-      content
-    );
+      const srcPath = path.join(promptsSrc, file);
+      const stat = await fs.promises.stat(srcPath);
+      if (!stat.isFile()) {
+        continue;
+      }
 
-    // 2. Generate stub to prompts/
-    const stub = `---
+      const content = await fs.promises.readFile(srcPath, 'utf-8');
+      const basename = file.replace('.md', '');
+
+      // Extract name from frontmatter
+      const nameMatch = content.match(/^name:\s*["']?([^"'\n]+)["']?/m);
+      const name = nameMatch ? nameMatch[1].trim() : basename;
+
+      // Extract description from frontmatter
+      const descMatch = content.match(/^description:\s*["']?([^"'\n]+)["']?/m);
+      const description = descMatch ? descMatch[1].trim() : 'ARTK prompt';
+
+      // 1. Copy full content to agents staging
+      await fs.promises.writeFile(
+        path.join(agentsStaging, `${basename}.agent.md`),
+        content
+      );
+
+      // 2. Generate stub to prompts staging
+      const stub = `---
 name: ${name}
 description: "${description}"
 agent: ${name}
@@ -924,10 +1062,43 @@ This prompt delegates to the \`@${name}\` agent for full functionality including
 
 Run \`/${name}\` to start, or select \`@${name}\` from the agent picker.
 `;
-    await fs.promises.writeFile(
-      path.join(promptsDest, `${basename}.prompt.md`),
-      stub
-    );
+      await fs.promises.writeFile(
+        path.join(promptsStaging, `${basename}.prompt.md`),
+        stub
+      );
+    }
+
+    // Move from staging to final destination (atomic)
+    await fs.promises.mkdir(promptsDest, { recursive: true });
+    await fs.promises.mkdir(agentsDest, { recursive: true });
+
+    const stagedPrompts = await fs.promises.readdir(promptsStaging);
+    for (const file of stagedPrompts) {
+      await fs.promises.rename(
+        path.join(promptsStaging, file),
+        path.join(promptsDest, file)
+      );
+    }
+
+    const stagedAgents = await fs.promises.readdir(agentsStaging);
+    for (const file of stagedAgents) {
+      await fs.promises.rename(
+        path.join(agentsStaging, file),
+        path.join(agentsDest, file)
+      );
+    }
+
+    // Cleanup staging
+    await cleanupStaging();
+
+  } catch (error) {
+    // Rollback: cleanup staging and restore backup if exists
+    await cleanupStaging();
+    if (backupDir && fs.existsSync(backupDir)) {
+      await fs.promises.rm(promptsDest, { recursive: true, force: true }).catch(() => {});
+      await copyDir(backupDir, promptsDest);
+    }
+    throw error;
   }
 
   // Install common prompts (GENERAL_RULES.md, etc.)
@@ -989,6 +1160,40 @@ async function installVendorLibs(
 
   if (fs.existsSync(autogenSrc)) {
     await copyDir(autogenSrc, autogenDest);
+  }
+
+  // Copy journeys (Journey Core system)
+  const journeysSrc = path.join(assetsPath, 'journeys');
+  const journeysDest = path.join(artkE2ePath, 'vendor', 'artk-core-journeys');
+
+  if (fs.existsSync(journeysSrc)) {
+    await copyDir(journeysSrc, journeysDest);
+
+    // Add journeys protection markers
+    await fs.promises.writeFile(
+      path.join(journeysDest, 'READONLY.md'),
+      `# ⚠️ DO NOT MODIFY THIS DIRECTORY
+
+This directory contains **artk-core-journeys** - the Journey schema, templates, and tools.
+
+**DO NOT modify files in this directory.**
+
+These files are managed by ARTK bootstrap and will be overwritten on upgrades.
+
+If you need to customize Journey schemas:
+1. Create custom schemas in \`artk-e2e/journeys/schemas/custom/\`
+2. Extend the base schema rather than modifying it
+
+---
+
+*Installed by ARTK VS Code Extension*
+`
+    );
+
+    await fs.promises.writeFile(
+      path.join(journeysDest, '.ai-ignore'),
+      '# AI agents should not modify files in this directory\n# This is vendored code managed by ARTK bootstrap\n\n*\n'
+    );
   }
 
   // Create AI protection markers
@@ -1076,9 +1281,11 @@ async function installTemplates(
 }
 
 /**
- * Run npm install in artk-e2e directory
+ * Run npm install in artk-e2e directory with timeout
  */
 async function runNpmInstall(artkE2ePath: string): Promise<{ success: boolean; error?: string }> {
+  const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
   return new Promise((resolve) => {
     const isWindows = process.platform === 'win32';
     const npm = isWindows ? 'npm.cmd' : 'npm';
@@ -1090,13 +1297,24 @@ async function runNpmInstall(artkE2ePath: string): Promise<{ success: boolean; e
     });
 
     let stderr = '';
+    let timedOut = false;
+
+    // Timeout handler
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGTERM');
+      setTimeout(() => proc.kill('SIGKILL'), 5000); // Force kill after 5s
+    }, TIMEOUT_MS);
 
     proc.stderr.on('data', (data) => {
       stderr += data.toString();
     });
 
     proc.on('close', (code) => {
-      if (code === 0) {
+      clearTimeout(timeout);
+      if (timedOut) {
+        resolve({ success: false, error: 'npm install timed out after 5 minutes' });
+      } else if (code === 0) {
         resolve({ success: true });
       } else {
         resolve({ success: false, error: stderr || `npm install failed with code ${code}` });
@@ -1104,6 +1322,7 @@ async function runNpmInstall(artkE2ePath: string): Promise<{ success: boolean; e
     });
 
     proc.on('error', (err) => {
+      clearTimeout(timeout);
       resolve({ success: false, error: err.message });
     });
   });
@@ -1164,11 +1383,16 @@ export async function installBundled(
       };
     }
 
-    // Create backup before force reinstall (P2 fix)
+    // Create backup before force reinstall
     let backupPath: string | null = null;
     if (fs.existsSync(artkE2ePath) && force) {
       progress?.report({ message: 'Creating backup of existing installation...' });
       backupPath = await createBackup(artkE2ePath);
+      if (backupPath) {
+        vscode.window.showInformationMessage(
+          `Backup created at: ${path.basename(backupPath)}`
+        );
+      }
     }
 
     // Detect or use specified variant
@@ -1192,7 +1416,7 @@ export async function installBundled(
     // Step 4: Create config files
     progress?.report({ message: 'Creating configuration files...' });
     await createConfig(artkE2ePath);
-    await createContext(artkE2ePath, variant, targetPath);
+    await createContext(artkE2ePath, variant, targetPath, backupPath);
     await createGitignore(artkE2ePath);
 
     // Step 5: Copy vendor libraries (core, autogen)
@@ -1251,11 +1475,28 @@ export async function installBundled(
     return {
       success: true,
       artkE2ePath,
+      ...(backupPath ? { backupPath } : {}),
     };
   } catch (error) {
+    // If we have a backup and installation failed, try to restore
+    if (backupPath && fs.existsSync(backupPath)) {
+      try {
+        // Remove partial installation
+        await fs.promises.rm(artkE2ePath, { recursive: true, force: true }).catch(() => {});
+        // Restore from backup
+        await copyDir(backupPath, artkE2ePath);
+        vscode.window.showWarningMessage(
+          `Installation failed. Previous installation restored from backup.`
+        );
+      } catch {
+        // Backup restore failed - user will need to manually recover
+      }
+    }
+
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
+      ...(backupPath ? { backupPath } : {}),
     };
   }
 }
