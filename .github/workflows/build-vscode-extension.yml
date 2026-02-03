@@ -7,12 +7,9 @@ on:
       - 'claude/*'
       - 'fix/*'
       - 'feature/*'
-    paths:
-      - 'packages/vscode-extension/**'
-      - '.github/workflows/build-vscode-extension.yml'
   pull_request:
-    paths:
-      - 'packages/vscode-extension/**'
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version_bump:
