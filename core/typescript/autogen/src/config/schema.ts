@@ -95,8 +95,8 @@ export const LLKBIntegrationLevelSchema = z.enum(['minimal', 'enhance', 'aggress
  * @see research/2026-01-23_llkb-autogen-integration-specification.md
  */
 export const LLKBIntegrationSchema = z.object({
-  /** Enable LLKB integration */
-  enabled: z.boolean().default(false),
+  /** Enable LLKB integration (default: true - LLKB enhances test generation) */
+  enabled: z.boolean().default(true),
 
   /** Path to LLKB-generated config file */
   configPath: z.string().optional(),

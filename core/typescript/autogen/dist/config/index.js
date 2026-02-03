@@ -52,8 +52,8 @@ var HealSchema = z.object({
 var RegenerationStrategySchema = z.enum(["ast", "blocks"]).default("ast");
 var LLKBIntegrationLevelSchema = z.enum(["minimal", "enhance", "aggressive"]).default("enhance");
 var LLKBIntegrationSchema = z.object({
-  /** Enable LLKB integration */
-  enabled: z.boolean().default(false),
+  /** Enable LLKB integration (default: true - LLKB enhances test generation) */
+  enabled: z.boolean().default(true),
   /** Path to LLKB-generated config file */
   configPath: z.string().optional(),
   /** Path to LLKB-generated glossary file */
@@ -256,10 +256,22 @@ function loadLLKBConfig(basePath) {
 }
 function loadConfigWithMigration(configPath) {
   const config = loadConfig(configPath);
-  if (config.llkb === void 0) {
+  if (config.llkb === void 0 || config.llkb === null) {
     config.llkb = {
-      enabled: false,
-      level: "minimal"
+      enabled: true,
+      // LLKB should always be on by default
+      level: "enhance"
+      // Match schema default
+    };
+  } else {
+    config.llkb = {
+      enabled: config.llkb.enabled ?? true,
+      // Default to true if not specified
+      level: config.llkb.level ?? "enhance",
+      // Default to enhance if not specified
+      // Preserve any other user-specified fields
+      ...config.llkb.configPath !== void 0 && { configPath: config.llkb.configPath },
+      ...config.llkb.glossaryPath !== void 0 && { glossaryPath: config.llkb.glossaryPath }
     };
   }
   return config;

@@ -26,7 +26,7 @@ describe('LLKB Integration: Schema', () => {
     it('should have correct defaults', () => {
       const result = LLKBIntegrationSchema.parse({});
 
-      expect(result.enabled).toBe(false);
+      expect(result.enabled).toBe(true);  // LLKB always on by default
       expect(result.level).toBe('enhance');
       expect(result.configPath).toBeUndefined();
       expect(result.glossaryPath).toBeUndefined();
@@ -68,11 +68,11 @@ describe('LLKB Integration: Schema', () => {
   });
 
   describe('AutogenConfigSchema with LLKB', () => {
-    it('should include llkb field with defaults', () => {
+    it('should include llkb field with defaults (LLKB enabled by default)', () => {
       const result = AutogenConfigSchema.parse({});
 
       expect(result.llkb).toBeDefined();
-      expect(result.llkb.enabled).toBe(false);
+      expect(result.llkb.enabled).toBe(true);  // LLKB always on by default
       expect(result.llkb.level).toBe('enhance');
     });
 
@@ -215,14 +215,14 @@ describe('LLKB Integration: Config Loader', () => {
         llkb: { enabled: true, level: 'minimal' },
       });
       const config2 = AutogenConfigSchema.parse({
-        llkb: { configPath: 'llkb.config.yml' }, // enabled defaults to false, level to 'enhance'
+        llkb: { configPath: 'llkb.config.yml' }, // enabled defaults to true, level to 'enhance'
       });
 
       const result = mergeConfigs([config1, config2]);
 
-      // config2 has defaults: enabled=false, level='enhance'
+      // config2 has defaults: enabled=true, level='enhance'
       // These take precedence over config1's explicit values
-      expect(result.llkb.enabled).toBe(false);
+      expect(result.llkb.enabled).toBe(true);
       expect(result.llkb.level).toBe('enhance');
       expect(result.llkb.configPath).toBe('llkb.config.yml');
     });

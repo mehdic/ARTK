@@ -10,8 +10,8 @@
  * The TypeScript source uses import.meta.url, which works for ESM builds.
  * For CJS builds, we detect that __dirname is available and use it instead.
  */
-import { join, dirname } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { join, dirname, resolve, relative, isAbsolute } from 'node:path';
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // CJS-specific globals - these are injected by Node.js module wrapper in CJS context
@@ -291,4 +291,275 @@ export function getArtkDir(explicitBaseDir?: string): string {
     return join(explicitBaseDir, '.artk');
   }
   return join(getHarnessRoot(), '.artk');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTOGEN ARTIFACT PATHS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Autogen artifact types
+ */
+export type AutogenArtifact =
+  | 'analysis'      // analysis.json - Journey analysis results
+  | 'plan'          // plan.json - Test generation plan
+  | 'state'         // pipeline-state.json - Pipeline execution state
+  | 'results'       // results.json - Test execution results
+  | 'samples'       // samples/ directory - Multi-sample outputs
+  | 'agreement'     // samples/agreement.json - Sample agreement analysis
+  | 'telemetry';    // telemetry.json - Session telemetry
+
+/**
+ * Get the autogen artifacts directory (.artk/autogen inside harness root).
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ * @returns Path to the autogen directory
+ */
+export function getAutogenDir(explicitBaseDir?: string): string {
+  return join(getArtkDir(explicitBaseDir), 'autogen');
+}
+
+/**
+ * Get the path to a specific autogen artifact.
+ *
+ * @param artifact - The artifact type to get path for
+ * @param explicitBaseDir - Optional explicit path override
+ * @returns Path to the artifact
+ */
+export function getAutogenArtifact(artifact: AutogenArtifact, explicitBaseDir?: string): string {
+  const dir = getAutogenDir(explicitBaseDir);
+  switch (artifact) {
+    case 'analysis':
+      return join(dir, 'analysis.json');
+    case 'plan':
+      return join(dir, 'plan.json');
+    case 'state':
+      return join(dir, 'pipeline-state.json');
+    case 'results':
+      return join(dir, 'results.json');
+    case 'samples':
+      return join(dir, 'samples');
+    case 'agreement':
+      return join(dir, 'samples', 'agreement.json');
+    case 'telemetry':
+      return join(dir, 'telemetry.json');
+  }
+}
+
+/**
+ * Ensure the autogen directory structure exists.
+ *
+ * Creates:
+ * - <harnessRoot>/.artk/autogen/
+ * - <harnessRoot>/.artk/autogen/samples/
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ */
+export async function ensureAutogenDir(explicitBaseDir?: string): Promise<void> {
+  const { mkdir } = await import('node:fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  await mkdir(dir, { recursive: true });
+  await mkdir(join(dir, 'samples'), { recursive: true });
+}
+
+/**
+ * Clean all autogen artifacts for a fresh start.
+ *
+ * Removes and recreates the autogen directory.
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ */
+export async function cleanAutogenArtifacts(explicitBaseDir?: string): Promise<void> {
+  const { rm } = await import('node:fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  if (existsSync(dir)) {
+    await rm(dir, { recursive: true });
+  }
+  await ensureAutogenDir(explicitBaseDir);
+}
+
+/**
+ * Check if autogen artifacts exist.
+ *
+ * @param explicitBaseDir - Optional explicit path override
+ * @returns true if the autogen directory exists and contains artifacts
+ */
+export function hasAutogenArtifacts(explicitBaseDir?: string): boolean {
+  const dir = getAutogenDir(explicitBaseDir);
+  if (!existsSync(dir)) {
+    return false;
+  }
+  // Check for at least one artifact
+  const artifactTypes: AutogenArtifact[] = ['analysis', 'plan', 'state', 'results'];
+  return artifactTypes.some(artifact => existsSync(getAutogenArtifact(artifact, explicitBaseDir)));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PATH VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Custom error for path traversal attempts.
+ */
+export class PathTraversalError extends Error {
+  public readonly resolvedPath: string;
+
+  constructor(
+    public readonly userPath: string,
+    public readonly allowedRoot: string,
+    resolvedPath: string
+  ) {
+    super(`Path traversal detected: "${userPath}" resolves outside allowed root "${allowedRoot}"`);
+    this.name = 'PathTraversalError';
+    this.resolvedPath = resolvedPath;
+  }
+}
+
+/**
+ * Validate that a user-provided path stays within an allowed root directory.
+ *
+ * Security: This function prevents path traversal attacks by:
+ * 1. Resolving the path to an absolute path
+ * 2. Resolving symlinks to their real targets
+ * 3. Checking that the resolved path is within the allowed root
+ *
+ * @param userPath - The user-provided path (relative or absolute)
+ * @param allowedRoot - The root directory that the path must stay within
+ * @returns The resolved absolute path (safe to use)
+ * @throws PathTraversalError if the path would escape the allowed root
+ *
+ * @example
+ * // Valid paths
+ * validatePath('tests/login.spec.ts', '/project') // => '/project/tests/login.spec.ts'
+ * validatePath('./src/index.ts', '/project') // => '/project/src/index.ts'
+ *
+ * // Invalid paths (throw PathTraversalError)
+ * validatePath('../../../etc/passwd', '/project') // throws
+ * validatePath('/etc/passwd', '/project') // throws (absolute path outside root)
+ */
+export function validatePath(userPath: string, allowedRoot: string): string {
+  // Handle empty path
+  if (!userPath || userPath.trim() === '') {
+    throw new PathTraversalError(userPath, allowedRoot, '');
+  }
+
+  // Security: Check for dangerous characters that could bypass validation
+  // Null bytes can truncate strings in some file system APIs
+  // Newlines can be used for log injection or command splitting
+  if (userPath.includes('\0') || userPath.includes('\n') || userPath.includes('\r')) {
+    throw new PathTraversalError(userPath, allowedRoot, 'invalid-characters');
+  }
+
+  // Windows-specific security checks
+  if (process.platform === 'win32') {
+    // Block Alternate Data Streams (ADS) - e.g., file.txt:Zone.Identifier
+    // ADS format: filename:streamname or filename::$DATA
+    // Only allow : as second character (drive letter like C:)
+    const colonIndex = userPath.indexOf(':');
+    if (colonIndex !== -1 && colonIndex !== 1) {
+      throw new PathTraversalError(userPath, allowedRoot, 'alternate-data-stream');
+    }
+
+    // Block UNC paths - \\server\share or //server/share
+    if (userPath.startsWith('\\\\') || userPath.startsWith('//')) {
+      throw new PathTraversalError(userPath, allowedRoot, 'unc-path');
+    }
+
+    // Block Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+    // These can cause unexpected behavior or be used for attacks
+    // Check the base name of the path (without extension)
+    const pathParts = userPath.split(/[/\\]/);
+    const baseName = pathParts[pathParts.length - 1] || '';
+    const nameWithoutExt = baseName.split('.')[0] || '';
+    const upperName = nameWithoutExt.toUpperCase();
+    const reservedNames = ['CON', 'PRN', 'AUX', 'NUL'];
+    const reservedPrefixes = ['COM', 'LPT'];
+
+    if (reservedNames.includes(upperName)) {
+      throw new PathTraversalError(userPath, allowedRoot, 'reserved-device-name');
+    }
+    for (const prefix of reservedPrefixes) {
+      if (upperName.startsWith(prefix) && /^(COM|LPT)[1-9]$/.test(upperName)) {
+        throw new PathTraversalError(userPath, allowedRoot, 'reserved-device-name');
+      }
+    }
+  }
+
+  // Resolve the user path relative to the allowed root
+  const resolved = resolve(allowedRoot, userPath);
+
+  // Try to resolve symlinks - if the file doesn't exist yet, just use the resolved path
+  let realResolved: string;
+  let realRoot: string;
+
+  try {
+    realRoot = realpathSync(allowedRoot);
+  } catch {
+    // If allowed root doesn't exist, use the resolved version
+    realRoot = resolve(allowedRoot);
+  }
+
+  try {
+    realResolved = realpathSync(resolved);
+  } catch {
+    // File doesn't exist yet - try to resolve the parent directory chain
+    // to ensure we get a consistent path (handles /var -> /private/var on macOS)
+    let current = resolved;
+    let parentResolved = resolved;
+    while (current !== dirname(current)) {
+      const parent = dirname(current);
+      try {
+        // Find the deepest existing directory and resolve from there
+        const realParent = realpathSync(parent);
+        const relativePart = relative(parent, resolved);
+        parentResolved = join(realParent, relativePart);
+        break;
+      } catch {
+        current = parent;
+      }
+    }
+    realResolved = parentResolved;
+  }
+
+  // Calculate relative path from root to resolved
+  const rel = relative(realRoot, realResolved);
+
+  // Check for traversal:
+  // - Path starts with '..' (escapes upward)
+  // - Path is absolute and different from root (e.g., /etc/passwd resolved)
+  if (rel.startsWith('..') || (isAbsolute(rel) && !rel.startsWith(realRoot))) {
+    throw new PathTraversalError(userPath, allowedRoot, realResolved);
+  }
+
+  return realResolved;
+}
+
+/**
+ * Validate multiple paths and return only the valid ones.
+ *
+ * @param paths - Array of user-provided paths
+ * @param allowedRoot - The root directory that paths must stay within
+ * @param onInvalid - Optional callback for invalid paths (for logging/reporting)
+ * @returns Array of validated absolute paths (invalid paths are filtered out)
+ */
+export function validatePaths(
+  paths: string[],
+  allowedRoot: string,
+  onInvalid?: (_invalidPath: string) => void
+): string[] {
+  const validPaths: string[] = [];
+
+  for (const userPath of paths) {
+    try {
+      const validated = validatePath(userPath, allowedRoot);
+      validPaths.push(validated);
+    } catch (e) {
+      if (e instanceof PathTraversalError && onInvalid) {
+        onInvalid(userPath);
+      }
+      // Skip invalid paths
+    }
+  }
+
+  return validPaths;
 }

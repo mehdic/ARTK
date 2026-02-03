@@ -1,0 +1,902 @@
+[
+  {
+    "id": "ASSERT-001",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:visible|displayed|shown|appearing|rendered|present)",
+    "pattern": "await expect(page.locator('${selector}')).toBeVisible();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Assert element is visible on the page"
+  },
+  {
+    "id": "ASSERT-002",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:not\\s+)?(?:hidden|invisible|not\\s+visible|not\\s+displayed|not\\s+shown)",
+    "pattern": "await expect(page.locator('${selector}')).toBeHidden();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Assert element is hidden or not visible"
+  },
+  {
+    "id": "ASSERT-003",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:attached|in\\s+DOM|in\\s+the\\s+DOM|exists\\s+in\\s+DOM)",
+    "pattern": "await expect(page.locator('${selector}')).toBeAttached();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element is attached to the DOM"
+  },
+  {
+    "id": "ASSERT-004",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:detached|not\\s+in\\s+DOM|removed\\s+from\\s+DOM|no\\s+longer\\s+exists)",
+    "pattern": "await expect(page.locator('${selector}')).not.toBeAttached();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert element is detached from the DOM"
+  },
+  {
+    "id": "ASSERT-005",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:in\\s+viewport|visible\\s+in\\s+viewport|within\\s+viewport|on\\s+screen)",
+    "pattern": "await expect(page.locator('${selector}')).toBeInViewport();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert element is within the viewport"
+  },
+  {
+    "id": "ASSERT-006",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:partially\\s+visible|partially\\s+in\\s+viewport|partially\\s+shown)",
+    "pattern": "await expect(page.locator('${selector}')).toBeInViewport({ ratio: 0.5 });",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert element is at least 50% visible in viewport"
+  },
+  {
+    "id": "ASSERT-007",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:fully\\s+visible|completely\\s+visible|entirely\\s+in\\s+viewport)",
+    "pattern": "await expect(page.locator('${selector}')).toBeInViewport({ ratio: 1 });",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert element is 100% visible in viewport"
+  },
+  {
+    "id": "ASSERT-008",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:covered\\s+by\\s+overlay|obscured|behind\\s+overlay|blocked\\s+by)",
+    "pattern": "const box = await page.locator('${selector}').boundingBox();\nconst element = await page.elementHandle('${selector}');\nconst isVisible = await element?.isIntersectingViewport();\nawait expect(isVisible).toBe(false);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.82,
+    "description": "Assert element is covered by another element (overlay detection)"
+  },
+  {
+    "id": "ASSERT-009",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input|label|heading|image|icon|component|item)\\s+(?:is\\s+)?(?:not\\s+in\\s+viewport|outside\\s+viewport|off\\s+screen|scrolled\\s+out)",
+    "pattern": "await expect(page.locator('${selector}')).not.toBeInViewport();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert element is outside the viewport"
+  },
+  {
+    "id": "ASSERT-010",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|component|section|container)\\s+(?:is\\s+)?(?:rendered|exists|present|loaded)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCount(1);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element exists and is rendered exactly once"
+  },
+  {
+    "id": "ASSERT-011",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input)\\s+(?:is\\s+)?(?:visible\\s+and\\s+stable|stable|not\\s+animating|finished\\s+animating)",
+    "pattern": "await expect(page.locator('${selector}')).toBeVisible();\nawait page.locator('${selector}').waitFor({ state: 'visible', timeout: 5000 });",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert element is visible and stable (animation complete)"
+  },
+  {
+    "id": "ASSERT-012",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|text|field|input)\\s+(?:is\\s+)?(?:above\\s+the\\s+fold|visible\\s+without\\s+scrolling|immediately\\s+visible)",
+    "pattern": "const viewportHeight = await page.viewportSize().then(v => v?.height || 0);\nconst box = await page.locator('${selector}').boundingBox();\nawait expect(box?.y).toBeLessThan(viewportHeight);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Assert element is above the fold (visible without scrolling)"
+  },
+  {
+    "id": "ASSERT-013",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:has|contains|includes|shows|displays|says|reads)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toContainText('${text}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Assert element contains specific text (case-sensitive substring)"
+  },
+  {
+    "id": "ASSERT-014",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:is\\s+)?(?:exactly|equals|matches\\s+exactly)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText('${text}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Assert element text matches exactly (full text comparison)"
+  },
+  {
+    "id": "ASSERT-015",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:matches|matches\\s+pattern|matches\\s+regex)\\s+/([^/]+)/",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText(/${regex}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element text matches a regular expression pattern"
+  },
+  {
+    "id": "ASSERT-016",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:contains|includes|has)\\s+(?:case[\\s-]insensitive)?\\s*['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toContainText('${text}', { ignoreCase: true });",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert element contains text (case-insensitive)"
+  },
+  {
+    "id": "ASSERT-017",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:is\\s+)?(?:empty|blank|has\\s+no\\s+text|contains\\s+no\\s+text)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText('');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert element text is empty or blank"
+  },
+  {
+    "id": "ASSERT-018",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:is\\s+)?(?:not\\s+empty|has\\s+text|contains\\s+text|has\\s+content)",
+    "pattern": "await expect(page.locator('${selector}')).not.toHaveText('');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element has non-empty text content"
+  },
+  {
+    "id": "ASSERT-019",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:starts\\s+with|begins\\s+with)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText(/^${text}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert element text starts with specific string"
+  },
+  {
+    "id": "ASSERT-020",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:ends\\s+with|finishes\\s+with)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText(/${text}$/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert element text ends with specific string"
+  },
+  {
+    "id": "ASSERT-021",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|label|heading|title|message|content)\\s+(?:length|character\\s+count)\\s+(?:is|equals)\\s+(\\d+)",
+    "pattern": "const text = await page.locator('${selector}').textContent();\nawait expect(text?.length).toBe(${length});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Assert element text has specific character length"
+  },
+  {
+    "id": "ASSERT-022",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|content)\\s+(?:is\\s+)?(?:trimmed|has\\s+no\\s+leading\\s+or\\s+trailing\\s+whitespace|normalized)",
+    "pattern": "const text = await page.locator('${selector}').textContent();\nawait expect(text?.trim()).toBe(text);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Assert element text has no leading/trailing whitespace"
+  },
+  {
+    "id": "ASSERT-023",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|content)\\s+(?:word\\s+count)\\s+(?:is|equals)\\s+(\\d+)",
+    "pattern": "const text = await page.locator('${selector}').textContent();\nconst wordCount = text?.trim().split(/\\s+/).length || 0;\nawait expect(wordCount).toBe(${count});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Assert element text has specific word count"
+  },
+  {
+    "id": "ASSERT-024",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|content)\\s+(?:appears\\s+multiple\\s+times|occurs\\s+(\\d+)\\s+times)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCount(${count});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert text appears specific number of times on page"
+  },
+  {
+    "id": "ASSERT-025",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|content)\\s+(?:does\\s+not\\s+contain|doesn't\\s+contain|excludes)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).not.toContainText('${text}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element does not contain specific text"
+  },
+  {
+    "id": "ASSERT-026",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|content)\\s+(?:is\\s+)?(?:numeric|a\\s+number|contains\\s+only\\s+digits)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText(/^\\d+$/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert element text contains only numeric characters"
+  },
+  {
+    "id": "ASSERT-027",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:text|content)\\s+(?:is\\s+)?(?:alphabetic|contains\\s+only\\s+letters|alpha)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveText(/^[a-zA-Z]+$/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Assert element text contains only alphabetic characters"
+  },
+  {
+    "id": "ASSERT-028",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:button|input|field|select|textarea|checkbox|radio|element)\\s+(?:is\\s+)?(?:enabled|clickable|interactable|active)",
+    "pattern": "await expect(page.locator('${selector}')).toBeEnabled();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Assert element is enabled and interactable"
+  },
+  {
+    "id": "ASSERT-029",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:button|input|field|select|textarea|checkbox|radio|element)\\s+(?:is\\s+)?(?:disabled|not\\s+enabled|not\\s+clickable|inactive|grayed\\s+out)",
+    "pattern": "await expect(page.locator('${selector}')).toBeDisabled();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Assert element is disabled and not interactable"
+  },
+  {
+    "id": "ASSERT-030",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:checkbox|radio|toggle|switch)\\s+(?:is\\s+)?(?:checked|selected|on|enabled|active)",
+    "pattern": "await expect(page.locator('${selector}')).toBeChecked();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Assert checkbox or radio button is checked"
+  },
+  {
+    "id": "ASSERT-031",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:checkbox|radio|toggle|switch)\\s+(?:is\\s+)?(?:unchecked|not\\s+checked|not\\s+selected|off|deselected)",
+    "pattern": "await expect(page.locator('${selector}')).not.toBeChecked();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Assert checkbox or radio button is not checked"
+  },
+  {
+    "id": "ASSERT-032",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:option|item|element)\\s+(?:is\\s+)?(?:selected|chosen|picked)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('aria-selected', 'true');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert option or item is selected (for dropdowns/lists)"
+  },
+  {
+    "id": "ASSERT-033",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|element|button)\\s+(?:is\\s+)?(?:focused|has\\s+focus|active|in\\s+focus)",
+    "pattern": "await expect(page.locator('${selector}')).toBeFocused();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert element has keyboard focus"
+  },
+  {
+    "id": "ASSERT-034",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|textarea)\\s+(?:is\\s+)?(?:readonly|read[\\s-]only|not\\s+editable)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('readonly', '');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert input field is readonly"
+  },
+  {
+    "id": "ASSERT-035",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|textarea|select)\\s+(?:is\\s+)?(?:required|mandatory|must\\s+be\\s+filled)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('required', '');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert form field has required attribute"
+  },
+  {
+    "id": "ASSERT-036",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|form)\\s+(?:is\\s+)?(?:valid|has\\s+valid\\s+value|passes\\s+validation)",
+    "pattern": "const isValid = await page.locator('${selector}').evaluate((el: HTMLInputElement) => el.validity.valid);\nawait expect(isValid).toBe(true);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert form field passes HTML5 validation"
+  },
+  {
+    "id": "ASSERT-037",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|form)\\s+(?:is\\s+)?(?:invalid|has\\s+invalid\\s+value|fails\\s+validation|has\\s+error)",
+    "pattern": "const isValid = await page.locator('${selector}').evaluate((el: HTMLInputElement) => el.validity.valid);\nawait expect(isValid).toBe(false);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Assert form field fails HTML5 validation"
+  },
+  {
+    "id": "ASSERT-038",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:checkbox|element)\\s+(?:is\\s+)?(?:indeterminate|partially\\s+checked|in\\s+indeterminate\\s+state)",
+    "pattern": "const isIndeterminate = await page.locator('${selector}').evaluate((el: HTMLInputElement) => el.indeterminate);\nawait expect(isIndeterminate).toBe(true);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Assert checkbox is in indeterminate state"
+  },
+  {
+    "id": "ASSERT-039",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|textarea)\\s+(?:is\\s+)?(?:editable|can\\s+be\\s+edited|writable)",
+    "pattern": "await expect(page.locator('${selector}')).toBeEditable();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element is editable (not disabled or readonly)"
+  },
+  {
+    "id": "ASSERT-040",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:button|element)\\s+(?:is\\s+)?(?:pressed|in\\s+pressed\\s+state|toggled\\s+on)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('aria-pressed', 'true');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Assert button is in pressed state (toggle buttons)"
+  },
+  {
+    "id": "ASSERT-041",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|section|component)\\s+(?:is\\s+)?(?:expanded|open|visible|shown)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('aria-expanded', 'true');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert collapsible element is expanded"
+  },
+  {
+    "id": "ASSERT-042",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|section|component)\\s+(?:is\\s+)?(?:collapsed|closed|hidden|not\\s+expanded)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('aria-expanded', 'false');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert collapsible element is collapsed"
+  },
+  {
+    "id": "ASSERT-043",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:has\\s+)?(?:attribute)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('${attribute}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Assert element has specific attribute (exists)"
+  },
+  {
+    "id": "ASSERT-044",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:attribute)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is|has\\s+value)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('${attribute}', '${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Assert element attribute has specific value"
+  },
+  {
+    "id": "ASSERT-045",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:attribute)\\s+['\"]([^'\"]+)['\"]\\s+(?:contains|includes)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const attrValue = await page.locator('${selector}').getAttribute('${attribute}');\nawait expect(attrValue).toContain('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert element attribute contains substring"
+  },
+  {
+    "id": "ASSERT-046",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:attribute)\\s+['\"]([^'\"]+)['\"]\\s+(?:matches)\\s+/([^/]+)/",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('${attribute}', /${regex}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert element attribute matches regex pattern"
+  },
+  {
+    "id": "ASSERT-047",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:has\\s+)?data[\\s-]attribute\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('data-${attribute}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element has specific data-* attribute"
+  },
+  {
+    "id": "ASSERT-048",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:has\\s+)?(?:aria[\\s-]label|aria\\s+label)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('aria-label', '${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert element has specific aria-label value"
+  },
+  {
+    "id": "ASSERT-049",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:has\\s+)?(?:role)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('role', '${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element has specific ARIA role"
+  },
+  {
+    "id": "ASSERT-050",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|textarea)\\s+(?:value|has\\s+value)\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveValue('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Assert input field has specific value"
+  },
+  {
+    "id": "ASSERT-051",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field|textarea)\\s+(?:is\\s+)?(?:empty|has\\s+no\\s+value|blank)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveValue('');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert input field is empty"
+  },
+  {
+    "id": "ASSERT-052",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:input|field)\\s+(?:placeholder)\\s+(?:equals|is|says)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('placeholder', '${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert input field has specific placeholder text"
+  },
+  {
+    "id": "ASSERT-053",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:link|anchor)\\s+(?:href|url|link)\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveAttribute('href', '${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Assert link href attribute equals specific URL"
+  },
+  {
+    "id": "ASSERT-054",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:has\\s+)?(?:class|css\\s+class|className)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveClass(/${className}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert element has specific CSS class"
+  },
+  {
+    "id": "ASSERT-055",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:css|style)\\s+(?:property)?\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('${property}', '${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert element has specific CSS property value"
+  },
+  {
+    "id": "ASSERT-056",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:background[\\s-]color|background\\s+color)\\s+(?:is|equals)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('background-color', '${color}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert element has specific background color"
+  },
+  {
+    "id": "ASSERT-057",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input|text)\\s+(?:color|text\\s+color)\\s+(?:is|equals)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('color', '${color}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert element has specific text color"
+  },
+  {
+    "id": "ASSERT-058",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input|text)\\s+(?:font[\\s-]size|font\\s+size)\\s+(?:is|equals)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('font-size', '${size}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Assert element has specific font size"
+  },
+  {
+    "id": "ASSERT-059",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:width)\\s+(?:is|equals)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('width', '${width}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Assert element has specific width"
+  },
+  {
+    "id": "ASSERT-060",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:height)\\s+(?:is|equals)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('height', '${height}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.84,
+    "description": "Assert element has specific height"
+  },
+  {
+    "id": "ASSERT-061",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:display)\\s+(?:is|equals)\\s+(?:none|block|inline|flex|grid)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('display', '${display}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert element has specific display property"
+  },
+  {
+    "id": "ASSERT-062",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:opacity)\\s+(?:is|equals)\\s+([\\d.]+)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCSS('opacity', '${opacity}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Assert element has specific opacity value"
+  },
+  {
+    "id": "ASSERT-063",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|button|link|input)\\s+(?:computed\\s+style)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const computedStyle = await page.locator('${selector}').evaluate((el) => window.getComputedStyle(el).getPropertyValue('${property}'));\nawait expect(computedStyle).toBe('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.83,
+    "description": "Assert element computed style property value"
+  },
+  {
+    "id": "ASSERT-064",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element)\\s+(?:before|after)\\s+(?:pseudo[\\s-]element|pseudo\\s+element)\\s+(?:content|has\\s+content)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const pseudoContent = await page.locator('${selector}').evaluate((el) => window.getComputedStyle(el, '::${pseudo}').getPropertyValue('content'));\nawait expect(pseudoContent).toBe('\"${content}\"');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.81,
+    "description": "Assert pseudo-element (::before/::after) content"
+  },
+  {
+    "id": "ASSERT-065",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|container)\\s+(?:is\\s+)?(?:animating|has\\s+active\\s+animation|animation\\s+is\\s+running)",
+    "pattern": "const animations = await page.locator('${selector}').evaluate((el) => el.getAnimations());\nawait expect(animations.length).toBeGreaterThan(0);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.80,
+    "description": "Assert element has active CSS animations"
+  },
+  {
+    "id": "ASSERT-066",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:element|container)\\s+(?:is\\s+)?(?:responsive|adapts\\s+to\\s+viewport)",
+    "pattern": "await page.setViewportSize({ width: 375, height: 667 });\nconst mobileWidth = await page.locator('${selector}').evaluate((el) => el.offsetWidth);\nawait page.setViewportSize({ width: 1920, height: 1080 });\nconst desktopWidth = await page.locator('${selector}').evaluate((el) => el.offsetWidth);\nawait expect(mobileWidth).not.toBe(desktopWidth);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.78,
+    "description": "Assert element is responsive to viewport changes"
+  },
+  {
+    "id": "ASSERT-067",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:there\\s+are)?\\s+(\\d+)\\s+(?:elements|items|rows|cards|buttons|links)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCount(${count});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Assert exact element count"
+  },
+  {
+    "id": "ASSERT-068",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:there\\s+are)?\\s+(?:at\\s+least)\\s+(\\d+)\\s+(?:elements|items|rows|cards|buttons|links)",
+    "pattern": "const count = await page.locator('${selector}').count();\nawait expect(count).toBeGreaterThanOrEqual(${minCount});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert minimum element count"
+  },
+  {
+    "id": "ASSERT-069",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:there\\s+are)?\\s+(?:at\\s+most|no\\s+more\\s+than)\\s+(\\d+)\\s+(?:elements|items|rows|cards|buttons|links)",
+    "pattern": "const count = await page.locator('${selector}').count();\nawait expect(count).toBeLessThanOrEqual(${maxCount});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert maximum element count"
+  },
+  {
+    "id": "ASSERT-070",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:there\\s+are)?\\s+(?:between)\\s+(\\d+)\\s+(?:and)\\s+(\\d+)\\s+(?:elements|items|rows|cards)",
+    "pattern": "const count = await page.locator('${selector}').count();\nawait expect(count).toBeGreaterThanOrEqual(${minCount});\nawait expect(count).toBeLessThanOrEqual(${maxCount});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert element count is within range"
+  },
+  {
+    "id": "ASSERT-071",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:there\\s+are)?\\s+(?:more\\s+than)\\s+(\\d+)\\s+(?:elements|items|rows|cards|buttons|links)",
+    "pattern": "const count = await page.locator('${selector}').count();\nawait expect(count).toBeGreaterThan(${count});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert element count exceeds threshold"
+  },
+  {
+    "id": "ASSERT-072",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:no|zero)\\s+(?:elements|items|rows|cards|buttons|links)\\s+(?:exist|are\\s+present|are\\s+visible)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCount(0);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert no elements match selector"
+  },
+  {
+    "id": "ASSERT-073",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:list|collection|array)\\s+(?:is\\s+)?(?:not\\s+empty|has\\s+items|contains\\s+items)",
+    "pattern": "const count = await page.locator('${selector}').count();\nawait expect(count).toBeGreaterThan(0);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert collection is not empty"
+  },
+  {
+    "id": "ASSERT-074",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:list|collection|array)\\s+(?:is\\s+)?(?:empty|has\\s+no\\s+items|contains\\s+no\\s+items)",
+    "pattern": "await expect(page.locator('${selector}')).toHaveCount(0);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert collection is empty"
+  },
+  {
+    "id": "ASSERT-075",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:current\\s+)?(?:url|page\\s+url|address)\\s+(?:is|equals)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page).toHaveURL('${url}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.95,
+    "description": "Assert current page URL matches exactly"
+  },
+  {
+    "id": "ASSERT-076",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:url|page\\s+url|address)\\s+(?:contains|includes)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page).toHaveURL(/${urlPart}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Assert URL contains substring"
+  },
+  {
+    "id": "ASSERT-077",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:url|page\\s+url|address)\\s+(?:matches)\\s+/([^/]+)/",
+    "pattern": "await expect(page).toHaveURL(/${regex}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert URL matches regex pattern"
+  },
+  {
+    "id": "ASSERT-078",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:url)\\s+(?:query|query\\s+parameter|search\\s+param)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const url = new URL(page.url());\nawait expect(url.searchParams.get('${param}')).toBe('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert URL query parameter has specific value"
+  },
+  {
+    "id": "ASSERT-079",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:url)\\s+(?:hash|fragment)\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const url = new URL(page.url());\nawait expect(url.hash).toBe('${hash}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert URL hash/fragment equals specific value"
+  },
+  {
+    "id": "ASSERT-080",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:url)\\s+(?:pathname|path)\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const url = new URL(page.url());\nawait expect(url.pathname).toBe('${pathname}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert URL pathname equals specific value"
+  },
+  {
+    "id": "ASSERT-081",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:url)\\s+(?:search|search\\s+params|query\\s+string)\\s+(?:contains|includes)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const url = new URL(page.url());\nawait expect(url.search).toContain('${searchPart}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert URL search string contains substring"
+  },
+  {
+    "id": "ASSERT-082",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:we|page|user)\\s+(?:navigated\\s+to|are\\s+on|landed\\s+on)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page).toHaveURL(/${urlPart}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert navigation to specific page occurred"
+  },
+  {
+    "id": "ASSERT-083",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:page)\\s+(?:title|page\\s+title)\\s+(?:is|equals)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page).toHaveTitle('${title}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Assert page title matches exactly"
+  },
+  {
+    "id": "ASSERT-084",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:the\\s+)?(?:page)\\s+(?:title|page\\s+title)\\s+(?:contains|includes)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "await expect(page).toHaveTitle(/${titlePart}/);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Assert page title contains substring"
+  },
+  {
+    "id": "ASSERT-085",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:a\\s+)?(?:request|api\\s+call|http\\s+request)\\s+(?:was\\s+made|occurred)\\s+(?:to)?\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const request = await page.waitForRequest((req) => req.url().includes('${url}'));\nawait expect(request).toBeTruthy();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert HTTP request was made to specific URL"
+  },
+  {
+    "id": "ASSERT-086",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:a\\s+)?(?:response|api\\s+response|http\\s+response)\\s+(?:was\\s+received|came\\s+back)\\s+(?:from)?\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const response = await page.waitForResponse((res) => res.url().includes('${url}'));\nawait expect(response).toBeTruthy();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert HTTP response was received from specific URL"
+  },
+  {
+    "id": "ASSERT-087",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:response|api\\s+response)\\s+(?:status|status\\s+code|http\\s+status)\\s+(?:is|equals)\\s+(\\d+)",
+    "pattern": "const response = await page.waitForResponse((res) => res.url().includes('${url}'));\nawait expect(response.status()).toBe(${statusCode});",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Assert HTTP response status code equals specific value"
+  },
+  {
+    "id": "ASSERT-088",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:response|api\\s+response)\\s+(?:body|payload)\\s+(?:contains|includes)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const response = await page.waitForResponse((res) => res.url().includes('${url}'));\nconst body = await response.text();\nawait expect(body).toContain('${text}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert HTTP response body contains specific text"
+  },
+  {
+    "id": "ASSERT-089",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:response|api\\s+response)\\s+(?:json)\\s+(?:contains|includes|has\\s+field)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const response = await page.waitForResponse((res) => res.url().includes('${url}'));\nconst json = await response.json();\nawait expect(json).toHaveProperty('${field}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert HTTP response JSON has specific field"
+  },
+  {
+    "id": "ASSERT-090",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:request)\\s+(?:header)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const request = await page.waitForRequest((req) => req.url().includes('${url}'));\nawait expect(request.headers()['${header}']).toBe('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Assert HTTP request header has specific value"
+  },
+  {
+    "id": "ASSERT-091",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:response)\\s+(?:header)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const response = await page.waitForResponse((res) => res.url().includes('${url}'));\nawait expect(response.headers()['${header}']).toBe('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Assert HTTP response header has specific value"
+  },
+  {
+    "id": "ASSERT-092",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:no\\s+)?(?:console\\s+errors|javascript\\s+errors|js\\s+errors)\\s+(?:occurred|appeared|were\\s+logged)",
+    "pattern": "const errors: string[] = [];\npage.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });\n// ... perform actions ...\nawait expect(errors.length).toBe(0);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Assert no console errors were logged"
+  },
+  {
+    "id": "ASSERT-093",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:localStorage|local\\s+storage)\\s+(?:key|item)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const value = await page.evaluate((key) => localStorage.getItem(key), '${key}');\nawait expect(value).toBe('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert localStorage key has specific value"
+  },
+  {
+    "id": "ASSERT-094",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:sessionStorage|session\\s+storage)\\s+(?:key|item)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const value = await page.evaluate((key) => sessionStorage.getItem(key), '${key}');\nawait expect(value).toBe('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert sessionStorage key has specific value"
+  },
+  {
+    "id": "ASSERT-095",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:cookie)\\s+['\"]([^'\"]+)['\"]\\s+(?:equals|is)\\s+['\"]([^'\"]+)['\"]",
+    "pattern": "const cookies = await page.context().cookies();\nconst cookie = cookies.find((c) => c.name === '${name}');\nawait expect(cookie?.value).toBe('${value}');",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Assert cookie has specific value"
+  },
+  {
+    "id": "ASSERT-096",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:cookie)\\s+['\"]([^'\"]+)['\"]\\s+(?:exists|is\\s+set|is\\s+present)",
+    "pattern": "const cookies = await page.context().cookies();\nconst cookie = cookies.find((c) => c.name === '${name}');\nawait expect(cookie).toBeTruthy();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert cookie exists"
+  },
+  {
+    "id": "ASSERT-097",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:cookie)\\s+['\"]([^'\"]+)['\"]\\s+(?:does\\s+not\\s+exist|is\\s+not\\s+set|is\\s+not\\s+present)",
+    "pattern": "const cookies = await page.context().cookies();\nconst cookie = cookies.find((c) => c.name === '${name}');\nawait expect(cookie).toBeFalsy();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert cookie does not exist"
+  },
+  {
+    "id": "ASSERT-098",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:localStorage|local\\s+storage)\\s+(?:key|item)\\s+['\"]([^'\"]+)['\"]\\s+(?:exists|is\\s+set|is\\s+present)",
+    "pattern": "const value = await page.evaluate((key) => localStorage.getItem(key), '${key}');\nawait expect(value).not.toBeNull();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert localStorage key exists"
+  },
+  {
+    "id": "ASSERT-099",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:sessionStorage|session\\s+storage)\\s+(?:key|item)\\s+['\"]([^'\"]+)['\"]\\s+(?:exists|is\\s+set|is\\s+present)",
+    "pattern": "const value = await page.evaluate((key) => sessionStorage.getItem(key), '${key}');\nawait expect(value).not.toBeNull();",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Assert sessionStorage key exists"
+  },
+  {
+    "id": "ASSERT-100",
+    "trigger": "(?:verify|assert|check|ensure|confirm|expect|should|must)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:image|img)\\s+(?:is\\s+)?(?:loaded|loaded\\s+successfully|has\\s+loaded)",
+    "pattern": "const naturalWidth = await page.locator('${selector}').evaluate((img: HTMLImageElement) => img.naturalWidth);\nawait expect(naturalWidth).toBeGreaterThan(0);",
+    "category": "assertion",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Assert image loaded successfully (naturalWidth > 0)"
+  }
+]

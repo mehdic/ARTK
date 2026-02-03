@@ -1,0 +1,19 @@
+tests/broken.spec.ts:12:5 - error TS2304: Cannot find name 'undefinedVariable'.
+
+12     undefinedVariable.doSomething();
+       ~~~~~~~~~~~~~~~~~
+
+tests/broken.spec.ts:15:32 - error TS2339: Property 'nonExistent' does not exist on type 'Page'.
+
+15     await page.nonExistent('test');
+                  ~~~~~~~~~~~
+
+tests/broken.spec.ts:18:1 - error TS1005: ')' expected.
+
+18 await page.click('[data-testid="button"'
+   ~~~~~
+
+
+Found 3 errors in the same file, starting at: tests/broken.spec.ts:12
+
+Error: Command failed: npx tsc --noEmit tests/broken.spec.ts

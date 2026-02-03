@@ -18,7 +18,7 @@
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
 # 2. Copies @artk/core to vendor/
-# 3. Installs prompts to .github/prompts/
+# 3. Installs prompts to .github/prompts/ and agents to .github/agents/
 # 4. Creates package.json, playwright.config.ts, artk.config.yml
 # 5. Runs npm install
 #
@@ -1123,18 +1123,137 @@ else
     echo -e "${YELLOW}Journey System will need manual installation via init-playbook${NC}"
 fi
 
-# Step 4: Install prompts
-echo -e "${YELLOW}[4/7] Installing prompts to .github/prompts/...${NC}"
-PROMPTS_TARGET="$TARGET_PROJECT/.github/prompts"
-mkdir -p "$PROMPTS_TARGET"
+# Step 4: Install prompts AND agents (two-tier architecture)
+# - .github/prompts/*.prompt.md = stub files that delegate to agents
+# - .github/agents/*.agent.md = full implementation with handoffs
+echo -e "${YELLOW}[4/7] Installing prompts and agents (two-tier architecture)...${NC}"
 
+PROMPTS_TARGET="$TARGET_PROJECT/.github/prompts"
+AGENTS_TARGET="$TARGET_PROJECT/.github/agents"
+
+# Detect upgrade scenario: prompts exist but agents don't
+if [ -d "$PROMPTS_TARGET" ] && [ ! -d "$AGENTS_TARGET" ]; then
+    # [H2] Improved detection: check for ABSENCE of agent: property (old-style has no delegation)
+    # This is more reliable than checking for "# ARTK" header
+    OLD_PROMPT_FILE="$PROMPTS_TARGET/artk.journey-propose.prompt.md"
+    if [ -f "$OLD_PROMPT_FILE" ]; then
+        # Use grep -q for clean boolean check (no output parsing issues)
+        if ! grep -q "^agent:" "$OLD_PROMPT_FILE" 2>/dev/null; then
+            echo -e "${CYAN}  Detected existing ARTK installation (no agent: property). Upgrading to two-tier architecture...${NC}"
+            BACKUP_DIR="$PROMPTS_TARGET.backup-$(date +%Y%m%d-%H%M%S)"
+            cp -r "$PROMPTS_TARGET" "$BACKUP_DIR"
+            echo -e "${CYAN}  Backed up existing prompts to $BACKUP_DIR${NC}"
+            # Remove old full-content artk.* prompt files (will be replaced with stubs)
+            rm -f "$PROMPTS_TARGET"/artk.*.prompt.md 2>/dev/null || true
+
+            # [M2] Backup cleanup: keep only the 3 most recent backups
+            BACKUP_COUNT=$(ls -1d "$TARGET_PROJECT/.github/prompts.backup-"* 2>/dev/null | wc -l)
+            if [ "$BACKUP_COUNT" -gt 3 ]; then
+                echo -e "${CYAN}  Cleaning up old backups (keeping 3 most recent)...${NC}"
+                ls -1dt "$TARGET_PROJECT/.github/prompts.backup-"* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+            fi
+        fi
+    fi
+fi
+
+# [M4] Atomic operations: use staging directories for rollback capability
+PROMPTS_STAGING="$TARGET_PROJECT/.github/.prompts-staging-$$"
+AGENTS_STAGING="$TARGET_PROJECT/.github/.agents-staging-$$"
+
+mkdir -p "$PROMPTS_TARGET"
+mkdir -p "$AGENTS_TARGET"
+mkdir -p "$PROMPTS_STAGING"
+mkdir -p "$AGENTS_STAGING"
+
+# Cleanup function for rollback
+cleanup_staging() {
+    rm -rf "$PROMPTS_STAGING" 2>/dev/null || true
+    rm -rf "$AGENTS_STAGING" 2>/dev/null || true
+}
+
+# Helper function to extract YAML frontmatter value
+extract_yaml_value() {
+    local file="$1"
+    local key="$2"
+    grep -m1 "^${key}:" "$file" 2>/dev/null | sed "s/^${key}: *//; s/^[\"']//; s/[\"']$//" || echo ""
+}
+
+# Helper function to generate stub prompt content
+generate_stub_prompt() {
+    local name="$1"
+    local description="$2"
+    cat << STUBEOF
+---
+name: ${name}
+description: "${description}"
+agent: ${name}
+---
+# ARTK ${name}
+
+This prompt delegates to the \`@${name}\` agent for full functionality including suggested next actions (handoffs).
+
+Run \`/${name}\` to start, or select \`@${name}\` from the agent picker.
+STUBEOF
+}
+
+# [M4] Install to staging first, then move to final destination
+INSTALLED_COUNT=0
+INSTALL_FAILED=false
 for file in "$ARTK_PROMPTS"/artk.*.md; do
     if [ -f "$file" ]; then
         filename=$(basename "$file")
-        newname="${filename%.md}.prompt.md"
-        cp "$file" "$PROMPTS_TARGET/$newname"
+        basename_no_ext="${filename%.md}"
+
+        # Extract metadata from source file
+        NAME=$(extract_yaml_value "$file" "name")
+        [ -z "$NAME" ] && NAME="$basename_no_ext"
+
+        DESCRIPTION=$(extract_yaml_value "$file" "description")
+        [ -z "$DESCRIPTION" ] && DESCRIPTION="ARTK prompt"
+
+        # 1. Copy full content to staging agents/
+        if ! cp "$file" "$AGENTS_STAGING/${basename_no_ext}.agent.md" 2>/dev/null; then
+            echo -e "${RED}  Failed to copy agent: ${basename_no_ext}${NC}"
+            INSTALL_FAILED=true
+            break
+        fi
+
+        # 2. Generate stub to staging prompts/
+        if ! generate_stub_prompt "$NAME" "$DESCRIPTION" > "$PROMPTS_STAGING/${basename_no_ext}.prompt.md" 2>/dev/null; then
+            echo -e "${RED}  Failed to generate stub: ${basename_no_ext}${NC}"
+            INSTALL_FAILED=true
+            break
+        fi
+
+        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
     fi
 done
+
+# [M4] If installation failed, rollback and exit
+if [ "$INSTALL_FAILED" = true ]; then
+    echo -e "${RED}  Installation failed. Rolling back...${NC}"
+    cleanup_staging
+    # Restore from backup if available
+    if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
+        echo -e "${CYAN}  Restoring from backup: $BACKUP_DIR${NC}"
+        rm -rf "$PROMPTS_TARGET"
+        cp -r "$BACKUP_DIR" "$PROMPTS_TARGET"
+    fi
+    exit 1
+fi
+
+# [M4] Move from staging to final destination (atomic move)
+for file in "$AGENTS_STAGING"/*.agent.md; do
+    [ -f "$file" ] && mv "$file" "$AGENTS_TARGET/" 2>/dev/null
+done
+for file in "$PROMPTS_STAGING"/*.prompt.md; do
+    [ -f "$file" ] && mv "$file" "$PROMPTS_TARGET/" 2>/dev/null
+done
+
+# Cleanup staging directories
+cleanup_staging
+
+echo -e "${GREEN}✓ Installed $INSTALLED_COUNT prompts (stubs) + agents (full content)${NC}"
 
 COMMON_PROMPTS_SOURCE="$ARTK_PROMPTS/common"
 COMMON_PROMPTS_TARGET="$PROMPTS_TARGET/common"
@@ -2241,7 +2360,8 @@ echo "  artk-e2e/package.json                 - Test workspace dependencies"
 echo "  artk-e2e/playwright.config.ts         - Playwright configuration"
 echo "  artk-e2e/tsconfig.json                - TypeScript configuration"
 echo "  artk-e2e/artk.config.yml              - ARTK configuration"
-echo "  .github/prompts/                      - Copilot prompts"
+echo "  .github/prompts/                      - Copilot prompt stubs (invoke with /)"
+echo "  .github/agents/                       - Copilot agents with handoffs (full content)"
 echo "  .vscode/settings.json                 - VS Code settings (terminal access enabled)"
 echo "  artk-e2e/.artk/context.json           - ARTK context"
 echo "  artk-e2e/.artk/browsers/              - Playwright browsers cache (repo-local)"

@@ -1,0 +1,31 @@
+Running 1 test using 1 worker
+
+  1) [chromium] › tests/cart.spec.ts:22:5 › Shopping Cart › should show correct total ─────────────
+
+    Error: expect(locator).toHaveText(expected)
+
+    Locator: locator('[data-testid="cart-total"]')
+    Expected string: "$150.00"
+    Received string: "$125.00"
+    Call log:
+      - expect.toHaveText with timeout 5000ms
+      - waiting for locator('[data-testid="cart-total"]')
+      -   locator resolved to <span data-testid="cart-total">$125.00</span>
+      -   unexpected value "$125.00"
+
+
+       at tests/cart.spec.ts:35:47
+
+      33 |     await page.click('[data-testid="add-to-cart"]');
+      34 |
+    > 35 |     await expect(page.locator('[data-testid="cart-total"]')).toHaveText('$150.00');
+         |                                                               ^
+      36 |   });
+      37 | });
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/cart-Shopping-Cart-should-show-correct-total-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/cart.spec.ts:22:5 › Shopping Cart › should show correct total ───────────────

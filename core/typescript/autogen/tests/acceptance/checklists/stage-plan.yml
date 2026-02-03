@@ -1,0 +1,97 @@
+# Stage: Plan
+# Verifies the plan command creates valid test generation plan
+
+stage: plan
+command: "artk-autogen plan"
+description: "Create test generation plan from analysis"
+
+prerequisites:
+  - "Analysis JSON exists"
+  - "State is 'analyzed'"
+
+checks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE ARTIFACTS
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: PLAN-001
+    name: "Plan JSON created"
+    type: file_exists
+    path: ".artk/autogen/plan.json"
+    severity: critical
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PLAN CONTENT
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: PLAN-010
+    name: "Plans array exists"
+    type: json_contains
+    path: ".artk/autogen/plan.json"
+    field: "plans"
+    severity: high
+
+  - id: PLAN-011
+    name: "Plans array populated"
+    type: json_array_length
+    path: ".artk/autogen/plan.json"
+    field: "plans"
+    min: 1
+    severity: critical
+
+  - id: PLAN-012
+    name: "Version specified"
+    type: json_contains
+    path: ".artk/autogen/plan.json"
+    field: "version"
+    severity: high
+
+  - id: PLAN-013
+    name: "Plan has journey ID"
+    type: json_contains
+    path: ".artk/autogen/plan.json"
+    field: "plans"
+    severity: medium
+    description: "Each plan references a journey"
+
+  - id: PLAN-014
+    name: "Created timestamp recorded"
+    type: json_contains
+    path: ".artk/autogen/plan.json"
+    field: "createdAt"
+    severity: medium
+
+  - id: PLAN-015
+    name: "Summary generated"
+    type: json_contains
+    path: ".artk/autogen/plan.json"
+    field: "summary"
+    severity: medium
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STATE VALIDATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: PLAN-020
+    name: "State transitioned to 'planned'"
+    type: state_equals
+    expected_stage: "planned"
+    severity: critical
+
+  - id: PLAN-021
+    name: "Command recorded in history"
+    type: state_history_contains
+    command: "plan"
+    severity: high
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ERROR CASES
+# ═══════════════════════════════════════════════════════════════════════════
+error_cases:
+  - id: PLAN-ERR-001
+    name: "Rejects when state is initial"
+    precondition_state: "initial"
+    expected_exit_code: 1
+    expected_output_contains: "analyze"
+
+  - id: PLAN-ERR-002
+    name: "Rejects when analysis.json missing"
+    precondition: "delete .artk/autogen/analysis.json"
+    expected_exit_code: 1

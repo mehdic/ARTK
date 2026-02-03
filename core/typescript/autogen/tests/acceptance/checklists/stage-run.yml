@@ -1,0 +1,140 @@
+# Stage: Run
+# Verifies the run command executes tests and captures results
+
+stage: run
+command: "artk-autogen run"
+description: "Execute Playwright tests and capture results"
+
+prerequisites:
+  - "Test files exist"
+  - "State is 'generated'"
+  - "Playwright is installed"
+
+checks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE ARTIFACTS
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: RUN-001
+    name: "Results JSON created"
+    type: file_exists
+    path: ".artk/autogen/results.json"
+    severity: critical
+
+  - id: RUN-002
+    name: "Playwright report generated"
+    type: file_exists_pattern
+    pattern: "playwright-report/**"
+    severity: medium
+    optional: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # RESULTS CONTENT
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: RUN-010
+    name: "Test count recorded"
+    type: json_contains
+    path: ".artk/autogen/results.json"
+    field: "totalTests"
+    severity: high
+
+  - id: RUN-011
+    name: "Pass/fail counts recorded"
+    type: json_contains
+    path: ".artk/autogen/results.json"
+    field: "passed"
+    severity: high
+
+  - id: RUN-012
+    name: "Failure details captured"
+    type: json_conditional
+    path: ".artk/autogen/results.json"
+    condition: "failed > 0"
+    then_field: "failures"
+    then_min_length: 1
+    severity: high
+
+  - id: RUN-013
+    name: "Each failure has error message"
+    type: json_conditional_array_field
+    path: ".artk/autogen/results.json"
+    condition: "failed > 0"
+    array_field: "failures"
+    required_field: "message"
+    severity: high
+
+  - id: RUN-014
+    name: "Each failure has location"
+    type: json_conditional_array_field
+    path: ".artk/autogen/results.json"
+    condition: "failed > 0"
+    array_field: "failures"
+    required_field: "location"
+    severity: medium
+
+  - id: RUN-015
+    name: "Duration recorded"
+    type: json_contains
+    path: ".artk/autogen/results.json"
+    field: "duration"
+    severity: low
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ERROR PARSING
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: RUN-020
+    name: "Errors classified by type"
+    type: json_conditional_array_field
+    path: ".artk/autogen/results.json"
+    condition: "failed > 0"
+    array_field: "failures"
+    required_field: "errorType"
+    severity: high
+    description: "Types: selector, timeout, assertion, navigation, typescript, runtime, unknown"
+
+  - id: RUN-021
+    name: "No truncated error messages"
+    type: json_no_match
+    path: ".artk/autogen/results.json"
+    array_field: "failures"
+    field: "message"
+    not_matches: "^.{0,20}:$"
+    severity: medium
+    description: "Truncated messages (ending with colon) should be filtered"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STATE VALIDATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: RUN-030
+    name: "State reflects test outcome"
+    type: state_in
+    expected_stages: ["tested", "completed"]
+    severity: critical
+    description: "'tested' if failures, 'completed' if all pass"
+
+  - id: RUN-031
+    name: "Command recorded in history"
+    type: state_history_contains
+    command: "run"
+    severity: high
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ERROR CASES
+# ═══════════════════════════════════════════════════════════════════════════
+error_cases:
+  - id: RUN-ERR-001
+    name: "Rejects when state is not 'generated'"
+    precondition_state: "planned"
+    expected_exit_code: 1
+    expected_output_contains: "generate"
+
+  - id: RUN-ERR-002
+    name: "Handles missing test files gracefully"
+    precondition: "delete tests/*.spec.ts"
+    expected_exit_code: 1
+    expected_output_contains: "no tests"
+
+  - id: RUN-ERR-003
+    name: "Handles Playwright not installed"
+    precondition: "unset PLAYWRIGHT_BROWSERS_PATH"
+    # This might not error, depends on global install
+    expected_behavior: "graceful error or warning"

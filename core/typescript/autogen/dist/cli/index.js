@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, appendFileSync } from 'fs';
-import { join, dirname, basename, resolve } from 'path';
-import { stringify, parse } from 'yaml';
-import { pathToFileURL, fileURLToPath } from 'url';
+import { existsSync, readFileSync, realpathSync, mkdirSync, writeFileSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync, renameSync, mkdtempSync } from 'fs';
+import { join, dirname, resolve, relative, isAbsolute, basename } from 'path';
+import yaml, { stringify, parse } from 'yaml';
+import { fileURLToPath, pathToFileURL } from 'url';
 import fg2 from 'fast-glob';
 import { randomBytes, createHash } from 'crypto';
 import ejs from 'ejs';
 import 'ts-morph';
-import { execSync } from 'child_process';
+import { spawn, spawnSync, execSync } from 'child_process';
 import { tmpdir } from 'os';
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
@@ -393,8 +393,8 @@ var init_schema = __esm({
     RegenerationStrategySchema = z.enum(["ast", "blocks"]).default("ast");
     LLKBIntegrationLevelSchema = z.enum(["minimal", "enhance", "aggressive"]).default("enhance");
     LLKBIntegrationSchema = z.object({
-      /** Enable LLKB integration */
-      enabled: z.boolean().default(false),
+      /** Enable LLKB integration (default: true - LLKB enhances test generation) */
+      enabled: z.boolean().default(true),
       /** Path to LLKB-generated config file */
       configPath: z.string().optional(),
       /** Path to LLKB-generated glossary file */
@@ -443,14 +443,14 @@ function loadConfig(configPath) {
   let rawContent;
   try {
     rawContent = readFileSync(resolvedPath, "utf-8");
-  } catch (err2) {
-    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err3);
   }
   let parsed;
   try {
     parsed = parse(rawContent);
-  } catch (err2) {
-    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err3);
   }
   const result = AutogenConfigSchema.safeParse(parsed);
   if (!result.success) {
@@ -474,14 +474,14 @@ function loadSingleConfig(configPath) {
   let rawContent;
   try {
     rawContent = readFileSync(resolvedPath, "utf-8");
-  } catch (err2) {
-    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Failed to read config file: ${resolvedPath}`, err3);
   }
   let parsed;
   try {
     parsed = parse(rawContent);
-  } catch (err2) {
-    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err2);
+  } catch (err3) {
+    throw new ConfigLoadError(`Invalid YAML in config file: ${resolvedPath}`, err3);
   }
   const result = AutogenConfigSchema.safeParse(parsed);
   if (!result.success) {
@@ -783,7 +783,7 @@ function matchPattern(text) {
 function getAllPatternNames() {
   return allPatterns.map((p) => p.name);
 }
-var PATTERN_VERSION, navigationPatterns, clickPatterns, fillPatterns, selectPatterns, checkPatterns, visibilityPatterns, toastPatterns, urlPatterns, authPatterns, waitPatterns, structuredPatterns, extendedClickPatterns, extendedFillPatterns, extendedAssertionPatterns, extendedWaitPatterns, extendedNavigationPatterns, extendedSelectPatterns, hoverPatterns, focusPatterns, allPatterns;
+var PATTERN_VERSION, navigationPatterns, clickPatterns, fillPatterns, selectPatterns, checkPatterns, visibilityPatterns, toastPatterns, urlPatterns, authPatterns, waitPatterns, structuredPatterns, extendedClickPatterns, extendedFillPatterns, extendedAssertionPatterns, extendedWaitPatterns, extendedNavigationPatterns, extendedSelectPatterns, hoverPatterns, focusPatterns, modalAlertPatterns, allPatterns;
 var init_patterns = __esm({
   "src/mapping/patterns.ts"() {
     PATTERN_VERSION = "1.1.0";
@@ -807,6 +807,16 @@ var init_patterns = __esm({
           url: `/${match[1].toLowerCase().replace(/\s+/g, "-")}`,
           waitForLoad: true
         })
+      },
+      {
+        name: "wait-for-url-change",
+        // "Wait for URL to change to '/dashboard'" or "Wait until URL contains '/settings'"
+        regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?url\s+(?:to\s+)?(?:change\s+to|contain|include)\s+["']?([^"']+)["']?$/i,
+        primitiveType: "waitForURL",
+        extract: (match) => ({
+          type: "waitForURL",
+          pattern: match[1]
+        })
       }
     ];
     clickPatterns = [
@@ -826,6 +836,26 @@ var init_patterns = __esm({
         extract: (match) => ({
           type: "click",
           locator: createLocatorFromMatch("role", "link", match[1])
+        })
+      },
+      {
+        name: "click-menuitem-quoted",
+        // "Click the 'Settings' menu item" or "Click on 'Edit' menuitem"
+        regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+menu\s*item$/i,
+        primitiveType: "click",
+        extract: (match) => ({
+          type: "click",
+          locator: createLocatorFromMatch("role", "menuitem", match[1])
+        })
+      },
+      {
+        name: "click-tab-quoted",
+        // "Click the 'Details' tab" or "Select the 'Overview' tab"
+        regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+tab$/i,
+        primitiveType: "click",
+        extract: (match) => ({
+          type: "click",
+          locator: createLocatorFromMatch("role", "tab", match[1])
         })
       },
       {
@@ -869,6 +899,18 @@ var init_patterns = __esm({
         })
       },
       {
+        name: "fill-placeholder-field",
+        // "Fill 'test@example.com' in the field with placeholder 'Enter email'"
+        // or "Type 'value' into input with placeholder 'Search'"
+        regex: /^(?:user\s+)?(?:enters?|types?|fills?)\s+["']([^"']+)["']\s+(?:in|into)\s+(?:the\s+)?(?:field|input)\s+with\s+placeholder\s+["']([^"']+)["']$/i,
+        primitiveType: "fill",
+        extract: (match) => ({
+          type: "fill",
+          locator: createLocatorFromMatch("placeholder", match[2]),
+          value: createValueFromText(match[1])
+        })
+      },
+      {
         name: "fill-field-generic",
         regex: /^(?:user\s+)?(?:enters?|types?|fills?\s+in?|inputs?)\s+(.+?)\s+(?:in|into)\s+(?:the\s+)?(.+?)\s*(?:field|input)?$/i,
         primitiveType: "fill",
@@ -902,8 +944,28 @@ var init_patterns = __esm({
         })
       },
       {
+        // "Check the terms checkbox" - unquoted checkbox name
+        name: "check-checkbox-unquoted",
+        regex: /^(?:user\s+)?(?:checks?|enables?|ticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
+        primitiveType: "check",
+        extract: (match) => ({
+          type: "check",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
         name: "uncheck-checkbox",
         regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?["']([^"']+)["']\s*(?:checkbox|option)?$/i,
+        primitiveType: "uncheck",
+        extract: (match) => ({
+          type: "uncheck",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        // "Uncheck the newsletter checkbox" - unquoted checkbox name
+        name: "uncheck-checkbox-unquoted",
+        regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
         primitiveType: "uncheck",
         extract: (match) => ({
           type: "uncheck",
@@ -987,6 +1049,26 @@ var init_patterns = __esm({
           type: "expectToast",
           toastType: "info",
           message: match[1]
+        })
+      },
+      {
+        name: "status-message-visible",
+        // "A status message 'Processing...' is visible" or "The status shows 'Loading'"
+        regex: /^(?:a\s+)?status\s+(?:message\s+)?["']([^"']+)["']\s+(?:is\s+)?(?:visible|shown|displayed)$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("role", "status", match[1])
+        })
+      },
+      {
+        name: "verify-status-message",
+        // "Verify the status message shows 'Complete'"
+        regex: /^(?:verify|check)\s+(?:that\s+)?(?:the\s+)?status\s+(?:message\s+)?(?:shows?|displays?|contains?)\s+["']([^"']+)["']$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("role", "status", match[1])
         })
       }
     ];
@@ -1276,6 +1358,111 @@ var init_patterns = __esm({
       }
     ];
     extendedAssertionPatterns = [
+      // ═══════════════════════════════════════════════════════════════════════════
+      // MOST SPECIFIC: Negative assertions (must come before positive counterparts)
+      // ═══════════════════════════════════════════════════════════════════════════
+      {
+        name: "verify-not-visible",
+        // "Verify the error container is not visible"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+is\s+not\s+visible$/i,
+        primitiveType: "expectHidden",
+        extract: (match) => ({
+          type: "expectHidden",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "element-should-not-be-visible",
+        // "The error should not be visible" or "Error message is not displayed"
+        regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+        primitiveType: "expectHidden",
+        extract: (match) => ({
+          type: "expectHidden",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // URL AND TITLE: Specific patterns that match "URL" or "title" keywords
+      // ═══════════════════════════════════════════════════════════════════════════
+      {
+        name: "verify-url-contains",
+        // "Verify the URL contains '/dashboard'"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?url\s+contains?\s+["']([^"']+)["']$/i,
+        primitiveType: "expectURL",
+        extract: (match) => ({
+          type: "expectURL",
+          pattern: match[1]
+        })
+      },
+      {
+        name: "verify-title-is",
+        // "Verify the page title is 'Settings'"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?(?:page\s+)?title\s+(?:is|equals?)\s+["']([^"']+)["']$/i,
+        primitiveType: "expectTitle",
+        extract: (match) => ({
+          type: "expectTitle",
+          title: match[1]
+        })
+      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SPECIFIC STATE ASSERTIONS: enabled, disabled, checked, value, count
+      // ═══════════════════════════════════════════════════════════════════════════
+      {
+        name: "verify-field-value",
+        // "Verify the username field has value 'testuser'"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(\w+)["']?\s+(?:field\s+)?has\s+value\s+["']([^"']+)["']$/i,
+        primitiveType: "expectValue",
+        extract: (match) => ({
+          type: "expectValue",
+          locator: createLocatorFromMatch("label", match[1]),
+          value: match[2]
+        })
+      },
+      {
+        name: "verify-element-enabled",
+        // "Verify the submit button is enabled"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:button\s+)?is\s+enabled$/i,
+        primitiveType: "expectEnabled",
+        extract: (match) => ({
+          type: "expectEnabled",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        name: "verify-element-disabled",
+        // "Verify the disabled input is disabled"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:input\s+)?is\s+disabled$/i,
+        primitiveType: "expectDisabled",
+        extract: (match) => ({
+          type: "expectDisabled",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        name: "verify-checkbox-checked",
+        // "Verify the checkbox is checked"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:checkbox\s+)?is\s+checked$/i,
+        primitiveType: "expectChecked",
+        extract: (match) => ({
+          type: "expectChecked",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        name: "verify-count",
+        // "Verify 5 items are shown" or "Verify 3 elements exist"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(\d+)\s+(?:items?|elements?|rows?)\s+(?:are\s+)?(?:shown|displayed|exist|visible)$/i,
+        primitiveType: "expectCount",
+        extract: (match) => ({
+          type: "expectCount",
+          locator: { strategy: "text", value: "item" },
+          count: parseInt(match[1], 10)
+        })
+      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // GENERIC VISIBILITY: Catch-all patterns for "is visible/displayed/showing"
+      // These must come AFTER specific patterns to avoid over-matching
+      // ═══════════════════════════════════════════════════════════════════════════
       {
         name: "verify-element-showing",
         // "Verify the dashboard is showing/displayed"
@@ -1309,8 +1496,8 @@ var init_patterns = __esm({
       },
       {
         name: "confirm-that-assertion",
-        // "Confirm that the message appears" or "Confirm the error is shown"
-        regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+        // "Confirm that the message appears", "Verify success message appears", or "Confirm the error is shown"
+        regex: /^(?:verify|confirm)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
         primitiveType: "expectVisible",
         extract: (match) => ({
           type: "expectVisible",
@@ -1327,16 +1514,9 @@ var init_patterns = __esm({
           locator: createLocatorFromMatch("text", match[1])
         })
       },
-      {
-        name: "element-should-not-be-visible",
-        // "The error should not be visible" or "Error message is not displayed"
-        regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
-        primitiveType: "expectHidden",
-        extract: (match) => ({
-          type: "expectHidden",
-          locator: createLocatorFromMatch("text", match[1])
-        })
-      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // GENERIC TEXT ASSERTIONS: "contains" patterns (must be last to avoid conflicts)
+      // ═══════════════════════════════════════════════════════════════════════════
       {
         name: "element-contains-text",
         // "The header contains 'Welcome'" or "Element should contain 'text'"
@@ -1486,10 +1666,41 @@ var init_patterns = __esm({
         })
       }
     ];
+    modalAlertPatterns = [
+      {
+        name: "dismiss-modal",
+        // "Dismiss the modal" or "Close the modal dialog"
+        regex: /^(?:dismiss|close)\s+(?:the\s+)?(?:modal|dialog)(?:\s+dialog)?$/i,
+        primitiveType: "dismissModal",
+        extract: () => ({
+          type: "dismissModal"
+        })
+      },
+      {
+        name: "accept-alert",
+        // "Accept the alert" or "Click OK on alert"
+        regex: /^(?:accept|confirm|ok)\s+(?:the\s+)?alert$/i,
+        primitiveType: "acceptAlert",
+        extract: () => ({
+          type: "acceptAlert"
+        })
+      },
+      {
+        name: "dismiss-alert",
+        // "Dismiss the alert" or "Cancel the alert"
+        regex: /^(?:dismiss|cancel|close)\s+(?:the\s+)?alert$/i,
+        primitiveType: "dismissAlert",
+        extract: () => ({
+          type: "dismissAlert"
+        })
+      }
+    ];
     allPatterns = [
       ...structuredPatterns,
       ...authPatterns,
       ...toastPatterns,
+      ...modalAlertPatterns,
+      // Modal/alert patterns for dialog handling
       // Extended patterns come BEFORE base patterns to match more specific cases first
       ...extendedNavigationPatterns,
       // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
@@ -1630,11 +1841,11 @@ function parseJourney(filePath) {
   let content;
   try {
     content = readFileSync(resolvedPath, "utf-8");
-  } catch (err2) {
+  } catch (err3) {
     throw new JourneyParseError(
       `Failed to read journey file: ${resolvedPath}`,
       resolvedPath,
-      err2
+      err3
     );
   }
   let frontmatterStr;
@@ -1643,21 +1854,21 @@ function parseJourney(filePath) {
     const extracted = extractFrontmatter(content);
     frontmatterStr = extracted.frontmatter;
     body = extracted.body;
-  } catch (err2) {
+  } catch (err3) {
     throw new JourneyParseError(
       `Invalid frontmatter in journey file: ${resolvedPath}`,
       resolvedPath,
-      err2
+      err3
     );
   }
   let rawFrontmatter;
   try {
     rawFrontmatter = parse(frontmatterStr);
-  } catch (err2) {
+  } catch (err3) {
     throw new JourneyParseError(
       `Invalid YAML in journey frontmatter: ${resolvedPath}`,
       resolvedPath,
-      err2
+      err3
     );
   }
   const result = JourneyFrontmatterSchema.safeParse(rawFrontmatter);
@@ -1802,12 +2013,12 @@ async function loadExtendedGlossary(glossaryPath) {
       exportedAt: null,
       error: "Invalid glossary format: llkbGlossary not found or not a Map/object"
     };
-  } catch (err2) {
+  } catch (err3) {
     return {
       loaded: false,
       entryCount: 0,
       exportedAt: null,
-      error: `Failed to load glossary: ${err2 instanceof Error ? err2.message : String(err2)}`
+      error: `Failed to load glossary: ${err3 instanceof Error ? err3.message : String(err3)}`
     };
   }
 }
@@ -2177,6 +2388,316 @@ var init_parseHints = __esm({
   }
 });
 
+// src/utils/paths.ts
+var paths_exports = {};
+__export(paths_exports, {
+  PathTraversalError: () => PathTraversalError,
+  cleanAutogenArtifacts: () => cleanAutogenArtifacts,
+  clearPathCache: () => clearPathCache,
+  ensureAutogenDir: () => ensureAutogenDir,
+  getArtkDir: () => getArtkDir,
+  getAutogenArtifact: () => getAutogenArtifact,
+  getAutogenDir: () => getAutogenDir,
+  getHarnessRoot: () => getHarnessRoot,
+  getLlkbRoot: () => getLlkbRoot,
+  getPackageRoot: () => getPackageRoot,
+  getTemplatePath: () => getTemplatePath,
+  getTemplatesDir: () => getTemplatesDir,
+  hasAutogenArtifacts: () => hasAutogenArtifacts,
+  validatePath: () => validatePath,
+  validatePaths: () => validatePaths
+});
+function getModuleDir() {
+  if (cachedModuleDir) {
+    return cachedModuleDir;
+  }
+  if (typeof __dirname === "string" && __dirname.length > 0) {
+    cachedModuleDir = __dirname;
+    return cachedModuleDir;
+  }
+  try {
+    const metaUrl = import.meta.url;
+    if (metaUrl) {
+      cachedModuleDir = dirname(fileURLToPath(metaUrl));
+      return cachedModuleDir;
+    }
+  } catch {
+  }
+  try {
+    if (typeof __require !== "undefined" && __require?.resolve) {
+      const resolved = __require.resolve("@artk/core-autogen/package.json");
+      cachedModuleDir = dirname(resolved);
+      return cachedModuleDir;
+    }
+  } catch {
+  }
+  cachedModuleDir = process.cwd();
+  return cachedModuleDir;
+}
+function getPackageRoot() {
+  if (cachedPackageRoot) {
+    return cachedPackageRoot;
+  }
+  const envRoot = process.env["ARTK_AUTOGEN_ROOT"];
+  if (envRoot && existsSync(join(envRoot, "package.json"))) {
+    cachedPackageRoot = envRoot;
+    return cachedPackageRoot;
+  }
+  const moduleDir = getModuleDir();
+  const possibleRoots = [
+    join(moduleDir, "..", ".."),
+    // from dist/utils/ or dist-cjs/utils/
+    join(moduleDir, ".."),
+    // from dist/ directly
+    moduleDir
+    // if already at root
+  ];
+  for (const root of possibleRoots) {
+    const pkgPath = join(root, "package.json");
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+        if (pkg.name === "@artk/core-autogen") {
+          cachedPackageRoot = root;
+          return cachedPackageRoot;
+        }
+      } catch {
+      }
+    }
+  }
+  const cwdPaths = [
+    join(process.cwd(), "node_modules", "@artk", "core-autogen"),
+    join(process.cwd(), "artk-e2e", "vendor", "artk-core-autogen"),
+    process.cwd()
+  ];
+  for (const searchPath of cwdPaths) {
+    const pkgPath = join(searchPath, "package.json");
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+        if (pkg.name === "@artk/core-autogen") {
+          cachedPackageRoot = searchPath;
+          return cachedPackageRoot;
+        }
+      } catch {
+      }
+    }
+  }
+  cachedPackageRoot = join(moduleDir, "..", "..");
+  return cachedPackageRoot;
+}
+function getTemplatesDir() {
+  const root = getPackageRoot();
+  const moduleDir = getModuleDir();
+  const relativeToModule = join(moduleDir, "..", "codegen", "templates");
+  if (existsSync(relativeToModule)) {
+    return relativeToModule;
+  }
+  const possiblePaths = [
+    join(root, "dist", "codegen", "templates"),
+    join(root, "dist-cjs", "codegen", "templates"),
+    join(root, "dist-legacy-16", "codegen", "templates"),
+    join(root, "dist-legacy-14", "codegen", "templates")
+  ];
+  for (const templatesPath of possiblePaths) {
+    if (existsSync(templatesPath)) {
+      return templatesPath;
+    }
+  }
+  return possiblePaths[0] ?? join(root, "dist", "codegen", "templates");
+}
+function getTemplatePath(templateName) {
+  return join(getTemplatesDir(), templateName);
+}
+function clearPathCache() {
+  cachedPackageRoot = void 0;
+  cachedModuleDir = void 0;
+  cachedHarnessRoot = void 0;
+}
+function getHarnessRoot() {
+  if (cachedHarnessRoot) {
+    return cachedHarnessRoot;
+  }
+  const envRoot = process.env["ARTK_HARNESS_ROOT"];
+  if (envRoot && existsSync(envRoot)) {
+    cachedHarnessRoot = envRoot;
+    return cachedHarnessRoot;
+  }
+  const artkE2eFromCwd = join(process.cwd(), "artk-e2e");
+  if (existsSync(artkE2eFromCwd)) {
+    cachedHarnessRoot = artkE2eFromCwd;
+    return cachedHarnessRoot;
+  }
+  const configInCwd = join(process.cwd(), "artk.config.yml");
+  if (existsSync(configInCwd)) {
+    cachedHarnessRoot = process.cwd();
+    return cachedHarnessRoot;
+  }
+  let searchDir = process.cwd();
+  const root = dirname(searchDir);
+  while (searchDir !== root) {
+    if (existsSync(join(searchDir, "artk.config.yml"))) {
+      cachedHarnessRoot = searchDir;
+      return cachedHarnessRoot;
+    }
+    const sibling = join(searchDir, "artk-e2e");
+    if (existsSync(sibling)) {
+      cachedHarnessRoot = sibling;
+      return cachedHarnessRoot;
+    }
+    searchDir = dirname(searchDir);
+  }
+  cachedHarnessRoot = process.cwd();
+  return cachedHarnessRoot;
+}
+function getLlkbRoot(explicitRoot) {
+  if (explicitRoot) {
+    return explicitRoot;
+  }
+  return join(getHarnessRoot(), ".artk", "llkb");
+}
+function getArtkDir(explicitBaseDir) {
+  if (explicitBaseDir) {
+    return join(explicitBaseDir, ".artk");
+  }
+  return join(getHarnessRoot(), ".artk");
+}
+function getAutogenDir(explicitBaseDir) {
+  return join(getArtkDir(explicitBaseDir), "autogen");
+}
+function getAutogenArtifact(artifact, explicitBaseDir) {
+  const dir = getAutogenDir(explicitBaseDir);
+  switch (artifact) {
+    case "analysis":
+      return join(dir, "analysis.json");
+    case "plan":
+      return join(dir, "plan.json");
+    case "state":
+      return join(dir, "pipeline-state.json");
+    case "results":
+      return join(dir, "results.json");
+    case "samples":
+      return join(dir, "samples");
+    case "agreement":
+      return join(dir, "samples", "agreement.json");
+    case "telemetry":
+      return join(dir, "telemetry.json");
+  }
+}
+async function ensureAutogenDir(explicitBaseDir) {
+  const { mkdir } = await import('fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  await mkdir(dir, { recursive: true });
+  await mkdir(join(dir, "samples"), { recursive: true });
+}
+async function cleanAutogenArtifacts(explicitBaseDir) {
+  const { rm } = await import('fs/promises');
+  const dir = getAutogenDir(explicitBaseDir);
+  if (existsSync(dir)) {
+    await rm(dir, { recursive: true });
+  }
+  await ensureAutogenDir(explicitBaseDir);
+}
+function hasAutogenArtifacts(explicitBaseDir) {
+  const dir = getAutogenDir(explicitBaseDir);
+  if (!existsSync(dir)) {
+    return false;
+  }
+  const artifactTypes = ["analysis", "plan", "state", "results"];
+  return artifactTypes.some((artifact) => existsSync(getAutogenArtifact(artifact, explicitBaseDir)));
+}
+function validatePath(userPath, allowedRoot) {
+  if (!userPath || userPath.trim() === "") {
+    throw new PathTraversalError(userPath, allowedRoot, "");
+  }
+  if (userPath.includes("\0") || userPath.includes("\n") || userPath.includes("\r")) {
+    throw new PathTraversalError(userPath, allowedRoot, "invalid-characters");
+  }
+  if (process.platform === "win32") {
+    const colonIndex = userPath.indexOf(":");
+    if (colonIndex !== -1 && colonIndex !== 1) {
+      throw new PathTraversalError(userPath, allowedRoot, "alternate-data-stream");
+    }
+    if (userPath.startsWith("\\\\") || userPath.startsWith("//")) {
+      throw new PathTraversalError(userPath, allowedRoot, "unc-path");
+    }
+    const pathParts = userPath.split(/[/\\]/);
+    const baseName = pathParts[pathParts.length - 1] || "";
+    const nameWithoutExt = baseName.split(".")[0] || "";
+    const upperName = nameWithoutExt.toUpperCase();
+    const reservedNames = ["CON", "PRN", "AUX", "NUL"];
+    const reservedPrefixes = ["COM", "LPT"];
+    if (reservedNames.includes(upperName)) {
+      throw new PathTraversalError(userPath, allowedRoot, "reserved-device-name");
+    }
+    for (const prefix of reservedPrefixes) {
+      if (upperName.startsWith(prefix) && /^(COM|LPT)[1-9]$/.test(upperName)) {
+        throw new PathTraversalError(userPath, allowedRoot, "reserved-device-name");
+      }
+    }
+  }
+  const resolved = resolve(allowedRoot, userPath);
+  let realResolved;
+  let realRoot;
+  try {
+    realRoot = realpathSync(allowedRoot);
+  } catch {
+    realRoot = resolve(allowedRoot);
+  }
+  try {
+    realResolved = realpathSync(resolved);
+  } catch {
+    let current = resolved;
+    let parentResolved = resolved;
+    while (current !== dirname(current)) {
+      const parent = dirname(current);
+      try {
+        const realParent = realpathSync(parent);
+        const relativePart = relative(parent, resolved);
+        parentResolved = join(realParent, relativePart);
+        break;
+      } catch {
+        current = parent;
+      }
+    }
+    realResolved = parentResolved;
+  }
+  const rel = relative(realRoot, realResolved);
+  if (rel.startsWith("..") || isAbsolute(rel) && !rel.startsWith(realRoot)) {
+    throw new PathTraversalError(userPath, allowedRoot, realResolved);
+  }
+  return realResolved;
+}
+function validatePaths(paths, allowedRoot, onInvalid) {
+  const validPaths = [];
+  for (const userPath of paths) {
+    try {
+      const validated = validatePath(userPath, allowedRoot);
+      validPaths.push(validated);
+    } catch (e) {
+      if (e instanceof PathTraversalError && onInvalid) {
+        onInvalid(userPath);
+      }
+    }
+  }
+  return validPaths;
+}
+var cachedPackageRoot, cachedModuleDir, cachedHarnessRoot, PathTraversalError;
+var init_paths = __esm({
+  "src/utils/paths.ts"() {
+    PathTraversalError = class extends Error {
+      constructor(userPath, allowedRoot, resolvedPath) {
+        super(`Path traversal detected: "${userPath}" resolves outside allowed root "${allowedRoot}"`);
+        this.userPath = userPath;
+        this.allowedRoot = allowedRoot;
+        this.name = "PathTraversalError";
+        this.resolvedPath = resolvedPath;
+      }
+      resolvedPath;
+    };
+  }
+});
+
 // src/llkb/patternExtension.ts
 var patternExtension_exports = {};
 __export(patternExtension_exports, {
@@ -2201,14 +2722,14 @@ function invalidatePatternCache() {
   patternCache = null;
 }
 function getPatternsFilePath(llkbRoot) {
-  const root = llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const root = getLlkbRoot(llkbRoot);
   return join(root, PATTERNS_FILE);
 }
 function generatePatternId() {
   return `LP${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
 }
 function loadLearnedPatterns(options = {}) {
-  const llkbRoot = options.llkbRoot || join(process.cwd(), DEFAULT_LLKB_ROOT);
+  const llkbRoot = getLlkbRoot(options.llkbRoot);
   const now = Date.now();
   if (!options.bypassCache && patternCache && patternCache.llkbRoot === llkbRoot && now - patternCache.loadedAt < CACHE_TTL_MS) {
     return patternCache.patterns;
@@ -2247,11 +2768,11 @@ function calculateConfidence(successCount, failCount) {
   const total = successCount + failCount;
   if (total === 0) return 0.5;
   const p = successCount / total;
-  const z5 = 1.96;
+  const z9 = 1.96;
   const n = total;
-  const denominator = 1 + z5 * z5 / n;
-  const center = p + z5 * z5 / (2 * n);
-  const spread = z5 * Math.sqrt((p * (1 - p) + z5 * z5 / (4 * n)) / n);
+  const denominator = 1 + z9 * z9 / n;
+  const center = p + z9 * z9 / (2 * n);
+  const spread = z9 * Math.sqrt((p * (1 - p) + z9 * z9 / (4 * n)) / n);
   return Math.max(0, Math.min(1, (center - spread) / denominator));
 }
 function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
@@ -2285,7 +2806,7 @@ function recordPatternSuccess(originalText, primitive, journeyId, options = {}) 
   saveLearnedPatterns(patterns, options);
   return pattern;
 }
-function recordPatternFailure(originalText, journeyId, options = {}) {
+function recordPatternFailure(originalText, _journeyId, options = {}) {
   const patterns = loadLearnedPatterns(options);
   const normalizedText = normalizeStepText(originalText);
   const pattern = patterns.find((p) => p.normalizedText === normalizedText);
@@ -2315,7 +2836,7 @@ function matchLlkbPattern(text, options = {}) {
   return null;
 }
 function generateRegexFromText(text) {
-  let pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
+  const pattern = text.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"[^"]+"/g, '"([^"]+)"').replace(/'[^']+'/g, "'([^']+)'").replace(/\b(the|a|an)\b/g, "(?:$1\\s+)?").replace(/^user\s+/, "(?:user\\s+)?").replace(/\bclicks?\b/g, "clicks?").replace(/\bfills?\b/g, "fills?").replace(/\bselects?\b/g, "selects?").replace(/\btypes?\b/g, "types?").replace(/\bsees?\b/g, "sees?").replace(/\bwaits?\b/g, "waits?");
   return `^${pattern}$`;
 }
 function getPromotablePatterns(options = {}) {
@@ -2421,12 +2942,12 @@ function clearLearnedPatterns(options = {}) {
   }
   invalidatePatternCache();
 }
-var PATTERNS_FILE, DEFAULT_LLKB_ROOT, patternCache, CACHE_TTL_MS;
+var PATTERNS_FILE, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
     init_glossary();
+    init_paths();
     PATTERNS_FILE = "learned-patterns.json";
-    DEFAULT_LLKB_ROOT = ".artk/llkb";
     patternCache = null;
     CACHE_TTL_MS = 5e3;
   }
@@ -3249,113 +3770,6 @@ var init_updater = __esm({
   "src/journey/updater.ts"() {
   }
 });
-function getModuleDir() {
-  if (cachedModuleDir) {
-    return cachedModuleDir;
-  }
-  if (typeof __dirname === "string" && __dirname.length > 0) {
-    cachedModuleDir = __dirname;
-    return cachedModuleDir;
-  }
-  try {
-    const metaUrl = import.meta.url;
-    if (metaUrl) {
-      cachedModuleDir = dirname(fileURLToPath(metaUrl));
-      return cachedModuleDir;
-    }
-  } catch {
-  }
-  try {
-    if (typeof __require !== "undefined" && __require?.resolve) {
-      const resolved = __require.resolve("@artk/core-autogen/package.json");
-      cachedModuleDir = dirname(resolved);
-      return cachedModuleDir;
-    }
-  } catch {
-  }
-  cachedModuleDir = process.cwd();
-  return cachedModuleDir;
-}
-function getPackageRoot() {
-  if (cachedPackageRoot) {
-    return cachedPackageRoot;
-  }
-  const envRoot = process.env["ARTK_AUTOGEN_ROOT"];
-  if (envRoot && existsSync(join(envRoot, "package.json"))) {
-    cachedPackageRoot = envRoot;
-    return cachedPackageRoot;
-  }
-  const moduleDir = getModuleDir();
-  const possibleRoots = [
-    join(moduleDir, "..", ".."),
-    // from dist/utils/ or dist-cjs/utils/
-    join(moduleDir, ".."),
-    // from dist/ directly
-    moduleDir
-    // if already at root
-  ];
-  for (const root of possibleRoots) {
-    const pkgPath = join(root, "package.json");
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-        if (pkg.name === "@artk/core-autogen") {
-          cachedPackageRoot = root;
-          return cachedPackageRoot;
-        }
-      } catch {
-      }
-    }
-  }
-  const cwdPaths = [
-    join(process.cwd(), "node_modules", "@artk", "core-autogen"),
-    join(process.cwd(), "artk-e2e", "vendor", "artk-core-autogen"),
-    process.cwd()
-  ];
-  for (const searchPath of cwdPaths) {
-    const pkgPath = join(searchPath, "package.json");
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-        if (pkg.name === "@artk/core-autogen") {
-          cachedPackageRoot = searchPath;
-          return cachedPackageRoot;
-        }
-      } catch {
-      }
-    }
-  }
-  cachedPackageRoot = join(moduleDir, "..", "..");
-  return cachedPackageRoot;
-}
-function getTemplatesDir() {
-  const root = getPackageRoot();
-  const moduleDir = getModuleDir();
-  const relativeToModule = join(moduleDir, "..", "codegen", "templates");
-  if (existsSync(relativeToModule)) {
-    return relativeToModule;
-  }
-  const possiblePaths = [
-    join(root, "dist", "codegen", "templates"),
-    join(root, "dist-cjs", "codegen", "templates"),
-    join(root, "dist-legacy-16", "codegen", "templates"),
-    join(root, "dist-legacy-14", "codegen", "templates")
-  ];
-  for (const templatesPath of possiblePaths) {
-    if (existsSync(templatesPath)) {
-      return templatesPath;
-    }
-  }
-  return possiblePaths[0] ?? join(root, "dist", "codegen", "templates");
-}
-function getTemplatePath(templateName) {
-  return join(getTemplatesDir(), templateName);
-}
-var cachedPackageRoot, cachedModuleDir;
-var init_paths = __esm({
-  "src/utils/paths.ts"() {
-  }
-});
 function getPackageVersion() {
   if (cachedVersion) {
     return cachedVersion;
@@ -3400,7 +3814,7 @@ var init_version = __esm({
 // src/variants/index.ts
 function detectVariant() {
   const nodeVersionStr = process.version.slice(1);
-  const nodeVersion = parseInt(nodeVersionStr.split(".")[0], 10);
+  const nodeVersion = parseInt(nodeVersionStr.split(".")[0] ?? "18", 10);
   const isESM = typeof import.meta !== "undefined";
   if (nodeVersion >= 18) {
     return {
@@ -4313,16 +4727,12 @@ var init_patterns2 = __esm({
   }
 });
 function isESLintAvailable(cwd) {
-  try {
-    execSync("npx eslint --version", {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("npx", ["eslint", "--version"], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  return result.status === 0;
 }
 function convertSeverity(eslintSeverity) {
   return eslintSeverity === 2 ? "error" : "warning";
@@ -4383,21 +4793,21 @@ async function lintCode(code, filename = "test.spec.ts", options = {}) {
       args.push("--config", configPath);
     }
     args.push(tempFile);
-    const result = execSync(`npx ${args.join(" ")}`, {
+    const result = spawnSync("npx", args, {
       cwd,
       stdio: "pipe",
       encoding: "utf-8"
     });
-    return {
-      passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
-      errorCount: 0,
-      warningCount: 0
-    };
-  } catch (err2) {
-    const error = err2;
-    const output = error.stdout || "";
+    const output = result.stdout || "";
+    if (result.status === 0) {
+      return {
+        passed: true,
+        output,
+        issues: parseESLintOutput(output),
+        errorCount: 0,
+        warningCount: 0
+      };
+    }
     try {
       const results = JSON.parse(output);
       const issues = parseESLintOutput(output);
@@ -4900,8 +5310,7 @@ function runPlaywrightSync(options = {}) {
       command: "npx playwright test"
     };
   }
-  const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  const tempDir = mkdtempSync(join(tmpdir(), "autogen-verify-"));
   const reportPath = join(tempDir, "results.json");
   const args = buildPlaywrightArgs({
     ...options,
@@ -4910,7 +5319,7 @@ function runPlaywrightSync(options = {}) {
   const command = `npx playwright ${args.join(" ")}`;
   const startTime = Date.now();
   try {
-    const result = execSync(command, {
+    const result = spawnSync("npx", ["playwright", ...args], {
       cwd,
       stdio: "pipe",
       encoding: "utf-8",
@@ -4922,26 +5331,21 @@ function runPlaywrightSync(options = {}) {
       timeout: options.timeout ? options.timeout * 10 : 6e5
       // 10x test timeout or 10 min
     });
+    const success = result.status === 0;
     return {
-      success: true,
-      exitCode: 0,
-      stdout: result,
-      stderr: "",
+      success,
+      exitCode: result.status ?? 1,
+      stdout: result.stdout || "",
+      stderr: result.stderr || "",
       reportPath: existsSync(reportPath) ? reportPath : void 0,
       duration: Date.now() - startTime,
       command
     };
-  } catch (error) {
-    const execError = error;
-    return {
-      success: false,
-      exitCode: execError.status || 1,
-      stdout: execError.stdout || "",
-      stderr: execError.stderr || String(error),
-      reportPath: existsSync(reportPath) ? reportPath : void 0,
-      duration: Date.now() - startTime,
-      command
-    };
+  } finally {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+    }
   }
 }
 var init_runner = __esm({
@@ -7119,6 +7523,1076 @@ var init_upgrade = __esm({
     ];
   }
 });
+var LLMProviderSchema, LLMConfigSchema, CostLimitsSchema;
+var init_types2 = __esm({
+  "src/shared/types.ts"() {
+    LLMProviderSchema = z.enum([
+      "openai",
+      "anthropic",
+      "azure",
+      "bedrock",
+      "ollama",
+      "local",
+      "none"
+    ]);
+    LLMConfigSchema = z.object({
+      provider: LLMProviderSchema.default("none"),
+      model: z.string().default(""),
+      temperature: z.number().min(0).max(2).default(0.2),
+      maxTokens: z.number().min(100).max(32e3).default(2e3),
+      timeoutMs: z.number().min(1e3).max(3e5).default(3e4),
+      maxRetries: z.number().min(0).max(5).default(2),
+      retryDelayMs: z.number().min(100).max(1e4).default(1e3)
+    });
+    CostLimitsSchema = z.object({
+      perTestUsd: z.number().min(0.01).max(10).default(0.1),
+      perSessionUsd: z.number().min(0.1).max(100).default(5),
+      enabled: z.boolean().default(true)
+    });
+    z.object({
+      promptTokens: z.number().default(0),
+      completionTokens: z.number().default(0),
+      totalTokens: z.number().default(0),
+      estimatedCostUsd: z.number().default(0)
+    });
+  }
+});
+var SCoTAtomicStepSchema, SCoTConditionSchema, SCoTIteratorSchema, SCoTStructureSchema, SuggestedApproachSchema, CodeChangeSchema;
+var init_llm_response_parser = __esm({
+  "src/shared/llm-response-parser.ts"() {
+    init_types2();
+    SCoTAtomicStepSchema = z.object({
+      action: z.string(),
+      target: z.string().optional(),
+      value: z.string().optional(),
+      assertion: z.string().optional()
+    });
+    SCoTConditionSchema = z.object({
+      element: z.string().optional(),
+      state: z.enum(["visible", "hidden", "enabled", "disabled", "exists", "checked", "unchecked"]),
+      negate: z.boolean().optional()
+    });
+    SCoTIteratorSchema = z.object({
+      variable: z.string(),
+      collection: z.string(),
+      maxIterations: z.number().optional()
+    });
+    SCoTStructureSchema = z.object({
+      type: z.enum(["sequential", "branch", "loop"]),
+      description: z.string(),
+      steps: z.array(SCoTAtomicStepSchema).optional(),
+      condition: SCoTConditionSchema.optional(),
+      thenBranch: z.array(SCoTAtomicStepSchema).optional(),
+      elseBranch: z.array(SCoTAtomicStepSchema).optional(),
+      iterator: SCoTIteratorSchema.optional(),
+      body: z.array(SCoTAtomicStepSchema).optional()
+    });
+    z.object({
+      reasoning: z.string().min(1),
+      confidence: z.number().min(0).max(1),
+      plan: z.array(SCoTStructureSchema),
+      warnings: z.array(z.string()).default([])
+    });
+    SuggestedApproachSchema = z.object({
+      name: z.string(),
+      description: z.string(),
+      confidence: z.number().min(0).max(1),
+      complexity: z.enum(["simple", "moderate", "complex"]),
+      requiredChanges: z.array(z.string())
+    });
+    z.object({
+      rootCause: z.string().min(1),
+      confidence: z.number().min(0).max(1),
+      suggestedApproaches: z.array(SuggestedApproachSchema).min(1)
+    });
+    CodeChangeSchema = z.object({
+      type: z.enum(["replace", "insert", "delete"]),
+      lineStart: z.number(),
+      lineEnd: z.number().optional(),
+      explanation: z.string()
+    });
+    z.object({
+      fixedCode: z.string().min(1),
+      changes: z.array(CodeChangeSchema),
+      explanation: z.string()
+    });
+  }
+});
+var SCoTConfigSchema, CircuitBreakerConfigSchema, RefinementConfigSchema, UncertaintyConfigSchema;
+var init_config_validator = __esm({
+  "src/shared/config-validator.ts"() {
+    init_types2();
+    SCoTConfigSchema = z.object({
+      enabled: z.boolean().default(false),
+      minConfidence: z.number().min(0).max(1).default(0.7),
+      maxStructures: z.number().min(1).max(100).default(20),
+      includeReasoningComments: z.boolean().default(true),
+      llm: LLMConfigSchema.default({}),
+      fallback: z.enum(["pattern-only", "error"]).default("pattern-only")
+    }).default({});
+    CircuitBreakerConfigSchema = z.object({
+      sameErrorThreshold: z.number().min(1).max(5).default(2),
+      errorHistorySize: z.number().min(5).max(50).default(10),
+      degradationThreshold: z.number().min(0.1).max(1).default(0.5),
+      cooldownMs: z.number().min(1e3).max(3e5).default(6e4)
+    }).default({});
+    RefinementConfigSchema = z.object({
+      enabled: z.boolean().default(false),
+      maxAttempts: z.number().min(1).max(5).default(3),
+      timeouts: z.object({
+        session: z.number().min(6e4).max(6e5).default(3e5),
+        execution: z.number().min(1e4).max(12e4).default(6e4),
+        delayBetweenAttempts: z.number().min(500).max(1e4).default(1e3)
+      }).default({}),
+      circuitBreaker: CircuitBreakerConfigSchema,
+      errorHandling: z.object({
+        categories: z.array(z.string()).default([]),
+        skip: z.array(z.string()).default(["FIXTURE", "PAGE_ERROR"])
+      }).default({}),
+      learning: z.object({
+        enabled: z.boolean().default(true),
+        minGeneralizability: z.number().min(0).max(1).default(0.6)
+      }).default({}),
+      llm: LLMConfigSchema.default({}),
+      advanced: z.object({
+        minAutoFixConfidence: z.number().min(0).max(1).default(0.7),
+        includeScreenshots: z.boolean().default(true),
+        includeTraces: z.boolean().default(false),
+        verbose: z.boolean().default(false),
+        dryRun: z.boolean().default(false)
+      }).default({})
+    }).default({});
+    UncertaintyConfigSchema = z.object({
+      enabled: z.boolean().default(false),
+      thresholds: z.object({
+        autoAccept: z.number().min(0.5).max(1).default(0.85),
+        block: z.number().min(0).max(0.8).default(0.5),
+        minimumPerDimension: z.number().min(0).max(0.8).default(0.4)
+      }).default({}),
+      weights: z.object({
+        syntax: z.number().min(0).max(1).default(0.2),
+        pattern: z.number().min(0).max(1).default(0.3),
+        selector: z.number().min(0).max(1).default(0.3),
+        agreement: z.number().min(0).max(1).default(0.2)
+      }).default({}),
+      sampling: z.object({
+        enabled: z.boolean().default(false),
+        sampleCount: z.number().min(2).max(5).default(3),
+        temperatures: z.array(z.number()).default([0.2, 0.5, 0.7])
+      }).default({}),
+      reporting: z.object({
+        includeInTestComments: z.boolean().default(true),
+        generateMarkdownReport: z.boolean().default(false)
+      }).default({})
+    }).default({});
+    z.object({
+      scot: SCoTConfigSchema,
+      refinement: RefinementConfigSchema,
+      uncertainty: UncertaintyConfigSchema,
+      costLimits: CostLimitsSchema.default({})
+    });
+  }
+});
+
+// src/shared/cost-tracker.ts
+function estimateCost(usage, model) {
+  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING["default"];
+  if (!pricing) {
+    throw new Error("Default pricing not found in MODEL_PRICING");
+  }
+  const inputCost = usage.promptTokens / 1e6 * pricing.input;
+  const outputCost = usage.completionTokens / 1e6 * pricing.output;
+  return inputCost + outputCost;
+}
+var MODEL_PRICING;
+var init_cost_tracker = __esm({
+  "src/shared/cost-tracker.ts"() {
+    MODEL_PRICING = {
+      // OpenAI
+      "gpt-4o": { input: 2.5, output: 10 },
+      "gpt-4o-mini": { input: 0.15, output: 0.6 },
+      "gpt-4-turbo": { input: 10, output: 30 },
+      "gpt-3.5-turbo": { input: 0.5, output: 1.5 },
+      // Anthropic
+      "claude-opus-4-20250514": { input: 15, output: 75 },
+      "claude-sonnet-4-20250514": { input: 3, output: 15 },
+      "claude-3-5-sonnet-20241022": { input: 3, output: 15 },
+      "claude-3-haiku-20240307": { input: 0.25, output: 1.25 },
+      // Default for unknown models
+      "default": { input: 1, output: 3 }
+    };
+  }
+});
+function createEmptyTelemetryData(sessionId) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  return {
+    version: 1,
+    sessionId,
+    createdAt: now,
+    updatedAt: now,
+    totalTokens: 0,
+    totalCostUsd: 0,
+    commandStats: {},
+    recentEvents: [],
+    errorCounts: {}
+  };
+}
+function getTelemetry(config) {
+  if (!globalTelemetry) {
+    globalTelemetry = new Telemetry(config);
+  }
+  return globalTelemetry;
+}
+var DEFAULT_CONFIG, Telemetry, globalTelemetry;
+var init_telemetry = __esm({
+  "src/shared/telemetry.ts"() {
+    init_paths();
+    init_cost_tracker();
+    DEFAULT_CONFIG = {
+      enabled: true,
+      maxEvents: 100,
+      defaultModel: "gpt-4o-mini"
+    };
+    Telemetry = class {
+      data;
+      config;
+      sessionId;
+      pendingCommands;
+      constructor(config = {}) {
+        this.config = { ...DEFAULT_CONFIG, ...config };
+        this.sessionId = this.generateSessionId();
+        this.data = createEmptyTelemetryData(this.sessionId);
+        this.pendingCommands = /* @__PURE__ */ new Map();
+      }
+      generateSessionId() {
+        return `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      }
+      /**
+       * Load existing telemetry data or create new
+       */
+      async load(baseDir) {
+        if (!this.config.enabled) return;
+        try {
+          const telemetryPath = getAutogenArtifact("telemetry", baseDir);
+          if (existsSync(telemetryPath)) {
+            const content = readFileSync(telemetryPath, "utf-8");
+            const loaded = JSON.parse(content);
+            this.data = {
+              ...loaded,
+              sessionId: this.sessionId,
+              updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+            };
+          }
+        } catch {
+          this.data = createEmptyTelemetryData(this.sessionId);
+        }
+      }
+      /**
+       * Save telemetry data to disk
+       */
+      async save(baseDir) {
+        if (!this.config.enabled) return;
+        try {
+          await ensureAutogenDir(baseDir);
+          const telemetryPath = getAutogenArtifact("telemetry", baseDir);
+          this.data.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+          writeFileSync(telemetryPath, JSON.stringify(this.data, null, 2), "utf-8");
+        } catch {
+        }
+      }
+      /**
+       * Track command start
+       */
+      trackCommandStart(command) {
+        if (!this.config.enabled) return "";
+        const eventId = `${command}-${Date.now()}`;
+        this.pendingCommands.set(eventId, {
+          startTime: Date.now(),
+          command
+        });
+        this.addEvent({
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          type: "command_start",
+          command,
+          data: { eventId }
+        });
+        return eventId;
+      }
+      /**
+       * Track command end
+       */
+      trackCommandEnd(eventId, success, data = {}) {
+        if (!this.config.enabled) return;
+        const pending = this.pendingCommands.get(eventId);
+        if (!pending) return;
+        const durationMs = Date.now() - pending.startTime;
+        const { command } = pending;
+        if (!this.data.commandStats[command]) {
+          this.data.commandStats[command] = {
+            count: 0,
+            successCount: 0,
+            errorCount: 0,
+            avgDurationMs: 0,
+            totalDurationMs: 0,
+            lastRun: null
+          };
+        }
+        const stats = this.data.commandStats[command];
+        stats.count++;
+        if (success) {
+          stats.successCount++;
+        } else {
+          stats.errorCount++;
+        }
+        stats.totalDurationMs += durationMs;
+        stats.avgDurationMs = stats.totalDurationMs / stats.count;
+        stats.lastRun = (/* @__PURE__ */ new Date()).toISOString();
+        this.addEvent({
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          type: "command_end",
+          command,
+          data: { eventId, success, durationMs, ...data }
+        });
+        this.pendingCommands.delete(eventId);
+      }
+      /**
+       * Track LLM usage
+       */
+      trackLLMUsage(command, usage, model = this.config.defaultModel) {
+        if (!this.config.enabled) return;
+        const cost = usage.estimatedCostUsd > 0 ? usage.estimatedCostUsd : estimateCost(usage, model);
+        this.data.totalTokens += usage.totalTokens;
+        this.data.totalCostUsd += cost;
+        this.addEvent({
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          type: "llm_call",
+          command,
+          data: {
+            model,
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+            costUsd: cost
+          }
+        });
+      }
+      /**
+       * Track error
+       */
+      trackError(command, errorType, message) {
+        if (!this.config.enabled) return;
+        this.data.errorCounts[errorType] = (this.data.errorCounts[errorType] || 0) + 1;
+        this.addEvent({
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          type: "error",
+          command,
+          data: { errorType, message }
+        });
+      }
+      /**
+       * Track pipeline state transition
+       */
+      trackPipelineTransition(command, fromStage, toStage, data = {}) {
+        if (!this.config.enabled) return;
+        this.addEvent({
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          type: "pipeline_transition",
+          command,
+          data: { fromStage, toStage, ...data }
+        });
+      }
+      addEvent(event) {
+        this.data.recentEvents.push(event);
+        if (this.data.recentEvents.length > this.config.maxEvents) {
+          this.data.recentEvents = this.data.recentEvents.slice(-this.config.maxEvents);
+        }
+      }
+      /**
+       * Get telemetry summary
+       */
+      getSummary() {
+        return {
+          sessionId: this.sessionId,
+          totalTokens: this.data.totalTokens,
+          totalCostUsd: this.data.totalCostUsd,
+          commandStats: { ...this.data.commandStats },
+          topErrors: Object.entries(this.data.errorCounts).sort(([, a], [, b]) => b - a).slice(0, 5).map(([type, count]) => ({ type, count })),
+          eventCount: this.data.recentEvents.length
+        };
+      }
+      /**
+       * Get raw data (for debugging)
+       */
+      getData() {
+        return { ...this.data };
+      }
+      /**
+       * Reset telemetry (for testing)
+       */
+      reset() {
+        this.sessionId = this.generateSessionId();
+        this.data = createEmptyTelemetryData(this.sessionId);
+        this.pendingCommands.clear();
+      }
+    };
+    globalTelemetry = null;
+  }
+});
+
+// src/shared/index.ts
+var init_shared = __esm({
+  "src/shared/index.ts"() {
+    init_types2();
+    init_llm_response_parser();
+    init_config_validator();
+    init_cost_tracker();
+    init_telemetry();
+  }
+});
+
+// src/scot/types.ts
+var init_types3 = __esm({
+  "src/scot/types.ts"() {
+  }
+});
+
+// src/scot/parser.ts
+var init_parser2 = __esm({
+  "src/scot/parser.ts"() {
+    init_types2();
+    init_llm_response_parser();
+  }
+});
+
+// src/scot/validator.ts
+var init_validator = __esm({
+  "src/scot/validator.ts"() {
+    init_types3();
+  }
+});
+
+// src/scot/prompts.ts
+var init_prompts = __esm({
+  "src/scot/prompts.ts"() {
+  }
+});
+
+// src/scot/planner.ts
+var init_planner = __esm({
+  "src/scot/planner.ts"() {
+    init_parser2();
+    init_validator();
+    init_prompts();
+  }
+});
+
+// src/scot/index.ts
+var init_scot = __esm({
+  "src/scot/index.ts"() {
+    init_types3();
+    init_parser2();
+    init_validator();
+    init_planner();
+    init_prompts();
+  }
+});
+
+// src/refinement/types.ts
+var init_types4 = __esm({
+  "src/refinement/types.ts"() {
+  }
+});
+
+// src/refinement/error-parser.ts
+var init_error_parser = __esm({
+  "src/refinement/error-parser.ts"() {
+  }
+});
+
+// src/refinement/convergence-detector.ts
+function analyzeRefinementProgress(_attempts, circuitBreaker, convergenceDetector) {
+  const cbState = circuitBreaker.getState();
+  const convergenceInfo = convergenceDetector.getInfo();
+  if (cbState.isOpen) {
+    return {
+      shouldContinue: false,
+      reason: `Circuit breaker open: ${cbState.openReason}`,
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "stop"
+    };
+  }
+  if (convergenceInfo.converged) {
+    return {
+      shouldContinue: false,
+      reason: "All errors resolved",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "stop"
+    };
+  }
+  if (convergenceInfo.trend === "degrading") {
+    return {
+      shouldContinue: false,
+      reason: "Error count increasing - fixes are making things worse",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "escalate"
+    };
+  }
+  if (convergenceInfo.trend === "oscillating") {
+    return {
+      shouldContinue: false,
+      reason: "Error counts oscillating - cannot converge",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "escalate"
+    };
+  }
+  if (convergenceInfo.stagnationCount >= 2) {
+    return {
+      shouldContinue: false,
+      reason: "No improvement in last 2 attempts - stagnating",
+      circuitBreaker: cbState,
+      convergence: convergenceInfo,
+      recommendation: "escalate"
+    };
+  }
+  return {
+    shouldContinue: true,
+    reason: "Progress being made",
+    circuitBreaker: cbState,
+    convergence: convergenceInfo,
+    recommendation: "continue"
+  };
+}
+var DEFAULT_CIRCUIT_BREAKER_CONFIG, CircuitBreaker, ConvergenceDetector;
+var init_convergence_detector = __esm({
+  "src/refinement/convergence-detector.ts"() {
+    DEFAULT_CIRCUIT_BREAKER_CONFIG = {
+      maxAttempts: 3,
+      sameErrorThreshold: 2,
+      oscillationDetection: true,
+      oscillationWindowSize: 4,
+      totalTimeoutMs: 3e5,
+      // 5 minutes
+      cooldownMs: 1e3,
+      maxTokenBudget: 5e4
+    };
+    CircuitBreaker = class {
+      config;
+      state;
+      constructor(options = {}) {
+        const { initialState, ...config } = options;
+        this.config = { ...DEFAULT_CIRCUIT_BREAKER_CONFIG, ...config };
+        if (initialState) {
+          this.state = this.restoreState(initialState);
+        } else {
+          this.state = this.createInitialState();
+        }
+      }
+      createInitialState() {
+        return {
+          isOpen: false,
+          attemptCount: 0,
+          errorHistory: [],
+          startTime: /* @__PURE__ */ new Date(),
+          tokensUsed: 0,
+          maxAttempts: this.config.maxAttempts
+        };
+      }
+      /**
+       * Restore state from a saved CircuitBreakerState
+       * This allows the circuit breaker to continue from a previous session
+       * without double-counting attempts
+       */
+      restoreState(saved) {
+        return {
+          isOpen: saved.isOpen,
+          openReason: saved.openReason,
+          attemptCount: saved.attemptCount,
+          errorHistory: [...saved.errorHistory || []],
+          // Restore startTime or use now if not saved
+          startTime: saved.startTime ? new Date(saved.startTime) : /* @__PURE__ */ new Date(),
+          tokensUsed: saved.tokensUsed || 0,
+          maxAttempts: this.config.maxAttempts
+        };
+      }
+      /**
+       * Reset the circuit breaker to initial state
+       */
+      reset() {
+        this.state = this.createInitialState();
+      }
+      /**
+       * Get current state
+       */
+      getState() {
+        return { ...this.state };
+      }
+      /**
+       * Record an attempt and check if circuit should open
+       */
+      recordAttempt(errors, tokenUsage) {
+        if (this.state.isOpen) {
+          return this.state;
+        }
+        this.state.attemptCount++;
+        const fingerprints = errors.map((e) => e.fingerprint);
+        this.state.errorHistory.push(...fingerprints);
+        if (tokenUsage) {
+          this.state.tokensUsed += tokenUsage.totalTokens;
+        }
+        this.checkMaxAttempts();
+        this.checkSameError();
+        this.checkOscillation();
+        this.checkTimeout();
+        this.checkBudget();
+        return this.state;
+      }
+      /**
+       * Check if we can make another attempt
+       */
+      canAttempt() {
+        if (this.state.isOpen) {
+          return false;
+        }
+        this.checkTimeout();
+        return !this.state.isOpen;
+      }
+      /**
+       * Get remaining attempts
+       */
+      remainingAttempts() {
+        if (this.state.isOpen) return 0;
+        return Math.max(0, this.config.maxAttempts - this.state.attemptCount);
+      }
+      /**
+       * Get remaining token budget
+       */
+      remainingTokenBudget() {
+        return Math.max(0, this.config.maxTokenBudget - this.state.tokensUsed);
+      }
+      /**
+       * Estimate if operation would exceed budget
+       */
+      wouldExceedBudget(estimatedTokens) {
+        return this.state.tokensUsed + estimatedTokens > this.config.maxTokenBudget;
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+      // PRIVATE CHECKS
+      // ─────────────────────────────────────────────────────────────────────────
+      checkMaxAttempts() {
+        if (this.state.attemptCount >= this.config.maxAttempts) {
+          this.openCircuit("MAX_ATTEMPTS");
+        }
+      }
+      checkSameError() {
+        if (this.state.errorHistory.length < this.config.sameErrorThreshold) {
+          return;
+        }
+        const counts = /* @__PURE__ */ new Map();
+        for (const fp of this.state.errorHistory) {
+          counts.set(fp, (counts.get(fp) || 0) + 1);
+        }
+        for (const count of counts.values()) {
+          if (count >= this.config.sameErrorThreshold) {
+            this.openCircuit("SAME_ERROR");
+            return;
+          }
+        }
+      }
+      checkOscillation() {
+        if (!this.config.oscillationDetection) {
+          return;
+        }
+        const history = this.state.errorHistory;
+        const windowSize = this.config.oscillationWindowSize;
+        if (history.length < windowSize) {
+          return;
+        }
+        const recentHistory = history.slice(-windowSize);
+        const unique = new Set(recentHistory);
+        if (unique.size === 2) {
+          let isAlternating = true;
+          for (let i = 2; i < recentHistory.length; i++) {
+            const currentItem = recentHistory[i];
+            const previousItem = recentHistory[i - 2];
+            if (currentItem !== void 0 && previousItem !== void 0 && currentItem !== previousItem) {
+              isAlternating = false;
+              break;
+            }
+          }
+          if (isAlternating) {
+            this.openCircuit("OSCILLATION");
+          }
+        }
+      }
+      checkTimeout() {
+        if (!this.state.startTime) return;
+        const elapsed = Date.now() - this.state.startTime.getTime();
+        if (elapsed >= this.config.totalTimeoutMs) {
+          this.openCircuit("TIMEOUT");
+        }
+      }
+      checkBudget() {
+        if (this.state.tokensUsed >= this.config.maxTokenBudget) {
+          this.openCircuit("BUDGET_EXCEEDED");
+        }
+      }
+      openCircuit(reason) {
+        this.state.isOpen = true;
+        this.state.openReason = reason;
+      }
+    };
+    ConvergenceDetector = class {
+      errorCountHistory = [];
+      uniqueErrorsHistory = [];
+      lastImprovement;
+      stagnationCount = 0;
+      /**
+       * Record errors from an attempt
+       */
+      recordAttempt(errors) {
+        const count = errors.length;
+        const uniqueFingerprints = new Set(errors.map((e) => e.fingerprint));
+        this.errorCountHistory.push(count);
+        this.uniqueErrorsHistory.push(uniqueFingerprints);
+        if (this.errorCountHistory.length >= 2) {
+          const prev = this.errorCountHistory[this.errorCountHistory.length - 2] ?? 0;
+          const curr = this.errorCountHistory[this.errorCountHistory.length - 1] ?? 0;
+          if (curr < prev) {
+            this.lastImprovement = this.errorCountHistory.length - 1;
+            this.stagnationCount = 0;
+          } else {
+            this.stagnationCount++;
+          }
+        }
+      }
+      /**
+       * Get convergence information
+       */
+      getInfo() {
+        const converged = this.isConverged();
+        const trend = this.detectTrend();
+        return {
+          converged,
+          attempts: this.errorCountHistory.length,
+          errorCountHistory: [...this.errorCountHistory],
+          uniqueErrorsHistory: this.uniqueErrorsHistory.map((s) => new Set(s)),
+          lastImprovement: this.lastImprovement,
+          stagnationCount: this.stagnationCount,
+          trend
+        };
+      }
+      /**
+       * Check if we've converged (no errors)
+       */
+      isConverged() {
+        if (this.errorCountHistory.length === 0) return false;
+        return this.errorCountHistory[this.errorCountHistory.length - 1] === 0;
+      }
+      /**
+       * Detect the trend in error counts
+       */
+      detectTrend() {
+        if (this.errorCountHistory.length < 2) {
+          return "stagnating";
+        }
+        const recent = this.errorCountHistory.slice(-3);
+        if (this.isOscillating()) {
+          return "oscillating";
+        }
+        const decreasing = recent.every(
+          (val, i, arr) => i === 0 || val <= (arr[i - 1] ?? val)
+        );
+        const increasing = recent.every(
+          (val, i, arr) => i === 0 || val >= (arr[i - 1] ?? val)
+        );
+        const allSame = recent.every((val, _, arr) => val === arr[0]);
+        if (allSame || this.stagnationCount >= 2) {
+          return "stagnating";
+        }
+        if (decreasing) {
+          return "improving";
+        }
+        if (increasing) {
+          return "degrading";
+        }
+        return "stagnating";
+      }
+      /**
+       * Check if error counts are oscillating
+       */
+      isOscillating() {
+        if (this.errorCountHistory.length < 4) {
+          return false;
+        }
+        const recent = this.errorCountHistory.slice(-4);
+        const diff01 = (recent[1] || 0) - (recent[0] || 0);
+        const diff12 = (recent[2] || 0) - (recent[1] || 0);
+        const diff23 = (recent[3] || 0) - (recent[2] || 0);
+        const signsAlternate = Math.sign(diff01) !== 0 && Math.sign(diff01) === -Math.sign(diff12) && Math.sign(diff12) === -Math.sign(diff23);
+        return signsAlternate;
+      }
+      /**
+       * Calculate improvement percentage
+       */
+      getImprovementPercentage() {
+        if (this.errorCountHistory.length < 2) {
+          return 0;
+        }
+        const first = this.errorCountHistory[0] || 0;
+        const last = this.errorCountHistory[this.errorCountHistory.length - 1] || 0;
+        if (first === 0) {
+          return last === 0 ? 100 : 0;
+        }
+        return Math.round((first - last) / first * 100);
+      }
+      /**
+       * Get new errors introduced in last attempt (not in previous)
+       */
+      getNewErrors() {
+        if (this.uniqueErrorsHistory.length < 2) {
+          const firstEntry = this.uniqueErrorsHistory[0];
+          return firstEntry ? firstEntry : /* @__PURE__ */ new Set();
+        }
+        const prev = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 2];
+        const curr = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 1];
+        if (!prev || !curr) {
+          return /* @__PURE__ */ new Set();
+        }
+        const newErrors = /* @__PURE__ */ new Set();
+        for (const fp of curr) {
+          if (!prev.has(fp)) {
+            newErrors.add(fp);
+          }
+        }
+        return newErrors;
+      }
+      /**
+       * Get errors fixed in last attempt (in previous but not current)
+       */
+      getFixedErrors() {
+        if (this.uniqueErrorsHistory.length < 2) {
+          return /* @__PURE__ */ new Set();
+        }
+        const prev = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 2];
+        const curr = this.uniqueErrorsHistory[this.uniqueErrorsHistory.length - 1];
+        if (!prev || !curr) {
+          return /* @__PURE__ */ new Set();
+        }
+        const fixedErrors = /* @__PURE__ */ new Set();
+        for (const fp of prev) {
+          if (!curr.has(fp)) {
+            fixedErrors.add(fp);
+          }
+        }
+        return fixedErrors;
+      }
+      /**
+       * Reset the detector
+       */
+      reset() {
+        this.errorCountHistory = [];
+        this.uniqueErrorsHistory = [];
+        this.lastImprovement = void 0;
+        this.stagnationCount = 0;
+      }
+      /**
+       * Restore detector state from saved error count history
+       * This allows the detector to continue from a previous session
+       * without losing context about convergence trends
+       */
+      restoreFromHistory(savedErrorCounts) {
+        if (!savedErrorCounts || savedErrorCounts.length === 0) {
+          return;
+        }
+        this.errorCountHistory = [...savedErrorCounts];
+        this.uniqueErrorsHistory = savedErrorCounts.map(() => /* @__PURE__ */ new Set());
+        this.lastImprovement = void 0;
+        this.stagnationCount = 0;
+        for (let i = 1; i < savedErrorCounts.length; i++) {
+          const prev = savedErrorCounts[i - 1];
+          const curr = savedErrorCounts[i];
+          if (prev !== void 0 && curr !== void 0 && curr < prev) {
+            this.lastImprovement = i;
+            this.stagnationCount = 0;
+          } else {
+            this.stagnationCount++;
+          }
+        }
+      }
+      /**
+       * Get the error count history for serialization
+       */
+      getErrorCountHistory() {
+        return [...this.errorCountHistory];
+      }
+    };
+  }
+});
+
+// src/refinement/refinement-loop.ts
+var init_refinement_loop = __esm({
+  "src/refinement/refinement-loop.ts"() {
+    init_types2();
+    init_error_parser();
+    init_convergence_detector();
+  }
+});
+
+// src/refinement/llkb-learning.ts
+var init_llkb_learning = __esm({
+  "src/refinement/llkb-learning.ts"() {
+  }
+});
+var init_llkb_storage = __esm({
+  "src/refinement/llkb-storage.ts"() {
+    init_paths();
+  }
+});
+async function checkPlaywrightInstalled(cwd) {
+  return new Promise((resolve7) => {
+    const proc = spawn("npx", ["playwright", "--version"], {
+      cwd: getHarnessRoot(),
+      env: process.env
+    });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+    proc.on("close", (code) => {
+      if (code === 0) {
+        const versionMatch = stdout.match(/(\d+\.\d+\.\d+)/);
+        resolve7({
+          installed: true,
+          version: versionMatch && versionMatch[1] ? versionMatch[1] : void 0
+        });
+      } else {
+        resolve7({
+          installed: false,
+          error: stderr || "Playwright not found. Run: npx playwright install"
+        });
+      }
+    });
+    proc.on("error", (err3) => {
+      resolve7({
+        installed: false,
+        error: `Failed to check Playwright: ${err3.message}`
+      });
+    });
+    setTimeout(() => {
+      proc.kill();
+      resolve7({
+        installed: false,
+        error: "Playwright check timed out"
+      });
+    }, 1e4);
+  });
+}
+var init_playwright_runner = __esm({
+  "src/refinement/playwright-runner.ts"() {
+    init_paths();
+  }
+});
+
+// src/refinement/index.ts
+var init_refinement = __esm({
+  "src/refinement/index.ts"() {
+    init_types4();
+    init_error_parser();
+    init_convergence_detector();
+    init_refinement_loop();
+    init_llkb_learning();
+    init_llkb_storage();
+    init_playwright_runner();
+  }
+});
+
+// src/uncertainty/types.ts
+var init_types5 = __esm({
+  "src/uncertainty/types.ts"() {
+  }
+});
+
+// src/uncertainty/syntax-validator.ts
+var init_syntax_validator = __esm({
+  "src/uncertainty/syntax-validator.ts"() {
+  }
+});
+
+// src/uncertainty/pattern-matcher.ts
+var init_pattern_matcher = __esm({
+  "src/uncertainty/pattern-matcher.ts"() {
+  }
+});
+
+// src/uncertainty/selector-analyzer.ts
+var init_selector_analyzer = __esm({
+  "src/uncertainty/selector-analyzer.ts"() {
+  }
+});
+
+// src/uncertainty/confidence-scorer.ts
+var init_confidence_scorer = __esm({
+  "src/uncertainty/confidence-scorer.ts"() {
+    init_types5();
+    init_syntax_validator();
+    init_pattern_matcher();
+    init_selector_analyzer();
+  }
+});
+function createOrchestratorSampleRequest(prompt, journeyId, config = DEFAULT_MULTI_SAMPLER_CONFIG) {
+  return {
+    prompt,
+    journeyId,
+    temperatures: config.temperatures,
+    instructions: `
+Generate ${config.sampleCount} different versions of the Playwright test code.
+For each version, use a different "creative temperature":
+${config.temperatures.map((t, i) => `- Version ${i + 1}: Temperature ${t} (${t < 0.3 ? "conservative" : t < 0.6 ? "balanced" : "creative"})`).join("\n")}
+
+Save each version as a separate code block labeled with the version number.
+The goal is to explore different approaches and identify areas of agreement/disagreement.
+
+After generating all versions, provide a brief analysis:
+1. What elements are consistent across all versions (high agreement)
+2. What elements differ between versions (disagreement areas)
+3. Which version you recommend as the best consensus
+
+Minimum agreement score threshold: ${config.minAgreementScore}
+`
+  };
+}
+var DEFAULT_MULTI_SAMPLER_CONFIG;
+var init_multi_sampler = __esm({
+  "src/uncertainty/multi-sampler.ts"() {
+    init_paths();
+    DEFAULT_MULTI_SAMPLER_CONFIG = {
+      sampleCount: 3,
+      temperatures: [0.2, 0.5, 0.8],
+      minAgreementScore: 0.7,
+      persistSamples: true
+    };
+  }
+});
+
+// src/uncertainty/index.ts
+var init_uncertainty = __esm({
+  "src/uncertainty/index.ts"() {
+    init_types5();
+    init_syntax_validator();
+    init_pattern_matcher();
+    init_selector_analyzer();
+    init_confidence_scorer();
+    init_multi_sampler();
+  }
+});
 async function generateJourneyTests(options) {
   const {
     journeys,
@@ -7146,8 +8620,8 @@ async function generateJourneyTests(options) {
     if (typeof config === "string") {
       try {
         resolvedConfig = loadConfig(config);
-      } catch (err2) {
-        result.errors.push(`Failed to load config: ${err2 instanceof Error ? err2.message : String(err2)}`);
+      } catch (err3) {
+        result.errors.push(`Failed to load config: ${err3 instanceof Error ? err3.message : String(err3)}`);
       }
     } else {
       resolvedConfig = config;
@@ -7343,11 +8817,16 @@ var init_index = __esm({
     init_version();
     init_parsing();
     init_result();
+    init_paths();
     init_validate();
     init_verify();
     init_heal();
     init_install();
     init_upgrade();
+    init_shared();
+    init_scot();
+    init_refinement();
+    init_uncertainty();
     init_parseJourney();
     init_normalize();
     init_generateTest();
@@ -7360,120 +8839,1332 @@ var init_index = __esm({
     VERSION = "1.0.0";
   }
 });
-
-// src/cli/install.ts
-var install_exports = {};
-__export(install_exports, {
-  runInstall: () => runInstall
+function createEmptyState() {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  return {
+    version: "1.0",
+    stage: "initial",
+    lastCommand: "init",
+    lastCommandAt: now,
+    journeyIds: [],
+    testPaths: [],
+    refinementAttempts: 0,
+    isBlocked: false,
+    history: [],
+    createdAt: now,
+    updatedAt: now
+  };
+}
+function backupCorruptedFile(statePath) {
+  const backupPath = `${statePath}.corrupted.${Date.now()}`;
+  try {
+    renameSync(statePath, backupPath);
+    return backupPath;
+  } catch {
+    return void 0;
+  }
+}
+function loadPipelineState(baseDir) {
+  const statePath = getAutogenArtifact("state", baseDir);
+  if (!existsSync(statePath)) {
+    return createEmptyState();
+  }
+  let content;
+  let parsed;
+  try {
+    content = readFileSync(statePath, "utf-8");
+  } catch (error) {
+    console.warn(`Warning: Cannot read pipeline state file: ${statePath}`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : "Unknown"}`);
+    return createEmptyState();
+  }
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    console.warn(`Warning: Pipeline state file contains invalid JSON, creating backup and resetting.`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : "Unknown"}`);
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+    return createEmptyState();
+  }
+  const validation = PipelineStateSchema.safeParse(parsed);
+  if (!validation.success) {
+    console.warn(`Warning: Pipeline state file has invalid structure, creating backup and resetting.`);
+    const errors = validation.error.errors.slice(0, 3);
+    for (const err3 of errors) {
+      console.warn(`  - ${err3.path.join(".")}: ${err3.message}`);
+    }
+    if (validation.error.errors.length > 3) {
+      console.warn(`  ... and ${validation.error.errors.length - 3} more errors`);
+    }
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+    return createEmptyState();
+  }
+  const state = validation.data;
+  const knownFields = /* @__PURE__ */ new Set([
+    "version",
+    "stage",
+    "lastCommand",
+    "lastCommandAt",
+    "journeyIds",
+    "testPaths",
+    "refinementAttempts",
+    "isBlocked",
+    "blockedReason",
+    "history",
+    "createdAt",
+    "updatedAt"
+  ]);
+  const unknownFields = Object.keys(parsed).filter((k) => !knownFields.has(k));
+  if (unknownFields.length > 0) {
+    console.warn(`Warning: Pipeline state has unknown fields (may be from newer version): ${unknownFields.join(", ")}`);
+  }
+  if (!VALID_STAGES.includes(state.stage)) {
+    console.warn(`Warning: Invalid pipeline stage "${state.stage}", resetting to "initial"`);
+    state.stage = "initial";
+  }
+  return state;
+}
+async function savePipelineState(state, baseDir) {
+  await ensureAutogenDir(baseDir);
+  const statePath = getAutogenArtifact("state", baseDir);
+  state.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  const content = JSON.stringify(state, null, 2);
+  const tempPath = join(dirname(statePath), `.state-${process.pid}-${Date.now()}.tmp`);
+  try {
+    writeFileSync(tempPath, content, "utf-8");
+    renameSync(tempPath, statePath);
+  } catch (err3) {
+    try {
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+    } catch {
+    }
+    throw err3;
+  }
+}
+async function updatePipelineState(command, stage, success, details, baseDir) {
+  const state = loadPipelineState(baseDir);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  state.stage = stage;
+  state.lastCommand = command;
+  state.lastCommandAt = now;
+  state.history.push({
+    command,
+    stage,
+    timestamp: now,
+    success,
+    details
+  });
+  const HISTORY_MAX_ENTRIES = 100;
+  if (state.history.length > HISTORY_MAX_ENTRIES) {
+    state.history = state.history.slice(-HISTORY_MAX_ENTRIES);
+  }
+  if (details?.journeyIds) {
+    state.journeyIds = details.journeyIds;
+  }
+  if (details?.testPaths) {
+    state.testPaths = details.testPaths;
+  }
+  if (details?.refinementAttempts !== void 0) {
+    state.refinementAttempts = details.refinementAttempts;
+  }
+  if (details?.isBlocked !== void 0) {
+    state.isBlocked = details.isBlocked;
+    state.blockedReason = details.blockedReason;
+  }
+  await savePipelineState(state, baseDir);
+  return state;
+}
+async function resetPipelineState(baseDir) {
+  await savePipelineState(createEmptyState(), baseDir);
+}
+function canProceedTo(currentState, targetStage) {
+  const validTransitions = {
+    initial: ["analyzed"],
+    analyzed: ["planned", "initial"],
+    // Can go back via clean
+    planned: ["generated", "analyzed", "initial"],
+    generated: ["tested", "planned", "initial"],
+    tested: ["refining", "completed", "generated", "initial"],
+    refining: ["tested", "completed", "blocked", "initial"],
+    completed: ["initial", "analyzed"],
+    // Can restart
+    blocked: ["initial", "analyzed"]
+    // Can only restart or re-analyze
+  };
+  const allowed = validTransitions[currentState.stage]?.includes(targetStage) ?? false;
+  if (!allowed) {
+    return {
+      allowed: false,
+      reason: `Cannot transition from '${currentState.stage}' to '${targetStage}'. Valid transitions: ${validTransitions[currentState.stage]?.join(", ") || "none"}`
+    };
+  }
+  if (currentState.isBlocked && !["initial", "analyzed"].includes(targetStage)) {
+    return {
+      allowed: false,
+      reason: `Pipeline is blocked: ${currentState.blockedReason}. Clean or re-analyze to continue.`
+    };
+  }
+  return { allowed: true };
+}
+function getPipelineStateSummary(state) {
+  const lines = [
+    `Stage: ${state.stage}`,
+    `Last command: ${state.lastCommand} at ${state.lastCommandAt}`
+  ];
+  if (state.journeyIds.length > 0) {
+    lines.push(`Journeys: ${state.journeyIds.length}`);
+  }
+  if (state.testPaths.length > 0) {
+    lines.push(`Tests: ${state.testPaths.length}`);
+  }
+  if (state.refinementAttempts > 0) {
+    lines.push(`Refinement attempts: ${state.refinementAttempts}`);
+  }
+  if (state.isBlocked) {
+    lines.push(`BLOCKED: ${state.blockedReason}`);
+  }
+  return lines.join("\n");
+}
+var VALID_STAGES, PipelineHistoryEntrySchema, PipelineStateSchema;
+var init_state = __esm({
+  "src/pipeline/state.ts"() {
+    init_paths();
+    VALID_STAGES = [
+      "initial",
+      "analyzed",
+      "planned",
+      "generated",
+      "tested",
+      "refining",
+      "completed",
+      "blocked"
+    ];
+    PipelineHistoryEntrySchema = z.object({
+      command: z.string(),
+      stage: z.enum(["initial", "analyzed", "planned", "generated", "tested", "refining", "completed", "blocked"]),
+      timestamp: z.string(),
+      success: z.boolean(),
+      details: z.record(z.unknown()).optional()
+    });
+    PipelineStateSchema = z.object({
+      version: z.literal("1.0"),
+      stage: z.enum(["initial", "analyzed", "planned", "generated", "tested", "refining", "completed", "blocked"]),
+      lastCommand: z.string(),
+      lastCommandAt: z.string(),
+      journeyIds: z.array(z.string()),
+      testPaths: z.array(z.string()),
+      refinementAttempts: z.number(),
+      isBlocked: z.boolean(),
+      blockedReason: z.string().optional(),
+      history: z.array(PipelineHistoryEntrySchema),
+      createdAt: z.string(),
+      updatedAt: z.string()
+    }).passthrough();
+  }
 });
-async function runInstall(args) {
-  const { values } = parseArgs({
+
+// src/cli/analyze.ts
+var analyze_exports = {};
+__export(analyze_exports, {
+  runAnalyze: () => runAnalyze
+});
+function classifyStep(stepText) {
+  for (const [type, patterns] of Object.entries(STEP_PATTERNS)) {
+    if (patterns.some((p) => p.test(stepText))) {
+      return type;
+    }
+  }
+  return "unknown";
+}
+function extractKeywords(stepText) {
+  const uiKeywords = [
+    "button",
+    "link",
+    "input",
+    "field",
+    "form",
+    "modal",
+    "dialog",
+    "dropdown",
+    "menu",
+    "tab",
+    "panel",
+    "table",
+    "row",
+    "cell",
+    "checkbox",
+    "radio",
+    "toggle",
+    "switch",
+    "slider",
+    "spinner",
+    "toast",
+    "alert",
+    "notification",
+    "message",
+    "error",
+    "success",
+    "header",
+    "footer",
+    "sidebar",
+    "nav",
+    "navigation",
+    "search",
+    "filter",
+    "sort",
+    "pagination",
+    "page",
+    "screen",
+    "view"
+  ];
+  const words = stepText.toLowerCase().split(/\s+/);
+  return words.filter((w) => uiKeywords.includes(w) || w.length > 3);
+}
+function hasSelector(stepText) {
+  return /["'].*["']/.test(stepText) || /data-testid/i.test(stepText) || /\[.*\]/.test(stepText) || /#\w+/.test(stepText) || /\.\w+/.test(stepText);
+}
+function hasAssertion(stepText) {
+  return STEP_PATTERNS.assertion.some((p) => p.test(stepText));
+}
+function estimateComplexity(stepText, type) {
+  const text = stepText.toLowerCase();
+  if (text.includes("table") || text.includes("grid") || text.includes("ag-grid")) {
+    return "high";
+  }
+  if (text.includes("drag") || text.includes("drop")) {
+    return "high";
+  }
+  if (text.includes("upload") || text.includes("file")) {
+    return "high";
+  }
+  if (text.includes("iframe") || text.includes("frame")) {
+    return "high";
+  }
+  if (type === "form" || type === "wait") {
+    return "medium";
+  }
+  if (text.includes("modal") || text.includes("dialog")) {
+    return "medium";
+  }
+  return "low";
+}
+function analyzeStep(stepText, index) {
+  const type = classifyStep(stepText);
+  return {
+    index,
+    text: stepText,
+    type,
+    hasSelector: hasSelector(stepText),
+    hasAssertion: hasAssertion(stepText),
+    estimatedComplexity: estimateComplexity(stepText, type),
+    keywords: extractKeywords(stepText)
+  };
+}
+function parseJourneyFile(filePath) {
+  const content = readFileSync(filePath, "utf-8");
+  const warnings = [];
+  let frontmatter = {};
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (fmMatch && fmMatch[1]) {
+    try {
+      frontmatter = yaml.parse(fmMatch[1]) || {};
+    } catch (e) {
+      warnings.push(`Failed to parse frontmatter: ${e}`);
+    }
+  }
+  const acceptanceCriteria = [];
+  const acMatch = content.match(/##\s*Acceptance Criteria\s*\n([\s\S]*?)(?=\n##|\n---|$)/i);
+  if (acMatch && acMatch[1]) {
+    const lines = acMatch[1].split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || /^\d+\./.test(trimmed)) {
+        acceptanceCriteria.push(trimmed.replace(/^[-*\d.]+\s*/, ""));
+      }
+    }
+  }
+  const steps = [];
+  const stepsMatch = content.match(/##\s*(?:Steps|Procedure|Test Steps)\s*\n([\s\S]*?)(?=\n##|\n---|$)/i);
+  if (stepsMatch && stepsMatch[1]) {
+    const lines = stepsMatch[1].split("\n");
+    let stepIndex = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || /^\d+\./.test(trimmed)) {
+        const stepText = trimmed.replace(/^[-*\d.]+\s*/, "");
+        if (stepText) {
+          steps.push(analyzeStep(stepText, stepIndex++));
+        }
+      }
+    }
+  }
+  const stepCount = steps.length;
+  const assertionCount = steps.filter((s) => s.hasAssertion).length;
+  const interactionCount = steps.filter((s) => s.type === "interaction").length;
+  const formSteps = steps.filter((s) => s.type === "form").length;
+  const navigationSteps = steps.filter((s) => s.type === "navigation").length;
+  let overall = "simple";
+  if (stepCount > 15 || steps.some((s) => s.estimatedComplexity === "high")) {
+    overall = "complex";
+  } else if (stepCount > 8 || formSteps > 3) {
+    overall = "moderate";
+  }
+  const estimatedLOC = 20 + stepCount * 5 + assertionCount * 3 + formSteps * 8;
+  const journeyId = frontmatter.id || basename(filePath, ".md");
+  return {
+    journeyId,
+    journeyPath: filePath,
+    title: frontmatter.title || journeyId,
+    tier: frontmatter.tier || "regression",
+    status: frontmatter.status || "proposed",
+    actor: frontmatter.actor || "user",
+    scope: frontmatter.scope || [],
+    acceptanceCriteria,
+    steps,
+    dependencies: frontmatter.dependencies || [],
+    complexity: {
+      overall,
+      stepCount,
+      assertionCount,
+      interactionCount,
+      formSteps,
+      navigationSteps,
+      estimatedLOC
+    },
+    warnings,
+    analyzedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+async function runAnalyze(args) {
+  const { values, positionals } = parseArgs({
     args,
     options: {
-      dir: { type: "string", short: "d", default: "." },
-      name: { type: "string", short: "n" },
-      "base-url": { type: "string" },
-      "skip-existing": { type: "boolean", default: false },
-      "no-example": { type: "boolean", default: false },
-      force: { type: "boolean", short: "f", default: false }
+      output: { type: "string", short: "o" },
+      json: { type: "boolean", default: false },
+      quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
+      help: { type: "boolean", short: "h", default: false }
     },
     allowPositionals: true
   });
-  console.log("Installing ARTK autogen...\n");
-  const result = await installAutogenInstance({
-    rootDir: values.dir,
-    projectName: values.name,
-    baseUrl: values["base-url"],
-    skipIfExists: values["skip-existing"],
-    includeExample: !values["no-example"],
-    force: values.force
+  if (values.help) {
+    console.log(USAGE);
+    return;
+  }
+  if (positionals.length === 0) {
+    console.error("Error: No journey files specified");
+    console.log(USAGE);
+    process.exit(1);
+  }
+  const quiet = values.quiet;
+  const outputJson = values.json;
+  const force = values.force;
+  if (!force) {
+    const currentState = await loadPipelineState();
+    const transition = canProceedTo(currentState, "analyzed");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart("analyze");
+  const harnessRoot = getHarnessRoot();
+  const journeyFiles = await fg2(positionals, {
+    absolute: true,
+    cwd: harnessRoot
   });
-  if (result.success) {
-    console.log("\u2713 Installation complete\n");
-    if (result.created.length > 0) {
-      console.log("Created:");
-      for (const path of result.created) {
-        console.log(`  + ${path}`);
+  if (journeyFiles.length === 0) {
+    console.error("Error: No journey files found matching the patterns");
+    process.exit(1);
+  }
+  const validatedFiles = [];
+  for (const file of journeyFiles) {
+    try {
+      const validated = validatePath(file, harnessRoot);
+      validatedFiles.push(validated);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        console.error(`Warning: Skipping file outside harness root: ${file}`);
+        continue;
       }
+      throw error;
     }
-    if (result.skipped.length > 0) {
-      console.log("\nSkipped (already exists):");
-      for (const path of result.skipped) {
-        console.log(`  - ${path}`);
-      }
+  }
+  if (validatedFiles.length === 0) {
+    console.error("Error: No valid journey files within harness root");
+    process.exit(1);
+  }
+  if (!quiet && !outputJson) {
+    console.log(`Analyzing ${validatedFiles.length} journey file(s)...`);
+  }
+  const journeys = [];
+  const allKeywords = [];
+  for (const file of validatedFiles) {
+    if (!existsSync(file)) {
+      console.error(`Warning: File not found: ${file}`);
+      continue;
     }
-    console.log("\nNext steps:");
-    console.log("  1. Edit autogen.config.yml with your project settings");
-    console.log("  2. Create Journeys in journeys/ directory");
-    console.log("  3. Run: npx artk-autogen generate <journey.md>");
+    const analysis = parseJourneyFile(file);
+    journeys.push(analysis);
+    for (const step of analysis.steps) {
+      allKeywords.push(...step.keywords);
+    }
+  }
+  const complexityDistribution = {
+    simple: 0,
+    moderate: 0,
+    complex: 0
+  };
+  for (const j of journeys) {
+    const level = j.complexity.overall;
+    if (complexityDistribution[level] !== void 0) {
+      complexityDistribution[level]++;
+    }
+  }
+  const keywordCounts = /* @__PURE__ */ new Map();
+  for (const kw of allKeywords) {
+    keywordCounts.set(kw, (keywordCounts.get(kw) || 0) + 1);
+  }
+  const commonKeywords = [...keywordCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([kw]) => kw);
+  const output = {
+    version: "1.0",
+    harnessRoot,
+    journeys,
+    summary: {
+      totalJourneys: journeys.length,
+      totalSteps: journeys.reduce((sum, j) => sum + j.steps.length, 0),
+      complexityDistribution,
+      commonKeywords
+    },
+    analyzedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  if (outputJson) {
+    console.log(JSON.stringify(output, null, 2));
   } else {
-    console.error("\u2717 Installation failed:\n");
-    for (const error of result.errors) {
-      console.error(`  ${error}`);
+    const outputPath = values.output || getAutogenArtifact("analysis");
+    await ensureAutogenDir();
+    writeFileSync(outputPath, JSON.stringify(output, null, 2), "utf-8");
+    if (!quiet) {
+      console.log(`
+Analysis complete:`);
+      console.log(`  Journeys: ${output.summary.totalJourneys}`);
+      console.log(`  Steps: ${output.summary.totalSteps}`);
+      console.log(`  Complexity: ${JSON.stringify(complexityDistribution)}`);
+      console.log(`
+Output: ${outputPath}`);
     }
-    process.exit(1);
   }
+  await updatePipelineState("analyze", "analyzed", true, {
+    journeyIds: journeys.map((j) => j.journeyId)
+  });
+  telemetry.trackCommandEnd(eventId, true, {
+    journeyCount: journeys.length,
+    stepCount: output.summary.totalSteps
+  });
+  await telemetry.save();
 }
-var init_install2 = __esm({
-  "src/cli/install.ts"() {
-    init_install();
+var USAGE, STEP_PATTERNS;
+var init_analyze = __esm({
+  "src/cli/analyze.ts"() {
+    init_paths();
+    init_state();
+    init_telemetry();
+    USAGE = `
+Usage: artk-autogen analyze [options] <journey-files...>
+
+Analyze journey files and output structured analysis for the orchestrating LLM.
+
+Arguments:
+  journey-files    Journey file paths or glob patterns
+
+Options:
+  -o, --output <path>    Output path for analysis.json (default: .artk/autogen/analysis.json)
+  --json                 Output JSON to stdout instead of file
+  -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
+  -h, --help             Show this help message
+
+Examples:
+  artk-autogen analyze journeys/login.md
+  artk-autogen analyze "journeys/*.md"
+  artk-autogen analyze journeys/*.md --json
+  artk-autogen analyze journeys/*.md -o custom/analysis.json
+`;
+    STEP_PATTERNS = {
+      navigation: [
+        /navigate/i,
+        /go to/i,
+        /open/i,
+        /visit/i,
+        /load/i,
+        /url/i
+      ],
+      interaction: [
+        /click/i,
+        /tap/i,
+        /press/i,
+        /select/i,
+        /choose/i,
+        /toggle/i,
+        /expand/i,
+        /collapse/i,
+        /hover/i,
+        /drag/i,
+        /drop/i
+      ],
+      assertion: [
+        /see/i,
+        /verify/i,
+        /should/i,
+        /expect/i,
+        /confirm/i,
+        /check/i,
+        /visible/i,
+        /displayed/i,
+        /appears/i,
+        /shows/i,
+        /contains/i
+      ],
+      wait: [
+        /wait/i,
+        /until/i,
+        /loading/i,
+        /spinner/i,
+        /timeout/i
+      ],
+      form: [
+        /enter/i,
+        /type/i,
+        /fill/i,
+        /input/i,
+        /submit/i,
+        /form/i,
+        /field/i,
+        /text/i,
+        /password/i,
+        /email/i,
+        /upload/i
+      ]
+    };
   }
 });
 
-// src/cli/upgrade.ts
-var upgrade_exports = {};
-__export(upgrade_exports, {
-  runUpgrade: () => runUpgrade
+// src/mapping/unifiedMatcher.ts
+function unifiedMatch(text, options = {}) {
+  const {
+    useLlkb = true,
+    llkbRoot,
+    minLlkbConfidence = 0.7,
+    debug = false
+  } = options;
+  const trimmedText = text.trim();
+  for (const pattern of allPatterns) {
+    const match = trimmedText.match(pattern.regex);
+    if (match) {
+      const primitive = pattern.extract(match);
+      if (primitive) {
+        if (debug) {
+          console.debug(`[UnifiedMatcher] Core match: ${pattern.name} for "${trimmedText}"`);
+        }
+        return {
+          primitive,
+          source: "core",
+          patternName: pattern.name
+        };
+      }
+    }
+  }
+  if (useLlkb) {
+    try {
+      const llkbMatch = matchLlkbPattern(trimmedText, {
+        llkbRoot,
+        minConfidence: minLlkbConfidence
+      });
+      if (llkbMatch) {
+        if (debug) {
+          console.debug(
+            `[UnifiedMatcher] LLKB match: ${llkbMatch.patternId} (confidence: ${llkbMatch.confidence}) for "${trimmedText}"`
+          );
+        }
+        return {
+          primitive: llkbMatch.primitive,
+          source: "llkb",
+          llkbPatternId: llkbMatch.patternId,
+          llkbConfidence: llkbMatch.confidence
+        };
+      }
+    } catch (err3) {
+      if (debug) {
+        console.debug(`[UnifiedMatcher] LLKB lookup failed: ${err3}`);
+      }
+    }
+  }
+  if (debug) {
+    console.debug(`[UnifiedMatcher] No match for: "${trimmedText}"`);
+  }
+  return {
+    primitive: null,
+    source: "none"
+  };
+}
+var init_unifiedMatcher = __esm({
+  "src/mapping/unifiedMatcher.ts"() {
+    init_patterns();
+    init_patternExtension();
+  }
 });
-async function runUpgrade(args) {
+
+// src/mapping/plannedActionAdapter.ts
+function irPrimitiveToPlannedAction(primitive) {
+  switch (primitive.type) {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NAVIGATION
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "goto":
+      return { type: "navigate", target: primitive.url };
+    case "reload":
+      return { type: "reload" };
+    case "goBack":
+      return { type: "goBack" };
+    case "goForward":
+      return { type: "goForward" };
+    case "waitForURL":
+      return {
+        type: "waitForURL",
+        target: typeof primitive.pattern === "string" ? primitive.pattern : primitive.pattern.source
+      };
+    case "waitForResponse":
+      return { type: "waitForNetwork", target: primitive.urlPattern };
+    case "waitForLoadingComplete":
+      return { type: "wait", options: { timeout: primitive.timeout ?? 5e3 } };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // WAIT PRIMITIVES
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "waitForVisible":
+      return { type: "waitForVisible", target: locatorToTarget(primitive.locator) };
+    case "waitForHidden":
+      return { type: "waitForHidden", target: locatorToTarget(primitive.locator) };
+    case "waitForTimeout":
+      return { type: "wait", options: { timeout: primitive.ms } };
+    case "waitForNetworkIdle":
+      return { type: "waitForNetwork" };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CLICK INTERACTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "click":
+      return { type: "click", target: locatorToTarget(primitive.locator) };
+    case "dblclick":
+      return { type: "dblclick", target: locatorToTarget(primitive.locator) };
+    case "rightClick":
+      return { type: "rightClick", target: locatorToTarget(primitive.locator) };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FORM INTERACTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "fill":
+      return {
+        type: "fill",
+        target: locatorToTarget(primitive.locator),
+        value: valueToString(primitive.value)
+      };
+    case "select":
+      return {
+        type: "select",
+        target: locatorToTarget(primitive.locator),
+        value: primitive.option
+      };
+    case "check":
+      return { type: "check", target: locatorToTarget(primitive.locator) };
+    case "uncheck":
+      return { type: "uncheck", target: locatorToTarget(primitive.locator) };
+    case "clear":
+      return { type: "clear", target: locatorToTarget(primitive.locator) };
+    case "upload":
+      return {
+        type: "upload",
+        target: locatorToTarget(primitive.locator),
+        files: primitive.files
+      };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OTHER INTERACTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "press":
+      return { type: "press", key: primitive.key };
+    case "hover":
+      return { type: "hover", target: locatorToTarget(primitive.locator) };
+    case "focus":
+      return { type: "focus", target: locatorToTarget(primitive.locator) };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ASSERTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "expectVisible":
+      return { type: "assert", target: locatorToTarget(primitive.locator) };
+    case "expectNotVisible":
+    case "expectHidden":
+      return { type: "assertHidden", target: locatorToTarget(primitive.locator) };
+    case "expectText":
+      return {
+        type: "assertText",
+        target: locatorToTarget(primitive.locator),
+        value: typeof primitive.text === "string" ? primitive.text : primitive.text.source
+      };
+    case "expectContainsText":
+      return {
+        type: "assertText",
+        target: locatorToTarget(primitive.locator),
+        value: primitive.text
+      };
+    case "expectValue":
+      return {
+        type: "assertValue",
+        target: locatorToTarget(primitive.locator),
+        value: primitive.value
+      };
+    case "expectChecked":
+      return { type: "assertChecked", target: locatorToTarget(primitive.locator) };
+    case "expectEnabled":
+      return { type: "assertEnabled", target: locatorToTarget(primitive.locator) };
+    case "expectDisabled":
+      return { type: "assertDisabled", target: locatorToTarget(primitive.locator) };
+    case "expectURL":
+      return {
+        type: "assertURL",
+        target: typeof primitive.pattern === "string" ? primitive.pattern : primitive.pattern.source
+      };
+    case "expectTitle":
+      return {
+        type: "assertTitle",
+        target: typeof primitive.title === "string" ? primitive.title : primitive.title.source
+      };
+    case "expectCount":
+      return {
+        type: "assertCount",
+        target: locatorToTarget(primitive.locator),
+        count: primitive.count
+      };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SIGNALS (TOASTS, MODALS, ALERTS)
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "expectToast":
+      return {
+        type: "assertToast",
+        toastType: primitive.toastType,
+        value: primitive.message
+      };
+    case "dismissModal":
+      return { type: "dismissModal" };
+    case "acceptAlert":
+      return { type: "acceptAlert" };
+    case "dismissAlert":
+      return { type: "dismissAlert" };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MODULE CALLS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "callModule":
+      return {
+        type: "callModule",
+        module: primitive.module,
+        method: primitive.method
+      };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BLOCKED/TODO
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "blocked":
+      return { type: "custom", target: primitive.sourceText };
+    default:
+      const _exhaustive = primitive;
+      return { type: "custom", target: String(_exhaustive.type) };
+  }
+}
+function locatorToTarget(locator) {
+  switch (locator.strategy) {
+    case "role":
+      if (locator.options?.name) {
+        return `${locator.value}:${locator.options.name}`;
+      }
+      return locator.value;
+    case "placeholder":
+      return `placeholder:${locator.value}`;
+    case "label":
+    case "text":
+    case "testid":
+      return locator.value;
+    case "css":
+      return locator.value;
+    default:
+      return locator.value;
+  }
+}
+function valueToString(value) {
+  switch (value.type) {
+    case "literal":
+      return value.value;
+    case "actor":
+      return `{{${value.value}}}`;
+    case "testData":
+      return `$${value.value}`;
+    case "generated":
+      return value.value;
+    case "runId":
+      return "${runId}";
+    default:
+      return value.value || "";
+  }
+}
+function plannedActionToIRPrimitive(action) {
+  switch (action.type) {
+    case "navigate":
+      return { type: "goto", url: action.target || "/" };
+    case "reload":
+      return { type: "reload" };
+    case "goBack":
+      return { type: "goBack" };
+    case "goForward":
+      return { type: "goForward" };
+    case "click":
+      return { type: "click", locator: targetToLocator(action.target || "") };
+    case "dblclick":
+      return { type: "dblclick", locator: targetToLocator(action.target || "") };
+    case "rightClick":
+      return { type: "rightClick", locator: targetToLocator(action.target || "") };
+    case "fill":
+      return {
+        type: "fill",
+        locator: targetToLocator(action.target || ""),
+        value: stringToValue(action.value || "")
+      };
+    case "select":
+      return {
+        type: "select",
+        locator: targetToLocator(action.target || ""),
+        option: action.value || ""
+      };
+    case "check":
+      return { type: "check", locator: targetToLocator(action.target || "") };
+    case "uncheck":
+      return { type: "uncheck", locator: targetToLocator(action.target || "") };
+    case "press":
+      return { type: "press", key: action.key || "Enter" };
+    case "hover":
+      return { type: "hover", locator: targetToLocator(action.target || "") };
+    case "focus":
+      return { type: "focus", locator: targetToLocator(action.target || "") };
+    case "clear":
+      return { type: "clear", locator: targetToLocator(action.target || "") };
+    case "assert":
+      return { type: "expectVisible", locator: targetToLocator(action.target || "") };
+    case "assertHidden":
+      return { type: "expectHidden", locator: targetToLocator(action.target || "") };
+    case "assertText":
+      return {
+        type: "expectText",
+        locator: targetToLocator(action.target || ""),
+        text: action.value || ""
+      };
+    case "assertURL":
+      return { type: "expectURL", pattern: action.target || "/" };
+    case "assertTitle":
+      return { type: "expectTitle", title: action.target || "" };
+    case "assertToast":
+      return {
+        type: "expectToast",
+        toastType: action.toastType || "info",
+        message: action.value
+      };
+    case "waitForVisible":
+      return { type: "waitForVisible", locator: targetToLocator(action.target || "") };
+    case "waitForHidden":
+      return { type: "waitForHidden", locator: targetToLocator(action.target || "") };
+    case "waitForNetwork":
+      return { type: "waitForNetworkIdle" };
+    case "wait":
+      return { type: "waitForTimeout", ms: action.options?.timeout || 5e3 };
+    case "dismissModal":
+      return { type: "dismissModal" };
+    case "acceptAlert":
+      return { type: "acceptAlert" };
+    case "dismissAlert":
+      return { type: "dismissAlert" };
+    case "callModule":
+      return {
+        type: "callModule",
+        module: action.module || "unknown",
+        method: action.method || "unknown"
+      };
+    case "custom":
+      return { type: "blocked", reason: "custom action", sourceText: action.target || "" };
+    default:
+      return null;
+  }
+}
+function targetToLocator(target) {
+  const roleMatch = target.match(/^(\w+):(.+)$/);
+  if (roleMatch) {
+    return {
+      strategy: "role",
+      value: roleMatch[1],
+      options: { name: roleMatch[2] }
+    };
+  }
+  return { strategy: "text", value: target };
+}
+function stringToValue(str) {
+  if (/^\{\{.+\}\}$/.test(str)) {
+    return { type: "actor", value: str.slice(2, -2) };
+  }
+  if (/^\$.+/.test(str)) {
+    return { type: "testData", value: str.slice(1) };
+  }
+  if (/\$\{.+\}/.test(str)) {
+    return { type: "generated", value: str };
+  }
+  return { type: "literal", value: str };
+}
+var init_plannedActionAdapter = __esm({
+  "src/mapping/plannedActionAdapter.ts"() {
+  }
+});
+
+// src/cli/plan.ts
+var plan_exports = {};
+__export(plan_exports, {
+  runPlan: () => runPlan
+});
+function convertStepToAction(step, options) {
+  const result = unifiedMatch(step.text, {
+    useLlkb: true,
+    llkbRoot: options?.llkbRoot
+  });
+  if (result.primitive) {
+    return irPrimitiveToPlannedAction(result.primitive);
+  }
+  return { type: "custom", target: step.text };
+}
+function inferSelectors(step) {
+  const selectors = [];
+  const text = step.text.toLowerCase();
+  const testIdMatch = text.match(/data-testid\s*[=:]\s*["']?([^"'\s]+)/i);
+  if (testIdMatch && testIdMatch[1]) {
+    selectors.push({
+      strategy: "testId",
+      value: testIdMatch[1],
+      confidence: 0.95
+    });
+  }
+  const buttonMatch = text.match(/(?:click|press)\s+(?:the\s+)?["']?(\w+)["']?\s*button/i);
+  if (buttonMatch && buttonMatch[1]) {
+    selectors.push({
+      strategy: "role",
+      value: `button[name="${buttonMatch[1]}"]`,
+      confidence: 0.7
+    });
+  }
+  const linkMatch = text.match(/(?:click|press)\s+(?:the\s+)?["']?([^"']+)["']?\s*link/i);
+  if (linkMatch && linkMatch[1]) {
+    selectors.push({
+      strategy: "role",
+      value: `link[name="${linkMatch[1]}"]`,
+      confidence: 0.7
+    });
+  }
+  const textMatch = text.match(/(?:with|containing|text)\s+["']([^"']+)["']/i);
+  if (textMatch && textMatch[1]) {
+    selectors.push({
+      strategy: "text",
+      value: textMatch[1],
+      confidence: 0.6
+    });
+  }
+  return selectors;
+}
+function inferAssertions(step) {
+  const assertions = [];
+  const text = step.text.toLowerCase();
+  if (text.includes("visible") || text.includes("see") || text.includes("displayed")) {
+    assertions.push({ type: "visible" });
+  }
+  if (text.includes("text") || text.includes("message") || text.includes("shows")) {
+    const textMatch = text.match(/["']([^"']+)["']/);
+    assertions.push({
+      type: "text",
+      expected: textMatch?.[1]
+    });
+  }
+  if (text.includes("url") || text.includes("navigate")) {
+    const urlMatch = text.match(/url\s+(?:is|contains)?\s*["']?([^"'\s]+)/i);
+    assertions.push({
+      type: "url",
+      expected: urlMatch?.[1]
+    });
+  }
+  return assertions;
+}
+function createPlanFromJourney(journey, strategy) {
+  const steps = journey.steps.map((step, idx) => ({
+    index: idx,
+    description: step.text,
+    action: convertStepToAction(step),
+    selectors: inferSelectors(step),
+    assertions: step.hasAssertion ? inferAssertions(step) : void 0,
+    waitCondition: step.type === "wait" ? "networkidle" : void 0
+  }));
+  const modules = [];
+  if (journey.scope.includes("auth") || journey.steps.some((s) => s.text.toLowerCase().includes("login"))) {
+    modules.push({
+      name: "auth",
+      type: "flow",
+      methods: ["login", "logout"]
+    });
+  }
+  const hasNavigation = journey.steps.some((s) => s.type === "navigation");
+  if (hasNavigation) {
+    modules.push({
+      name: "navigation",
+      type: "flow",
+      methods: ["navigateTo"]
+    });
+  }
+  const hasForms = journey.steps.some((s) => s.type === "form");
+  if (hasForms) {
+    modules.push({
+      name: "forms",
+      type: "component",
+      methods: ["fillForm", "submitForm"]
+    });
+  }
+  const imports = ["test", "expect"];
+  const fixtures = [];
+  if (modules.some((m) => m.name === "auth")) {
+    fixtures.push("authenticatedPage");
+  }
+  const config = { ...DEFAULT_CONFIG2 };
+  if (journey.complexity.overall === "complex") {
+    config.timeout = 6e4;
+    config.retries = 3;
+    config.trace = "on";
+  }
+  const plan = {
+    version: "1.0",
+    journeyId: journey.journeyId,
+    journeyPath: journey.journeyPath,
+    strategy,
+    steps,
+    modules,
+    imports,
+    fixtures,
+    configuration: config,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    createdBy: "cli"
+  };
+  if (strategy === "multi-sample") {
+    const prompt = createMultiSamplePrompt(journey, steps);
+    plan.multiSampleRequest = createOrchestratorSampleRequest(
+      prompt,
+      journey.journeyId,
+      DEFAULT_MULTI_SAMPLER_CONFIG
+    );
+  }
+  return plan;
+}
+function createMultiSamplePrompt(journey, steps) {
+  const stepDescriptions = steps.map(
+    (s, i) => `${i + 1}. ${s.description} (${s.action.type})`
+  ).join("\n");
+  return `Generate a Playwright test for the following journey:
+
+Journey ID: ${journey.journeyId}
+Title: ${journey.title}
+Tier: ${journey.tier}
+Complexity: ${journey.complexity.overall}
+
+Steps:
+${stepDescriptions}
+
+Acceptance Criteria:
+${journey.acceptanceCriteria.map((ac) => `- ${ac}`).join("\n")}
+
+Requirements:
+- Use Playwright Test syntax with TypeScript
+- Use data-testid selectors where possible
+- Include proper assertions for each acceptance criterion
+- Add appropriate wait conditions for async operations
+- Follow Playwright best practices for reliability`;
+}
+async function runPlan(args) {
   const { values } = parseArgs({
     args,
     options: {
-      dir: { type: "string", short: "d", default: "." },
-      "dry-run": { type: "boolean", default: false },
-      "no-backup": { type: "boolean", default: false }
+      analysis: { type: "string", short: "a" },
+      journey: { type: "string", short: "j" },
+      strategy: { type: "string", short: "s", default: "direct" },
+      output: { type: "string", short: "o" },
+      json: { type: "boolean", default: false },
+      quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
+      help: { type: "boolean", short: "h", default: false }
     },
     allowPositionals: true
   });
-  console.log("Upgrading ARTK autogen...\n");
-  const result = await upgradeAutogenInstance({
-    rootDir: values.dir,
-    dryRun: values["dry-run"],
-    backup: !values["no-backup"]
-  });
-  if (values["dry-run"]) {
-    console.log("[DRY RUN] No changes written\n");
+  if (values.help) {
+    console.log(USAGE2);
+    return;
   }
-  console.log(`Version: ${result.fromVersion} \u2192 ${result.toVersion}
-`);
-  if (result.changes.length > 0) {
-    console.log("Changes:");
-    for (const change of result.changes) {
-      console.log(`  ${change.description}`);
-      console.log(`    \u2192 ${change.path}`);
-    }
-  }
-  if (result.backupPath) {
-    console.log(`
-Backup: ${result.backupPath}`);
-  }
-  if (!result.success) {
-    console.error("\n\u2717 Upgrade failed:");
-    for (const error of result.errors) {
-      console.error(`  ${error}`);
-    }
+  const quiet = values.quiet;
+  const outputJson = values.json;
+  const force = values.force;
+  const strategyInput = values.strategy?.toLowerCase().trim() || "direct";
+  const validStrategies = ["direct", "scot", "multi-sample"];
+  if (!validStrategies.includes(strategyInput)) {
+    console.error(`Error: Invalid strategy "${strategyInput}". Use: ${validStrategies.join(", ")}`);
     process.exit(1);
   }
-  console.log("\n\u2713 Upgrade complete");
+  const strategy = strategyInput;
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart("plan");
+  const pipelineState = await loadPipelineState();
+  if (!force) {
+    const transition = canProceedTo(pipelineState, "planned");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
+  const analysisPath = values.analysis || getAutogenArtifact("analysis");
+  if (!existsSync(analysisPath)) {
+    console.error(`Error: Analysis file not found: ${analysisPath}`);
+    console.error('Run "artk-autogen analyze" first.');
+    process.exit(1);
+  }
+  let analysis;
+  try {
+    analysis = JSON.parse(readFileSync(analysisPath, "utf-8"));
+  } catch (e) {
+    console.error(`Error: Failed to parse analysis file: ${e}`);
+    process.exit(1);
+  }
+  let journeys = analysis.journeys;
+  if (values.journey) {
+    journeys = journeys.filter((j) => j.journeyId === values.journey);
+    if (journeys.length === 0) {
+      console.error(`Error: Journey "${values.journey}" not found in analysis`);
+      process.exit(1);
+    }
+  }
+  if (!quiet && !outputJson) {
+    console.log(`Creating plan for ${journeys.length} journey(s) with strategy: ${strategy}`);
+  }
+  const plans = journeys.map((j) => createPlanFromJourney(j, strategy));
+  const strategyCount = {
+    direct: 0,
+    scot: 0,
+    "multi-sample": 0
+  };
+  for (const p of plans) {
+    strategyCount[p.strategy]++;
+  }
+  const totalSteps = plans.reduce((sum, p) => sum + p.steps.length, 0);
+  const estimatedTestTime = totalSteps * 2;
+  const output = {
+    version: "1.0",
+    plans,
+    summary: {
+      totalPlans: plans.length,
+      totalSteps,
+      strategies: strategyCount,
+      estimatedTestTime
+    },
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  if (outputJson) {
+    console.log(JSON.stringify(output, null, 2));
+  } else {
+    const outputPath = values.output || getAutogenArtifact("plan");
+    await ensureAutogenDir();
+    writeFileSync(outputPath, JSON.stringify(output, null, 2), "utf-8");
+    if (!quiet) {
+      console.log(`
+Plan created:`);
+      console.log(`  Plans: ${output.summary.totalPlans}`);
+      console.log(`  Steps: ${output.summary.totalSteps}`);
+      console.log(`  Strategy: ${strategy}`);
+      console.log(`  Est. time: ${Math.ceil(estimatedTestTime / 60)} min`);
+      const multiSamplePlans = plans.filter((p) => p.multiSampleRequest);
+      if (multiSamplePlans.length > 0) {
+        console.log(`  Multi-sample enabled: ${multiSamplePlans.length} plan(s)`);
+      }
+      console.log(`
+Output: ${outputPath}`);
+    }
+  }
+  await updatePipelineState("plan", "planned", true, {
+    journeyIds: plans.map((p) => p.journeyId)
+  });
+  telemetry.trackCommandEnd(eventId, true, {
+    planCount: plans.length,
+    stepCount: totalSteps,
+    strategy
+  });
+  await telemetry.save();
 }
-var init_upgrade2 = __esm({
-  "src/cli/upgrade.ts"() {
-    init_upgrade();
+var USAGE2, DEFAULT_CONFIG2;
+var init_plan = __esm({
+  "src/cli/plan.ts"() {
+    init_paths();
+    init_state();
+    init_telemetry();
+    init_multi_sampler();
+    init_unifiedMatcher();
+    init_plannedActionAdapter();
+    USAGE2 = `
+Usage: artk-autogen plan [options]
+
+Create test generation plan from analysis or direct input.
+
+Options:
+  -a, --analysis <path>  Path to analysis.json (default: .artk/autogen/analysis.json)
+  -j, --journey <id>     Plan for specific journey ID only
+  -s, --strategy <type>  Generation strategy: direct, scot, multi-sample (default: direct)
+  -o, --output <path>    Output path for plan.json (default: .artk/autogen/plan.json)
+  --json                 Output JSON to stdout instead of file
+  -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
+  -h, --help             Show this help message
+
+Examples:
+  artk-autogen plan
+  artk-autogen plan --analysis custom/analysis.json
+  artk-autogen plan --journey JRN-0001 --strategy scot
+  artk-autogen plan --json
+`;
+    DEFAULT_CONFIG2 = {
+      timeout: 3e4,
+      retries: 2,
+      parallel: false,
+      screenshot: "only-on-failure",
+      video: "retain-on-failure",
+      trace: "retain-on-failure"
+    };
   }
 });
 function getTelemetryPath(baseDir) {
-  const dir = baseDir || process.cwd();
-  return join(dir, DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE);
+  const artkDir = getArtkDir(baseDir);
+  return join(artkDir, TELEMETRY_FILE);
 }
 function ensureTelemetryDir(telemetryPath) {
   const dir = dirname(telemetryPath);
@@ -7631,10 +10322,10 @@ function clearTelemetry(options = {}) {
     unlinkSync(telemetryPath);
   }
 }
-var DEFAULT_TELEMETRY_DIR, TELEMETRY_FILE;
-var init_telemetry = __esm({
+var TELEMETRY_FILE;
+var init_telemetry2 = __esm({
   "src/mapping/telemetry.ts"() {
-    DEFAULT_TELEMETRY_DIR = ".artk";
+    init_paths();
     TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
   }
 });
@@ -7828,6 +10519,375 @@ var generate_exports = {};
 __export(generate_exports, {
   runGenerate: () => runGenerate
 });
+async function runGenerateFromPlan(planPath, journeyFilter, options) {
+  const quiet = options.quiet;
+  const dryRun = options["dry-run"];
+  const outputDir = options.output || "./tests/generated";
+  let planOutput;
+  try {
+    planOutput = JSON.parse(readFileSync(planPath, "utf-8"));
+  } catch (e) {
+    console.error(`Error: Failed to parse plan file: ${e}`);
+    process.exit(1);
+  }
+  let plans = planOutput.plans || [];
+  if (journeyFilter) {
+    plans = plans.filter((p) => p.journeyId === journeyFilter);
+    if (plans.length === 0) {
+      console.error(`Error: No plans found for journey "${journeyFilter}"`);
+      process.exit(1);
+    }
+  }
+  if (!quiet) {
+    console.log(`Generating tests from plan: ${plans.length} journey(s)`);
+  }
+  await loadLlkbResources(options, quiet);
+  const allTests = [];
+  const allModules = [];
+  const allWarnings = [];
+  const allErrors = [];
+  let totalLlkbRecorded = 0;
+  const useLlkb = !options["no-llkb"];
+  for (const plan of plans) {
+    if (!quiet) {
+      console.log(`  Processing: ${plan.journeyId}`);
+    }
+    if (plan.steps && plan.steps.length > 0 && plan.steps.some((s) => s.action)) {
+      const code = generateCodeFromPlan(plan);
+      allTests.push({
+        filename: `${plan.journeyId.toLowerCase()}.spec.ts`,
+        code
+      });
+      if (useLlkb && !dryRun) {
+        const llkbResult = recordLlkbLearning(plan, { quiet });
+        totalLlkbRecorded += llkbResult.recorded;
+      }
+    } else if (plan.journeyPath && existsSync(plan.journeyPath)) {
+      const genOptions = {
+        journeys: [plan.journeyPath],
+        isFilePaths: true,
+        generateModules: options.modules
+      };
+      if (options.config) {
+        genOptions.config = options.config;
+      }
+      const result = await generateJourneyTests(genOptions);
+      allTests.push(...result.tests);
+      allModules.push(...result.modules);
+      allWarnings.push(...result.warnings);
+      allErrors.push(...result.errors);
+    } else {
+      const code = generateCodeFromPlan(plan);
+      allTests.push({
+        filename: `${plan.journeyId.toLowerCase()}.spec.ts`,
+        code
+      });
+    }
+  }
+  if (!dryRun) {
+    if (!existsSync(outputDir)) {
+      mkdirSync(outputDir, { recursive: true });
+    }
+    for (const test of allTests) {
+      const filePath = validateOutputPath(outputDir, test.filename);
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, test.code, "utf-8");
+      if (!quiet) {
+        console.log(`Generated: ${filePath}`);
+      }
+    }
+    for (const mod of allModules) {
+      const filePath = validateOutputPath(outputDir, join("modules", mod.filename));
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, mod.code, "utf-8");
+      if (!quiet) {
+        console.log(`Generated: ${filePath}`);
+      }
+    }
+  } else {
+    if (!quiet) {
+      console.log("\n[Dry run] Would generate:");
+      for (const test of allTests) {
+        console.log(`  - ${join(outputDir, test.filename)}`);
+      }
+      for (const mod of allModules) {
+        console.log(`  - ${join(outputDir, "modules", mod.filename)}`);
+      }
+    }
+  }
+  if (!quiet) {
+    console.log(`
+Summary:`);
+    console.log(`  Tests: ${allTests.length}`);
+    console.log(`  Modules: ${allModules.length}`);
+    console.log(`  Errors: ${allErrors.length}`);
+    console.log(`  Warnings: ${allWarnings.length}`);
+    if (useLlkb && totalLlkbRecorded > 0) {
+      console.log(`  LLKB patterns learned: ${totalLlkbRecorded}`);
+    }
+  }
+  if (allErrors.length > 0) {
+    console.error("\nErrors:");
+    for (const error of allErrors) {
+      console.error(`  - ${error}`);
+    }
+    process.exit(1);
+  }
+}
+function recordLlkbLearning(plan, options = {}) {
+  let recorded = 0;
+  let skipped = 0;
+  for (const step of plan.steps) {
+    if (step.action.type === "custom") {
+      skipped++;
+      continue;
+    }
+    const primitive = plannedActionToIRPrimitive(step.action);
+    if (!primitive) {
+      skipped++;
+      continue;
+    }
+    try {
+      recordPatternSuccess(
+        step.description,
+        primitive,
+        plan.journeyId,
+        { llkbRoot: options.llkbRoot }
+      );
+      recorded++;
+    } catch (err3) {
+      if (!options.quiet) {
+        console.warn(`  Warning: Failed to record LLKB pattern: ${err3}`);
+      }
+      skipped++;
+    }
+  }
+  return { recorded, skipped };
+}
+function generateCodeFromPlan(plan) {
+  const imports = plan.imports.join(", ");
+  const fixtureSet = new Set(plan.fixtures);
+  if (fixtureSet.size > 0 && !fixtureSet.has("page")) {
+    fixtureSet.add("page");
+  }
+  const fixtureList = fixtureSet.size > 0 ? Array.from(fixtureSet) : ["page"];
+  const fixtures = `{ ${fixtureList.join(", ")} }`;
+  const steps = plan.steps.map((step, idx) => {
+    const code = generateActionCode(step.action, step.waitCondition);
+    return `    // Step ${idx + 1}: ${step.description}
+${code}`;
+  }).join("\n\n");
+  return `/**
+ * @journey ${plan.journeyId}
+ * @generated ${plan.createdAt}
+ * @strategy ${plan.strategy}
+ */
+import { ${imports} } from '@playwright/test';
+
+test.describe('${plan.journeyId}', () => {
+  test('should complete journey', async (${fixtures}) => {
+${steps}
+  });
+});
+`;
+}
+function escapeStringForCode(str) {
+  return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/`/g, "\\`").replace(/\$/g, "\\$").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+}
+function validateOutputPath(outputDir, filename) {
+  const { resolve: resolve7, relative: relative4 } = __require("path");
+  const resolvedOutput = resolve7(outputDir);
+  const resolvedFile = resolve7(outputDir, filename);
+  const relativePath = relative4(resolvedOutput, resolvedFile);
+  if (relativePath.startsWith("..") || resolve7(relativePath) === relativePath) {
+    throw new Error(`Security: Path traversal detected in filename "${filename}"`);
+  }
+  return resolvedFile;
+}
+function sanitizeNavigationUrl(url) {
+  const trimmedUrl = url.trim().toLowerCase();
+  for (const scheme of DANGEROUS_URL_SCHEMES) {
+    if (trimmedUrl.startsWith(scheme)) {
+      console.warn(`Security: Blocked dangerous URL scheme "${scheme}" - using "/" instead`);
+      return "/";
+    }
+  }
+  return url;
+}
+function generateActionCode(action, waitCondition) {
+  const target = action.target || "";
+  const value = action.value || "";
+  switch (action.type) {
+    // Navigation
+    case "navigate":
+      return `    await page.goto('${escapeStringForCode(sanitizeNavigationUrl(target || "/"))}');`;
+    case "reload":
+      return `    await page.reload();`;
+    case "goBack":
+      return `    await page.goBack();`;
+    case "goForward":
+      return `    await page.goForward();`;
+    // Click interactions
+    case "click":
+      return generateClickCode(target);
+    case "dblclick":
+      return generateClickCode(target).replace(".click()", ".dblclick()");
+    case "rightClick":
+      return generateClickCode(target).replace(".click()", ".click({ button: 'right' })");
+    // Form interactions
+    case "fill":
+      return generateFillCode(target, value);
+    case "select":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').selectOption('${escapeStringForCode(value)}');`;
+    case "check":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').check();`;
+    case "uncheck":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').uncheck();`;
+    case "clear":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').clear();`;
+    case "upload":
+      const files = action.files?.map((f) => `'${escapeStringForCode(f)}'`).join(", ") || "";
+      return `    await page.getByLabel('${escapeStringForCode(target)}').setInputFiles([${files}]);`;
+    // Other interactions
+    case "press":
+      const key = action.key || "Enter";
+      return `    await page.keyboard.press('${key}');`;
+    case "hover":
+      return generateClickCode(target).replace(".click()", ".hover()");
+    case "focus":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').focus();`;
+    // Visibility assertions
+    case "assert":
+      return generateAssertCode(target);
+    case "assertHidden":
+      return `    await expect(page.getByText('${escapeStringForCode(target)}')).toBeHidden();`;
+    // Text/value assertions
+    case "assertText":
+      return `    await expect(page.getByText('${escapeStringForCode(target)}')).toContainText('${escapeStringForCode(value)}');`;
+    case "assertValue":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toHaveValue('${escapeStringForCode(value)}');`;
+    // State assertions
+    case "assertChecked":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toBeChecked();`;
+    case "assertEnabled":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toBeEnabled();`;
+    case "assertDisabled":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toBeDisabled();`;
+    case "assertCount":
+      const count = action.count ?? 1;
+      return `    await expect(page.getByText('${escapeStringForCode(target)}')).toHaveCount(${count});`;
+    // Page assertions
+    case "assertURL":
+      return `    await expect(page).toHaveURL(/${escapeStringForCode(target).replace(/\//g, "\\/")}/);`;
+    case "assertTitle":
+      return `    await expect(page).toHaveTitle('${escapeStringForCode(target)}');`;
+    // Toast/notification assertions
+    case "assertToast":
+      const toastType = action.toastType || "info";
+      const message = value ? `.getByText('${escapeStringForCode(value)}')` : "";
+      return `    await expect(page.getByRole('alert')${message}).toBeVisible(); // ${toastType} toast`;
+    // Modal/alert handling
+    case "dismissModal":
+      return `    await page.getByRole('dialog').getByRole('button', { name: /close|cancel|dismiss/i }).click();`;
+    case "acceptAlert":
+      return `    page.once('dialog', dialog => dialog.accept());`;
+    case "dismissAlert":
+      return `    page.once('dialog', dialog => dialog.dismiss());`;
+    // Wait actions
+    case "wait":
+      return `    await page.waitForLoadState('${waitCondition || "networkidle"}');`;
+    case "waitForVisible":
+      return `    await page.getByText('${escapeStringForCode(target)}').waitFor({ state: 'visible' });`;
+    case "waitForHidden":
+      return `    await page.getByText('${escapeStringForCode(target)}').waitFor({ state: 'hidden' });`;
+    case "waitForURL":
+      return `    await page.waitForURL(/${escapeStringForCode(target).replace(/\//g, "\\/")}/);`;
+    case "waitForNetwork":
+      return `    await page.waitForLoadState('networkidle');`;
+    // Module calls
+    case "callModule":
+      const module = action.module || "unknown";
+      const method = action.method || "run";
+      return `    // Module call: ${module}.${method}()
+    // TODO: Implement module call or use fixture`;
+    // Custom/fallback
+    case "custom":
+    default:
+      return `    // TODO: ${target}`;
+  }
+}
+function generateClickCode(target) {
+  if (target.startsWith("button:")) {
+    const name = target.slice(7);
+    return `    await page.getByRole('button', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("link:")) {
+    const name = target.slice(5);
+    return `    await page.getByRole('link', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("checkbox:")) {
+    const name = target.slice(9);
+    return `    await page.getByLabel('${escapeStringForCode(name)}').click();`;
+  }
+  if (target.startsWith("menu:")) {
+    const name = target.slice(5);
+    return `    await page.getByRole('menuitem', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("tab:")) {
+    const name = target.slice(4);
+    return `    await page.getByRole('tab', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("menuitem:")) {
+    const name = target.slice(9);
+    return `    await page.getByRole('menuitem', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  return `    await page.getByText('${escapeStringForCode(target)}').click();`;
+}
+function generateFillCode(target, value) {
+  if (target.startsWith("placeholder:")) {
+    const placeholder = target.slice(12);
+    return `    await page.getByPlaceholder('${escapeStringForCode(placeholder)}').fill('${escapeStringForCode(value)}');`;
+  }
+  return `    await page.getByLabel('${escapeStringForCode(target)}').fill('${escapeStringForCode(value)}');`;
+}
+function generateAssertCode(target) {
+  if (target.startsWith("status:")) {
+    const name = target.slice(7);
+    return `    await expect(page.getByRole('status', { name: '${escapeStringForCode(name)}' })).toBeVisible();`;
+  }
+  const lowerTarget = target.toLowerCase();
+  if (lowerTarget.includes("page") || lowerTarget.includes("dashboard") || lowerTarget.includes("home")) {
+    return `    await expect(page.getByRole('heading', { level: 1 })).toContainText('${escapeStringForCode(target)}');`;
+  }
+  return `    await expect(page.getByText('${escapeStringForCode(target)}')).toBeVisible();`;
+}
+async function loadLlkbResources(options, quiet) {
+  const configPaths = [];
+  if (options.config) {
+    configPaths.push(options.config);
+  }
+  if (options["llkb-config"] && !options["no-llkb"]) {
+    configPaths.push(options["llkb-config"]);
+  }
+  if (configPaths.length > 1) {
+    loadConfigs(configPaths);
+    if (!quiet) {
+      console.log(`Loaded ${configPaths.length} config file(s)`);
+    }
+  }
+  if (options["llkb-glossary"] && !options["no-llkb"]) {
+    const glossaryResult = await loadExtendedGlossary(options["llkb-glossary"]);
+    if (glossaryResult.loaded) {
+      if (!quiet) {
+        console.log(
+          `Loaded LLKB glossary: ${glossaryResult.entryCount} entries` + (glossaryResult.exportedAt ? ` (exported: ${glossaryResult.exportedAt})` : "")
+        );
+      }
+    } else if (!quiet) {
+      console.warn(`Warning: Failed to load LLKB glossary: ${glossaryResult.error}`);
+    }
+  }
+}
 async function runGenerate(args) {
   const { values, positionals } = parseArgs({
     args,
@@ -7835,8 +10895,11 @@ async function runGenerate(args) {
       output: { type: "string", short: "o" },
       modules: { type: "boolean", short: "m", default: false },
       config: { type: "string", short: "c" },
+      plan: { type: "string" },
+      journey: { type: "string" },
       "dry-run": { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h", default: false },
       // LLKB integration options
       "llkb-config": { type: "string" },
@@ -7846,17 +10909,59 @@ async function runGenerate(args) {
     allowPositionals: true
   });
   if (values.help) {
-    console.log(USAGE);
+    console.log(USAGE3);
     return;
   }
-  if (positionals.length === 0) {
-    console.error("Error: No journey files specified");
-    console.log(USAGE);
+  const quiet = values.quiet;
+  const force = values.force;
+  if (!force) {
+    const currentState = loadPipelineState();
+    const transition = canProceedTo(currentState, "generated");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart("generate");
+  const planPath = values.plan;
+  const journeyFilter = values.journey;
+  if (positionals.length === 0 && !planPath) {
+    const { getAutogenArtifact: getAutogenArtifact2 } = await Promise.resolve().then(() => (init_paths(), paths_exports));
+    const defaultPlanPath = getAutogenArtifact2("plan");
+    if (existsSync(defaultPlanPath)) {
+      await runGenerateFromPlan(defaultPlanPath, journeyFilter, values);
+      await updatePipelineState("generate", "generated", true, { mode: "plan" });
+      telemetry.trackCommandEnd(eventId, true, { mode: "plan-based-default" });
+      await telemetry.save();
+      return;
+    }
+    console.error("Error: No journey files specified and no plan found");
+    console.log('Run "artk-autogen analyze" and "artk-autogen plan" first, or provide journey files.');
+    console.log(USAGE3);
+    telemetry.trackCommandEnd(eventId, false, { error: "no_input" });
+    await telemetry.save();
     process.exit(1);
+  }
+  if (planPath) {
+    if (!existsSync(planPath)) {
+      console.error(`Error: Plan file not found: ${planPath}`);
+      telemetry.trackCommandEnd(eventId, false, { error: "plan_not_found" });
+      await telemetry.save();
+      process.exit(1);
+    }
+    await runGenerateFromPlan(planPath, journeyFilter, values);
+    await updatePipelineState("generate", "generated", true, { mode: "plan", planPath });
+    telemetry.trackCommandEnd(eventId, true, { mode: "plan-based-explicit" });
+    await telemetry.save();
+    return;
   }
   const outputDir = values.output || "./tests/generated";
   const dryRun = values["dry-run"];
-  const quiet = values.quiet;
   const configPaths = [];
   if (values.config) {
     configPaths.push(values.config);
@@ -7888,6 +10993,8 @@ async function runGenerate(args) {
   });
   if (journeyFiles.length === 0) {
     console.error("Error: No journey files found matching the patterns");
+    telemetry.trackCommandEnd(eventId, false, { error: "no_matching_files" });
+    await telemetry.save();
     process.exit(1);
   }
   if (!quiet) {
@@ -7965,7 +11072,7 @@ async function runGenerate(args) {
       mkdirSync(outputDir, { recursive: true });
     }
     for (const test of result.tests) {
-      const filePath = join(outputDir, test.filename);
+      const filePath = validateOutputPath(outputDir, test.filename);
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, test.code, "utf-8");
       if (!quiet) {
@@ -7973,7 +11080,7 @@ async function runGenerate(args) {
       }
     }
     for (const mod of result.modules) {
-      const filePath = join(outputDir, "modules", mod.filename);
+      const filePath = validateOutputPath(outputDir, join("modules", mod.filename));
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, mod.code, "utf-8");
       if (!quiet) {
@@ -8004,32 +11111,64 @@ Summary:`);
 \u{1F4A1} Run 'artk-autogen patterns gaps' to see pattern improvement suggestions.`);
     }
   }
+  const success = result.errors.length === 0;
+  await updatePipelineState("generate", "generated", success, {
+    testsGenerated: result.tests.length,
+    modulesGenerated: result.modules.length,
+    blockedSteps: blockedStepAnalyses.length
+  });
+  telemetry.trackCommandEnd(eventId, success, {
+    tests: result.tests.length,
+    modules: result.modules.length,
+    blockedSteps: blockedStepAnalyses.length,
+    errors: result.errors.length,
+    warnings: otherWarnings.length,
+    dryRun
+  });
+  await telemetry.save();
   if (result.errors.length > 0) {
     process.exit(1);
   }
 }
-var USAGE;
+var DANGEROUS_URL_SCHEMES, USAGE3;
 var init_generate = __esm({
   "src/cli/generate.ts"() {
     init_index();
     init_loader();
     init_glossary();
-    init_telemetry();
+    init_telemetry2();
     init_blockedStepAnalysis();
-    USAGE = `
-Usage: artk-autogen generate [options] <journey-files...>
+    init_state();
+    init_telemetry();
+    init_patternExtension();
+    init_plannedActionAdapter();
+    DANGEROUS_URL_SCHEMES = [
+      "javascript:",
+      "data:",
+      "vbscript:",
+      "file:"
+    ];
+    USAGE3 = `
+Usage: artk-autogen generate [options] [journey-files...]
 
-Generate Playwright tests from Journey markdown files.
+Generate Playwright tests from plan or Journey markdown files.
+
+This command supports two modes:
+1. Plan-based (recommended): Use --plan to generate from a prepared plan
+2. Direct (legacy): Pass journey files directly for backwards compatibility
 
 Arguments:
-  journey-files    Journey file paths or glob patterns
+  journey-files    Journey file paths or glob patterns (legacy mode)
 
 Options:
   -o, --output <dir>       Output directory for generated files (default: ./tests/generated)
   -m, --modules            Also generate module files
   -c, --config <file>      Path to autogen config file
+  --plan <file>            Path to plan.json (default: .artk/autogen/plan.json if exists)
+  --journey <id>           Generate only for specific journey ID from plan
   --dry-run                Preview generation without writing files
   -q, --quiet              Suppress output except errors
+  -f, --force              Skip pipeline state validation
   -h, --help               Show this help message
 
 LLKB Integration Options:
@@ -8038,10 +11177,1323 @@ LLKB Integration Options:
   --no-llkb                Disable LLKB integration even if config enables it
 
 Examples:
+  # Plan-based generation (recommended)
+  artk-autogen generate --plan .artk/autogen/plan.json
+  artk-autogen generate --plan plan.json --journey JRN-0001
+
+  # Direct generation (legacy, still supported)
   artk-autogen generate journeys/login.md
   artk-autogen generate "journeys/*.md" -o tests/e2e -m
-  artk-autogen generate journeys/*.md --dry-run
-  artk-autogen generate journeys/*.md --llkb-config autogen-llkb.config.yml --llkb-glossary llkb-glossary.ts
+  artk-autogen generate journeys/*.md --llkb-config autogen-llkb.config.yml
+`;
+  }
+});
+
+// src/cli/run.ts
+var run_exports = {};
+__export(run_exports, {
+  parseErrorLocation: () => parseErrorLocation,
+  parseErrorType: () => parseErrorType,
+  parseErrors: () => parseErrors2,
+  runRun: () => runRun,
+  suggestFix: () => suggestFix
+});
+function parseErrorType(message) {
+  const lower = message.toLowerCase();
+  if (lower.includes("ts(") || lower.includes("error ts") || /\berror\s+ts\d+\b/.test(lower)) {
+    return "typescript";
+  }
+  if (lower.includes("syntaxerror:") || lower.includes("syntax error")) {
+    return "typescript";
+  }
+  if (lower.includes("expect(") || lower.includes("tohave") || lower.includes("tocontain") || lower.includes("tobe") || lower.includes("assertion") || lower.includes("expected string:") || lower.includes("received string:")) {
+    return "assertion";
+  }
+  if (/timeout\s+\d+ms/i.test(message) || lower.includes("timeout exceeded") || lower.includes("exceeded time")) {
+    return "timeout";
+  }
+  if (lower.includes("page.goto") || lower.includes("net::err") || lower.includes("navigation") || lower.includes("err_name_not_resolved") || lower.includes("err_connection")) {
+    return "navigation";
+  }
+  if (lower.includes("strict mode violation") || lower.includes("resolved to 0 elements") || lower.includes("locator.click:") || lower.includes("locator.fill:") || lower.includes("locator") && !lower.includes("expect")) {
+    return "selector";
+  }
+  if (lower.includes("typeerror:") || lower.includes("referenceerror:")) {
+    return "runtime";
+  }
+  if (lower.includes("error:") || lower.includes("exception")) {
+    return "runtime";
+  }
+  return "unknown";
+}
+function parseErrorLocation(message) {
+  const match = message.match(/([^\s:]+\.(ts|js)):(\d+):?(\d+)?/);
+  if (match && match[1] && match[3]) {
+    return {
+      file: match[1],
+      line: parseInt(match[3], 10),
+      column: match[4] ? parseInt(match[4], 10) : void 0
+    };
+  }
+  return void 0;
+}
+function suggestFix(errorType, message) {
+  switch (errorType) {
+    case "selector":
+      if (message.includes("locator")) {
+        return "Check selector - element may not exist, have different selector, or need explicit wait";
+      }
+      return "Element not found - verify selector or add explicit wait";
+    case "timeout":
+      return "Increase timeout or check if element/action is correct";
+    case "assertion":
+      return "Check expected vs actual value - may need to adjust assertion or fix test data";
+    case "navigation":
+      return "Check URL is correct and accessible - may need auth or network configuration";
+    case "typescript":
+      return "Fix TypeScript syntax error before re-running";
+    case "runtime":
+      return "Check test logic and error stack trace for root cause";
+    default:
+      return void 0;
+  }
+}
+function parseErrors2(stdout, stderr) {
+  const errors = [];
+  const combined = `${stdout}
+${stderr}`;
+  const errorBlocks = combined.split(/(?=Error:|✘|FAILED|AssertionError|\berror TS\d+)/);
+  for (const block of errorBlocks) {
+    if (!block.trim() || block.length < 20) continue;
+    const lowerBlock = block.toLowerCase();
+    if (!lowerBlock.includes("error") && !block.includes("\u2718") && !lowerBlock.includes("failed")) {
+      continue;
+    }
+    const lines = block.split("\n");
+    const message = lines.slice(0, 5).join(" ").trim().substring(0, 500);
+    if (!message) continue;
+    const errorType = parseErrorType(message);
+    const location = parseErrorLocation(block);
+    const snippetMatch = block.match(/>\s*\d+\s*\|(.+)/);
+    const snippet = snippetMatch?.[1]?.trim();
+    if (!location && !snippet) {
+      const trimmedMsg = message.trim();
+      if (trimmedMsg.endsWith(":") && trimmedMsg.length < TRUNCATED_MESSAGE_MAX_LENGTH) {
+        continue;
+      }
+    }
+    errors.push({
+      message,
+      type: errorType,
+      location,
+      snippet,
+      suggestion: suggestFix(errorType, message)
+    });
+  }
+  return errors;
+}
+async function runPlaywrightTest(testPath, options) {
+  const harnessRoot = getHarnessRoot();
+  const startTime = Date.now();
+  const args = [
+    "playwright",
+    "test",
+    testPath,
+    "--reporter=list",
+    `--timeout=${options.timeout}`,
+    `--retries=${options.retries}`
+  ];
+  if (options.headed) {
+    args.push("--headed");
+  }
+  if (options.debug) {
+    args.push("--debug");
+  }
+  return new Promise((resolve7) => {
+    let stdout = "";
+    let stderr = "";
+    const proc = spawn("npx", args, {
+      cwd: harnessRoot,
+      env: {
+        ...process.env,
+        // Force color output for better error parsing
+        FORCE_COLOR: "1"
+      }
+    });
+    proc.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+    proc.on("close", (code) => {
+      const duration = Date.now() - startTime;
+      const exitCode = code ?? 1;
+      let status = "passed";
+      if (exitCode !== 0) {
+        if (stdout.includes("timeout") || stderr.includes("timeout")) {
+          status = "timeout";
+        } else if (stderr.includes("Error:") || stdout.includes("FAILED")) {
+          status = "failed";
+        } else {
+          status = "error";
+        }
+      }
+      const errors = status !== "passed" ? parseErrors2(stdout, stderr) : [];
+      const artifacts = {};
+      const testResultsDir = join(harnessRoot, "test-results");
+      const testName = basename(testPath, ".spec.ts");
+      const possibleScreenshot = join(testResultsDir, testName, "test-failed-1.png");
+      if (existsSync(possibleScreenshot)) {
+        artifacts.screenshot = possibleScreenshot;
+      }
+      const possibleTrace = join(testResultsDir, testName, "trace.zip");
+      if (existsSync(possibleTrace)) {
+        artifacts.trace = possibleTrace;
+      }
+      let journeyId;
+      try {
+        const testContent = readFileSync(testPath, "utf-8");
+        const journeyMatch = testContent.match(/@journey\s+(\S+)/);
+        if (journeyMatch) {
+          journeyId = journeyMatch[1];
+        }
+      } catch {
+      }
+      const MAX_OUTPUT_SIZE = 1e4;
+      const truncateWithIndicator = (text, name) => {
+        if (text.length <= MAX_OUTPUT_SIZE) return text;
+        let truncateAt = MAX_OUTPUT_SIZE;
+        const code2 = text.charCodeAt(truncateAt - 1);
+        if (code2 >= 55296 && code2 <= 56319) {
+          truncateAt--;
+        }
+        const truncated = text.slice(0, truncateAt);
+        return `${truncated}
+
+[${name} TRUNCATED - ${text.length - truncateAt} more characters]`;
+      };
+      resolve7({
+        version: "1.0",
+        testPath,
+        journeyId,
+        status,
+        duration,
+        errors,
+        output: {
+          stdout: truncateWithIndicator(stdout, "STDOUT"),
+          stderr: truncateWithIndicator(stderr, "STDERR"),
+          exitCode
+        },
+        artifacts,
+        executedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    });
+    proc.on("error", (err3) => {
+      resolve7({
+        version: "1.0",
+        testPath,
+        status: "error",
+        duration: Date.now() - startTime,
+        errors: [{
+          message: `Failed to spawn playwright: ${err3.message}`,
+          type: "runtime"
+        }],
+        output: {
+          stdout,
+          stderr,
+          exitCode: 1
+        },
+        artifacts: {},
+        executedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    });
+  });
+}
+async function runRun(args) {
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      output: { type: "string", short: "o" },
+      timeout: { type: "string", default: "30000" },
+      retries: { type: "string", default: "0" },
+      headed: { type: "boolean", default: false },
+      debug: { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
+      quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
+      help: { type: "boolean", short: "h", default: false }
+    },
+    allowPositionals: true
+  });
+  if (values.help) {
+    console.log(USAGE4);
+    return;
+  }
+  if (positionals.length === 0) {
+    console.error("Error: No test files specified");
+    console.log(USAGE4);
+    process.exit(1);
+  }
+  const quiet = values.quiet;
+  const outputJson = values.json;
+  const force = values.force;
+  if (!force) {
+    const currentState = await loadPipelineState();
+    const transition = canProceedTo(currentState, "tested");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
+  const timeout = parseInt(values.timeout, 10);
+  const retries = parseInt(values.retries, 10);
+  if (isNaN(timeout) || timeout <= 0) {
+    console.error(`Error: Invalid timeout value "${values.timeout}". Must be a positive number.`);
+    process.exit(1);
+  }
+  if (isNaN(retries) || retries < 0) {
+    console.error(`Error: Invalid retries value "${values.retries}". Must be a non-negative number.`);
+    process.exit(1);
+  }
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart("run");
+  if (!quiet && !outputJson) {
+    console.log("Checking Playwright installation...");
+  }
+  const playwrightCheck = await checkPlaywrightInstalled();
+  if (!playwrightCheck.installed) {
+    console.error(`Error: Playwright is not installed or not accessible.`);
+    console.error(`  ${playwrightCheck.error}`);
+    console.error("\nTo install Playwright, run:");
+    console.error("  npx playwright install");
+    telemetry.trackError("run", "playwright_not_installed", playwrightCheck.error || "Unknown");
+    telemetry.trackCommandEnd(eventId, false, { error: "playwright_not_installed" });
+    await telemetry.save();
+    process.exit(1);
+  }
+  if (!quiet && !outputJson) {
+    console.log(`Running ${positionals.length} test file(s) with Playwright ${playwrightCheck.version || "unknown"}...`);
+  }
+  const harnessRoot = getHarnessRoot();
+  const results = [];
+  for (const testPath of positionals) {
+    let fullPath;
+    try {
+      fullPath = validatePath(testPath, harnessRoot);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        console.error(`Error: Path traversal detected: "${testPath}"`);
+        console.error(`  Paths must be within harness root: ${harnessRoot}`);
+        results.push({
+          version: "1.0",
+          testPath,
+          status: "error",
+          duration: 0,
+          errors: [{ message: `Path traversal blocked: ${testPath}`, type: "runtime" }],
+          output: { stdout: "", stderr: "", exitCode: 1 },
+          artifacts: {},
+          executedAt: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        continue;
+      }
+      throw error;
+    }
+    if (!existsSync(fullPath)) {
+      console.error(`Warning: Test file not found: ${fullPath}`);
+      results.push({
+        version: "1.0",
+        testPath: fullPath,
+        status: "error",
+        duration: 0,
+        errors: [{ message: `File not found: ${fullPath}`, type: "runtime" }],
+        output: { stdout: "", stderr: "", exitCode: 1 },
+        artifacts: {},
+        executedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      continue;
+    }
+    if (!quiet && !outputJson) {
+      console.log(`
+Running: ${basename(fullPath)}`);
+    }
+    const result = await runPlaywrightTest(fullPath, {
+      timeout,
+      retries,
+      headed: values.headed,
+      debug: values.debug
+    });
+    results.push(result);
+    if (!quiet && !outputJson) {
+      const icon = result.status === "passed" ? "\u2713" : "\u2717";
+      console.log(`  ${icon} ${result.status} (${result.duration}ms)`);
+      if (result.errors.length > 0) {
+        console.log(`    Errors: ${result.errors.length}`);
+        for (const err3 of result.errors.slice(0, 3)) {
+          console.log(`    - [${err3.type}] ${err3.message.substring(0, 100)}`);
+        }
+      }
+    }
+  }
+  const summary = {
+    total: results.length,
+    passed: results.filter((r) => r.status === "passed").length,
+    failed: results.filter((r) => r.status === "failed").length,
+    timeout: results.filter((r) => r.status === "timeout").length,
+    error: results.filter((r) => r.status === "error").length,
+    totalDuration: results.reduce((sum, r) => sum + r.duration, 0)
+  };
+  const output = {
+    version: "1.0",
+    results,
+    summary,
+    harnessRoot,
+    executedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  if (outputJson) {
+    console.log(JSON.stringify(output, null, 2));
+  } else {
+    const outputPath = values.output || getAutogenArtifact("results");
+    await ensureAutogenDir();
+    writeFileSync(outputPath, JSON.stringify(output, null, 2), "utf-8");
+    if (!quiet) {
+      console.log(`
+Results:`);
+      console.log(`  Passed: ${summary.passed}`);
+      console.log(`  Failed: ${summary.failed}`);
+      console.log(`  Timeout: ${summary.timeout}`);
+      console.log(`  Error: ${summary.error}`);
+      console.log(`  Duration: ${Math.round(summary.totalDuration / 1e3)}s`);
+      console.log(`
+Output: ${outputPath}`);
+    }
+  }
+  const allPassed = summary.failed === 0 && summary.error === 0 && summary.timeout === 0;
+  const pipelineStage = allPassed ? "completed" : "tested";
+  await updatePipelineState("run", pipelineStage, allPassed, {
+    testPaths: positionals
+  });
+  telemetry.trackCommandEnd(eventId, allPassed, {
+    passed: summary.passed,
+    failed: summary.failed,
+    timeout: summary.timeout,
+    error: summary.error,
+    duration: summary.totalDuration
+  });
+  await telemetry.save();
+  if (!allPassed) {
+    process.exit(1);
+  }
+}
+var USAGE4, TRUNCATED_MESSAGE_MAX_LENGTH;
+var init_run = __esm({
+  "src/cli/run.ts"() {
+    init_paths();
+    init_state();
+    init_telemetry();
+    init_playwright_runner();
+    USAGE4 = `
+Usage: artk-autogen run [options] <test-files...>
+
+Execute Playwright tests and output structured results.
+
+Arguments:
+  test-files       Test file paths or glob patterns
+
+Options:
+  -o, --output <path>    Output path for results.json (default: .artk/autogen/results.json)
+  --timeout <ms>         Test timeout in milliseconds (default: 30000)
+  --retries <n>          Number of retries for failed tests (default: 0)
+  --headed               Run in headed mode
+  --debug                Run with debug mode (pause on failure)
+  --json                 Output JSON to stdout instead of file
+  -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
+  -h, --help             Show this help message
+
+Examples:
+  artk-autogen run tests/login.spec.ts
+  artk-autogen run "tests/*.spec.ts"
+  artk-autogen run tests/login.spec.ts --headed --debug
+  artk-autogen run tests/login.spec.ts --json
+`;
+    TRUNCATED_MESSAGE_MAX_LENGTH = 80;
+  }
+});
+
+// src/cli/refine.ts
+var refine_exports = {};
+__export(refine_exports, {
+  runRefine: () => runRefine
+});
+function mapErrorTypeToCategory(errorType) {
+  switch (errorType) {
+    case "selector":
+      return "SELECTOR_NOT_FOUND";
+    case "timeout":
+      return "TIMEOUT";
+    case "assertion":
+      return "ASSERTION_FAILED";
+    case "navigation":
+      return "NAVIGATION_ERROR";
+    case "typescript":
+      return "SYNTAX_ERROR";
+    case "runtime":
+      return "RUNTIME_ERROR";
+    default:
+      return "UNKNOWN";
+  }
+}
+function generateRefinement(error) {
+  const message = error.message.toLowerCase();
+  let suggestion = error.suggestion || "Review the error and fix manually";
+  let confidence = 0.5;
+  if (error.type === "selector") {
+    for (const [pattern, sug] of Object.entries(SELECTOR_REFINEMENTS)) {
+      if (message.includes(pattern)) {
+        suggestion = sug;
+        confidence = 0.8;
+        break;
+      }
+    }
+  } else if (error.type === "assertion") {
+    for (const [pattern, sug] of Object.entries(ASSERTION_REFINEMENTS)) {
+      if (message.includes(pattern)) {
+        suggestion = sug;
+        confidence = 0.75;
+        break;
+      }
+    }
+  } else if (error.type === "timeout") {
+    for (const [pattern, sug] of Object.entries(TIMEOUT_REFINEMENTS)) {
+      if (message.includes(pattern)) {
+        suggestion = sug;
+        confidence = 0.7;
+        break;
+      }
+    }
+  }
+  let codeChange;
+  if (error.location && error.snippet) {
+    codeChange = suggestCodeChange(error);
+  }
+  return {
+    errorType: error.type,
+    errorMessage: error.message.substring(0, 300),
+    location: error.location,
+    suggestion,
+    confidence,
+    codeChange
+  };
+}
+function suggestCodeChange(error) {
+  if (!error.location || !error.snippet) return void 0;
+  const { file, line } = error.location;
+  const snippet = error.snippet;
+  if (error.type === "timeout" && snippet.includes("locator")) {
+    return {
+      type: "replace",
+      file,
+      line,
+      oldCode: snippet,
+      newCode: `await page.waitForSelector('${extractSelector(snippet)}', { state: 'visible' });
+  ${snippet}`,
+      explanation: "Add explicit waitForSelector before the action"
+    };
+  }
+  if (error.type === "selector" && error.message.includes("intercept")) {
+    return {
+      type: "replace",
+      file,
+      line,
+      oldCode: snippet,
+      newCode: snippet.replace(".click()", ".scrollIntoViewIfNeeded();\n  await " + snippet.trim()),
+      explanation: "Scroll element into view before clicking"
+    };
+  }
+  if (error.type === "selector" && error.message.includes("strict")) {
+    return {
+      type: "replace",
+      file,
+      line,
+      oldCode: snippet,
+      newCode: snippet.replace(".click()", ".first().click()"),
+      explanation: "Use .first() to select single element from multiple matches"
+    };
+  }
+  return void 0;
+}
+function extractSelector(snippet) {
+  const match = snippet.match(/(?:locator|getBy\w+)\(['"]([^'"]+)['"]\)/);
+  return match?.[1] || "unknown";
+}
+function loadRefineState(testPath, maxAttempts) {
+  const stateDir = getAutogenDir();
+  const statePath = join(stateDir, `refine-state-${basename(testPath, ".spec.ts")}.json`);
+  if (existsSync(statePath)) {
+    try {
+      const loaded = JSON.parse(readFileSync(statePath, "utf-8"));
+      if (!loaded.circuitBreakerState) {
+        const oldState = loaded;
+        loaded.circuitBreakerState = {
+          isOpen: oldState.circuitBreaker?.isOpen ?? false,
+          openReason: oldState.circuitBreaker?.openReason,
+          attemptCount: oldState.circuitBreaker?.attemptCount ?? loaded.attempts.length,
+          errorHistory: oldState.circuitBreaker?.errorHistory ?? [],
+          tokensUsed: oldState.circuitBreaker?.tokensUsed ?? 0,
+          maxAttempts
+        };
+      }
+      if (!loaded.errorCountHistory) {
+        loaded.errorCountHistory = loaded.attempts.map((a) => a.errors.length);
+      }
+      return loaded;
+    } catch {
+    }
+  }
+  return {
+    testPath,
+    attempts: [],
+    circuitBreakerState: {
+      isOpen: false,
+      attemptCount: 0,
+      errorHistory: [],
+      tokensUsed: 0,
+      maxAttempts
+    },
+    errorCountHistory: []
+  };
+}
+function saveRefineState(state) {
+  const stateDir = getAutogenDir();
+  const statePath = join(stateDir, `refine-state-${basename(state.testPath, ".spec.ts")}.json`);
+  writeFileSync(statePath, JSON.stringify(state, null, 2), "utf-8");
+}
+async function runRefine(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      results: { type: "string", short: "r" },
+      test: { type: "string", short: "t" },
+      "max-attempts": { type: "string", default: "3" },
+      json: { type: "boolean", default: false },
+      quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
+      help: { type: "boolean", short: "h", default: false }
+    },
+    allowPositionals: true
+  });
+  if (values.help) {
+    console.log(USAGE5);
+    return;
+  }
+  const quiet = values.quiet;
+  const outputJson = values.json;
+  const force = values.force;
+  if (!force) {
+    const currentState = loadPipelineState();
+    const transition = canProceedTo(currentState, "refining");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
+  const maxAttempts = parseInt(values["max-attempts"], 10);
+  if (isNaN(maxAttempts) || maxAttempts <= 0) {
+    console.error(`Error: Invalid max-attempts value "${values["max-attempts"]}". Must be a positive number.`);
+    process.exit(1);
+  }
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart("refine");
+  const resultsPath = values.results || getAutogenArtifact("results");
+  if (!existsSync(resultsPath)) {
+    console.error(`Error: Results file not found: ${resultsPath}`);
+    console.error('Run "artk-autogen run" first.');
+    process.exit(1);
+  }
+  let runOutput;
+  try {
+    runOutput = JSON.parse(readFileSync(resultsPath, "utf-8"));
+  } catch (e) {
+    console.error(`Error: Failed to parse results file: ${e}`);
+    process.exit(1);
+  }
+  let results = runOutput.results;
+  if (values.test) {
+    results = results.filter((r) => r.testPath.includes(values.test));
+    if (results.length === 0) {
+      console.error(`Error: No results found for test "${values.test}"`);
+      process.exit(1);
+    }
+  }
+  const failedResults = results.filter((r) => r.status !== "passed");
+  if (failedResults.length === 0) {
+    if (!quiet && !outputJson) {
+      console.log("All tests passed - no refinement needed");
+    }
+    if (outputJson) {
+      console.log(JSON.stringify({ status: "converged", message: "All tests passed" }, null, 2));
+    }
+    return;
+  }
+  await ensureAutogenDir();
+  const outputs = [];
+  for (const result of failedResults) {
+    const state = loadRefineState(result.testPath, maxAttempts);
+    const circuitBreaker = new CircuitBreaker({
+      maxAttempts,
+      initialState: state.circuitBreakerState
+    });
+    const convergenceDetector = new ConvergenceDetector();
+    convergenceDetector.restoreFromHistory(state.errorCountHistory);
+    const currentErrors = result.errors.map((e) => ({
+      fingerprint: `${e.type}:${e.message.substring(0, 50)}`,
+      category: mapErrorTypeToCategory(e.type),
+      message: e.message,
+      originalError: e.message,
+      severity: "major",
+      timestamp: /* @__PURE__ */ new Date()
+    }));
+    circuitBreaker.recordAttempt(currentErrors);
+    convergenceDetector.recordAttempt(currentErrors);
+    const analysis = analyzeRefinementProgress(
+      [],
+      // Fix attempts not used directly
+      circuitBreaker,
+      convergenceDetector
+    );
+    const suggestions = result.errors.map((e) => generateRefinement(e));
+    let status = "needs_refinement";
+    let recommendation = "Apply suggested refinements and re-run the test";
+    if (result.errors.length === 0) {
+      status = "converged";
+      recommendation = "Test is now passing";
+    } else if (analysis.recommendation === "stop" || !analysis.shouldContinue) {
+      status = "blocked";
+      recommendation = `Refinement blocked: ${analysis.reason}. Manual intervention required.`;
+    }
+    const output = {
+      version: "1.0",
+      testPath: result.testPath,
+      journeyId: result.journeyId,
+      status,
+      errors: result.errors,
+      suggestions,
+      convergence: {
+        attempts: state.attempts.length + 1,
+        trend: analysis.convergence.trend,
+        errorCountHistory: analysis.convergence.errorCountHistory,
+        improvementPercent: convergenceDetector.getImprovementPercentage()
+      },
+      circuitBreaker: {
+        isOpen: analysis.circuitBreaker.isOpen,
+        reason: analysis.circuitBreaker.openReason,
+        remainingAttempts: circuitBreaker.remainingAttempts()
+      },
+      recommendation,
+      refinedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    outputs.push(output);
+    state.attempts.push({
+      attemptNumber: state.attempts.length + 1,
+      errors: result.errors,
+      suggestions,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    state.circuitBreakerState = {
+      isOpen: analysis.circuitBreaker.isOpen,
+      openReason: analysis.circuitBreaker.openReason,
+      attemptCount: analysis.circuitBreaker.attemptCount,
+      errorHistory: analysis.circuitBreaker.errorHistory,
+      tokensUsed: analysis.circuitBreaker.tokensUsed,
+      maxAttempts
+    };
+    state.errorCountHistory.push(result.errors.length);
+    saveRefineState(state);
+    if (!quiet && !outputJson) {
+      console.log(`
+Test: ${basename(result.testPath)}`);
+      console.log(`  Status: ${status}`);
+      console.log(`  Errors: ${result.errors.length}`);
+      console.log(`  Attempt: ${state.attempts.length}/${maxAttempts}`);
+      console.log(`  Trend: ${analysis.convergence.trend}`);
+      if (suggestions.length > 0) {
+        console.log(`  Suggestions:`);
+        for (const s of suggestions.slice(0, 3)) {
+          console.log(`    - [${s.errorType}] ${s.suggestion.substring(0, 60)}`);
+        }
+      }
+    }
+  }
+  if (outputJson) {
+    console.log(JSON.stringify(outputs.length === 1 ? outputs[0] : outputs, null, 2));
+  } else if (!quiet) {
+    console.log(`
+Refinement analysis complete:`);
+    console.log(`  Total: ${outputs.length}`);
+    console.log(`  Needs refinement: ${outputs.filter((o) => o.status === "needs_refinement").length}`);
+    console.log(`  Blocked: ${outputs.filter((o) => o.status === "blocked").length}`);
+    console.log(`  Converged: ${outputs.filter((o) => o.status === "converged").length}`);
+  }
+  const hasBlocked = outputs.some((o) => o.status === "blocked");
+  const allConverged = outputs.every((o) => o.status === "converged");
+  const pipelineStage = hasBlocked ? "blocked" : allConverged ? "completed" : "refining";
+  const totalAttempts = outputs.reduce((sum, o) => sum + o.convergence.attempts, 0);
+  await updatePipelineState("refine", pipelineStage, !hasBlocked, {
+    refinementAttempts: totalAttempts,
+    isBlocked: hasBlocked,
+    blockedReason: hasBlocked ? outputs.find((o) => o.status === "blocked")?.recommendation : void 0
+  });
+  telemetry.trackCommandEnd(eventId, !hasBlocked, {
+    totalTests: outputs.length,
+    needsRefinement: outputs.filter((o) => o.status === "needs_refinement").length,
+    blocked: outputs.filter((o) => o.status === "blocked").length,
+    converged: outputs.filter((o) => o.status === "converged").length,
+    totalAttempts
+  });
+  await telemetry.save();
+}
+var USAGE5, SELECTOR_REFINEMENTS, ASSERTION_REFINEMENTS, TIMEOUT_REFINEMENTS;
+var init_refine = __esm({
+  "src/cli/refine.ts"() {
+    init_paths();
+    init_state();
+    init_telemetry();
+    init_convergence_detector();
+    USAGE5 = `
+Usage: artk-autogen refine [options]
+
+Analyze test results and generate refinement suggestions.
+
+Options:
+  -r, --results <path>   Path to results.json (default: .artk/autogen/results.json)
+  -t, --test <path>      Analyze specific test file only
+  --max-attempts <n>     Max refinement attempts before stopping (default: 3)
+  --json                 Output JSON to stdout instead of file
+  -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
+  -h, --help             Show this help message
+
+Examples:
+  artk-autogen refine
+  artk-autogen refine --test tests/login.spec.ts
+  artk-autogen refine --max-attempts 5
+  artk-autogen refine --json
+`;
+    SELECTOR_REFINEMENTS = {
+      "strict mode": "Locator found multiple elements. Add more specific selector or use .first() / .nth(0)",
+      "timeout": "Element not found within timeout. Check if element exists, is visible, or needs explicit wait",
+      "not found": "Element does not exist. Verify selector is correct and element is rendered",
+      "detached": "Element was removed from DOM. Add waitFor or re-query the element"
+    };
+    ASSERTION_REFINEMENTS = {
+      "expected": "Assertion value mismatch. Check expected vs actual value - may be timing issue",
+      "tobehave": "Element state assertion failed. Add explicit wait before assertion",
+      "visibility": "Element visibility check failed. Ensure element is in viewport and not hidden"
+    };
+    TIMEOUT_REFINEMENTS = {
+      "page.goto": "Page navigation timeout. Check URL, network conditions, or increase timeout",
+      "waitfor": "WaitFor timeout. Element may not appear - check selector or use different wait condition",
+      "click": "Click timeout. Element may be overlapped, disabled, or not interactable"
+    };
+  }
+});
+
+// src/cli/status.ts
+var status_exports = {};
+__export(status_exports, {
+  runStatus: () => runStatus
+});
+function getArtifactStatus(artifact) {
+  const path = getAutogenArtifact(artifact);
+  const exists = existsSync(path);
+  const status = {
+    name: artifact,
+    path,
+    exists
+  };
+  if (exists) {
+    const stat = statSync(path);
+    status.size = stat.size;
+    status.modifiedAt = stat.mtime.toISOString();
+    try {
+      if (artifact === "analysis") {
+        const data = JSON.parse(readFileSync(path, "utf-8"));
+        status.summary = `${data.journeys?.length || 0} journeys, ${data.summary?.totalSteps || 0} steps`;
+      } else if (artifact === "plan") {
+        const data = JSON.parse(readFileSync(path, "utf-8"));
+        status.summary = `${data.plans?.length || 0} plans, ${data.summary?.totalSteps || 0} steps`;
+      } else if (artifact === "results") {
+        const data = JSON.parse(readFileSync(path, "utf-8"));
+        status.summary = `${data.summary?.passed || 0}/${data.summary?.total || 0} passed`;
+      }
+    } catch {
+      status.summary = "Error reading file";
+    }
+  }
+  return status;
+}
+function loadRefinementStates() {
+  const autogenDir = getAutogenDir();
+  if (!existsSync(autogenDir)) return [];
+  const states = [];
+  try {
+    const files = readdirSync(autogenDir);
+    for (const file of files) {
+      if (file.startsWith("refine-state-") && file.endsWith(".json")) {
+        const path = join(autogenDir, file);
+        try {
+          const data = JSON.parse(readFileSync(path, "utf-8"));
+          const lastAttempt = data.attempts?.[data.attempts.length - 1];
+          states.push({
+            testPath: data.testPath,
+            attempts: data.attempts?.length || 0,
+            lastStatus: lastAttempt?.errors?.length > 0 ? "failed" : "passed",
+            trend: "unknown",
+            // Would need convergence detector
+            isBlocked: data.circuitBreakerState?.isOpen ?? false
+            // Fixed: was incorrectly reading circuitBreaker
+          });
+        } catch {
+        }
+      }
+    }
+  } catch {
+  }
+  return states;
+}
+function determinePipelineStage(artifacts, persistedState) {
+  const hasAnalysis = artifacts.find((a) => a.name === "analysis")?.exists;
+  const hasPlan = artifacts.find((a) => a.name === "plan")?.exists;
+  const hasResults = artifacts.find((a) => a.name === "results")?.exists;
+  let allTestsPassed = false;
+  let hasFailures2 = false;
+  if (hasResults) {
+    const resultsPath = getAutogenArtifact("results");
+    try {
+      const data = JSON.parse(readFileSync(resultsPath, "utf-8"));
+      allTestsPassed = data.summary?.failed === 0 && data.summary?.error === 0;
+      hasFailures2 = (data.summary?.failed || 0) > 0 || (data.summary?.error || 0) > 0;
+    } catch {
+    }
+  }
+  const refinementStates = loadRefinementStates();
+  const hasBlockedRefinements = refinementStates.some((s) => s.isBlocked);
+  if (persistedState && persistedState.isBlocked) {
+    return {
+      stage: "blocked",
+      canProceed: false,
+      nextAction: "Review blocked state and fix manually",
+      blockedReason: persistedState.blockedReason || "Pipeline is blocked"
+    };
+  }
+  if (hasBlockedRefinements) {
+    return {
+      stage: "blocked",
+      canProceed: false,
+      nextAction: "Review blocked refinements and fix manually",
+      blockedReason: "Circuit breaker triggered on one or more tests"
+    };
+  }
+  if (allTestsPassed) {
+    return {
+      stage: "completed",
+      canProceed: false,
+      nextAction: "Pipeline complete - all tests passing"
+    };
+  }
+  if (hasFailures2 && refinementStates.length > 0) {
+    return {
+      stage: "refining",
+      canProceed: true,
+      nextAction: 'Run "artk-autogen refine" to get refinement suggestions'
+    };
+  }
+  if (hasResults) {
+    return {
+      stage: "tested",
+      canProceed: true,
+      nextAction: hasFailures2 ? 'Run "artk-autogen refine" to analyze failures' : "Pipeline complete - all tests passing"
+    };
+  }
+  const testsGenerated = persistedState?.stage === "generated" || persistedState?.testPaths && persistedState.testPaths.length > 0;
+  if (testsGenerated && hasPlan) {
+    return {
+      stage: "generated",
+      canProceed: true,
+      nextAction: 'Run "artk-autogen run" to execute generated tests'
+    };
+  }
+  if (hasPlan) {
+    return {
+      stage: "planned",
+      canProceed: true,
+      nextAction: 'Run "artk-autogen generate" to generate tests from plan'
+    };
+  }
+  if (hasAnalysis) {
+    return {
+      stage: "analyzed",
+      canProceed: true,
+      nextAction: 'Run "artk-autogen plan" to create test plan'
+    };
+  }
+  return {
+    stage: "initial",
+    canProceed: true,
+    nextAction: 'Run "artk-autogen analyze <journey-files>" to start'
+  };
+}
+async function runStatus(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      json: { type: "boolean", default: false },
+      quiet: { type: "boolean", short: "q", default: false },
+      help: { type: "boolean", short: "h", default: false }
+    },
+    allowPositionals: true
+  });
+  if (values.help) {
+    console.log(USAGE6);
+    return;
+  }
+  const outputJson = values.json;
+  const quiet = values.quiet;
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart("status");
+  const harnessRoot = getHarnessRoot();
+  const autogenDir = getAutogenDir();
+  const persistedState = loadPipelineState();
+  const artifactTypes = [
+    "analysis",
+    "plan",
+    "state",
+    "results",
+    "telemetry"
+  ];
+  const artifacts = artifactTypes.map((a) => getArtifactStatus(a));
+  const refinementStates = loadRefinementStates();
+  const pipeline = determinePipelineStage(artifacts, persistedState);
+  const summary = {
+    refinementAttempts: refinementStates.reduce((sum, s) => sum + s.attempts, 0)
+  };
+  const analysisArtifact = artifacts.find((a) => a.name === "analysis");
+  if (analysisArtifact?.exists) {
+    try {
+      const data = JSON.parse(readFileSync(analysisArtifact.path, "utf-8"));
+      summary.totalJourneys = data.journeys?.length;
+    } catch {
+    }
+  }
+  const planArtifact = artifacts.find((a) => a.name === "plan");
+  if (planArtifact?.exists) {
+    try {
+      const data = JSON.parse(readFileSync(planArtifact.path, "utf-8"));
+      summary.totalPlans = data.plans?.length;
+    } catch {
+    }
+  }
+  const resultsArtifact = artifacts.find((a) => a.name === "results");
+  if (resultsArtifact?.exists) {
+    try {
+      const data = JSON.parse(readFileSync(resultsArtifact.path, "utf-8"));
+      summary.testsRun = data.summary?.total;
+      summary.testsPassed = data.summary?.passed;
+      summary.testsFailed = data.summary?.failed;
+    } catch {
+    }
+  }
+  const status = {
+    version: "1.0",
+    harnessRoot,
+    autogenDir,
+    hasArtifacts: hasAutogenArtifacts(),
+    artifacts,
+    pipeline,
+    persistedState,
+    refinementStates,
+    summary,
+    checkedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  if (outputJson) {
+    console.log(JSON.stringify(status, null, 2));
+  } else if (!quiet) {
+    console.log("AutoGen Pipeline Status");
+    console.log("\u2550".repeat(50));
+    console.log(`Harness: ${harnessRoot}`);
+    console.log(`Stage: ${pipeline.stage}`);
+    console.log(`Can proceed: ${pipeline.canProceed ? "Yes" : "No"}`);
+    console.log(`Next action: ${pipeline.nextAction}`);
+    if (pipeline.blockedReason) {
+      console.log(`Blocked: ${pipeline.blockedReason}`);
+    }
+    console.log("\nArtifacts:");
+    for (const artifact of artifacts) {
+      const icon = artifact.exists ? "\u2713" : "\u2717";
+      const summary2 = artifact.summary ? ` (${artifact.summary})` : "";
+      console.log(`  ${icon} ${artifact.name}${summary2}`);
+    }
+    if (refinementStates.length > 0) {
+      console.log("\nRefinement States:");
+      for (const state of refinementStates) {
+        const icon = state.isBlocked ? "\u26A0" : "\u25CB";
+        console.log(`  ${icon} ${basename(state.testPath)}: ${state.attempts} attempts, ${state.lastStatus}`);
+      }
+    }
+    if (summary.testsRun !== void 0) {
+      console.log("\nSummary:");
+      console.log(`  Journeys: ${summary.totalJourneys || "N/A"}`);
+      console.log(`  Plans: ${summary.totalPlans || "N/A"}`);
+      console.log(`  Tests: ${summary.testsPassed}/${summary.testsRun} passed`);
+      console.log(`  Refinement attempts: ${summary.refinementAttempts}`);
+    }
+    if (persistedState && persistedState.stage !== "initial") {
+      console.log("\nPersisted State:");
+      console.log(`  ${getPipelineStateSummary(persistedState)}`);
+    }
+  }
+  telemetry.trackCommandEnd(eventId, true, {
+    stage: pipeline.stage,
+    hasArtifacts: status.hasArtifacts,
+    refinementStates: refinementStates.length
+  });
+  await telemetry.save();
+}
+var USAGE6;
+var init_status = __esm({
+  "src/cli/status.ts"() {
+    init_paths();
+    init_state();
+    init_telemetry();
+    USAGE6 = `
+Usage: artk-autogen status [options]
+
+Show the current state of the autogen pipeline.
+
+Options:
+  --json                 Output JSON to stdout
+  -q, --quiet            Suppress output except errors
+  -h, --help             Show this help message
+
+Examples:
+  artk-autogen status
+  artk-autogen status --json
+`;
+  }
+});
+
+// src/cli/clean.ts
+var clean_exports = {};
+__export(clean_exports, {
+  runClean: () => runClean
+});
+function listArtifacts() {
+  const autogenDir = getAutogenDir();
+  if (!existsSync(autogenDir)) return [];
+  const items = [];
+  try {
+    const entries = readdirSync(autogenDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(autogenDir, entry.name);
+      const stat = statSync(fullPath);
+      items.push({
+        path: fullPath,
+        size: entry.isDirectory() ? getDirSize(fullPath) : stat.size,
+        isDir: entry.isDirectory()
+      });
+    }
+  } catch {
+  }
+  return items;
+}
+function getDirSize(dirPath) {
+  let size = 0;
+  try {
+    const entries = readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        size += getDirSize(fullPath);
+      } else {
+        size += statSync(fullPath).size;
+      }
+    }
+  } catch {
+  }
+  return size;
+}
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+async function runClean(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      "dry-run": { type: "boolean", default: false },
+      "keep-analysis": { type: "boolean", default: false },
+      "keep-plan": { type: "boolean", default: false },
+      force: { type: "boolean", short: "f", default: false },
+      quiet: { type: "boolean", short: "q", default: false },
+      help: { type: "boolean", short: "h", default: false }
+    },
+    allowPositionals: true
+  });
+  if (values.help) {
+    console.log(USAGE7);
+    return;
+  }
+  const dryRun = values["dry-run"];
+  const keepAnalysis = values["keep-analysis"];
+  const keepPlan = values["keep-plan"];
+  const force = values.force;
+  const quiet = values.quiet;
+  const telemetry = getTelemetry();
+  await telemetry.load();
+  const eventId = telemetry.trackCommandStart("clean");
+  if (!hasAutogenArtifacts()) {
+    if (!quiet) {
+      console.log("No autogen artifacts to clean.");
+    }
+    telemetry.trackCommandEnd(eventId, true, { skipped: true, reason: "no_artifacts" });
+    await telemetry.save();
+    return;
+  }
+  const artifacts = listArtifacts();
+  const toDelete = [];
+  const toKeep = [];
+  for (const artifact of artifacts) {
+    const name = artifact.path.split("/").pop() || "";
+    if (keepAnalysis && name === "analysis.json") {
+      toKeep.push(artifact);
+    } else if (keepPlan && name === "plan.json") {
+      toKeep.push(artifact);
+    } else {
+      toDelete.push(artifact);
+    }
+  }
+  if (toDelete.length === 0) {
+    if (!quiet) {
+      console.log("Nothing to delete (all artifacts are marked to keep).");
+    }
+    telemetry.trackCommandEnd(eventId, true, { skipped: true, reason: "nothing_to_delete" });
+    await telemetry.save();
+    return;
+  }
+  const totalSize = toDelete.reduce((sum, a) => sum + a.size, 0);
+  if (!quiet || dryRun) {
+    console.log(dryRun ? "Would delete:" : "Will delete:");
+    for (const artifact of toDelete) {
+      const name = artifact.path.split("/").pop();
+      const type = artifact.isDir ? "(dir)" : "";
+      console.log(`  - ${name} ${type} [${formatSize(artifact.size)}]`);
+    }
+    console.log(`
+Total: ${formatSize(totalSize)}`);
+    if (toKeep.length > 0) {
+      console.log("\nKeeping:");
+      for (const artifact of toKeep) {
+        const name = artifact.path.split("/").pop();
+        console.log(`  - ${name}`);
+      }
+    }
+  }
+  if (dryRun) {
+    telemetry.trackCommandEnd(eventId, true, { dryRun: true, wouldDelete: toDelete.length });
+    await telemetry.save();
+    return;
+  }
+  if (!force && !quiet) {
+    const readline = await import('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    const answer = await new Promise((resolve7) => {
+      rl.question("\nProceed with deletion? [y/N] ", (ans) => {
+        rl.close();
+        resolve7(ans);
+      });
+    });
+    if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+      console.log("Aborted.");
+      telemetry.trackCommandEnd(eventId, true, { aborted: true });
+      await telemetry.save();
+      return;
+    }
+  }
+  const deleted = [];
+  const errors = [];
+  for (const artifact of toDelete) {
+    try {
+      rmSync(artifact.path, { recursive: true });
+      deleted.push(artifact.path);
+    } catch (e) {
+      errors.push(`Failed to delete ${artifact.path}: ${e}`);
+    }
+  }
+  if (!quiet) {
+    console.log(`
+Deleted ${deleted.length} item(s)`);
+    if (errors.length > 0) {
+      console.error("\nErrors:");
+      for (const err3 of errors) {
+        console.error(`  ${err3}`);
+      }
+    }
+  }
+  if (toKeep.length === 0) {
+    await cleanAutogenArtifacts();
+    await resetPipelineState();
+    if (!quiet) {
+      console.log("Recreated empty autogen directory.");
+      console.log("Reset pipeline state to initial.");
+    }
+  }
+  telemetry.trackCommandEnd(eventId, errors.length === 0, {
+    deleted: deleted.length,
+    kept: toKeep.length,
+    errors: errors.length,
+    totalSize,
+    dryRun
+  });
+  await telemetry.save();
+}
+var USAGE7;
+var init_clean = __esm({
+  "src/cli/clean.ts"() {
+    init_paths();
+    init_state();
+    init_telemetry();
+    USAGE7 = `
+Usage: artk-autogen clean [options]
+
+Clean autogen artifacts for a fresh start.
+
+Options:
+  --dry-run              Show what would be deleted without deleting
+  --keep-analysis        Keep analysis.json (only clean generated files)
+  --keep-plan            Keep plan.json
+  -f, --force            Skip confirmation
+  -q, --quiet            Suppress output except errors
+  -h, --help             Show this help message
+
+Examples:
+  artk-autogen clean
+  artk-autogen clean --dry-run
+  artk-autogen clean --keep-analysis
+  artk-autogen clean --force
 `;
   }
 });
@@ -8064,12 +12516,12 @@ async function runValidate(args) {
     allowPositionals: true
   });
   if (values.help) {
-    console.log(USAGE2);
+    console.log(USAGE8);
     return;
   }
   if (positionals.length === 0) {
     console.error("Error: No files specified");
-    console.log(USAGE2);
+    console.log(USAGE8);
     process.exit(1);
   }
   const files = await fg2(positionals, {
@@ -8164,11 +12616,11 @@ ${passed} passed, ${failed} failed`);
     process.exit(1);
   }
 }
-var USAGE2;
+var USAGE8;
 var init_validate2 = __esm({
   "src/cli/validate.ts"() {
     init_index();
-    USAGE2 = `
+    USAGE8 = `
 Usage: artk-autogen validate [options] <files...>
 
 Validate journey files or generated test code.
@@ -8214,12 +12666,12 @@ async function runVerify(args) {
     allowPositionals: true
   });
   if (values.help) {
-    console.log(USAGE3);
+    console.log(USAGE9);
     return;
   }
   if (positionals.length === 0) {
     console.error("Error: No journey files specified");
-    console.log(USAGE3);
+    console.log(USAGE9);
     process.exit(1);
   }
   const journeyFiles = await fg2(positionals, {
@@ -8320,12 +12772,12 @@ Summary:`);
     process.exit(1);
   }
 }
-var USAGE3;
+var USAGE9;
 var init_verify2 = __esm({
   "src/cli/verify.ts"() {
     init_index();
     init_parsing();
-    USAGE3 = `
+    USAGE9 = `
 Usage: artk-autogen verify [options] <journey-files...>
 
 Generate and run Playwright tests from Journey files to verify they work.
@@ -8350,6 +12802,117 @@ Examples:
   artk-autogen verify "journeys/*.md" --heal
   artk-autogen verify journeys/login.md --stability --stability-runs 5
 `;
+  }
+});
+
+// src/cli/install.ts
+var install_exports = {};
+__export(install_exports, {
+  runInstall: () => runInstall
+});
+async function runInstall(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      dir: { type: "string", short: "d", default: "." },
+      name: { type: "string", short: "n" },
+      "base-url": { type: "string" },
+      "skip-existing": { type: "boolean", default: false },
+      "no-example": { type: "boolean", default: false },
+      force: { type: "boolean", short: "f", default: false }
+    },
+    allowPositionals: true
+  });
+  console.log("Installing ARTK autogen...\n");
+  const result = await installAutogenInstance({
+    rootDir: values.dir,
+    projectName: values.name,
+    baseUrl: values["base-url"],
+    skipIfExists: values["skip-existing"],
+    includeExample: !values["no-example"],
+    force: values.force
+  });
+  if (result.success) {
+    console.log("\u2713 Installation complete\n");
+    if (result.created.length > 0) {
+      console.log("Created:");
+      for (const path of result.created) {
+        console.log(`  + ${path}`);
+      }
+    }
+    if (result.skipped.length > 0) {
+      console.log("\nSkipped (already exists):");
+      for (const path of result.skipped) {
+        console.log(`  - ${path}`);
+      }
+    }
+    console.log("\nNext steps:");
+    console.log("  1. Edit autogen.config.yml with your project settings");
+    console.log("  2. Create Journeys in journeys/ directory");
+    console.log("  3. Run: npx artk-autogen generate <journey.md>");
+  } else {
+    console.error("\u2717 Installation failed:\n");
+    for (const error of result.errors) {
+      console.error(`  ${error}`);
+    }
+    process.exit(1);
+  }
+}
+var init_install2 = __esm({
+  "src/cli/install.ts"() {
+    init_install();
+  }
+});
+
+// src/cli/upgrade.ts
+var upgrade_exports = {};
+__export(upgrade_exports, {
+  runUpgrade: () => runUpgrade
+});
+async function runUpgrade(args) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      dir: { type: "string", short: "d", default: "." },
+      "dry-run": { type: "boolean", default: false },
+      "no-backup": { type: "boolean", default: false }
+    },
+    allowPositionals: true
+  });
+  console.log("Upgrading ARTK autogen...\n");
+  const result = await upgradeAutogenInstance({
+    rootDir: values.dir,
+    dryRun: values["dry-run"],
+    backup: !values["no-backup"]
+  });
+  if (values["dry-run"]) {
+    console.log("[DRY RUN] No changes written\n");
+  }
+  console.log(`Version: ${result.fromVersion} \u2192 ${result.toVersion}
+`);
+  if (result.changes.length > 0) {
+    console.log("Changes:");
+    for (const change of result.changes) {
+      console.log(`  ${change.description}`);
+      console.log(`    \u2192 ${change.path}`);
+    }
+  }
+  if (result.backupPath) {
+    console.log(`
+Backup: ${result.backupPath}`);
+  }
+  if (!result.success) {
+    console.error("\n\u2717 Upgrade failed:");
+    for (const error of result.errors) {
+      console.error(`  ${error}`);
+    }
+    process.exit(1);
+  }
+  console.log("\n\u2713 Upgrade complete");
+}
+var init_upgrade2 = __esm({
+  "src/cli/upgrade.ts"() {
+    init_upgrade();
   }
 });
 
@@ -8491,10 +13054,10 @@ async function confirmAction(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve6(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -8566,7 +13129,7 @@ async function runPatterns(args) {
 var PATTERNS_USAGE;
 var init_patterns3 = __esm({
   "src/cli/patterns.ts"() {
-    init_telemetry();
+    init_telemetry2();
     init_patterns();
     PATTERNS_USAGE = `
 Usage: artk-autogen patterns <subcommand> [options]
@@ -8718,10 +13281,10 @@ async function confirmAction2(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve6(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -8848,15 +13411,25 @@ Examples:
 
 // src/cli/index.ts
 init_index();
-var USAGE4 = `
+var USAGE10 = `
 Usage: artk-autogen <command> [options]
 
-Commands:
-  install        Install ARTK autogen instance in a project
-  upgrade        Upgrade ARTK autogen instance to new version
-  generate       Generate Playwright tests from Journey files
+Pipeline Commands (Hybrid Agentic Architecture):
+  analyze        Analyze journey files and output structured analysis
+  plan           Create test generation plan from analysis
+  generate       Generate Playwright tests from plan (or journey files)
+  run            Execute tests via Playwright
+  refine         Analyze failures and generate refinement suggestions
+  status         Show pipeline state
+  clean          Clean autogen artifacts
+
+Validation Commands:
   validate       Validate generated test code
   verify         Run and verify generated tests
+
+Management Commands:
+  install        Install ARTK autogen instance in a project
+  upgrade        Upgrade ARTK autogen instance to new version
   patterns       Analyze blocked step telemetry and pattern gaps
   llkb-patterns  Manage learned patterns from LLKB integration
 
@@ -8865,25 +13438,30 @@ Options:
   -v, --version   Show version
 
 Examples:
+  # Pipeline workflow
+  artk-autogen analyze "journeys/*.md"
+  artk-autogen plan --strategy scot
+  artk-autogen generate --output tests/
+  artk-autogen run tests/*.spec.ts
+  artk-autogen refine
+  artk-autogen status
+
+  # Legacy workflow (still supported)
+  artk-autogen generate journeys/login.md -o tests/ -m
+
+  # Management
   artk-autogen install --dir ./my-project
-  artk-autogen upgrade --dir ./my-project
-  artk-autogen generate journeys/login.md
-  artk-autogen validate tests/login.spec.ts
-  artk-autogen verify journeys/login.md --heal
   artk-autogen patterns gaps --limit 20
-  artk-autogen patterns stats
-  artk-autogen llkb-patterns list
-  artk-autogen llkb-patterns promote
 `;
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.log(USAGE4);
+    console.log(USAGE10);
     process.exit(0);
   }
   const command = args[0];
   if (command === "-h" || command === "--help") {
-    console.log(USAGE4);
+    console.log(USAGE10);
     process.exit(0);
   }
   if (command === "-v" || command === "--version") {
@@ -8893,14 +13471,17 @@ async function main() {
   const subArgs = args.slice(1);
   try {
     switch (command) {
-      case "install": {
-        const { runInstall: runInstall2 } = await Promise.resolve().then(() => (init_install2(), install_exports));
-        await runInstall2(subArgs);
+      // ─────────────────────────────────────────────────────────────────────
+      // PIPELINE COMMANDS (Hybrid Agentic Architecture)
+      // ─────────────────────────────────────────────────────────────────────
+      case "analyze": {
+        const { runAnalyze: runAnalyze2 } = await Promise.resolve().then(() => (init_analyze(), analyze_exports));
+        await runAnalyze2(subArgs);
         break;
       }
-      case "upgrade": {
-        const { runUpgrade: runUpgrade2 } = await Promise.resolve().then(() => (init_upgrade2(), upgrade_exports));
-        await runUpgrade2(subArgs);
+      case "plan": {
+        const { runPlan: runPlan2 } = await Promise.resolve().then(() => (init_plan(), plan_exports));
+        await runPlan2(subArgs);
         break;
       }
       case "generate": {
@@ -8908,6 +13489,29 @@ async function main() {
         await runGenerate2(subArgs);
         break;
       }
+      case "run": {
+        const { runRun: runRun2 } = await Promise.resolve().then(() => (init_run(), run_exports));
+        await runRun2(subArgs);
+        break;
+      }
+      case "refine": {
+        const { runRefine: runRefine2 } = await Promise.resolve().then(() => (init_refine(), refine_exports));
+        await runRefine2(subArgs);
+        break;
+      }
+      case "status": {
+        const { runStatus: runStatus2 } = await Promise.resolve().then(() => (init_status(), status_exports));
+        await runStatus2(subArgs);
+        break;
+      }
+      case "clean": {
+        const { runClean: runClean2 } = await Promise.resolve().then(() => (init_clean(), clean_exports));
+        await runClean2(subArgs);
+        break;
+      }
+      // ─────────────────────────────────────────────────────────────────────
+      // VALIDATION COMMANDS
+      // ─────────────────────────────────────────────────────────────────────
       case "validate": {
         const { runValidate: runValidate2 } = await Promise.resolve().then(() => (init_validate2(), validate_exports));
         await runValidate2(subArgs);
@@ -8916,6 +13520,19 @@ async function main() {
       case "verify": {
         const { runVerify: runVerify2 } = await Promise.resolve().then(() => (init_verify2(), verify_exports));
         await runVerify2(subArgs);
+        break;
+      }
+      // ─────────────────────────────────────────────────────────────────────
+      // MANAGEMENT COMMANDS
+      // ─────────────────────────────────────────────────────────────────────
+      case "install": {
+        const { runInstall: runInstall2 } = await Promise.resolve().then(() => (init_install2(), install_exports));
+        await runInstall2(subArgs);
+        break;
+      }
+      case "upgrade": {
+        const { runUpgrade: runUpgrade2 } = await Promise.resolve().then(() => (init_upgrade2(), upgrade_exports));
+        await runUpgrade2(subArgs);
         break;
       }
       case "patterns": {
@@ -8930,7 +13547,7 @@ async function main() {
       }
       default:
         console.error(`Unknown command: ${command}`);
-        console.log(USAGE4);
+        console.log(USAGE10);
         process.exit(1);
     }
   } catch (error) {

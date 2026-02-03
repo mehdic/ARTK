@@ -1,0 +1,902 @@
+[
+  {
+    "id": "ADV-001",
+    "trigger": "(?:enter|switch\\s+to|access|go\\s+(?:in)?to|navigate\\s+(?:in)?to)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:iframe|frame|i-frame)",
+    "pattern": "const frame = page.frameLocator('${selector}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Enter an iframe context"
+  },
+  {
+    "id": "ADV-002",
+    "trigger": "(?:access|interact\\s+with|work\\s+with|target|enter)(?:s|ed|ing)?\\s+(?:a\\s+)?nested\\s+(?:iframe|frame)",
+    "pattern": "const nestedFrame = page.frameLocator('${parentSelector}').frameLocator('${childSelector}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Access nested iframe"
+  },
+  {
+    "id": "ADV-003",
+    "trigger": "(?:handle|access|interact\\s+with|work\\s+with)(?:s|ed|ing)?\\s+(?:a\\s+)?cross-?origin\\s+(?:iframe|frame)",
+    "pattern": "const crossOriginFrame = page.frameLocator('${selector}'); // Note: Same-origin policy restrictions apply",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Handle cross-origin iframe"
+  },
+  {
+    "id": "ADV-004",
+    "trigger": "(?:wait\\s+for|handle|access)(?:s|ed|ing)?\\s+(?:a\\s+)?dynamic(?:ally)?(?:\\s+loaded)?\\s+(?:iframe|frame)",
+    "pattern": "await page.waitForSelector('${selector}');\nconst frame = page.frameLocator('${selector}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Wait for and access dynamic iframe"
+  },
+  {
+    "id": "ADV-005",
+    "trigger": "(?:access|find|get|locate)(?:s|ed|ing)?\\s+(?:an\\s+)?(?:iframe|frame)\\s+by\\s+(?:its\\s+)?name",
+    "pattern": "const frame = page.frame({ name: '${frameName}' });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Access iframe by name attribute"
+  },
+  {
+    "id": "ADV-006",
+    "trigger": "(?:access|find|get|locate)(?:s|ed|ing)?\\s+(?:an\\s+)?(?:iframe|frame)\\s+by\\s+(?:its\\s+)?(?:id|identifier)",
+    "pattern": "const frame = page.frameLocator('#${frameId}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Access iframe by ID"
+  },
+  {
+    "id": "ADV-007",
+    "trigger": "(?:access|find|get|locate)(?:s|ed|ing)?\\s+(?:an\\s+)?(?:iframe|frame)\\s+by\\s+(?:its\\s+)?(?:url|src|source)",
+    "pattern": "const frame = page.frame({ url: /${urlPattern}/ });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Access iframe by URL pattern"
+  },
+  {
+    "id": "ADV-008",
+    "trigger": "(?:exit|leave|return\\s+from|escape)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:iframe|frame)(?:\\s+context)?",
+    "pattern": "// Return to main page context\nawait page.locator('${mainPageSelector}').click();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Exit iframe context back to main page"
+  },
+  {
+    "id": "ADV-009",
+    "trigger": "(?:count|get\\s+(?:the\\s+)?(?:number|count)\\s+of|enumerate)(?:s|ed|ing)?\\s+(?:all\\s+)?(?:iframes?|frames?)",
+    "pattern": "const frameCount = page.frames().length;",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Count all frames on page"
+  },
+  {
+    "id": "ADV-010",
+    "trigger": "(?:iterate|loop)(?:s|ed|ing)?\\s+(?:over|through)\\s+(?:all\\s+)?(?:iframes?|frames?)",
+    "pattern": "for (const frame of page.frames()) {\n  // Work with each frame\n}",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Iterate through all frames"
+  },
+  {
+    "id": "ADV-011",
+    "trigger": "(?:verify|check|ensure|assert|validate)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:iframe|frame)\\s+(?:is\\s+)?loaded",
+    "pattern": "await expect(page.frameLocator('${selector}').locator('body')).toBeVisible();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Verify iframe is loaded"
+  },
+  {
+    "id": "ADV-012",
+    "trigger": "(?:get|retrieve|extract|fetch)(?:s|ed|ing)?\\s+(?:the\\s+)?(?:main|parent|top)\\s+frame",
+    "pattern": "const mainFrame = page.mainFrame();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Get main frame reference"
+  },
+  {
+    "id": "ADV-013",
+    "trigger": "(?:pierce|penetrate|access|query)(?:s|ed|ing)?\\s+(?:the\\s+)?shadow\\s+(?:dom|root|tree)",
+    "pattern": "await page.locator('${hostSelector}').locator('${shadowSelector}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Pierce shadow DOM"
+  },
+  {
+    "id": "ADV-014",
+    "trigger": "(?:access|query|interact\\s+with)(?:s|ed|ing)?\\s+(?:an\\s+)?open\\s+shadow\\s+(?:dom|root)",
+    "pattern": "const shadowRoot = await page.evaluateHandle('document.querySelector(\"${hostSelector}\").shadowRoot');\nconst element = await shadowRoot.$('${selector}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Access open shadow root"
+  },
+  {
+    "id": "ADV-015",
+    "trigger": "(?:access|query|handle)(?:s|ed|ing)?\\s+(?:a\\s+)?closed\\s+shadow\\s+(?:dom|root)",
+    "pattern": "// Closed shadow roots require internal access or test hooks\nconst element = await page.evaluateHandle('window.__testHooks.getShadowElement(\"${selector}\")');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Access closed shadow root via test hooks"
+  },
+  {
+    "id": "ADV-016",
+    "trigger": "(?:access|navigate|traverse|query)(?:s|ed|ing)?\\s+nested\\s+shadow\\s+(?:doms?|roots?|trees?)",
+    "pattern": "await page.locator('${host1}').locator('${host2}').locator('${finalSelector}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Navigate nested shadow DOMs"
+  },
+  {
+    "id": "ADV-017",
+    "trigger": "(?:query|find|locate|select)(?:s|ed|ing)?\\s+(?:elements?|nodes?)\\s+(?:in|within|inside)\\s+shadow\\s+(?:dom|root)",
+    "pattern": "await page.locator('${hostSelector} >>> ${shadowSelector}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Query elements in shadow DOM using deep selector"
+  },
+  {
+    "id": "ADV-018",
+    "trigger": "(?:interact\\s+with|access|manipulate)(?:s|ed|ing)?\\s+shadow\\s+(?:dom\\s+)?slots?",
+    "pattern": "await page.locator('${hostSelector}').locator('slot[name=\"${slotName}\"]');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Access shadow DOM slots"
+  },
+  {
+    "id": "ADV-019",
+    "trigger": "(?:verify|check|assert|validate)(?:s|ed|ing)?\\s+(?:that\\s+)?shadow\\s+(?:dom|root)\\s+(?:is\\s+)?(?:attached|exists?|present)",
+    "pattern": "const hasShadowRoot = await page.evaluate('!!document.querySelector(\"${selector}\").shadowRoot');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Verify shadow root exists"
+  },
+  {
+    "id": "ADV-020",
+    "trigger": "(?:get|retrieve|extract)(?:s|ed|ing)?\\s+(?:the\\s+)?shadow\\s+(?:dom\\s+)?(?:mode|type)",
+    "pattern": "const shadowMode = await page.evaluate('document.querySelector(\"${selector}\").shadowRoot?.mode');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Get shadow root mode (open/closed)"
+  },
+  {
+    "id": "ADV-021",
+    "trigger": "(?:wait\\s+for|await)(?:s|ed|ing)?\\s+shadow\\s+(?:dom|root)\\s+(?:to\\s+)?(?:load|be\\s+ready|attach)",
+    "pattern": "await page.waitForFunction('!!document.querySelector(\"${selector}\").shadowRoot');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for shadow root to attach"
+  },
+  {
+    "id": "ADV-022",
+    "trigger": "(?:count|get\\s+(?:the\\s+)?(?:number|count)\\s+of)(?:s|ed|ing)?\\s+shadow\\s+(?:roots?|hosts?)",
+    "pattern": "const shadowHostCount = await page.evaluate('document.querySelectorAll(\"*\").filter(el => el.shadowRoot).length');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Count shadow hosts on page"
+  },
+  {
+    "id": "ADV-023",
+    "trigger": "(?:set|save|store|write)(?:s|ed|ing)?\\s+(?:data\\s+(?:to|in)\\s+)?(?:local\\s?storage|localStorage)",
+    "pattern": "await page.evaluate('localStorage.setItem(\"${key}\", \"${value}\")');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Set localStorage item"
+  },
+  {
+    "id": "ADV-024",
+    "trigger": "(?:get|retrieve|read|fetch)(?:s|ed|ing)?\\s+(?:data\\s+from\\s+)?(?:local\\s?storage|localStorage)",
+    "pattern": "const value = await page.evaluate('localStorage.getItem(\"${key}\")');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Get localStorage item"
+  },
+  {
+    "id": "ADV-025",
+    "trigger": "(?:clear|delete|remove|erase)(?:s|ed|ing)?\\s+(?:all\\s+)?(?:local\\s?storage|localStorage)(?:\\s+data)?",
+    "pattern": "await page.evaluate('localStorage.clear()');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Clear all localStorage"
+  },
+  {
+    "id": "ADV-026",
+    "trigger": "(?:set|save|store|write)(?:s|ed|ing)?\\s+(?:data\\s+(?:to|in)\\s+)?(?:session\\s?storage|sessionStorage)",
+    "pattern": "await page.evaluate('sessionStorage.setItem(\"${key}\", \"${value}\")');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Set sessionStorage item"
+  },
+  {
+    "id": "ADV-027",
+    "trigger": "(?:get|retrieve|read|fetch)(?:s|ed|ing)?\\s+(?:data\\s+from\\s+)?(?:session\\s?storage|sessionStorage)",
+    "pattern": "const value = await page.evaluate('sessionStorage.getItem(\"${key}\")');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Get sessionStorage item"
+  },
+  {
+    "id": "ADV-028",
+    "trigger": "(?:clear|delete|remove|erase)(?:s|ed|ing)?\\s+(?:all\\s+)?(?:session\\s?storage|sessionStorage)(?:\\s+data)?",
+    "pattern": "await page.evaluate('sessionStorage.clear()');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Clear all sessionStorage"
+  },
+  {
+    "id": "ADV-029",
+    "trigger": "(?:set|create|add|save)(?:s|ed|ing)?\\s+(?:a\\s+)?cookies?",
+    "pattern": "await context.addCookies([{ name: '${name}', value: '${value}', domain: '${domain}', path: '/' }]);",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Set a cookie"
+  },
+  {
+    "id": "ADV-030",
+    "trigger": "(?:get|retrieve|read|fetch)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:specific\\s+)?cookies?",
+    "pattern": "const cookies = await context.cookies();\nconst cookie = cookies.find(c => c.name === '${name}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Get specific cookie"
+  },
+  {
+    "id": "ADV-031",
+    "trigger": "(?:get|retrieve|list|fetch)(?:s|ed|ing)?\\s+(?:all\\s+)?cookies?",
+    "pattern": "const cookies = await context.cookies();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Get all cookies"
+  },
+  {
+    "id": "ADV-032",
+    "trigger": "(?:delete|remove|clear)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:specific\\s+)?cookies?",
+    "pattern": "await context.clearCookies({ name: '${name}' });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Delete specific cookie"
+  },
+  {
+    "id": "ADV-033",
+    "trigger": "(?:clear|delete|remove)(?:s|ed|ing)?\\s+(?:all\\s+)?cookies?",
+    "pattern": "await context.clearCookies();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Clear all cookies"
+  },
+  {
+    "id": "ADV-034",
+    "trigger": "(?:clear|wipe|erase|reset)(?:s|ed|ing)?\\s+(?:all\\s+)?(?:browser\\s+)?storage(?:\\s+data)?",
+    "pattern": "await page.evaluate('{ localStorage.clear(); sessionStorage.clear(); }');\nawait context.clearCookies();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Clear all storage (localStorage, sessionStorage, cookies)"
+  },
+  {
+    "id": "ADV-035",
+    "trigger": "(?:mock|intercept|stub|fake)(?:s|ed|ing)?\\s+(?:an?\\s+)?(?:api\\s+)?(?:response|request)",
+    "pattern": "await page.route('**/api/${endpoint}', route => route.fulfill({ status: 200, body: JSON.stringify(${data}) }));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Mock API response"
+  },
+  {
+    "id": "ADV-036",
+    "trigger": "(?:intercept|capture|monitor|watch)(?:s|ed|ing)?\\s+(?:an?\\s+)?(?:api\\s+)?(?:request|call)",
+    "pattern": "await page.route('**/api/${endpoint}', route => {\n  console.log('Request intercepted:', route.request().url());\n  route.continue();\n});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Intercept and monitor API request"
+  },
+  {
+    "id": "ADV-037",
+    "trigger": "(?:abort|block|cancel|reject)(?:s|ed|ing)?\\s+(?:an?\\s+)?(?:api\\s+)?(?:request|call)",
+    "pattern": "await page.route('**/api/${endpoint}', route => route.abort());",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Abort API request"
+  },
+  {
+    "id": "ADV-038",
+    "trigger": "(?:delay|slow\\s+down|throttle)(?:s|ed|ing)?\\s+(?:an?\\s+)?(?:api\\s+)?(?:response|request)",
+    "pattern": "await page.route('**/api/${endpoint}', async route => {\n  await new Promise(resolve => setTimeout(resolve, ${delayMs}));\n  await route.continue();\n});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Delay API response"
+  },
+  {
+    "id": "ADV-039",
+    "trigger": "(?:mock|fake|simulate)(?:s|ed|ing)?\\s+(?:an?\\s+)?(?:http\\s+)?(?:status\\s+code|error\\s+response)",
+    "pattern": "await page.route('**/api/${endpoint}', route => route.fulfill({ status: ${statusCode}, body: '${message}' }));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Mock HTTP status code"
+  },
+  {
+    "id": "ADV-040",
+    "trigger": "(?:mock|modify|set|override)(?:s|ed|ing)?\\s+(?:response\\s+)?headers?",
+    "pattern": "await page.route('**/api/${endpoint}', route => route.fulfill({ status: 200, headers: { '${headerName}': '${headerValue}' }, body: '${body}' }));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Mock response headers"
+  },
+  {
+    "id": "ADV-041",
+    "trigger": "(?:mock|intercept|stub|fake)(?:s|ed|ing)?\\s+(?:a\\s+)?graphql\\s+(?:query|mutation|request)",
+    "pattern": "await page.route('**/graphql', route => {\n  const postData = route.request().postDataJSON();\n  if (postData?.operationName === '${operationName}') {\n    route.fulfill({ status: 200, body: JSON.stringify({ data: ${mockData} }) });\n  } else {\n    route.continue();\n  }\n});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Mock GraphQL operation"
+  },
+  {
+    "id": "ADV-042",
+    "trigger": "(?:record|capture|save)(?:s|ed|ing)?\\s+(?:network\\s+traffic\\s+(?:to|as)\\s+)?(?:a\\s+)?har(?:\\s+file)?",
+    "pattern": "await context.routeFromHAR('${harFile}', { update: true });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Record network traffic to HAR file"
+  },
+  {
+    "id": "ADV-043",
+    "trigger": "(?:replay|playback|load|use)(?:s|ed|ing)?\\s+(?:network\\s+traffic\\s+from\\s+)?(?:a\\s+)?har(?:\\s+file)?",
+    "pattern": "await context.routeFromHAR('${harFile}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Replay network traffic from HAR file"
+  },
+  {
+    "id": "ADV-044",
+    "trigger": "(?:wait\\s+for|await)(?:s|ed|ing)?\\s+(?:an?\\s+)?(?:api\\s+)?(?:response|request)\\s+(?:to\\s+)?(?:complete|finish)",
+    "pattern": "const response = await page.waitForResponse(resp => resp.url().includes('${endpoint}') && resp.status() === 200);",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for API response"
+  },
+  {
+    "id": "ADV-045",
+    "trigger": "(?:wait\\s+for|await)(?:s|ed|ing)?\\s+(?:an?\\s+)?(?:api\\s+)?request\\s+(?:to\\s+)?(?:be\\s+sent|start)",
+    "pattern": "const request = await page.waitForRequest(req => req.url().includes('${endpoint}'));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Wait for API request to be sent"
+  },
+  {
+    "id": "ADV-046",
+    "trigger": "(?:verify|check|assert|validate)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:request|api)\\s+payload",
+    "pattern": "const request = await page.waitForRequest(req => req.url().includes('${endpoint}'));\nconst payload = request.postDataJSON();\nexpect(payload).toMatchObject(${expectedPayload});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Verify API request payload"
+  },
+  {
+    "id": "ADV-047",
+    "trigger": "(?:verify|check|assert|validate)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:response|api)\\s+(?:body|data|payload)",
+    "pattern": "const response = await page.waitForResponse(resp => resp.url().includes('${endpoint}'));\nconst data = await response.json();\nexpect(data).toMatchObject(${expectedData});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Verify API response data"
+  },
+  {
+    "id": "ADV-048",
+    "trigger": "(?:mock|simulate|fake)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:network\\s+)?(?:failure|error|timeout)",
+    "pattern": "await page.route('**/api/${endpoint}', route => route.abort('failed'));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Simulate network failure"
+  },
+  {
+    "id": "ADV-049",
+    "trigger": "(?:modify|change|alter|update)(?:s|ed|ing)?\\s+(?:request|api)\\s+(?:body|payload|data)",
+    "pattern": "await page.route('**/api/${endpoint}', route => {\n  const postData = route.request().postDataJSON();\n  const modified = { ...postData, ${modifications} };\n  route.continue({ postData: modified });\n});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Modify request payload"
+  },
+  {
+    "id": "ADV-050",
+    "trigger": "(?:trigger|initiate|start)(?:s|ed|ing)?\\s+(?:a\\s+)?download",
+    "pattern": "const downloadPromise = page.waitForEvent('download');\nawait page.locator('${selector}').click();\nconst download = await downloadPromise;",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Trigger and wait for download"
+  },
+  {
+    "id": "ADV-051",
+    "trigger": "(?:wait\\s+for|await)(?:s|ed|ing)?\\s+(?:a\\s+)?download\\s+(?:to\\s+)?(?:complete|finish|start)",
+    "pattern": "const download = await page.waitForEvent('download');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Wait for download event"
+  },
+  {
+    "id": "ADV-052",
+    "trigger": "(?:save|store|persist)(?:s|ed|ing)?\\s+(?:the\\s+)?download(?:ed)?(?:\\s+file)?",
+    "pattern": "const download = await page.waitForEvent('download');\nawait download.saveAs('${filePath}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Save downloaded file"
+  },
+  {
+    "id": "ADV-053",
+    "trigger": "(?:verify|check|assert|validate)(?:s|ed|ing)?\\s+(?:the\\s+)?download(?:ed)?(?:\\s+file)?\\s+(?:content|name|size)",
+    "pattern": "const download = await page.waitForEvent('download');\nconst fileName = download.suggestedFilename();\nexpect(fileName).toBe('${expectedFileName}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Verify downloaded file name"
+  },
+  {
+    "id": "ADV-054",
+    "trigger": "(?:read|extract|get)(?:s|ed|ing)?\\s+(?:the\\s+)?download(?:ed)?(?:\\s+file)?\\s+content",
+    "pattern": "const download = await page.waitForEvent('download');\nconst path = await download.path();\nconst content = await fs.readFile(path, 'utf-8');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Read downloaded file content"
+  },
+  {
+    "id": "ADV-055",
+    "trigger": "(?:cancel|abort|stop)(?:s|ed|ing)?\\s+(?:a\\s+)?download",
+    "pattern": "const download = await page.waitForEvent('download');\nawait download.cancel();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Cancel download"
+  },
+  {
+    "id": "ADV-056",
+    "trigger": "(?:get|retrieve|extract)(?:s|ed|ing)?\\s+(?:the\\s+)?download(?:\\s+file)?\\s+(?:url|path)",
+    "pattern": "const download = await page.waitForEvent('download');\nconst url = download.url();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Get download URL"
+  },
+  {
+    "id": "ADV-057",
+    "trigger": "(?:handle|manage)(?:s|ed|ing)?\\s+(?:multiple\\s+)?(?:simultaneous\\s+)?downloads?",
+    "pattern": "const downloads = [];\npage.on('download', download => downloads.push(download));\n// Trigger downloads\nawait Promise.all(downloads.map(d => d.saveAs('downloads/' + d.suggestedFilename())));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Handle multiple downloads"
+  },
+  {
+    "id": "ADV-058",
+    "trigger": "(?:copy|write)(?:s|ed|ing)?\\s+(?:to\\s+(?:the\\s+)?)?clipboard",
+    "pattern": "await page.evaluate('navigator.clipboard.writeText(\"${text}\")');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Copy text to clipboard"
+  },
+  {
+    "id": "ADV-059",
+    "trigger": "(?:paste|read)(?:s|ed|ing)?\\s+(?:from\\s+(?:the\\s+)?)?clipboard",
+    "pattern": "const clipboardText = await page.evaluate('navigator.clipboard.readText()');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Read text from clipboard"
+  },
+  {
+    "id": "ADV-060",
+    "trigger": "(?:verify|check|assert|validate)(?:s|ed|ing)?\\s+clipboard\\s+(?:content|text|data)",
+    "pattern": "const clipboardText = await page.evaluate('navigator.clipboard.readText()');\nexpect(clipboardText).toBe('${expectedText}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Verify clipboard content"
+  },
+  {
+    "id": "ADV-061",
+    "trigger": "(?:clear|empty|erase)(?:s|ed|ing)?\\s+(?:the\\s+)?clipboard",
+    "pattern": "await page.evaluate('navigator.clipboard.writeText(\"\")');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Clear clipboard"
+  },
+  {
+    "id": "ADV-062",
+    "trigger": "(?:mock|fake|simulate)(?:s|ed|ing)?\\s+clipboard\\s+(?:api|permission)",
+    "pattern": "await context.grantPermissions(['clipboard-read', 'clipboard-write']);",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Grant clipboard permissions"
+  },
+  {
+    "id": "ADV-063",
+    "trigger": "(?:simulate|trigger|fire)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:clipboard\\s+)?(?:copy|cut|paste)\\s+event",
+    "pattern": "await page.locator('${selector}').press('${modifier}+C'); // or +X for cut, +V for paste",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Simulate clipboard keyboard event"
+  },
+  {
+    "id": "ADV-064",
+    "trigger": "(?:copy|write)(?:s|ed|ing)?\\s+(?:rich\\s+text|html)\\s+(?:to\\s+)?clipboard",
+    "pattern": "await page.evaluate('navigator.clipboard.write([new ClipboardItem({ \"text/html\": new Blob([\"${html}\"], { type: \"text/html\" }) })])');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Copy HTML to clipboard"
+  },
+  {
+    "id": "ADV-065",
+    "trigger": "(?:wait\\s+for|await)(?:s|ed|ing)?\\s+clipboard\\s+(?:to\\s+)?(?:contain|have|include)",
+    "pattern": "await expect(async () => {\n  const text = await page.evaluate('navigator.clipboard.readText()');\n  expect(text).toContain('${expectedText}');\n}).toPass();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Wait for clipboard to contain text"
+  },
+  {
+    "id": "ADV-066",
+    "trigger": "(?:mock|set|fake|override)(?:s|ed|ing)?\\s+geolocation",
+    "pattern": "await context.setGeolocation({ latitude: ${lat}, longitude: ${lng} });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Mock geolocation"
+  },
+  {
+    "id": "ADV-067",
+    "trigger": "(?:grant|allow|enable)(?:s|ed|ing)?\\s+geolocation\\s+(?:permission|access)",
+    "pattern": "await context.grantPermissions(['geolocation']);",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Grant geolocation permission"
+  },
+  {
+    "id": "ADV-068",
+    "trigger": "(?:deny|block|revoke)(?:s|ed|ing)?\\s+geolocation\\s+(?:permission|access)",
+    "pattern": "await context.clearPermissions();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Clear/deny geolocation permission"
+  },
+  {
+    "id": "ADV-069",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+geolocation\\s+(?:coordinates|position|data)",
+    "pattern": "const position = await page.evaluate('new Promise(resolve => navigator.geolocation.getCurrentPosition(pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude })))');\nexpect(position).toMatchObject({ lat: ${expectedLat}, lng: ${expectedLng} });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Verify geolocation coordinates"
+  },
+  {
+    "id": "ADV-070",
+    "trigger": "(?:watch|monitor|track)(?:s|ed|ing)?\\s+geolocation\\s+(?:changes|updates|position)",
+    "pattern": "await page.evaluate('navigator.geolocation.watchPosition(pos => console.log(pos))');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Watch geolocation changes"
+  },
+  {
+    "id": "ADV-071",
+    "trigger": "(?:simulate|mock|trigger)(?:s|ed|ing)?\\s+geolocation\\s+(?:error|failure|unavailable)",
+    "pattern": "await context.setGeolocation(null); // Simulates unavailable location",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Simulate geolocation error"
+  },
+  {
+    "id": "ADV-072",
+    "trigger": "(?:set|change|configure|update)(?:s|ed|ing)?\\s+(?:the\\s+)?viewport(?:\\s+size)?",
+    "pattern": "await page.setViewportSize({ width: ${width}, height: ${height} });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Set viewport size"
+  },
+  {
+    "id": "ADV-073",
+    "trigger": "(?:emulate|simulate|mock)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:mobile\\s+)?device",
+    "pattern": "const device = devices['${deviceName}'];\nconst context = await browser.newContext({ ...device });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Emulate device"
+  },
+  {
+    "id": "ADV-074",
+    "trigger": "(?:test|verify|check)(?:s|ed|ing)?\\s+(?:at\\s+)?(?:different\\s+)?responsive\\s+(?:breakpoints?|sizes?)",
+    "pattern": "const breakpoints = [${breakpoints}];\nfor (const bp of breakpoints) {\n  await page.setViewportSize({ width: bp, height: 800 });\n  // Test at this breakpoint\n}",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Test responsive breakpoints"
+  },
+  {
+    "id": "ADV-075",
+    "trigger": "(?:rotate|change)(?:s|ed|ing)?\\s+(?:device\\s+)?(?:screen\\s+)?orientation",
+    "pattern": "await page.setViewportSize({ width: ${height}, height: ${width} }); // Swap width/height",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Rotate device orientation"
+  },
+  {
+    "id": "ADV-076",
+    "trigger": "(?:set|configure|change)(?:s|ed|ing)?\\s+(?:device\\s+)?(?:pixel\\s+ratio|dpr)",
+    "pattern": "const context = await browser.newContext({ deviceScaleFactor: ${ratio} });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Set device pixel ratio"
+  },
+  {
+    "id": "ADV-077",
+    "trigger": "(?:enable|simulate|emulate)(?:s|ed|ing)?\\s+touch\\s+(?:screen|events|support)",
+    "pattern": "const context = await browser.newContext({ hasTouch: true });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Enable touch events"
+  },
+  {
+    "id": "ADV-078",
+    "trigger": "(?:get|retrieve|read)(?:s|ed|ing)?\\s+(?:current\\s+)?viewport\\s+(?:size|dimensions)",
+    "pattern": "const viewport = page.viewportSize();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Get viewport size"
+  },
+  {
+    "id": "ADV-079",
+    "trigger": "(?:emulate|set|simulate)(?:s|ed|ing)?\\s+(?:user\\s+)?agent(?:\\s+string)?",
+    "pattern": "const context = await browser.newContext({ userAgent: '${userAgent}' });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Set user agent"
+  },
+  {
+    "id": "ADV-080",
+    "trigger": "(?:emulate|simulate)(?:s|ed|ing)?\\s+(?:landscape|portrait)\\s+(?:mode|orientation)",
+    "pattern": "await page.setViewportSize({ width: ${isLandscape ? 'height' : 'width'}, height: ${isLandscape ? 'width' : 'height'} });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Emulate landscape/portrait mode"
+  },
+  {
+    "id": "ADV-081",
+    "trigger": "(?:test|verify|check)(?:s|ed|ing)?\\s+(?:on\\s+)?tablet\\s+(?:device|size|viewport)",
+    "pattern": "const tablet = devices['iPad Pro'];\nconst context = await browser.newContext({ ...tablet });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Test on tablet device"
+  },
+  {
+    "id": "ADV-082",
+    "trigger": "(?:take|capture|grab)(?:s|ed|ing)?\\s+(?:a\\s+)?(?:full\\s+page\\s+)?screenshot",
+    "pattern": "await page.screenshot({ path: '${filePath}', fullPage: true });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.94,
+    "description": "Take full page screenshot"
+  },
+  {
+    "id": "ADV-083",
+    "trigger": "(?:take|capture|grab)(?:s|ed|ing)?\\s+(?:an?\\s+)?element\\s+screenshot",
+    "pattern": "await page.locator('${selector}').screenshot({ path: '${filePath}' });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Take element screenshot"
+  },
+  {
+    "id": "ADV-084",
+    "trigger": "(?:compare|diff|match)(?:s|ed|ing)?\\s+screenshots?",
+    "pattern": "expect(await page.screenshot()).toMatchSnapshot('${snapshotName}.png');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Compare screenshot with snapshot"
+  },
+  {
+    "id": "ADV-085",
+    "trigger": "(?:mask|hide|exclude)(?:s|ed|ing)?\\s+elements?\\s+(?:from\\s+)?(?:in\\s+)?screenshot",
+    "pattern": "await page.screenshot({ path: '${filePath}', mask: [page.locator('${selector}')] });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Mask elements in screenshot"
+  },
+  {
+    "id": "ADV-086",
+    "trigger": "(?:take|capture)(?:s|ed|ing)?\\s+screenshot\\s+(?:on\\s+)?(?:test\\s+)?failure",
+    "pattern": "test.afterEach(async ({ page }, testInfo) => {\n  if (testInfo.status === 'failed') {\n    await page.screenshot({ path: `failures/${testInfo.title}.png` });\n  }\n});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Screenshot on test failure"
+  },
+  {
+    "id": "ADV-087",
+    "trigger": "(?:take|capture|grab)(?:s|ed|ing)?\\s+(?:viewport|visible\\s+area)\\s+screenshot",
+    "pattern": "await page.screenshot({ path: '${filePath}', fullPage: false });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Take viewport screenshot"
+  },
+  {
+    "id": "ADV-088",
+    "trigger": "(?:save|store)(?:s|ed|ing)?\\s+screenshot\\s+(?:as\\s+)?(?:buffer|base64)",
+    "pattern": "const buffer = await page.screenshot();",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Save screenshot as buffer"
+  },
+  {
+    "id": "ADV-089",
+    "trigger": "(?:clip|crop)(?:s|ed|ing)?\\s+screenshot\\s+(?:to\\s+)?(?:specific\\s+)?(?:area|region)",
+    "pattern": "await page.screenshot({ path: '${filePath}', clip: { x: ${x}, y: ${y}, width: ${w}, height: ${h} } });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Clip screenshot to specific area"
+  },
+  {
+    "id": "ADV-090",
+    "trigger": "(?:update|regenerate|accept)(?:s|ed|ing)?\\s+(?:visual\\s+)?(?:snapshot|baseline)",
+    "pattern": "// Run tests with --update-snapshots flag\nexpect(await page.screenshot()).toMatchSnapshot('${snapshotName}.png');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.86,
+    "description": "Update visual snapshot"
+  },
+  {
+    "id": "ADV-091",
+    "trigger": "(?:set|configure|adjust)(?:s|ed|ing)?\\s+screenshot\\s+(?:threshold|tolerance|sensitivity)",
+    "pattern": "expect(await page.screenshot()).toMatchSnapshot('${snapshotName}.png', { threshold: ${threshold} });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.85,
+    "description": "Set screenshot comparison threshold"
+  },
+  {
+    "id": "ADV-092",
+    "trigger": "(?:capture|record|log|save)(?:s|ed|ing)?\\s+console\\s+(?:logs?|messages?|output)",
+    "pattern": "const logs = [];\npage.on('console', msg => logs.push(msg.text()));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Capture console logs"
+  },
+  {
+    "id": "ADV-093",
+    "trigger": "(?:capture|record|log|save)(?:s|ed|ing)?\\s+console\\s+(?:errors?|error\\s+messages?)",
+    "pattern": "const errors = [];\npage.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.93,
+    "description": "Capture console errors"
+  },
+  {
+    "id": "ADV-094",
+    "trigger": "(?:capture|handle|listen\\s+for)(?:s|ed|ing)?\\s+(?:unhandled\\s+)?(?:exceptions?|errors?)",
+    "pattern": "const exceptions = [];\npage.on('pageerror', error => exceptions.push(error.message));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.91,
+    "description": "Capture page exceptions"
+  },
+  {
+    "id": "ADV-095",
+    "trigger": "(?:verify|check|assert)(?:s|ed|ing)?\\s+(?:that\\s+)?(?:no\\s+)?console\\s+errors?(?:\\s+occur(?:red)?)?",
+    "pattern": "const errors = [];\npage.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });\nawait test.step('verify no console errors', () => {\n  expect(errors).toHaveLength(0);\n});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.90,
+    "description": "Verify no console errors"
+  },
+  {
+    "id": "ADV-096",
+    "trigger": "(?:capture|record|monitor)(?:s|ed|ing)?\\s+(?:all\\s+)?(?:page\\s+)?(?:request|network)\\s+(?:errors?|failures?)",
+    "pattern": "const requestFailures = [];\npage.on('requestfailed', request => requestFailures.push({ url: request.url(), failure: request.failure() }));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Capture request failures"
+  },
+  {
+    "id": "ADV-097",
+    "trigger": "(?:evaluate|execute|run)(?:s|ed|ing)?\\s+(?:code\\s+)?(?:in\\s+)?(?:the\\s+)?console",
+    "pattern": "const result = await page.evaluate('${code}');",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.92,
+    "description": "Evaluate code in console"
+  },
+  {
+    "id": "ADV-098",
+    "trigger": "(?:filter|select|get)(?:s|ed|ing)?\\s+console\\s+(?:logs?|messages?)\\s+by\\s+(?:type|level)",
+    "pattern": "const logs = [];\npage.on('console', msg => { if (msg.type() === '${type}') logs.push(msg.text()); });",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.88,
+    "description": "Filter console logs by type"
+  },
+  {
+    "id": "ADV-099",
+    "trigger": "(?:wait\\s+for|await)(?:s|ed|ing)?\\s+(?:specific\\s+)?console\\s+(?:log|message|output)",
+    "pattern": "await page.waitForEvent('console', msg => msg.text().includes('${expectedText}'));",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.87,
+    "description": "Wait for specific console message"
+  },
+  {
+    "id": "ADV-100",
+    "trigger": "(?:assert|verify|check)(?:s|ed|ing)?\\s+console\\s+(?:log|message)\\s+(?:contains|includes|has)",
+    "pattern": "const logs = [];\npage.on('console', msg => logs.push(msg.text()));\nawait test.step('verify console log', () => {\n  expect(logs.some(log => log.includes('${expectedText}'))).toBeTruthy();\n});",
+    "category": "advanced",
+    "scope": "universal",
+    "confidence": 0.89,
+    "description": "Assert console log contains text"
+  }
+]

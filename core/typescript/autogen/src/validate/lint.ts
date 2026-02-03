@@ -2,7 +2,7 @@
  * ESLint Integration - Run ESLint with Playwright plugin rules
  * @see T041 - ESLint integration with eslint-plugin-playwright
  */
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -124,32 +124,28 @@ export default [
  * Check if ESLint and Playwright plugin are available
  */
 export function isESLintAvailable(cwd?: string): boolean {
-  try {
-    execSync('npx eslint --version', {
-      cwd,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync('npx', ['eslint', '--version'], {
+    cwd,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+  });
+  return result.status === 0;
 }
 
 /**
  * Check if eslint-plugin-playwright is installed
  */
 export function isPlaywrightPluginAvailable(cwd?: string): boolean {
-  try {
-    const result = execSync('npm list eslint-plugin-playwright', {
-      cwd,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-    });
-    return result.includes('eslint-plugin-playwright');
-  } catch {
+  const result = spawnSync('npm', ['list', 'eslint-plugin-playwright'], {
+    cwd,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+  });
+  if (result.status !== 0) {
     return false;
   }
+  const output = result.stdout || '';
+  return output.includes('eslint-plugin-playwright');
 }
 
 /**
@@ -228,7 +224,7 @@ export async function lintCode(
   try {
     writeFileSync(tempFile, code, 'utf-8');
 
-    // Build ESLint command
+    // Build ESLint command args
     const args = ['eslint', '--format', 'json'];
 
     if (fix) {
@@ -241,25 +237,28 @@ export async function lintCode(
 
     args.push(tempFile);
 
-    // Run ESLint
-    const result = execSync(`npx ${args.join(' ')}`, {
+    // SECURITY: Use spawnSync with array args to prevent command injection
+    // This avoids shell interpretation of special characters in file paths
+    const result = spawnSync('npx', args, {
       cwd,
       stdio: 'pipe',
       encoding: 'utf-8',
     });
 
-    return {
-      passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
-      errorCount: 0,
-      warningCount: 0,
-    };
-  } catch (err: unknown) {
-    // ESLint exits with non-zero on errors/warnings
-    const error = err as { stdout?: string; status?: number };
-    const output = error.stdout || '';
+    const output = result.stdout || '';
 
+    // ESLint exits with non-zero on errors/warnings
+    if (result.status === 0) {
+      return {
+        passed: true,
+        output,
+        issues: parseESLintOutput(output),
+        errorCount: 0,
+        warningCount: 0,
+      };
+    }
+
+    // Handle non-zero exit (errors/warnings found)
     try {
       const results: ESLintFileResult[] = JSON.parse(output);
       const issues = parseESLintOutput(output);
@@ -340,45 +339,49 @@ export async function lintFile(
     };
   }
 
-  try {
-    const args = ['eslint', '--format', 'json'];
+  // Build ESLint command args
+  const args = ['eslint', '--format', 'json'];
 
-    if (fix) {
-      args.push('--fix');
-    }
+  if (fix) {
+    args.push('--fix');
+  }
 
-    if (configPath && existsSync(configPath)) {
-      args.push('--config', configPath);
-    }
+  if (configPath && existsSync(configPath)) {
+    args.push('--config', configPath);
+  }
 
-    args.push(filePath);
+  args.push(filePath);
 
-    const result = execSync(`npx ${args.join(' ')}`, {
-      cwd,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-    });
+  // SECURITY: Use spawnSync with array args to prevent command injection
+  // This avoids shell interpretation of special characters in file paths
+  const result = spawnSync('npx', args, {
+    cwd,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+  });
 
+  const output = result.stdout || '';
+
+  if (result.status === 0) {
     return {
       passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
+      output,
+      issues: parseESLintOutput(output),
       errorCount: 0,
       warningCount: 0,
     };
-  } catch (err: unknown) {
-    const error = err as { stdout?: string };
-    const output = error.stdout || '';
-    const issues = parseESLintOutput(output);
-
-    return {
-      passed: issues.filter((i) => i.severity === 'error').length === 0,
-      output,
-      issues,
-      errorCount: issues.filter((i) => i.severity === 'error').length,
-      warningCount: issues.filter((i) => i.severity === 'warning').length,
-    };
   }
+
+  // Handle non-zero exit (errors/warnings found)
+  const issues = parseESLintOutput(output);
+
+  return {
+    passed: issues.filter((i) => i.severity === 'error').length === 0,
+    output,
+    issues,
+    errorCount: issues.filter((i) => i.severity === 'error').length,
+    warningCount: issues.filter((i) => i.severity === 'warning').length,
+  };
 }
 
 /**
