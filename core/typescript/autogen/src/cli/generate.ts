@@ -6,7 +6,7 @@
  */
 import { parseArgs } from 'node:util';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
+import { join, dirname, basename, resolve, relative } from 'node:path';
 import fg from 'fast-glob';
 import { generateJourneyTests, type GenerateJourneyTestsOptions } from '../index.js';
 import { loadConfigs } from '../config/loader.js';
@@ -311,7 +311,6 @@ const DANGEROUS_URL_SCHEMES = [
  * @throws Error if path escapes the output directory
  */
 function validateOutputPath(outputDir: string, filename: string): string {
-  const { resolve, relative } = require('node:path');
 
   // Resolve both paths to absolute
   const resolvedOutput = resolve(outputDir);
