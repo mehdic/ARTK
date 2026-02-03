@@ -1,6 +1,6 @@
-import { S as StepPattern } from '../stepMapper-uOS4_Obt.js';
-export { a8 as ACMappingResult, $ as ExtendedGlossaryMeta, F as Glossary, G as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, a as PatternMetadata, a6 as StepMapperOptions, a7 as StepMappingResult, y as allPatterns, h as authPatterns, g as checkPatterns, a1 as clearExtendedGlossary, e as clickPatterns, c as createLocatorFromMatch, d as createValueFromText, H as defaultGlossary, l as extendedAssertionPatterns, j as extendedClickPatterns, k as extendedFillPatterns, o as extendedNavigationPatterns, q as extendedSelectPatterns, m as extendedWaitPatterns, f as fillPatterns, V as findLabelAlias, E as findMatchingPatterns, X as findModuleMethod, x as focusPatterns, B as getAllPatternNames, N as getGlossary, a4 as getGlossaryStats, Z as getLabelAliases, W as getLocatorFromLabel, ad as getMappingStats, _ as getModuleMethods, C as getPatternCountByCategory, A as getPatternMatches, D as getPatternMetadata, R as getSynonyms, a5 as hasExtendedGlossary, r as hoverPatterns, K as initGlossary, ae as initializeLlkb, af as isLlkbAvailable, T as isSynonymOf, a0 as loadExtendedGlossary, I as loadGlossary, a3 as lookupCoreGlossary, a2 as lookupGlossary, aa as mapAcceptanceCriterion, ab as mapProceduralStep, a9 as mapStepText, ac as mapSteps, z as matchPattern, J as mergeGlossaries, n as navigationPatterns, Q as normalizeStepText, p as parseSelectorToLocator, U as resetGlossaryCache, O as resolveCanonical, Y as resolveModuleMethod, s as selectPatterns, i as structuredPatterns, ag as suggestImprovements, t as toastPatterns, u as urlPatterns, v as visibilityPatterns, w as waitPatterns } from '../stepMapper-uOS4_Obt.js';
-import '../types-DJnqAI1V.js';
+import { S as StepPattern } from '../stepMapper-DZ3x4qT1.js';
+export { a9 as ACMappingResult, a0 as ExtendedGlossaryMeta, H as Glossary, G as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, a as PatternMetadata, a7 as StepMapperOptions, a8 as StepMappingResult, z as allPatterns, h as authPatterns, g as checkPatterns, a2 as clearExtendedGlossary, e as clickPatterns, c as createLocatorFromMatch, d as createValueFromText, I as defaultGlossary, l as extendedAssertionPatterns, j as extendedClickPatterns, k as extendedFillPatterns, o as extendedNavigationPatterns, q as extendedSelectPatterns, m as extendedWaitPatterns, f as fillPatterns, W as findLabelAlias, F as findMatchingPatterns, Y as findModuleMethod, x as focusPatterns, C as getAllPatternNames, O as getGlossary, a5 as getGlossaryStats, _ as getLabelAliases, X as getLocatorFromLabel, ae as getMappingStats, $ as getModuleMethods, D as getPatternCountByCategory, B as getPatternMatches, E as getPatternMetadata, T as getSynonyms, a6 as hasExtendedGlossary, r as hoverPatterns, N as initGlossary, af as initializeLlkb, ag as isLlkbAvailable, U as isSynonymOf, a1 as loadExtendedGlossary, J as loadGlossary, a4 as lookupCoreGlossary, a3 as lookupGlossary, ab as mapAcceptanceCriterion, ac as mapProceduralStep, aa as mapStepText, ad as mapSteps, A as matchPattern, K as mergeGlossaries, y as modalAlertPatterns, n as navigationPatterns, R as normalizeStepText, p as parseSelectorToLocator, V as resetGlossaryCache, Q as resolveCanonical, Z as resolveModuleMethod, s as selectPatterns, i as structuredPatterns, ah as suggestImprovements, t as toastPatterns, u as urlPatterns, v as visibilityPatterns, w as waitPatterns } from '../stepMapper-DZ3x4qT1.js';
+import { a as IRPrimitive } from '../types-DJnqAI1V.js';
 import 'zod';
 import '../parseJourney-kHery1o3.js';
 
@@ -217,4 +217,310 @@ declare function clearTelemetry(options?: {
     baseDir?: string;
 }): void;
 
-export { type BlockedStepAnalysis, type BlockedStepRecord, type NearestPatternResult, type PatternDefinition, type PatternGap, type StepCategory, StepPattern, type StepSuggestion, type TelemetryStats, analyzeBlockedPatterns, analyzeBlockedStep, calculateSimilarity, categorizeStep, categorizeStepText, clearTelemetry, explainMismatch, findNearestPattern, formatBlockedStepAnalysis, getAssertionSuggestions, getGenericSuggestions, getInteractionSuggestions, getNavigationSuggestions, getTelemetryPath, getTelemetryStats, getWaitSuggestions, inferMachineHint, levenshteinDistance, normalizeStepTextForTelemetry, readBlockedStepRecords, recordBlockedStep, recordUserFix };
+/**
+ * Unified Pattern Matcher - Single entry point for all pattern matching
+ * Combines core patterns (patterns.ts) with LLKB learned patterns
+ *
+ * This eliminates duplicate pattern logic in plan.ts and ensures consistent
+ * pattern matching behavior across the entire system.
+ *
+ * @see research/2026-02-03_unified-pattern-matching-plan.md Phase 2
+ */
+
+/**
+ * Options for unified pattern matching
+ */
+interface UnifiedMatchOptions {
+    /** Use LLKB learned patterns as fallback (default: true) */
+    useLlkb?: boolean;
+    /** LLKB root directory (auto-detected if not provided) */
+    llkbRoot?: string;
+    /** Minimum confidence for LLKB patterns (default: 0.7) */
+    minLlkbConfidence?: number;
+    /** Enable debug logging (default: false) */
+    debug?: boolean;
+}
+/**
+ * Result of unified pattern matching
+ */
+interface UnifiedMatchResult {
+    /** The matched IR primitive, or null if no match */
+    primitive: IRPrimitive | null;
+    /** Source of the match */
+    source: 'core' | 'llkb' | 'none';
+    /** Pattern name that matched (if core) */
+    patternName?: string;
+    /** LLKB pattern ID (if LLKB) */
+    llkbPatternId?: string;
+    /** LLKB confidence (if LLKB) */
+    llkbConfidence?: number;
+}
+/**
+ * Match step text against unified pattern system
+ *
+ * Priority order:
+ * 1. Core patterns from patterns.ts (57+ patterns)
+ * 2. LLKB learned patterns (dynamic, confidence-filtered)
+ *
+ * @param text - Step text to match
+ * @param options - Matching options
+ * @returns Match result with primitive and source
+ */
+declare function unifiedMatch(text: string, options?: UnifiedMatchOptions): UnifiedMatchResult;
+/**
+ * Match step text and return all potential matches (for debugging)
+ */
+declare function unifiedMatchAll(text: string, options?: UnifiedMatchOptions): Array<{
+    source: 'core' | 'llkb';
+    name: string;
+    primitive: IRPrimitive;
+    confidence?: number;
+}>;
+/**
+ * Get statistics about the unified matcher
+ */
+declare function getUnifiedMatcherStats(options?: {
+    llkbRoot?: string;
+}): {
+    corePatternCount: number;
+    llkbPatternCount: number;
+    totalPatterns: number;
+    coreCategories: Record<string, number>;
+};
+/**
+ * Warm up the pattern cache for better performance
+ * Call this before batch processing
+ */
+declare function warmUpUnifiedMatcher(options?: {
+    llkbRoot?: string;
+}): Promise<void>;
+/**
+ * Check if text matches any pattern (without extracting)
+ * Useful for quick filtering
+ */
+declare function hasPatternMatch(text: string, options?: UnifiedMatchOptions): boolean;
+/**
+ * Get pattern name for matched text (for telemetry/logging)
+ */
+declare function getMatchedPatternName(text: string, options?: UnifiedMatchOptions): string | null;
+/**
+ * Export for testing - get all core patterns
+ */
+declare function getCorePatterns(): StepPattern[];
+
+interface PlannedAction {
+    type: 'navigate' | 'reload' | 'goBack' | 'goForward' | 'click' | 'dblclick' | 'rightClick' | 'fill' | 'select' | 'check' | 'uncheck' | 'press' | 'hover' | 'focus' | 'clear' | 'upload' | 'assert' | 'assertText' | 'assertValue' | 'assertChecked' | 'assertEnabled' | 'assertDisabled' | 'assertURL' | 'assertTitle' | 'assertHidden' | 'assertCount' | 'wait' | 'waitForVisible' | 'waitForHidden' | 'waitForURL' | 'waitForNetwork' | 'assertToast' | 'dismissModal' | 'acceptAlert' | 'dismissAlert' | 'callModule' | 'custom';
+    target?: string;
+    value?: string;
+    /** For callModule: module name */
+    module?: string;
+    /** For callModule: method name */
+    method?: string;
+    /** For press: key name */
+    key?: string;
+    /** For upload: file paths */
+    files?: string[];
+    /** For assertCount: expected count */
+    count?: number;
+    /** For assertToast: toast type */
+    toastType?: 'success' | 'error' | 'info' | 'warning';
+    options?: Record<string, unknown>;
+}
+
+/**
+ * Adapter to convert IR Primitives to PlannedActions
+ * This enables plan.ts to use the unified pattern matching system
+ *
+ * @see research/2026-02-03_unified-pattern-matching-plan.md Phase 1
+ */
+
+/**
+ * Convert an IR Primitive to a PlannedAction
+ * This is the bridge between the unified pattern system and plan.ts
+ */
+declare function irPrimitiveToPlannedAction(primitive: IRPrimitive): PlannedAction;
+/**
+ * Convert PlannedAction back to an IR Primitive (for round-trip consistency)
+ * This is useful for testing and debugging
+ */
+declare function plannedActionToIRPrimitive(action: PlannedAction): IRPrimitive | null;
+
+/**
+ * A pattern learned from successful step mappings
+ */
+interface LearnedPattern {
+    /** Unique identifier */
+    id: string;
+    /** Original step text that was learned from */
+    originalText: string;
+    /** Normalized form for matching */
+    normalizedText: string;
+    /** The IR primitive this text maps to */
+    mappedPrimitive: IRPrimitive;
+    /** Confidence score (0-1) */
+    confidence: number;
+    /** Journey IDs where this pattern was used */
+    sourceJourneys: string[];
+    /** Number of successful uses */
+    successCount: number;
+    /** Number of failed uses */
+    failCount: number;
+    /** Timestamp of last use */
+    lastUsed: string;
+    /** Timestamp when created */
+    createdAt: string;
+    /** Whether this pattern has been promoted to core */
+    promotedToCore: boolean;
+    /** Promotion timestamp if promoted */
+    promotedAt?: string;
+}
+/**
+ * Pattern ready for promotion to core
+ */
+interface PromotedPattern {
+    /** The learned pattern being promoted */
+    pattern: LearnedPattern;
+    /** Generated regex string for the pattern */
+    generatedRegex: string;
+    /** Priority score for ordering */
+    priority: number;
+}
+/**
+ * LLKB pattern match result
+ */
+interface LlkbPatternMatch {
+    /** Pattern ID that matched */
+    patternId: string;
+    /** The IR primitive */
+    primitive: IRPrimitive;
+    /** Confidence of the match */
+    confidence: number;
+}
+/**
+ * Options for pruning patterns
+ */
+interface PruneOptions {
+    /** Minimum confidence to keep */
+    minConfidence?: number;
+    /** Minimum success count to keep */
+    minSuccess?: number;
+    /** Maximum age in days to keep */
+    maxAgeDays?: number;
+}
+/**
+ * Invalidate the pattern cache
+ * Call this after any write operation
+ */
+declare function invalidatePatternCache(): void;
+/**
+ * Get the path to the patterns file.
+ *
+ * Automatically infers the correct LLKB directory location by:
+ * 1. Using explicit llkbRoot if provided
+ * 2. Finding artk-e2e/.artk/llkb from project root
+ * 3. Finding .artk/llkb in current directory if inside harness
+ *
+ * @param llkbRoot - Optional explicit LLKB root directory override
+ * @returns Path to the patterns file
+ */
+declare function getPatternsFilePath(llkbRoot?: string): string;
+/**
+ * Generate a unique pattern ID
+ */
+declare function generatePatternId(): string;
+/**
+ * Load learned patterns from storage (with caching for performance)
+ */
+declare function loadLearnedPatterns(options?: {
+    llkbRoot?: string;
+    bypassCache?: boolean;
+}): LearnedPattern[];
+/**
+ * Save learned patterns to storage
+ */
+declare function saveLearnedPatterns(patterns: LearnedPattern[], options?: {
+    llkbRoot?: string;
+}): void;
+/**
+ * Calculate confidence from success/fail counts
+ * Uses Wilson score interval for small sample sizes
+ */
+declare function calculateConfidence(successCount: number, failCount: number): number;
+/**
+ * Record a successful pattern transformation
+ */
+declare function recordPatternSuccess(originalText: string, primitive: IRPrimitive, journeyId: string, options?: {
+    llkbRoot?: string;
+}): LearnedPattern;
+/**
+ * Record a failed pattern use
+ */
+declare function recordPatternFailure(originalText: string, _journeyId: string, options?: {
+    llkbRoot?: string;
+}): LearnedPattern | null;
+/**
+ * Match text against learned LLKB patterns
+ */
+declare function matchLlkbPattern(text: string, options?: {
+    llkbRoot?: string;
+    minConfidence?: number;
+}): LlkbPatternMatch | null;
+/**
+ * Generate a regex pattern from a learned text pattern
+ * This is a heuristic approach - complex patterns may need manual refinement
+ */
+declare function generateRegexFromText(text: string): string;
+/**
+ * Get patterns ready for promotion to core
+ */
+declare function getPromotablePatterns(options?: {
+    llkbRoot?: string;
+}): PromotedPattern[];
+/**
+ * Mark patterns as promoted
+ */
+declare function markPatternsPromoted(patternIds: string[], options?: {
+    llkbRoot?: string;
+}): void;
+/**
+ * Prune low-quality patterns
+ */
+declare function prunePatterns(options?: PruneOptions & {
+    llkbRoot?: string;
+}): {
+    removed: number;
+    remaining: number;
+};
+/**
+ * Get pattern statistics
+ */
+declare function getPatternStats(options?: {
+    llkbRoot?: string;
+}): {
+    total: number;
+    promoted: number;
+    highConfidence: number;
+    lowConfidence: number;
+    avgConfidence: number;
+    totalSuccesses: number;
+    totalFailures: number;
+};
+/**
+ * Export learned patterns to LLKB config format
+ */
+declare function exportPatternsToConfig(options: {
+    llkbRoot?: string;
+    outputPath?: string;
+    minConfidence?: number;
+}): {
+    exported: number;
+    path: string;
+};
+/**
+ * Clear all learned patterns (for testing)
+ */
+declare function clearLearnedPatterns(options?: {
+    llkbRoot?: string;
+}): void;
+
+export { type BlockedStepAnalysis, type BlockedStepRecord, type LearnedPattern, type LlkbPatternMatch, type NearestPatternResult, type PatternDefinition, type PatternGap, type PromotedPattern, type PruneOptions, type StepCategory, StepPattern, type StepSuggestion, type TelemetryStats, type UnifiedMatchOptions, type UnifiedMatchResult, analyzeBlockedPatterns, analyzeBlockedStep, calculateConfidence, calculateSimilarity, categorizeStep, categorizeStepText, clearLearnedPatterns, clearTelemetry, explainMismatch, exportPatternsToConfig, findNearestPattern, formatBlockedStepAnalysis, generatePatternId, generateRegexFromText, getAssertionSuggestions, getCorePatterns, getGenericSuggestions, getInteractionSuggestions, getMatchedPatternName, getNavigationSuggestions, getPatternStats, getPatternsFilePath, getPromotablePatterns, getTelemetryPath, getTelemetryStats, getUnifiedMatcherStats, getWaitSuggestions, hasPatternMatch, inferMachineHint, invalidatePatternCache, irPrimitiveToPlannedAction, levenshteinDistance, loadLearnedPatterns, markPatternsPromoted, matchLlkbPattern, normalizeStepTextForTelemetry, plannedActionToIRPrimitive, prunePatterns, readBlockedStepRecords, recordBlockedStep, recordPatternFailure, recordPatternSuccess, recordUserFix, saveLearnedPatterns, unifiedMatch, unifiedMatchAll, warmUpUnifiedMatcher };
