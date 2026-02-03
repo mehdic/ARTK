@@ -177,33 +177,38 @@ async function detectBrowser(): Promise<{ channel: string; version: string | nul
 
   const testBrowser = async (browserPath: string): Promise<string | null> => {
     return new Promise((resolve) => {
+      let resolved = false;
+      let output = '';
+
       const proc = spawn(browserPath, ['--version'], {
         shell: false,
         windowsHide: true,
-        timeout: 5000,
       });
 
-      let output = '';
+      // P0 FIX: Single resolution handler to prevent double-resolution race condition
+      const done = (value: string | null) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        resolve(value);
+      };
+
       proc.stdout.on('data', (data) => {
         output += data.toString();
       });
 
       proc.on('close', (code) => {
-        if (code === 0 && output) {
-          resolve(output.trim());
-        } else {
-          resolve(null);
-        }
+        done(code === 0 && output ? output.trim() : null);
       });
 
       proc.on('error', () => {
-        resolve(null);
+        done(null);
       });
 
-      // Timeout fallback
-      setTimeout(() => {
+      // Timeout fallback with proper cleanup
+      const timer = setTimeout(() => {
         proc.kill();
-        resolve(null);
+        done(null);
       }, 5000);
     });
   };
@@ -966,6 +971,7 @@ Note: Even though this is CJS, Playwright supports ES module syntax in test file
 
 /**
  * Create backup of existing installation before force reinstall
+ * P1 FIX: Backup more directories to preserve user customizations
  */
 async function createBackup(artkE2ePath: string): Promise<string | null> {
   if (!fs.existsSync(artkE2ePath)) {
@@ -974,22 +980,38 @@ async function createBackup(artkE2ePath: string): Promise<string | null> {
 
   const backupPath = `${artkE2ePath}.backup-${Date.now()}`;
 
-  // Copy key files only (not node_modules)
+  // Files to backup (config files)
   const filesToBackup = [
     'artk.config.yml',
     'playwright.config.ts',
     'tsconfig.json',
-    '.artk/context.json',
+  ];
+
+  // Directories to backup (user customizations)
+  const dirsToBackup = [
+    '.artk',          // Context, LLKB learned patterns
+    'journeys',       // User's journey files
+    'tests',          // User's custom tests
+    'src/modules',    // User's page objects
   ];
 
   await fs.promises.mkdir(backupPath, { recursive: true });
-  await fs.promises.mkdir(path.join(backupPath, '.artk'), { recursive: true });
 
+  // Backup individual files
   for (const file of filesToBackup) {
     const src = path.join(artkE2ePath, file);
     const dest = path.join(backupPath, file);
     if (fs.existsSync(src)) {
       await fs.promises.copyFile(src, dest);
+    }
+  }
+
+  // Backup directories recursively (excluding node_modules)
+  for (const dir of dirsToBackup) {
+    const src = path.join(artkE2ePath, dir);
+    const dest = path.join(backupPath, dir);
+    if (fs.existsSync(src)) {
+      await copyDir(src, dest);
     }
   }
 
@@ -1475,18 +1497,28 @@ async function installTemplates(
 
 /**
  * Run npm install in artk-e2e directory with timeout
+ * P1 FIX: Added skipBrowserDownload option to set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD env var
  */
-async function runNpmInstall(artkE2ePath: string): Promise<{ success: boolean; error?: string }> {
+async function runNpmInstall(
+  artkE2ePath: string,
+  options?: { skipBrowserDownload?: boolean }
+): Promise<{ success: boolean; error?: string }> {
   const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   return new Promise((resolve) => {
     const isWindows = process.platform === 'win32';
     const npm = isWindows ? 'npm.cmd' : 'npm';
 
+    // When using system browser, skip Playwright's automatic browser download
+    const env = options?.skipBrowserDownload
+      ? { ...process.env, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1' }
+      : process.env;
+
     const proc = spawn(npm, ['install'], {
       cwd: artkE2ePath,
       shell: false,
       windowsHide: true,
+      env,
     });
 
     let stderr = '';
@@ -1522,9 +1554,12 @@ async function runNpmInstall(artkE2ePath: string): Promise<{ success: boolean; e
 }
 
 /**
- * Install bundled Playwright chromium
+ * Install bundled Playwright chromium with timeout
+ * P0 FIX: Added 5-minute timeout to prevent indefinite hangs on slow networks
  */
 async function installBundledChromium(artkE2ePath: string): Promise<{ success: boolean; error?: string }> {
+  const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes (same as npm install)
+
   return new Promise((resolve) => {
     const isWindows = process.platform === 'win32';
     const npx = isWindows ? 'npx.cmd' : 'npx';
@@ -1536,13 +1571,24 @@ async function installBundledChromium(artkE2ePath: string): Promise<{ success: b
     });
 
     let stderr = '';
+    let timedOut = false;
+
+    // Timeout handler
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGTERM');
+      setTimeout(() => proc.kill('SIGKILL'), 5000); // Force kill after 5s
+    }, TIMEOUT_MS);
 
     proc.stderr.on('data', (data) => {
       stderr += data.toString();
     });
 
     proc.on('close', (code) => {
-      if (code === 0) {
+      clearTimeout(timeout);
+      if (timedOut) {
+        resolve({ success: false, error: 'Browser install timed out after 5 minutes' });
+      } else if (code === 0) {
         resolve({ success: true });
       } else {
         resolve({ success: false, error: stderr || `Browser install failed with code ${code}` });
@@ -1550,6 +1596,7 @@ async function installBundledChromium(artkE2ePath: string): Promise<{ success: b
     });
 
     proc.on('error', (err) => {
+      clearTimeout(timeout);
       resolve({ success: false, error: err.message });
     });
   });
@@ -1721,7 +1768,7 @@ export async function installBundled(
       };
     }
 
-    // Create backup before force reinstall
+    // Create backup before force reinstall, then delete existing directory
     let backupPath: string | null = null;
     if (fs.existsSync(artkE2ePath) && force) {
       progress?.report({ message: 'Creating backup of existing installation...' });
@@ -1731,6 +1778,9 @@ export async function installBundled(
           `Backup created at: ${path.basename(backupPath)}`
         );
       }
+      // P0 FIX: Delete existing directory after backup to prevent file merging/corruption
+      progress?.report({ message: 'Removing existing installation...' });
+      await fs.promises.rm(artkE2ePath, { recursive: true, force: true });
     }
 
     // Detect or use specified variant
@@ -1756,6 +1806,9 @@ export async function installBundled(
     } catch {
       // Use folder name as fallback
     }
+
+    // P1 FIX: Sanitize projectName for YAML safety (remove chars that break YAML)
+    projectName = projectName.replace(/["'\n\r:]/g, '').trim() || 'artk-project';
 
     // Step 1: Create directory structure
     progress?.report({ message: 'Creating directory structure...' });
@@ -1805,9 +1858,13 @@ export async function installBundled(
     await installVscodeSettings(assetsPath, targetPath);
 
     // Step 9: Run npm install
+    // P1 FIX: Skip browser download during npm install if system browser will be used
     if (!skipNpm) {
       progress?.report({ message: 'Installing npm dependencies...' });
-      const npmResult = await runNpmInstall(artkE2ePath);
+      const useSystemBrowser = browserInfo.channel === 'msedge' || browserInfo.channel === 'chrome';
+      const npmResult = await runNpmInstall(artkE2ePath, {
+        skipBrowserDownload: useSystemBrowser,
+      });
       if (!npmResult.success) {
         return {
           success: false,
