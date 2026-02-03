@@ -3342,6 +3342,16 @@ var navigationPatterns = [
       url: `/${match[1].toLowerCase().replace(/\s+/g, "-")}`,
       waitForLoad: true
     })
+  },
+  {
+    name: "wait-for-url-change",
+    // "Wait for URL to change to '/dashboard'" or "Wait until URL contains '/settings'"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?url\s+(?:to\s+)?(?:change\s+to|contain|include)\s+["']?([^"']+)["']?$/i,
+    primitiveType: "waitForURL",
+    extract: (match) => ({
+      type: "waitForURL",
+      pattern: match[1]
+    })
   }
 ];
 var clickPatterns = [
@@ -3361,6 +3371,26 @@ var clickPatterns = [
     extract: (match) => ({
       type: "click",
       locator: createLocatorFromMatch("role", "link", match[1])
+    })
+  },
+  {
+    name: "click-menuitem-quoted",
+    // "Click the 'Settings' menu item" or "Click on 'Edit' menuitem"
+    regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+menu\s*item$/i,
+    primitiveType: "click",
+    extract: (match) => ({
+      type: "click",
+      locator: createLocatorFromMatch("role", "menuitem", match[1])
+    })
+  },
+  {
+    name: "click-tab-quoted",
+    // "Click the 'Details' tab" or "Select the 'Overview' tab"
+    regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+tab$/i,
+    primitiveType: "click",
+    extract: (match) => ({
+      type: "click",
+      locator: createLocatorFromMatch("role", "tab", match[1])
     })
   },
   {
@@ -3404,6 +3434,18 @@ var fillPatterns = [
     })
   },
   {
+    name: "fill-placeholder-field",
+    // "Fill 'test@example.com' in the field with placeholder 'Enter email'"
+    // or "Type 'value' into input with placeholder 'Search'"
+    regex: /^(?:user\s+)?(?:enters?|types?|fills?)\s+["']([^"']+)["']\s+(?:in|into)\s+(?:the\s+)?(?:field|input)\s+with\s+placeholder\s+["']([^"']+)["']$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("placeholder", match[2]),
+      value: createValueFromText(match[1])
+    })
+  },
+  {
     name: "fill-field-generic",
     regex: /^(?:user\s+)?(?:enters?|types?|fills?\s+in?|inputs?)\s+(.+?)\s+(?:in|into)\s+(?:the\s+)?(.+?)\s*(?:field|input)?$/i,
     primitiveType: "fill",
@@ -3437,8 +3479,28 @@ var checkPatterns = [
     })
   },
   {
+    // "Check the terms checkbox" - unquoted checkbox name
+    name: "check-checkbox-unquoted",
+    regex: /^(?:user\s+)?(?:checks?|enables?|ticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
+    primitiveType: "check",
+    extract: (match) => ({
+      type: "check",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
     name: "uncheck-checkbox",
     regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?["']([^"']+)["']\s*(?:checkbox|option)?$/i,
+    primitiveType: "uncheck",
+    extract: (match) => ({
+      type: "uncheck",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    // "Uncheck the newsletter checkbox" - unquoted checkbox name
+    name: "uncheck-checkbox-unquoted",
+    regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
     primitiveType: "uncheck",
     extract: (match) => ({
       type: "uncheck",
@@ -3522,6 +3584,26 @@ var toastPatterns = [
       type: "expectToast",
       toastType: "info",
       message: match[1]
+    })
+  },
+  {
+    name: "status-message-visible",
+    // "A status message 'Processing...' is visible" or "The status shows 'Loading'"
+    regex: /^(?:a\s+)?status\s+(?:message\s+)?["']([^"']+)["']\s+(?:is\s+)?(?:visible|shown|displayed)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("role", "status", match[1])
+    })
+  },
+  {
+    name: "verify-status-message",
+    // "Verify the status message shows 'Complete'"
+    regex: /^(?:verify|check)\s+(?:that\s+)?(?:the\s+)?status\s+(?:message\s+)?(?:shows?|displays?|contains?)\s+["']([^"']+)["']$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("role", "status", match[1])
     })
   }
 ];
@@ -3827,6 +3909,111 @@ var extendedFillPatterns = [
   }
 ];
 var extendedAssertionPatterns = [
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MOST SPECIFIC: Negative assertions (must come before positive counterparts)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    name: "verify-not-visible",
+    // "Verify the error container is not visible"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+is\s+not\s+visible$/i,
+    primitiveType: "expectHidden",
+    extract: (match) => ({
+      type: "expectHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-should-not-be-visible",
+    // "The error should not be visible" or "Error message is not displayed"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+    primitiveType: "expectHidden",
+    extract: (match) => ({
+      type: "expectHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // URL AND TITLE: Specific patterns that match "URL" or "title" keywords
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    name: "verify-url-contains",
+    // "Verify the URL contains '/dashboard'"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?url\s+contains?\s+["']([^"']+)["']$/i,
+    primitiveType: "expectURL",
+    extract: (match) => ({
+      type: "expectURL",
+      pattern: match[1]
+    })
+  },
+  {
+    name: "verify-title-is",
+    // "Verify the page title is 'Settings'"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?(?:page\s+)?title\s+(?:is|equals?)\s+["']([^"']+)["']$/i,
+    primitiveType: "expectTitle",
+    extract: (match) => ({
+      type: "expectTitle",
+      title: match[1]
+    })
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SPECIFIC STATE ASSERTIONS: enabled, disabled, checked, value, count
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    name: "verify-field-value",
+    // "Verify the username field has value 'testuser'"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(\w+)["']?\s+(?:field\s+)?has\s+value\s+["']([^"']+)["']$/i,
+    primitiveType: "expectValue",
+    extract: (match) => ({
+      type: "expectValue",
+      locator: createLocatorFromMatch("label", match[1]),
+      value: match[2]
+    })
+  },
+  {
+    name: "verify-element-enabled",
+    // "Verify the submit button is enabled"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:button\s+)?is\s+enabled$/i,
+    primitiveType: "expectEnabled",
+    extract: (match) => ({
+      type: "expectEnabled",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    name: "verify-element-disabled",
+    // "Verify the disabled input is disabled"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:input\s+)?is\s+disabled$/i,
+    primitiveType: "expectDisabled",
+    extract: (match) => ({
+      type: "expectDisabled",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    name: "verify-checkbox-checked",
+    // "Verify the checkbox is checked"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:checkbox\s+)?is\s+checked$/i,
+    primitiveType: "expectChecked",
+    extract: (match) => ({
+      type: "expectChecked",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    name: "verify-count",
+    // "Verify 5 items are shown" or "Verify 3 elements exist"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(\d+)\s+(?:items?|elements?|rows?)\s+(?:are\s+)?(?:shown|displayed|exist|visible)$/i,
+    primitiveType: "expectCount",
+    extract: (match) => ({
+      type: "expectCount",
+      locator: { strategy: "text", value: "item" },
+      count: parseInt(match[1], 10)
+    })
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENERIC VISIBILITY: Catch-all patterns for "is visible/displayed/showing"
+  // These must come AFTER specific patterns to avoid over-matching
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     name: "verify-element-showing",
     // "Verify the dashboard is showing/displayed"
@@ -3860,8 +4047,8 @@ var extendedAssertionPatterns = [
   },
   {
     name: "confirm-that-assertion",
-    // "Confirm that the message appears" or "Confirm the error is shown"
-    regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+    // "Confirm that the message appears", "Verify success message appears", or "Confirm the error is shown"
+    regex: /^(?:verify|confirm)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: "expectVisible",
     extract: (match) => ({
       type: "expectVisible",
@@ -3878,16 +4065,9 @@ var extendedAssertionPatterns = [
       locator: createLocatorFromMatch("text", match[1])
     })
   },
-  {
-    name: "element-should-not-be-visible",
-    // "The error should not be visible" or "Error message is not displayed"
-    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
-    primitiveType: "expectHidden",
-    extract: (match) => ({
-      type: "expectHidden",
-      locator: createLocatorFromMatch("text", match[1])
-    })
-  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENERIC TEXT ASSERTIONS: "contains" patterns (must be last to avoid conflicts)
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     name: "element-contains-text",
     // "The header contains 'Welcome'" or "Element should contain 'text'"
@@ -4037,10 +4217,41 @@ var focusPatterns = [
     })
   }
 ];
+var modalAlertPatterns = [
+  {
+    name: "dismiss-modal",
+    // "Dismiss the modal" or "Close the modal dialog"
+    regex: /^(?:dismiss|close)\s+(?:the\s+)?(?:modal|dialog)(?:\s+dialog)?$/i,
+    primitiveType: "dismissModal",
+    extract: () => ({
+      type: "dismissModal"
+    })
+  },
+  {
+    name: "accept-alert",
+    // "Accept the alert" or "Click OK on alert"
+    regex: /^(?:accept|confirm|ok)\s+(?:the\s+)?alert$/i,
+    primitiveType: "acceptAlert",
+    extract: () => ({
+      type: "acceptAlert"
+    })
+  },
+  {
+    name: "dismiss-alert",
+    // "Dismiss the alert" or "Cancel the alert"
+    regex: /^(?:dismiss|cancel|close)\s+(?:the\s+)?alert$/i,
+    primitiveType: "dismissAlert",
+    extract: () => ({
+      type: "dismissAlert"
+    })
+  }
+];
 var allPatterns = [
   ...structuredPatterns,
   ...authPatterns,
   ...toastPatterns,
+  ...modalAlertPatterns,
+  // Modal/alert patterns for dialog handling
   // Extended patterns come BEFORE base patterns to match more specific cases first
   ...extendedNavigationPatterns,
   // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
@@ -16944,6 +17155,6 @@ async function verifyJourneys(journeys, options = {}) {
   return results;
 }
 
-export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, LocatorBuilder, NAMEABLE_ROLES, PATTERN_VERSION, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, __test_checkFeature, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, cleanAutogenArtifacts, clearDebt, clearExtendedGlossary, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, shared_exports as enhancementShared, ensureAutogenDir, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMatchingPatterns, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, focusPatterns, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllPatternNames, getAllTestIds, getApplicableRules, getArtkDir, getAutogenArtifact, getAutogenDir, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getGlossaryStats, getHarnessRoot, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLlkbRoot, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageRoot, getPackageVersion, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getPatternStats2 as getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSchemaVersion, getSelectorPriority, getSummary, getSynonyms, getTemplatePath, getTemplatesDir, getTestCount, getViolationSummary, hasAutogenArtifacts, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasExtendedGlossary, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, hoverPatterns, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, initializeLlkb, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isLlkbAvailable, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadConfigWithMigration, loadConfigs, loadEvidence, loadExtendedGlossary, loadGlossary, loadHealingLog, loadLLKBConfig, loadRegistry, loadSourceFile, lookupCoreGlossary, lookupGlossary, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeConfigs, mergeGlossaries, mergeModuleFiles, mergeWithInferred, namespaceEmail, namespaceName, navigationPatterns, needsConfigMigration, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, refinement_exports as refinement, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, scot_exports as scot, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, uncertainty_exports as uncertainty, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
+export { AutogenConfigSchema, BLOCK_END, BLOCK_ID_PATTERN, BLOCK_START, CSSDebtEntrySchema, CodedError, ComponentEntrySchema, ConfigLoadError, DEFAULT_HEALING_CONFIG, DEFAULT_HEALING_RULES, DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, EslintRulesSchema, EslintSeveritySchema, FORBIDDEN_PATTERNS, HINTS_SECTION_PATTERN, HINT_BLOCK_PATTERN, HINT_PATTERNS, HealSchema, HealingLogger, IR, JourneyBuilder, JourneyFrontmatterSchema, JourneyParseError, JourneyStatusSchema, LLKBIntegrationLevelSchema, LLKBIntegrationSchema, LocatorBuilder, NAMEABLE_ROLES, PATTERN_VERSION, PLAYWRIGHT_LINT_RULES, PageEntrySchema, PathsSchema, RegenerationStrategySchema, SelectorCatalogSchema, SelectorEntrySchema, SelectorPolicySchema, SelectorStrategySchema, StepBuilder, TAG_PATTERNS, UNHEALABLE_CATEGORIES, VALID_ROLES, VERSION, ValidationSchema, ValueBuilder, __test_checkFeature, addCleanupHook, addExactToLocator, addLocatorProperty, addMethod, addNamedImport, addNavigationWaitAfterClick, addRunIdVariable, addSelector, addTimeout, addToRegistry, aggregateHealingLogs, allPatterns, andThen, applyDataFix, applyNavigationFix, applySelectorFix, applyTimingFix, authPatterns, buildPlaywrightArgs, categorizeTags, checkPatterns, checkStability, checkTestSyntax, classifyError, classifyTestResult, classifyTestResults, cleanAutogenArtifacts, clearDebt, clearExtendedGlossary, clickPatterns, codedError, collect, compareARIASnapshots, compareLocators, completionSignalsToAssertions, containsCSSSelector, containsHints, convertToWebFirstAssertion, createCssSelector, createEmptyCatalog, createEvidenceDir, createHealingReport, createLocatorFromMatch, createProject, createRegistry, createValueFromText, defaultGlossary, describeLocator, describePrimitive, shared_exports as enhancementShared, ensureAutogenDir, err, escapeRegex, escapeSelector, escapeString, evaluateHealing, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, extractCSSSelector, extractClassStructure, extractErrorMessages, extractErrorStacks, extractHintValue, extractHints, extractManagedBlocks, extractModuleDefinition, extractName, extractNameFromSelector, extractTestDataPatterns, extractTestResults, extractTimeoutFromError, extractUrlFromError, extractUrlFromGoto, fillPatterns, filterBySeverity, findACReferences, findByComponent, findByPage, findByTestId, findClass, findConfigFile, findEntriesByScope, findEntry, findInSnapshot, findLabelAlias, findMatchingPatterns, findMethod, findModuleMethod, findProperty, findSelectorById, findTestSteps, findTestsByTag, findTestsByTitle, fixMissingAwait, fixMissingGotoAwait, focusPatterns, formatARIATree, formatHealingLog, formatTestResult, formatVerifySummary, generateARIACaptureCode, generateClassificationReport, generateCoverageReport, generateDebtMarkdown, generateDebtReport, generateESLintConfig, generateEvidenceCaptureCode, generateEvidenceReport, generateExpectedTags, generateFileHeader, generateIndexContent, generateJourneyTests, generateLabelLocator, generateLocatorFromHints, generateMarkdownSummary, generateMigrationPlan, generateModule, generateModuleCode, generateModuleFromIR, generateRoleLocator, generateRunId, generateStabilityReport, generateSummaryFromReport, generateTest, generateTestCode, generateTestFromIR, generateTestIdLocator, generateTextLocator, generateToHaveURL, generateValidationReport, generateVerifySummary, generateWaitForURL, getAllPatternNames, getAllTestIds, getApplicableRules, getArtkDir, getAutogenArtifact, getAutogenDir, getBrandingComment, getCSSDebt, getCatalog, getDefaultConfig, getFailedStep, getFailedTests, getFailureStats, getFlakinessScore, getFlakyTests, getGeneratedTimestamp, getGlossary, getGlossaryStats, getHarnessRoot, getHealableFailures, getHealingRecommendation, getImport, getLabelAliases, getLlkbRoot, getLocatorFromLabel, getMappingStats, getModuleMethods, getModuleNames, getNextFix, getPackageRoot, getPackageVersion, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getPatternStats2 as getPatternStats, getPlaywrightVersion, getPostHealingRecommendation, getRecommendations, getRecommendedStrategies, getRegistryStats, getSchemaVersion, getSelectorPriority, getSummary, getSynonyms, getTemplatePath, getTemplatesDir, getTestCount, getViolationSummary, hasAutogenArtifacts, hasBehaviorHints, hasDataIsolation, hasErrorViolations, hasExtendedGlossary, hasFailures, hasImport, hasLintErrors, hasLocatorHints, hasModule, hasNavigationWait, hasTestId, hoverPatterns, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferRoleFromSelector, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, inferUrlPattern, initGlossary, initializeLlkb, injectManagedBlocks, insertNavigationWait, installAutogenInstance, isCategoryHealable, isCodeValid, isCssLocator, isESLintAvailable, isErr, isFixAllowed, isFixForbidden, isForbiddenSelector, isHealable, isJourneyReady, isLlkbAvailable, isOk, isPlaywrightAvailable, isPlaywrightPluginAvailable, isReportSuccessful, isRoleLocator, isSemanticLocator, isSynonymOf, isTestIdLocator, isTestStable, isValidRole, isVerificationPassed, isVersionSupported, lintCode, lintFile, loadCatalog, loadConfig, loadConfigWithMigration, loadConfigs, loadEvidence, loadExtendedGlossary, loadGlossary, loadHealingLog, loadLLKBConfig, loadRegistry, loadSourceFile, lookupCoreGlossary, lookupGlossary, map, mapAcceptanceCriterion, mapErr, mapProceduralStep, mapStepText, mapSteps, matchPattern, mergeConfigs, mergeGlossaries, mergeModuleFiles, mergeWithInferred, modalAlertPatterns, namespaceEmail, namespaceName, navigationPatterns, needsConfigMigration, needsMigration, normalizeJourney, normalizeStepText, ok, parseAndNormalize, parseBoolSafe, parseESLintOutput, parseEnumSafe, parseFloatSafe, parseHints, parseIndexFile, parseIntSafe, parseIntSafeAllowNegative, parseJourney, parseJourneyContent, parseJourneyForAutoGen, parseModuleHint, parseReportContent, parseReportFile, parseSelectorToLocator, parseStructuredSteps, parseTagsFromCode, parseTagsFromFrontmatter, parseWithValidator, partition, previewHealingFixes, quickScanTestIds, quickStabilityCheck, recordCSSDebt, refinement_exports as refinement, regenerateTestWithBlocks, removeDebt, removeFromRegistry, removeHints, removeSelector, replaceHardcodedEmail, replaceHardcodedTestData, reportHasFlaky, resetCatalogCache, resetGlossaryCache, resolveCanonical, resolveConfigPath, resolveModuleMethod, runHealingLoop, runJourneyTests, runPlaywrightAsync, runPlaywrightSync, runTestFile, saveCatalog, saveEvidence, saveRegistry, saveSummary, scanForTestIds, scanForbiddenPatterns, scanModulesDirectory, scanResultsToIssues, scoreLocator, scot_exports as scot, searchSelectors, selectBestLocator, selectPatterns, serializeJourney, serializePrimitive, serializeStep, shouldQuarantine, structuredPatterns, suggestImprovements, suggestReplacement, suggestSelector, suggestSelectorApproach, suggestTimeoutIncrease, summarizeJourney, summaryHasFlaky, thoroughStabilityCheck, toPlaywrightLocator, toastPatterns, tryCatch, tryCatchAsync, tryParseJourneyContent, uncertainty_exports as uncertainty, unwrap, unwrapOr, updateDebtPriority, updateIndexFile, updateModuleFile, upgradeAutogenInstance, urlPatterns, validateCatalog, validateCode, validateCodeCoverage, validateCodeSync, validateHints, validateIRCoverage, validateJourney, validateJourneyForCodeGen, validateJourneyFrontmatter, validateJourneySchema, validateJourneyStatus, validateJourneyTags, validateJourneyTier, validateJourneys, validateLocator, validateSyntax, validateTags, validateTagsInCode, verifyJourney, verifyJourneys, visibilityPatterns, waitPatterns, wouldFixApply, wrapInBlock, wrapWithExpectPoll, wrapWithExpectToPass, writeAndRunTest };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

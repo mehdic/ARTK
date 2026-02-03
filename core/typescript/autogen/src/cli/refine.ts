@@ -24,7 +24,9 @@ import {
   analyzeRefinementProgress,
   type RefinementAnalysis,
 } from '../refinement/convergence-detector.js';
-import type { ErrorAnalysis, CircuitBreakerState, ErrorCategory } from '../refinement/types.js';
+import type { ErrorAnalysis, CircuitBreakerState, ErrorCategory, RefinementSession, FixAttempt } from '../refinement/types.js';
+import { extractLessonsFromSession } from '../refinement/llkb-learning.js';
+import { recordPatternSuccess } from '../llkb/patternExtension.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -470,6 +472,98 @@ export async function runRefine(args: string[]): Promise<void> {
     if (result.errors.length === 0) {
       status = 'converged';
       recommendation = 'Test is now passing';
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // LLKB FEEDBACK LOOP: Extract lessons from successful refinement session
+      // Fire-and-forget: don't block main pipeline, just log errors
+      // @see research/2026-02-03_multi-ai-debate-llkb-feedback.md
+      // ═══════════════════════════════════════════════════════════════════════
+      if (result.journeyId && state.attempts.length > 0) {
+        Promise.resolve().then(() => {
+          try {
+            // Build minimal RefinementSession for lesson extraction
+            // extractLessonsFromSession only uses journeyId and attempts array
+            const session = {
+              sessionId: `refine-${Date.now()}`,
+              journeyId: result.journeyId!,
+              testFile: result.testPath,
+              startTime: new Date(state.attempts[0]?.timestamp ?? Date.now()),
+              originalCode: '',
+              currentCode: '',
+              attempts: state.attempts.map((attempt, idx): FixAttempt => ({
+                attemptNumber: attempt.attemptNumber,
+                timestamp: new Date(attempt.timestamp),
+                error: {
+                  fingerprint: `attempt-${idx}`,
+                  category: attempt.errors[0]?.type === 'selector' ? 'SELECTOR_NOT_FOUND' :
+                           attempt.errors[0]?.type === 'timeout' ? 'TIMEOUT' :
+                           attempt.errors[0]?.type === 'assertion' ? 'ASSERTION_FAILED' : 'UNKNOWN',
+                  message: attempt.errors[0]?.message ?? 'Unknown error',
+                  originalError: attempt.errors[0]?.message ?? '',
+                  severity: 'major',
+                  timestamp: new Date(attempt.timestamp),
+                },
+                proposedFixes: [],
+                appliedFix: attempt.suggestions[0] ? {
+                  type: 'OTHER',
+                  description: attempt.suggestions[0].suggestion,
+                  location: attempt.suggestions[0].location ? {
+                    file: attempt.suggestions[0].location.file,
+                    line: attempt.suggestions[0].location.line,
+                  } : { file: result.testPath, line: 0 },
+                  originalCode: '',
+                  fixedCode: attempt.suggestions[0].codeChange?.newCode ?? '',
+                  confidence: attempt.suggestions[0].confidence,
+                } : undefined,
+                outcome: idx === state.attempts.length - 1 ? 'success' : 'partial',
+              })),
+              circuitBreakerState: {
+                isOpen: false,
+                attemptCount: state.attempts.length,
+                errorHistory: [],
+                tokensUsed: 0,
+              },
+              convergenceInfo: {
+                converged: true,
+                attempts: state.attempts.length,
+                errorCountHistory: [],
+                uniqueErrorsHistory: [],
+                stagnationCount: 0,
+                trend: 'improving' as const,
+              },
+              finalStatus: 'SUCCESS' as const,
+              totalTokenUsage: {
+                promptTokens: 0,
+                completionTokens: 0,
+                totalTokens: 0,
+                estimatedCostUsd: 0,
+              },
+            } as RefinementSession;
+
+            // Extract and save lessons learned
+            const lessons = extractLessonsFromSession(session);
+            if (lessons.length > 0 && !quiet) {
+              console.log(`  LLKB: Extracted ${lessons.length} lesson(s) from successful refinement`);
+            }
+
+            // Also record successful patterns to increase confidence
+            for (const suggestion of suggestions) {
+              if (suggestion.confidence >= 0.7) {
+                recordPatternSuccess(
+                  suggestion.suggestion.substring(0, 100),
+                  { type: 'blocked', reason: 'learned', sourceText: suggestion.suggestion },
+                  result.journeyId!
+                );
+              }
+            }
+          } catch (e) {
+            // Silent catch - LLKB failures should never crash the pipeline
+            if (!quiet) {
+              console.warn(`LLKB lesson extraction skipped: ${e instanceof Error ? e.message : 'unknown error'}`);
+            }
+          }
+        });
+      }
     } else if (analysis.recommendation === 'stop' || !analysis.shouldContinue) {
       status = 'blocked';
       recommendation = `Refinement blocked: ${analysis.reason}. Manual intervention required.`;

@@ -242,6 +242,17 @@ function determinePipelineStage(artifacts: ArtifactStatus[], persistedState?: Pi
     };
   }
 
+  // Check if tests were generated (either persisted state or test files exist)
+  const testsGenerated = persistedState?.stage === 'generated' ||
+    (persistedState?.testPaths && persistedState.testPaths.length > 0);
+  if (testsGenerated && hasPlan) {
+    return {
+      stage: 'generated',
+      canProceed: true,
+      nextAction: 'Run "artk-autogen run" to execute generated tests',
+    };
+  }
+
   if (hasPlan) {
     return {
       stage: 'planned',

@@ -124,6 +124,11 @@ declare const extendedFillPatterns: StepPattern[];
 /**
  * Extended assertion patterns - Common variations missed by core patterns
  * Added in v1.1.0 based on telemetry analysis
+ *
+ * IMPORTANT: Patterns are ordered by SPECIFICITY (most specific first)
+ * - "is not visible" patterns must come before generic "is visible" patterns
+ * - "URL contains" patterns must come before generic "contains" patterns
+ * - Specific state assertions (enabled, disabled, checked) before generic visibility
  */
 declare const extendedAssertionPatterns: StepPattern[];
 /**
@@ -151,6 +156,11 @@ declare const hoverPatterns: StepPattern[];
  * Added in v1.1.0 based on telemetry analysis
  */
 declare const focusPatterns: StepPattern[];
+/**
+ * Modal and Alert patterns
+ * Added in v1.1.0 for comprehensive E2E coverage
+ */
+declare const modalAlertPatterns: StepPattern[];
 /**
  * All patterns in priority order (more specific patterns first)
  * Structured patterns come first to prioritize the Journey markdown format
@@ -562,4 +572,4 @@ declare function isLlkbAvailable(): boolean;
  */
 declare function suggestImprovements(blockedSteps: StepMappingResult[]): string[];
 
-export { type ExtendedGlossaryMeta as $, getPatternMatches as A, getAllPatternNames as B, getPatternCountByCategory as C, getPatternMetadata as D, findMatchingPatterns as E, type Glossary as F, type GlossaryEntry as G, defaultGlossary as H, loadGlossary as I, mergeGlossaries as J, initGlossary as K, type LabelAlias as L, type ModuleMethodMapping as M, getGlossary as N, resolveCanonical as O, PATTERN_VERSION as P, normalizeStepText as Q, getSynonyms as R, type StepPattern as S, isSynonymOf as T, resetGlossaryCache as U, findLabelAlias as V, getLocatorFromLabel as W, findModuleMethod as X, resolveModuleMethod as Y, getLabelAliases as Z, getModuleMethods as _, type PatternMetadata as a, loadExtendedGlossary as a0, clearExtendedGlossary as a1, lookupGlossary as a2, lookupCoreGlossary as a3, getGlossaryStats as a4, hasExtendedGlossary as a5, type StepMapperOptions as a6, type StepMappingResult as a7, type ACMappingResult as a8, mapStepText as a9, mapAcceptanceCriterion as aa, mapProceduralStep as ab, mapSteps as ac, getMappingStats as ad, initializeLlkb as ae, isLlkbAvailable as af, suggestImprovements as ag, type PatternMatch as b, createLocatorFromMatch as c, createValueFromText as d, clickPatterns as e, fillPatterns as f, checkPatterns as g, authPatterns as h, structuredPatterns as i, extendedClickPatterns as j, extendedFillPatterns as k, extendedAssertionPatterns as l, extendedWaitPatterns as m, navigationPatterns as n, extendedNavigationPatterns as o, parseSelectorToLocator as p, extendedSelectPatterns as q, hoverPatterns as r, selectPatterns as s, toastPatterns as t, urlPatterns as u, visibilityPatterns as v, waitPatterns as w, focusPatterns as x, allPatterns as y, matchPattern as z };
+export { getModuleMethods as $, matchPattern as A, getPatternMatches as B, getAllPatternNames as C, getPatternCountByCategory as D, getPatternMetadata as E, findMatchingPatterns as F, type GlossaryEntry as G, type Glossary as H, defaultGlossary as I, loadGlossary as J, mergeGlossaries as K, type LabelAlias as L, type ModuleMethodMapping as M, initGlossary as N, getGlossary as O, PATTERN_VERSION as P, resolveCanonical as Q, normalizeStepText as R, type StepPattern as S, getSynonyms as T, isSynonymOf as U, resetGlossaryCache as V, findLabelAlias as W, getLocatorFromLabel as X, findModuleMethod as Y, resolveModuleMethod as Z, getLabelAliases as _, type PatternMetadata as a, type ExtendedGlossaryMeta as a0, loadExtendedGlossary as a1, clearExtendedGlossary as a2, lookupGlossary as a3, lookupCoreGlossary as a4, getGlossaryStats as a5, hasExtendedGlossary as a6, type StepMapperOptions as a7, type StepMappingResult as a8, type ACMappingResult as a9, mapStepText as aa, mapAcceptanceCriterion as ab, mapProceduralStep as ac, mapSteps as ad, getMappingStats as ae, initializeLlkb as af, isLlkbAvailable as ag, suggestImprovements as ah, type PatternMatch as b, createLocatorFromMatch as c, createValueFromText as d, clickPatterns as e, fillPatterns as f, checkPatterns as g, authPatterns as h, structuredPatterns as i, extendedClickPatterns as j, extendedFillPatterns as k, extendedAssertionPatterns as l, extendedWaitPatterns as m, navigationPatterns as n, extendedNavigationPatterns as o, parseSelectorToLocator as p, extendedSelectPatterns as q, hoverPatterns as r, selectPatterns as s, toastPatterns as t, urlPatterns as u, visibilityPatterns as v, waitPatterns as w, focusPatterns as x, modalAlertPatterns as y, allPatterns as z };

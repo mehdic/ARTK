@@ -1,5 +1,24 @@
 # CLAUDE.md
 
+## Mandatory Multi-LLM for Octo Skills
+
+**CRITICAL RULE:** Whenever I ask for any Octo agent skill (`/octo:debate`, `/octo:review`, `/octo:brainstorm`, `/octo:research`, `/octo:security`, etc.), you MUST use the **claude-octopus orchestrate.sh script** to invoke actual external LLMs - not just Claude personas.
+
+**The orchestration script handles everything:**
+- Located at: `~/.claude/plugins/cache/nyldn-plugins/claude-octopus/*/scripts/orchestrate.sh`
+- Automatically invokes Codex CLI (`codex exec`) and Gemini CLI (`gemini -y -m gemini-3-pro-preview`)
+- Both CLIs are installed and authenticated via OAuth (verified via `/octo:setup`)
+
+**Rules:**
+- Use the orchestrate.sh script for multi-AI operations (it handles CLI invocation internally)
+- Only use Claude-only personas if I specifically say "Claude only" or "no external LLMs"
+- Always report which LLMs actually participated (e.g., "Participants: Claude, Codex 0.87.0, Gemini 0.25.0")
+- Synthesize all perspectives into a unified recommendation
+
+This ensures real multi-AI deliberation using the installed claude-octopus infrastructure.
+
+---
+
 ## Mandatory Meta-Cognitive Reasoning Protocol
 
 Adopt the role of a Meta-Cognitive Reasoning Expert.
@@ -1024,32 +1043,36 @@ ARTK features a self-improving test generation system where LLKB (Lessons Learne
 
 The integration follows the **Adapter Pattern** to bridge LLKB knowledge and AutoGen's generation engine:
 
-1. **Knowledge Accumulation**: LLKB accumulates patterns, selectors, and components as tests are developed and verified
-2. **Pre-Generation Export**: Before running AutoGen, LLKB exports its high-confidence knowledge (≥0.7) to AutoGen-compatible files
-3. **Enhanced Generation**: AutoGen loads LLKB exports and uses them alongside core patterns for smarter code generation
-4. **Learning Loop**: After test verification, outcomes are fed back to LLKB to refine confidence scores and create new lessons
+1. **Pattern Recording** (✓ Implemented): During `artk-autogen generate`, successful pattern matches are recorded to LLKB via `recordPatternSuccess()`. Each pattern tracks: original text, normalized text, IR primitive, confidence score (Wilson score), source journeys, success/fail counts.
+
+2. **Knowledge Export** (✓ Implemented): `artk-autogen llkb-patterns export` creates JSON config files with high-confidence patterns (≥0.7 by default) that can be loaded in future generations.
+
+3. **Pattern Matching** (✓ Implemented): During step mapping, LLKB patterns are checked via `matchLlkbPattern()` alongside the 84 core patterns. LLKB patterns require minimum confidence threshold.
+
+4. **Confidence Updates** (⚠️ Partial): `recordPatternSuccess()` updates confidence on successful matches. **Gap:** `recordPatternFailure()` exists but is never called - test failures don't update confidence scores.
 
 ### Integration Points
 
-**In `/artk.journey-implement` (Step 2.5):**
+**During Generation (`artk-autogen generate`):**
 ```bash
-# MANDATORY: Export LLKB before running AutoGen
-artk llkb export --for-autogen \
-  --output <harnessRoot>/ \
-  --min-confidence 0.7
+# Generate tests - LLKB recording happens automatically
+npx artk-autogen generate --plan .artk/autogen/plan.json -o tests/
 
-# Then run AutoGen with LLKB extensions
-npx artk-autogen generate \
-  --config <harnessRoot>/autogen.config.yml \
-  --llkb-config <harnessRoot>/autogen-llkb.config.yml \
-  --llkb-glossary <harnessRoot>/llkb-glossary.ts \
-  -o <testsDir> -m <journeyPath>
+# Or with explicit LLKB config (if you have exported patterns)
+npx artk-autogen generate --plan .artk/autogen/plan.json \
+  --llkb-config ./autogen-llkb.config.yml \
+  -o tests/
 ```
 
-**In `/artk.journey-verify`:**
-- Learning hooks record successful patterns, component usages, and lesson applications
-- Failed tests trigger confidence adjustments
-- New patterns discovered during manual fixes become lesson candidates
+**LLKB Pattern Flow:**
+1. `generate` command calls `recordPatternSuccess()` for each successfully mapped step
+2. Patterns accumulate in `.artk/llkb/learned-patterns.json`
+3. Run `artk-autogen llkb-patterns stats` to view accumulated patterns
+4. Run `artk-autogen llkb-patterns export` to create reusable config
+
+**Current Limitation:**
+- Test execution (`artk-autogen run`) does NOT update LLKB on failures
+- To manually record a failure: edit `learned-patterns.json` or implement `recordPatternFailure()` integration
 
 ### Key Files Generated
 
@@ -1062,34 +1085,46 @@ npx artk-autogen generate \
 
 ### LLKB CLI Commands
 
-LLKB commands are now integrated into the main `@artk/cli` package as subcommands:
+LLKB commands are available via `artk-autogen llkb-patterns`:
 
 ```bash
-# Export for AutoGen consumption
-artk llkb export --for-autogen --output artk-e2e/
-artk llkb export --for-autogen --output artk-e2e/ --min-confidence 0.8
-artk llkb export --for-autogen --output artk-e2e/ --dry-run
+# List learned patterns (sorted by confidence)
+artk-autogen llkb-patterns list                    # Top 20 patterns
+artk-autogen llkb-patterns list --limit 50         # Top 50 patterns
+artk-autogen llkb-patterns list --json             # JSON output
 
-# Check which tests have outdated LLKB versions
-artk llkb check-updates --tests-dir artk-e2e/tests/
+# View statistics
+artk-autogen llkb-patterns stats                   # Show pattern statistics
+artk-autogen llkb-patterns stats --json            # JSON output
 
-# Update specific test to latest LLKB version
-artk llkb update-test --test artk-e2e/tests/login.spec.ts
-artk llkb update-test --test artk-e2e/tests/login.spec.ts --dry-run
+# Export patterns for reuse
+artk-autogen llkb-patterns export                  # Export to autogen-patterns.json
+artk-autogen llkb-patterns export -o custom.json   # Custom output path
+artk-autogen llkb-patterns export --min-confidence 0.8  # Higher threshold
 
-# Update all outdated tests (batch)
-artk llkb update-tests --tests-dir artk-e2e/tests/
-artk llkb update-tests --tests-dir artk-e2e/tests/ --dry-run
+# Pattern promotion (patterns with ≥90% confidence, ≥5 successes, ≥2 journeys)
+artk-autogen llkb-patterns promote                 # Show promotable patterns
+artk-autogen llkb-patterns promote --apply         # Mark as promoted
 
-# Record learning events (manual or automated)
-artk llkb learn --type component --id COMP012 --journey JRN-0001 --success
-artk llkb learn --type lesson --id L042 --journey JRN-0001 --success --context "grid edit"
-artk llkb learn --type pattern --journey JRN-0001 --success --context "Save button" --selector-strategy testid --selector-value btn-save
+# Maintenance
+artk-autogen llkb-patterns prune                   # Remove low-quality patterns
+artk-autogen llkb-patterns prune --min-confidence 0.3
+artk-autogen llkb-patterns clear                   # Clear all (with confirmation)
+artk-autogen llkb-patterns clear --force           # Clear all (no confirmation)
 
-# Health check and statistics
-artk llkb health
-artk llkb stats
-artk llkb prune --history-retention-days 90
+# Specify custom LLKB location
+artk-autogen llkb-patterns stats --llkb-root /path/to/.artk/llkb
+```
+
+**Pattern Gap Analysis** (separate command):
+
+```bash
+# Analyze blocked steps and pattern gaps
+artk-autogen patterns gaps                         # Show top 20 gaps
+artk-autogen patterns gaps --category interaction  # Filter by category
+artk-autogen patterns stats                        # Telemetry statistics
+artk-autogen patterns list                         # List all 84 core patterns
+artk-autogen patterns export --json                # Export gaps as JSON
 ```
 
 ### AutoGen CLI Commands
@@ -1319,18 +1354,80 @@ This ensures tests continuously benefit from LLKB improvements while maintaining
 
 - 001-artk-core-v1: Added TypeScript 5.x (Node.js 18.0.0+) + Playwright 1.57.0+, Zod (schema validation), yaml (config parsing), otplib (TOTP generation)
 
-## Architecture Status (2026-02-01)
+## Architecture Status (2026-02-03)
 
 **See:** `research/2026-02-01_journey-implement-architecture-analysis.md`
 
 The journey-implement system is a **hybrid architecture**:
-- **CLI** (`artk journey implement`): Validates, orchestrates, tracks session state
-- **AutoGen**: Deterministic pattern-based code generation (handles ~40-60% of steps)
-- **LLM**: Semantic understanding for complex/blocked steps (handles ~40-60% of steps)
-- **LLKB**: Learning system to improve over time (currently incomplete)
+- **CLI** (`artk-autogen`): Full pipeline commands (analyze, plan, generate, run, refine, validate, verify)
+- **AutoGen**: Deterministic pattern-based code generation (84 patterns, handles ~82% of steps)
+- **LLM**: Not yet integrated - blocked steps become TODOs (~18% of steps)
+- **LLKB**: Learning system - pattern recording and CLI fully implemented
 
-**Critical Issues to Address:**
-1. LLKB CLI commands not implemented (`artk llkb export` etc.)
-2. No feedback loop from LLM fixes to LLKB learning
-3. Cold start problem - LLKB needs pre-seeding
-4. No telemetry for blocked step analysis
+### What's Working ✓
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Pattern Matching | ✓ Complete | 84 patterns in v1.1.0 covering navigation, clicks, fills, assertions, waits, modals, alerts |
+| LLKB Recording | ✓ Complete | `recordPatternSuccess()` called during generation, Wilson score confidence |
+| LLKB CLI | ✓ Complete | `artk-autogen llkb-patterns list/stats/export/promote/prune/clear` |
+| Pattern Analysis | ✓ Complete | `artk-autogen patterns gaps/stats/list/export` |
+| Pipeline Commands | ✓ Complete | analyze, plan, generate, run, refine, status, clean |
+| Validation | ✓ Complete | `artk-autogen validate` with optional ESLint |
+| Security | ✓ Complete | String escaping, URL sanitization, path traversal prevention |
+
+### Additional Working Features
+
+| Feature | Command | Notes |
+|---------|---------|-------|
+| Test Healing | `artk-autogen verify --heal` | Auto-fix failing selectors with retry loop |
+| Stability Checks | `artk-autogen verify --stability` | Repeat tests to detect flaky tests |
+| Refinement Analysis | `artk-autogen refine` | Analyze failures, suggest fixes |
+| Error Parsing | Built-in | Categorizes errors: selector, timeout, assertion, navigation, typescript, runtime |
+| Convergence Detection | Built-in | Detects when refinement loop is stuck |
+| Glossary System | Built-in | Term normalization for pattern matching |
+
+### Remaining Gaps ✗
+
+| Issue | Impact | Fix Needed |
+|-------|--------|------------|
+| `recordPatternFailure()` never called | LLKB confidence doesn't decrease on test failures | Call in `run.ts` when tests fail |
+| `extractLessonsFromSession()` not integrated | Refinement fixes don't feed back to LLKB | Call in `refine.ts` after successful fixes |
+| No LLM integration | ~18% of steps become TODO comments | Future: integrate LLM for blocked steps |
+| Cold start | New projects start with empty LLKB | Patterns accumulate over multiple generations |
+
+### AutoGen CLI Quick Reference
+
+```bash
+# Pipeline Commands
+artk-autogen analyze "journeys/*.md"     # Analyze journeys → analysis.json
+artk-autogen plan                        # Create test plan → plan.json
+artk-autogen generate                    # Generate tests (~82% coverage)
+artk-autogen run tests/*.spec.ts         # Execute tests → results.json
+artk-autogen refine                      # Analyze failures, suggest fixes
+artk-autogen status                      # Show pipeline state
+artk-autogen clean                       # Clean autogen artifacts
+
+# Validation Commands
+artk-autogen validate journeys/*.md      # Validate journey files
+artk-autogen validate tests/*.spec.ts --lint  # Validate with ESLint
+artk-autogen verify journeys/*.md        # Generate + run + verify
+artk-autogen verify journeys/*.md --heal # Auto-heal failing tests
+artk-autogen verify journeys/*.md --stability  # Check for flaky tests
+
+# LLKB Management
+artk-autogen llkb-patterns list          # List learned patterns
+artk-autogen llkb-patterns stats         # View statistics
+artk-autogen llkb-patterns export        # Export for reuse
+artk-autogen llkb-patterns promote       # Check promotable patterns
+artk-autogen llkb-patterns prune         # Remove low-quality patterns
+
+# Pattern Analysis
+artk-autogen patterns list               # List all 84 core patterns
+artk-autogen patterns gaps               # Find pattern gaps
+artk-autogen patterns stats              # Telemetry statistics
+
+# Management
+artk-autogen install --dir ./project     # Install autogen instance
+artk-autogen upgrade                     # Upgrade to new version
+```

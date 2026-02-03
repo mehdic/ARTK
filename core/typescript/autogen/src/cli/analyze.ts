@@ -244,7 +244,7 @@ function parseJourneyFile(filePath: string): JourneyAnalysis {
 
   // Extract acceptance criteria (## Acceptance Criteria section)
   const acceptanceCriteria: string[] = [];
-  const acMatch = content.match(/##\s*Acceptance Criteria\s*\n([\s\S]*?)(?=\n##|\n---|\z)/i);
+  const acMatch = content.match(/##\s*Acceptance Criteria\s*\n([\s\S]*?)(?=\n##|\n---|$)/i);
   if (acMatch && acMatch[1]) {
     const lines = acMatch[1].split('\n');
     for (const line of lines) {
@@ -257,7 +257,7 @@ function parseJourneyFile(filePath: string): JourneyAnalysis {
 
   // Extract steps (## Steps or ## Procedure section)
   const steps: StepAnalysis[] = [];
-  const stepsMatch = content.match(/##\s*(?:Steps|Procedure|Test Steps)\s*\n([\s\S]*?)(?=\n##|\n---|\z)/i);
+  const stepsMatch = content.match(/##\s*(?:Steps|Procedure|Test Steps)\s*\n([\s\S]*?)(?=\n##|\n---|$)/i);
   if (stepsMatch && stepsMatch[1]) {
     const lines = stepsMatch[1].split('\n');
     let stepIndex = 0;

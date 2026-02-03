@@ -695,6 +695,16 @@ var navigationPatterns = [
       url: `/${match[1].toLowerCase().replace(/\s+/g, "-")}`,
       waitForLoad: true
     })
+  },
+  {
+    name: "wait-for-url-change",
+    // "Wait for URL to change to '/dashboard'" or "Wait until URL contains '/settings'"
+    regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?url\s+(?:to\s+)?(?:change\s+to|contain|include)\s+["']?([^"']+)["']?$/i,
+    primitiveType: "waitForURL",
+    extract: (match) => ({
+      type: "waitForURL",
+      pattern: match[1]
+    })
   }
 ];
 var clickPatterns = [
@@ -714,6 +724,26 @@ var clickPatterns = [
     extract: (match) => ({
       type: "click",
       locator: createLocatorFromMatch("role", "link", match[1])
+    })
+  },
+  {
+    name: "click-menuitem-quoted",
+    // "Click the 'Settings' menu item" or "Click on 'Edit' menuitem"
+    regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+menu\s*item$/i,
+    primitiveType: "click",
+    extract: (match) => ({
+      type: "click",
+      locator: createLocatorFromMatch("role", "menuitem", match[1])
+    })
+  },
+  {
+    name: "click-tab-quoted",
+    // "Click the 'Details' tab" or "Select the 'Overview' tab"
+    regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+tab$/i,
+    primitiveType: "click",
+    extract: (match) => ({
+      type: "click",
+      locator: createLocatorFromMatch("role", "tab", match[1])
     })
   },
   {
@@ -757,6 +787,18 @@ var fillPatterns = [
     })
   },
   {
+    name: "fill-placeholder-field",
+    // "Fill 'test@example.com' in the field with placeholder 'Enter email'"
+    // or "Type 'value' into input with placeholder 'Search'"
+    regex: /^(?:user\s+)?(?:enters?|types?|fills?)\s+["']([^"']+)["']\s+(?:in|into)\s+(?:the\s+)?(?:field|input)\s+with\s+placeholder\s+["']([^"']+)["']$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("placeholder", match[2]),
+      value: createValueFromText(match[1])
+    })
+  },
+  {
     name: "fill-field-generic",
     regex: /^(?:user\s+)?(?:enters?|types?|fills?\s+in?|inputs?)\s+(.+?)\s+(?:in|into)\s+(?:the\s+)?(.+?)\s*(?:field|input)?$/i,
     primitiveType: "fill",
@@ -790,8 +832,28 @@ var checkPatterns = [
     })
   },
   {
+    // "Check the terms checkbox" - unquoted checkbox name
+    name: "check-checkbox-unquoted",
+    regex: /^(?:user\s+)?(?:checks?|enables?|ticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
+    primitiveType: "check",
+    extract: (match) => ({
+      type: "check",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
     name: "uncheck-checkbox",
     regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?["']([^"']+)["']\s*(?:checkbox|option)?$/i,
+    primitiveType: "uncheck",
+    extract: (match) => ({
+      type: "uncheck",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    // "Uncheck the newsletter checkbox" - unquoted checkbox name
+    name: "uncheck-checkbox-unquoted",
+    regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
     primitiveType: "uncheck",
     extract: (match) => ({
       type: "uncheck",
@@ -875,6 +937,26 @@ var toastPatterns = [
       type: "expectToast",
       toastType: "info",
       message: match[1]
+    })
+  },
+  {
+    name: "status-message-visible",
+    // "A status message 'Processing...' is visible" or "The status shows 'Loading'"
+    regex: /^(?:a\s+)?status\s+(?:message\s+)?["']([^"']+)["']\s+(?:is\s+)?(?:visible|shown|displayed)$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("role", "status", match[1])
+    })
+  },
+  {
+    name: "verify-status-message",
+    // "Verify the status message shows 'Complete'"
+    regex: /^(?:verify|check)\s+(?:that\s+)?(?:the\s+)?status\s+(?:message\s+)?(?:shows?|displays?|contains?)\s+["']([^"']+)["']$/i,
+    primitiveType: "expectVisible",
+    extract: (match) => ({
+      type: "expectVisible",
+      locator: createLocatorFromMatch("role", "status", match[1])
     })
   }
 ];
@@ -1180,6 +1262,111 @@ var extendedFillPatterns = [
   }
 ];
 var extendedAssertionPatterns = [
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MOST SPECIFIC: Negative assertions (must come before positive counterparts)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    name: "verify-not-visible",
+    // "Verify the error container is not visible"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+is\s+not\s+visible$/i,
+    primitiveType: "expectHidden",
+    extract: (match) => ({
+      type: "expectHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  {
+    name: "element-should-not-be-visible",
+    // "The error should not be visible" or "Error message is not displayed"
+    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+    primitiveType: "expectHidden",
+    extract: (match) => ({
+      type: "expectHidden",
+      locator: createLocatorFromMatch("text", match[1])
+    })
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // URL AND TITLE: Specific patterns that match "URL" or "title" keywords
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    name: "verify-url-contains",
+    // "Verify the URL contains '/dashboard'"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?url\s+contains?\s+["']([^"']+)["']$/i,
+    primitiveType: "expectURL",
+    extract: (match) => ({
+      type: "expectURL",
+      pattern: match[1]
+    })
+  },
+  {
+    name: "verify-title-is",
+    // "Verify the page title is 'Settings'"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?(?:page\s+)?title\s+(?:is|equals?)\s+["']([^"']+)["']$/i,
+    primitiveType: "expectTitle",
+    extract: (match) => ({
+      type: "expectTitle",
+      title: match[1]
+    })
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SPECIFIC STATE ASSERTIONS: enabled, disabled, checked, value, count
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    name: "verify-field-value",
+    // "Verify the username field has value 'testuser'"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(\w+)["']?\s+(?:field\s+)?has\s+value\s+["']([^"']+)["']$/i,
+    primitiveType: "expectValue",
+    extract: (match) => ({
+      type: "expectValue",
+      locator: createLocatorFromMatch("label", match[1]),
+      value: match[2]
+    })
+  },
+  {
+    name: "verify-element-enabled",
+    // "Verify the submit button is enabled"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:button\s+)?is\s+enabled$/i,
+    primitiveType: "expectEnabled",
+    extract: (match) => ({
+      type: "expectEnabled",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    name: "verify-element-disabled",
+    // "Verify the disabled input is disabled"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:input\s+)?is\s+disabled$/i,
+    primitiveType: "expectDisabled",
+    extract: (match) => ({
+      type: "expectDisabled",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    name: "verify-checkbox-checked",
+    // "Verify the checkbox is checked"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:checkbox\s+)?is\s+checked$/i,
+    primitiveType: "expectChecked",
+    extract: (match) => ({
+      type: "expectChecked",
+      locator: createLocatorFromMatch("label", match[1])
+    })
+  },
+  {
+    name: "verify-count",
+    // "Verify 5 items are shown" or "Verify 3 elements exist"
+    regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(\d+)\s+(?:items?|elements?|rows?)\s+(?:are\s+)?(?:shown|displayed|exist|visible)$/i,
+    primitiveType: "expectCount",
+    extract: (match) => ({
+      type: "expectCount",
+      locator: { strategy: "text", value: "item" },
+      count: parseInt(match[1], 10)
+    })
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENERIC VISIBILITY: Catch-all patterns for "is visible/displayed/showing"
+  // These must come AFTER specific patterns to avoid over-matching
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     name: "verify-element-showing",
     // "Verify the dashboard is showing/displayed"
@@ -1213,8 +1400,8 @@ var extendedAssertionPatterns = [
   },
   {
     name: "confirm-that-assertion",
-    // "Confirm that the message appears" or "Confirm the error is shown"
-    regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+    // "Confirm that the message appears", "Verify success message appears", or "Confirm the error is shown"
+    regex: /^(?:verify|confirm)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: "expectVisible",
     extract: (match) => ({
       type: "expectVisible",
@@ -1231,16 +1418,9 @@ var extendedAssertionPatterns = [
       locator: createLocatorFromMatch("text", match[1])
     })
   },
-  {
-    name: "element-should-not-be-visible",
-    // "The error should not be visible" or "Error message is not displayed"
-    regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
-    primitiveType: "expectHidden",
-    extract: (match) => ({
-      type: "expectHidden",
-      locator: createLocatorFromMatch("text", match[1])
-    })
-  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENERIC TEXT ASSERTIONS: "contains" patterns (must be last to avoid conflicts)
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     name: "element-contains-text",
     // "The header contains 'Welcome'" or "Element should contain 'text'"
@@ -1390,10 +1570,41 @@ var focusPatterns = [
     })
   }
 ];
+var modalAlertPatterns = [
+  {
+    name: "dismiss-modal",
+    // "Dismiss the modal" or "Close the modal dialog"
+    regex: /^(?:dismiss|close)\s+(?:the\s+)?(?:modal|dialog)(?:\s+dialog)?$/i,
+    primitiveType: "dismissModal",
+    extract: () => ({
+      type: "dismissModal"
+    })
+  },
+  {
+    name: "accept-alert",
+    // "Accept the alert" or "Click OK on alert"
+    regex: /^(?:accept|confirm|ok)\s+(?:the\s+)?alert$/i,
+    primitiveType: "acceptAlert",
+    extract: () => ({
+      type: "acceptAlert"
+    })
+  },
+  {
+    name: "dismiss-alert",
+    // "Dismiss the alert" or "Cancel the alert"
+    regex: /^(?:dismiss|cancel|close)\s+(?:the\s+)?alert$/i,
+    primitiveType: "dismissAlert",
+    extract: () => ({
+      type: "dismissAlert"
+    })
+  }
+];
 var allPatterns = [
   ...structuredPatterns,
   ...authPatterns,
   ...toastPatterns,
+  ...modalAlertPatterns,
+  // Modal/alert patterns for dialog handling
   // Extended patterns come BEFORE base patterns to match more specific cases first
   ...extendedNavigationPatterns,
   // Must be before navigationPatterns (e.g., "Go back" vs "Go to")

@@ -21,6 +21,8 @@ import {
   type OrchestratorSampleRequest,
 } from '../uncertainty/multi-sampler.js';
 import type { AnalysisOutput, JourneyAnalysis } from './analyze.js';
+import { unifiedMatch } from '../mapping/unifiedMatcher.js';
+import { irPrimitiveToPlannedAction } from '../mapping/plannedActionAdapter.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -56,9 +58,37 @@ export interface PlannedStep {
 }
 
 export interface PlannedAction {
-  type: 'navigate' | 'click' | 'fill' | 'select' | 'assert' | 'wait' | 'custom';
+  type:
+    // Navigation
+    | 'navigate' | 'reload' | 'goBack' | 'goForward'
+    // Interactions
+    | 'click' | 'dblclick' | 'rightClick' | 'fill' | 'select' | 'check' | 'uncheck'
+    | 'press' | 'hover' | 'focus' | 'clear' | 'upload'
+    // Assertions
+    | 'assert' | 'assertText' | 'assertValue' | 'assertChecked' | 'assertEnabled'
+    | 'assertDisabled' | 'assertURL' | 'assertTitle' | 'assertHidden' | 'assertCount'
+    // Waits
+    | 'wait' | 'waitForVisible' | 'waitForHidden' | 'waitForURL' | 'waitForNetwork'
+    // Signals
+    | 'assertToast' | 'dismissModal' | 'acceptAlert' | 'dismissAlert'
+    // Module calls
+    | 'callModule'
+    // Custom/fallback
+    | 'custom';
   target?: string;
   value?: string;
+  /** For callModule: module name */
+  module?: string;
+  /** For callModule: method name */
+  method?: string;
+  /** For press: key name */
+  key?: string;
+  /** For upload: file paths */
+  files?: string[];
+  /** For assertCount: expected count */
+  count?: number;
+  /** For assertToast: toast type */
+  toastType?: 'success' | 'error' | 'info' | 'warning';
   options?: Record<string, unknown>;
 }
 
@@ -141,71 +171,28 @@ const DEFAULT_CONFIG: PlanConfiguration = {
   trace: 'retain-on-failure',
 };
 
-function convertStepToAction(step: JourneyAnalysis['steps'][0]): PlannedAction {
-  const text = step.text.toLowerCase();
+/**
+ * Convert journey step to planned action using unified pattern matching
+ *
+ * This uses the unified matcher (patterns.ts + LLKB) instead of duplicating
+ * pattern matching logic here.
+ *
+ * @see research/2026-02-03_unified-pattern-matching-plan.md Phase 3
+ */
+function convertStepToAction(step: JourneyAnalysis['steps'][0], options?: { llkbRoot?: string }): PlannedAction {
+  // Use unified pattern matching (core patterns + LLKB)
+  const result = unifiedMatch(step.text, {
+    useLlkb: true,
+    llkbRoot: options?.llkbRoot,
+  });
 
-  // Navigation
-  if (step.type === 'navigation') {
-    const urlMatch = text.match(/(?:to|url|page)\s+["']?([^"'\s]+)/i);
-    return {
-      type: 'navigate',
-      target: urlMatch?.[1] || '/',
-    };
+  if (result.primitive) {
+    // Convert IR primitive to PlannedAction
+    return irPrimitiveToPlannedAction(result.primitive);
   }
 
-  // Click/interaction
-  if (step.type === 'interaction') {
-    return {
-      type: 'click',
-      target: extractTarget(text),
-    };
-  }
-
-  // Form filling
-  if (step.type === 'form') {
-    const valueMatch = text.match(/["']([^"']+)["']/);
-    return {
-      type: 'fill',
-      target: extractTarget(text),
-      value: valueMatch?.[1] || '',
-    };
-  }
-
-  // Assertion
-  if (step.type === 'assertion') {
-    return {
-      type: 'assert',
-      target: extractTarget(text),
-    };
-  }
-
-  // Wait
-  if (step.type === 'wait') {
-    return {
-      type: 'wait',
-      options: { timeout: 5000 },
-    };
-  }
-
-  // Default
-  return {
-    type: 'custom',
-    target: text,
-  };
-}
-
-function extractTarget(text: string): string {
-  // Try to extract quoted strings
-  const quoted = text.match(/["']([^"']+)["']/);
-  if (quoted && quoted[1]) return quoted[1];
-
-  // Try to extract button/link names
-  const buttonMatch = text.match(/(?:button|link|input|field)\s+(?:called|named|labeled)?\s*["']?(\w+)/i);
-  if (buttonMatch && buttonMatch[1]) return buttonMatch[1];
-
-  // Return last noun-like word
-  const words = text.split(/\s+/).filter(w => w.length > 2);
-  return words[words.length - 1] || 'unknown';
+  // Fallback: return custom action with original text
+  return { type: 'custom', target: step.text };
 }
 
 function inferSelectors(step: JourneyAnalysis['steps'][0]): SelectorHint[] {
