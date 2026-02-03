@@ -2410,6 +2410,20 @@ function validatePath(userPath, allowedRoot) {
     if (userPath.startsWith("\\\\") || userPath.startsWith("//")) {
       throw new PathTraversalError(userPath, allowedRoot, "unc-path");
     }
+    const pathParts = userPath.split(/[/\\]/);
+    const baseName = pathParts[pathParts.length - 1] || "";
+    const nameWithoutExt = baseName.split(".")[0] || "";
+    const upperName = nameWithoutExt.toUpperCase();
+    const reservedNames = ["CON", "PRN", "AUX", "NUL"];
+    const reservedPrefixes = ["COM", "LPT"];
+    if (reservedNames.includes(upperName)) {
+      throw new PathTraversalError(userPath, allowedRoot, "reserved-device-name");
+    }
+    for (const prefix of reservedPrefixes) {
+      if (upperName.startsWith(prefix) && /^(COM|LPT)[1-9]$/.test(upperName)) {
+        throw new PathTraversalError(userPath, allowedRoot, "reserved-device-name");
+      }
+    }
   }
   const resolved = resolve(allowedRoot, userPath);
   let realResolved;
@@ -10510,7 +10524,7 @@ ${stderr}`;
     const snippet = snippetMatch?.[1]?.trim();
     if (!location && !snippet) {
       const trimmedMsg = message.trim();
-      if (trimmedMsg.endsWith(":") && trimmedMsg.length < 80) {
+      if (trimmedMsg.endsWith(":") && trimmedMsg.length < TRUNCATED_MESSAGE_MAX_LENGTH) {
         continue;
       }
     }
@@ -10821,7 +10835,7 @@ Output: ${outputPath}`);
     process.exit(1);
   }
 }
-var USAGE4;
+var USAGE4, TRUNCATED_MESSAGE_MAX_LENGTH;
 var init_run = __esm({
   "src/cli/run.ts"() {
     init_paths();
@@ -10853,6 +10867,7 @@ Examples:
   artk-autogen run tests/login.spec.ts --headed --debug
   artk-autogen run tests/login.spec.ts --json
 `;
+    TRUNCATED_MESSAGE_MAX_LENGTH = 80;
   }
 });
 
