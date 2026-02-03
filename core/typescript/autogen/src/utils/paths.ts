@@ -464,6 +464,25 @@ export function validatePath(userPath: string, allowedRoot: string): string {
     if (userPath.startsWith('\\\\') || userPath.startsWith('//')) {
       throw new PathTraversalError(userPath, allowedRoot, 'unc-path');
     }
+
+    // Block Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+    // These can cause unexpected behavior or be used for attacks
+    // Check the base name of the path (without extension)
+    const pathParts = userPath.split(/[/\\]/);
+    const baseName = pathParts[pathParts.length - 1] || '';
+    const nameWithoutExt = baseName.split('.')[0] || '';
+    const upperName = nameWithoutExt.toUpperCase();
+    const reservedNames = ['CON', 'PRN', 'AUX', 'NUL'];
+    const reservedPrefixes = ['COM', 'LPT'];
+
+    if (reservedNames.includes(upperName)) {
+      throw new PathTraversalError(userPath, allowedRoot, 'reserved-device-name');
+    }
+    for (const prefix of reservedPrefixes) {
+      if (upperName.startsWith(prefix) && /^(COM|LPT)[1-9]$/.test(upperName)) {
+        throw new PathTraversalError(userPath, allowedRoot, 'reserved-device-name');
+      }
+    }
   }
 
   // Resolve the user path relative to the allowed root

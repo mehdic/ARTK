@@ -124,6 +124,13 @@ Examples:
 // ERROR PARSING
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Maximum length for truncated error message fragments.
+ * Messages shorter than this ending with ':' are likely split artifacts
+ * from the error block parsing (e.g., "Error: locator.click:").
+ */
+const TRUNCATED_MESSAGE_MAX_LENGTH = 80;
+
 // Export for testing
 export function parseErrorType(message: string): ErrorType {
   const lower = message.toLowerCase();
@@ -262,11 +269,13 @@ export function parseErrors(stdout: string, stderr: string): TestError[] {
     // - Has no location and no snippet (no useful context)
     // - Is very short and ends with a colon (incomplete message like "Error: locator.click:")
     // We preserve the more complete block that contains the actual error details.
+    // Note: We don't check errorType here because even known error types can appear
+    // as truncated fragments (e.g., "Error: locator.click:" is split from the full message).
     if (!location && !snippet) {
       const trimmedMsg = message.trim();
       // Skip if message is clearly incomplete (ends with : and is short)
       // This catches split artifacts like "Error: locator.click:"
-      if (trimmedMsg.endsWith(':') && trimmedMsg.length < 80) {
+      if (trimmedMsg.endsWith(':') && trimmedMsg.length < TRUNCATED_MESSAGE_MAX_LENGTH) {
         continue;
       }
     }

@@ -226,6 +226,38 @@ describe('validatePath', () => {
         expect(() => validatePath(absolutePath, testRoot)).not.toThrow();
       }
     });
+
+    it('should reject Windows reserved device names on Windows', () => {
+      if (process.platform === 'win32') {
+        // Basic reserved names
+        expect(() => validatePath('CON', testRoot)).toThrow(PathTraversalError);
+        expect(() => validatePath('PRN', testRoot)).toThrow(PathTraversalError);
+        expect(() => validatePath('AUX', testRoot)).toThrow(PathTraversalError);
+        expect(() => validatePath('NUL', testRoot)).toThrow(PathTraversalError);
+
+        // COM and LPT ports
+        expect(() => validatePath('COM1', testRoot)).toThrow(PathTraversalError);
+        expect(() => validatePath('LPT1', testRoot)).toThrow(PathTraversalError);
+
+        // With extensions (still reserved)
+        expect(() => validatePath('CON.txt', testRoot)).toThrow(PathTraversalError);
+        expect(() => validatePath('tests/NUL.ts', testRoot)).toThrow(PathTraversalError);
+
+        // Case insensitive
+        expect(() => validatePath('con', testRoot)).toThrow(PathTraversalError);
+        expect(() => validatePath('Com1', testRoot)).toThrow(PathTraversalError);
+      }
+    });
+
+    it('should allow normal filenames that contain reserved name substrings on Windows', () => {
+      if (process.platform === 'win32') {
+        // These should NOT be blocked - they contain reserved names as substrings
+        // but are not the reserved names themselves
+        mkdirSync(join(testRoot, 'CONSOLE'), { recursive: true });
+        writeFileSync(join(testRoot, 'CONSOLE', 'test.ts'), '// test');
+        expect(() => validatePath('CONSOLE/test.ts', testRoot)).not.toThrow();
+      }
+    });
   });
 });
 
