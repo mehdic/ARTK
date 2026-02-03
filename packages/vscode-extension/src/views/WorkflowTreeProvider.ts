@@ -19,6 +19,7 @@ interface WorkflowStep {
   name: string;
   prompt: string;
   description: string;
+  fullDescription: string; // Detailed description for tooltip
   mandatory: boolean;
   runOnce?: boolean;
   runOnceMessage?: string;
@@ -41,6 +42,18 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Initialize Playbook',
     prompt: '/artk.init-playbook',
     description: 'Generate permanent guardrails (Copilot instructions + docs)',
+    fullDescription: `**What it does:**
+- Creates \`.github/copilot-instructions.md\` with project-specific AI guidelines
+- Generates documentation templates in \`artk-e2e/docs/\`
+- Installs the Journey system (schema, templates, tools)
+- Sets up the foundation for all subsequent ARTK commands
+
+**Output files:**
+- \`.github/copilot-instructions.md\`
+- \`artk-e2e/docs/PLAYBOOK.md\`
+- \`artk-e2e/docs/CONVENTIONS.md\`
+
+**When to run:** Once at project setup. Re-running will overwrite existing files.`,
     mandatory: true,
     runOnce: true,
     runOnceMessage: 'Only run once per project',
@@ -51,6 +64,19 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Discover Foundation',
     prompt: '/artk.discover-foundation',
     description: 'Analyze app routes, features, auth, build foundation harness',
+    fullDescription: `**What it does:**
+- Analyzes your application's routes and navigation structure
+- Detects authentication patterns (OIDC, basic auth, MFA, etc.)
+- Identifies UI frameworks and component patterns
+- Creates the Playwright test harness with proper configuration
+- Builds foundation modules (auth, config, navigation)
+
+**Output files:**
+- \`artk-e2e/DISCOVERY.md\` - Analysis results
+- \`artk-e2e/src/foundation/\` - Auth, config, and navigation modules
+- \`artk-e2e/playwright.config.ts\` - Configured for your app
+
+**When to run:** After init-playbook, whenever app structure changes significantly.`,
     mandatory: true,
     dependsOn: 'init-playbook',
   },
@@ -60,7 +86,19 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Propose Journeys (Auto-create from app)',
     prompt: '/artk.journey-propose',
     description: 'Auto-propose Journeys from discovery results',
-    mandatory: false, // Optional - user can manually create journeys
+    fullDescription: `**What it does:**
+- Reads DISCOVERY.md analysis results
+- Automatically proposes test Journeys based on detected features
+- Creates Journey files in \`proposed/\` status
+- Suggests smoke, release, and regression tier assignments
+
+**Output files:**
+- \`artk-e2e/journeys/proposed/JRN-XXXX__*.md\` - Proposed journey files
+
+**When to run:** After discover-foundation. Optional - you can manually create journeys instead.
+
+**Tip:** Review proposed journeys and promote the ones you want to implement.`,
+    mandatory: false,
     dependsOn: 'discover-foundation',
   },
   {
@@ -69,6 +107,25 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Define Journey',
     prompt: '/artk.journey-define',
     description: 'Create/promote Journey to canonical structure',
+    fullDescription: `**What it does:**
+- Creates a new Journey or promotes a proposed Journey
+- Establishes the canonical Journey structure with YAML frontmatter
+- Sets Journey ID, status, tier, actor, and scope
+- Defines acceptance criteria and high-level steps
+
+**Output files:**
+- \`artk-e2e/journeys/defined/JRN-XXXX__*.md\` - Defined journey
+
+**Journey structure:**
+\`\`\`yaml
+id: JRN-0001
+status: defined
+tier: smoke | release | regression
+actor: user role
+scope: feature area
+\`\`\`
+
+**When to run:** For each user journey you want to test.`,
     mandatory: true,
     dependsOn: 'journey-propose',
   },
@@ -78,6 +135,22 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Clarify Journey',
     prompt: '/artk.journey-clarify',
     description: 'Add deterministic execution detail to Journey',
+    fullDescription: `**What it does:**
+- Adds precise, deterministic steps to the Journey
+- Specifies exact selectors, inputs, and expected outcomes
+- Defines test data requirements
+- Identifies module dependencies (foundation + feature)
+
+**Output files:**
+- \`artk-e2e/journeys/clarified/JRN-XXXX__*.md\` - Clarified journey
+
+**Clarification adds:**
+- Exact UI element selectors (preferably data-testid)
+- Input values and test data
+- Expected assertions and outcomes
+- Timing and wait conditions
+
+**When to run:** After defining a journey, before implementation.`,
     mandatory: true,
     dependsOn: 'journey-define',
   },
@@ -87,7 +160,22 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Audit Test IDs',
     prompt: '/artk.testid-audit',
     description: 'Audit and add data-testid attributes for reliable selectors',
-    mandatory: false, // Recommended but optional
+    fullDescription: `**What it does:**
+- Scans your application's source code for UI elements
+- Identifies elements that need \`data-testid\` attributes
+- Suggests consistent naming conventions
+- Can auto-add test IDs to your codebase (with confirmation)
+
+**Benefits:**
+- More reliable selectors than CSS classes or text
+- Survives UI refactoring and styling changes
+- Clear separation of test concerns from styling
+- Industry best practice for E2E testing
+
+**When to run:** Before implementing journeys. Recommended but optional.
+
+**Tip:** Run this if your app doesn't have data-testid attributes yet.`,
+    mandatory: false,
     dependsOn: 'journey-clarify',
   },
   {
@@ -96,6 +184,24 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Implement Journey',
     prompt: '/artk.journey-implement',
     description: 'Generate Playwright tests from Journey',
+    fullDescription: `**What it does:**
+- Reads the clarified Journey specification
+- Generates Playwright test code using ARTK patterns
+- Creates Page Objects and Flow modules as needed
+- Links tests back to the Journey via \`@journey\` annotation
+
+**Output files:**
+- \`artk-e2e/tests/[tier]/jrn-XXXX__*.spec.ts\` - Test file
+- \`artk-e2e/src/pages/*.ts\` - Page Objects (if needed)
+- \`artk-e2e/src/flows/*.ts\` - Flow modules (if needed)
+
+**Generated test includes:**
+- Proper fixtures and authentication
+- Step-by-step implementation of Journey
+- Assertions matching acceptance criteria
+- LLKB integration for learning
+
+**When to run:** After clarifying a journey.`,
     mandatory: true,
     dependsOn: 'testid-audit',
   },
@@ -105,6 +211,21 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Validate Journey',
     prompt: '/artk.journey-validate',
     description: 'Static validation gate for Journey',
+    fullDescription: `**What it does:**
+- Validates Journey YAML frontmatter against schema
+- Checks that all required fields are present
+- Verifies status transitions are valid
+- Ensures tests[] array is populated for implemented journeys
+- Validates module dependencies exist
+
+**Validation checks:**
+- ✓ Valid Journey ID format (JRN-XXXX)
+- ✓ Valid status (proposed → defined → clarified → implemented)
+- ✓ Required fields present (tier, actor, scope)
+- ✓ Tests linked for implemented status
+- ✓ Quarantine requirements (owner, reason, issues)
+
+**When to run:** After implementing, before running tests.`,
     mandatory: true,
     dependsOn: 'journey-implement',
   },
@@ -114,6 +235,22 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     name: 'Verify Journey',
     prompt: '/artk.journey-verify',
     description: 'Runtime verification gate - run tests',
+    fullDescription: `**What it does:**
+- Executes the generated Playwright tests
+- Verifies tests pass against the actual application
+- Records results and updates LLKB with learnings
+- Identifies flaky tests or environment issues
+
+**Verification process:**
+1. Runs tests in headed or headless mode
+2. Captures screenshots and traces on failure
+3. Reports pass/fail status with details
+4. Updates Journey status based on results
+
+**On success:** Journey is fully implemented and verified
+**On failure:** Provides debugging info and suggests fixes
+
+**When to run:** After validation passes, to confirm tests work.`,
     mandatory: true,
     dependsOn: 'journey-validate',
   },
@@ -139,26 +276,28 @@ class WorkflowTreeItem extends vscode.TreeItem {
     const statusTag = isCompleted && step.runOnce ? ' ✓ Done' : '';
     this.description = `${tag}${statusTag}`;
 
-    // Tooltip with full details
+    // Rich tooltip with full description
     const tooltipLines = [
-      `**${step.number}. ${step.name}**`,
-      '',
-      step.description,
+      `## ${step.number}. ${step.name}`,
       '',
       `Command: \`${step.prompt}\``,
       '',
-      step.mandatory ? '🔴 Required step' : '🟢 Optional step',
+      '---',
+      '',
+      step.fullDescription,
     ];
 
     if (step.runOnce) {
-      tooltipLines.push('', `⚠️ ${step.runOnceMessage}`);
+      tooltipLines.push('', '---', '', `⚠️ **${step.runOnceMessage}**`);
     }
 
     if (isDisabled && disabledReason) {
-      tooltipLines.push('', `🚫 ${disabledReason}`);
+      tooltipLines.push('', '---', '', `🚫 **Disabled:** ${disabledReason}`);
     }
 
-    this.tooltip = new vscode.MarkdownString(tooltipLines.join('\n'));
+    const tooltip = new vscode.MarkdownString(tooltipLines.join('\n'));
+    tooltip.isTrusted = true; // Allow command links if needed
+    this.tooltip = tooltip;
 
     // Icon based on state
     if (isDisabled) {
