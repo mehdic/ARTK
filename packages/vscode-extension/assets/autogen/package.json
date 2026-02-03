@@ -1,0 +1,115 @@
+{
+  "name": "@artk/core-autogen",
+  "version": "0.1.0",
+  "description": "ARTK AutoGen Core - Deterministic test generation engine for Playwright E2E tests",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js",
+      "require": "./dist-cjs/cli/index.js"
+    },
+    "./variants": {
+      "types": "./dist/variants/index.d.ts",
+      "import": "./dist/variants/index.js",
+      "require": "./dist-cjs/variants/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsup && npm run copy-templates",
+    "build:esm": "tsup && npm run copy-templates",
+    "build:cjs": "tsup --format cjs --out-dir dist-cjs --no-dts && npm run copy-templates:cjs && npm run strip-esm:cjs && npm run copy-dts:cjs",
+    "build:legacy-16": "tsup --format cjs --out-dir dist-legacy-16 --no-dts --target es2021 && npm run copy-templates:legacy-16 && npm run strip-esm:legacy-16 && npm run copy-dts:legacy-16",
+    "build:legacy-14": "tsup --format cjs --out-dir dist-legacy-14 --no-dts --target es2020 && npm run copy-templates:legacy-14 && npm run strip-esm:legacy-14 && npm run copy-dts:legacy-14",
+    "build:variants": "npm run build:esm && npm run build:cjs && npm run build:legacy-16 && npm run build:legacy-14",
+    "copy-dts:cjs": "node scripts/copy-dts.cjs dist-cjs",
+    "copy-dts:legacy-16": "node scripts/copy-dts.cjs dist-legacy-16",
+    "copy-dts:legacy-14": "node scripts/copy-dts.cjs dist-legacy-14",
+    "strip-esm:cjs": "node scripts/strip-esm-code.cjs dist-cjs",
+    "strip-esm:legacy-16": "node scripts/strip-esm-code.cjs dist-legacy-16",
+    "strip-esm:legacy-14": "node scripts/strip-esm-code.cjs dist-legacy-14",
+    "copy-templates": "node scripts/copy-templates.js dist",
+    "copy-templates:cjs": "node scripts/copy-templates.js dist-cjs --cjs",
+    "copy-templates:legacy-16": "node scripts/copy-templates.js dist-legacy-16 --cjs",
+    "copy-templates:legacy-14": "node scripts/copy-templates.js dist-legacy-14 --cjs",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "typecheck": "tsc --noEmit",
+    "clean": "node -e \"const fs=require('fs');['dist','dist-cjs','dist-legacy-16','dist-legacy-14'].forEach(d=>{if(fs.existsSync(d))fs.rmSync(d,{recursive:true})})\"",
+    "prepublishOnly": "npm run build"
+  },
+  "bin": {
+    "artk-autogen": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "dist-cjs",
+    "dist-legacy-16",
+    "dist-legacy-14",
+    "README.md",
+    "package-legacy-16.json",
+    "package-legacy-14.json"
+  ],
+  "keywords": [
+    "artk",
+    "playwright",
+    "test-generation",
+    "e2e",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "fast-glob": "^3.3.3",
+    "ts-morph": "^24.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/ejs": "^3.1.5",
+    "@types/node": "^22.10.5",
+    "tsup": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "eslint-plugin-playwright": "^2.1.0",
+    "fast-check": "^4.5.3",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "peerDependencies": {
+    "@artk/core": ">=1.0.0",
+    "@playwright/test": ">=1.33.0"
+  },
+  "peerDependenciesMeta": {
+    "@artk/core": {
+      "optional": true
+    },
+    "@playwright/test": {
+      "optional": true
+    }
+  },
+  "artkVariant": {
+    "id": "modern-esm",
+    "nodeRange": ["18", "19", "20", "21", "22"],
+    "playwrightVersion": "1.57.x",
+    "moduleSystem": "esm",
+    "tsTarget": "ES2022"
+  }
+}

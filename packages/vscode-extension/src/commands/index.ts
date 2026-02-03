@@ -3,7 +3,7 @@
  */
 
 import * as vscode from 'vscode';
-import { runInitWizard } from './init';
+import { runInitWizard, setExtensionContext } from './init';
 import { runDoctor } from './doctor';
 import { runCheck } from './check';
 import { openConfig, openJourney } from './config';
@@ -17,6 +17,9 @@ import { DashboardPanel } from '../views/dashboard/DashboardPanel';
  * Register all ARTK commands
  */
 export function registerCommands(context: vscode.ExtensionContext): void {
+  // Store extension context for bundled installer access
+  setExtensionContext(context);
+
   // Core commands
   context.subscriptions.push(
     vscode.commands.registerCommand('artk.init', runInitWizard),

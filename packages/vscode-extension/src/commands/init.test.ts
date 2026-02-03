@@ -24,6 +24,9 @@ const mockState = vi.hoisted(() => ({
   infoMessageResponses: ['Install'] as (string | undefined)[],
   warningMessageResponse: undefined as string | undefined,
 
+  // Extension context
+  extensionPath: '/extension',
+
   // Track calls for assertions
   calls: {
     showInformationMessage: [] as any[][],
@@ -31,24 +34,18 @@ const mockState = vi.hoisted(() => ({
     showErrorMessage: [] as any[][],
     showQuickPick: [] as any[][],
     executeCommand: [] as any[][],
-    check: [] as any[][],
-    init: [] as any[][],
+    installBundled: [] as any[][],
   },
 
   // Mock return values
-  checkResult: { success: true } as { success: boolean; error?: string },
-  initResult: { success: true } as { success: boolean; error?: string },
+  installResult: { success: true, artkE2ePath: '/project/artk-e2e' } as { success: boolean; error?: string; artkE2ePath?: string },
 }));
 
-// Mock CLI
-vi.mock('../cli', () => ({
-  init: (...args: any[]) => {
-    mockState.calls.init.push(args);
-    return Promise.resolve(mockState.initResult);
-  },
-  check: (...args: any[]) => {
-    mockState.calls.check.push(args);
-    return Promise.resolve(mockState.checkResult);
+// Mock bundled installer
+vi.mock('../installer', () => ({
+  installBundled: (...args: any[]) => {
+    mockState.calls.installBundled.push(args);
+    return Promise.resolve(mockState.installResult);
   },
 }));
 
@@ -101,7 +98,7 @@ vi.mock('vscode', () => ({
   },
 }));
 
-import { runInitWizard } from './init';
+import { runInitWizard, setExtensionContext } from './init';
 
 describe('Init Command', () => {
   beforeEach(() => {
@@ -117,8 +114,7 @@ describe('Init Command', () => {
     ];
     mockState.infoMessageResponses = ['Install']; // Default: confirm install
     mockState.warningMessageResponse = undefined;
-    mockState.checkResult = { success: true };
-    mockState.initResult = { success: true };
+    mockState.installResult = { success: true, artkE2ePath: '/project/artk-e2e' };
 
     // Clear call tracking
     mockState.calls = {
@@ -127,9 +123,15 @@ describe('Init Command', () => {
       showErrorMessage: [],
       showQuickPick: [],
       executeCommand: [],
-      check: [],
-      init: [],
+      installBundled: [],
     };
+
+    // Set up extension context
+    setExtensionContext({
+      extensionPath: mockState.extensionPath,
+      subscriptions: [],
+      extensionUri: { fsPath: mockState.extensionPath } as any,
+    } as any);
   });
 
   describe('No Workspace Open', () => {
@@ -151,7 +153,7 @@ describe('Init Command', () => {
 
       await runInitWizard();
 
-      expect(mockState.calls.check.length).toBe(0);
+      expect(mockState.calls.installBundled.length).toBe(0);
     });
   });
 
@@ -163,8 +165,8 @@ describe('Init Command', () => {
 
       await runInitWizard();
 
-      // Should call check (prerequisites)
-      expect(mockState.calls.check.length).toBe(1);
+      // Should call installBundled
+      expect(mockState.calls.installBundled.length).toBe(1);
     });
   });
 
@@ -202,7 +204,7 @@ describe('Init Command', () => {
 
       await runInitWizard();
 
-      expect(mockState.calls.check.length).toBe(0);
+      expect(mockState.calls.installBundled.length).toBe(0);
     });
   });
 
@@ -224,7 +226,7 @@ describe('Init Command', () => {
 
       await runInitWizard();
 
-      expect(mockState.calls.init.length).toBe(0);
+      expect(mockState.calls.installBundled.length).toBe(0);
     });
 
     it('should pass force flag when reinstalling', async () => {
@@ -233,27 +235,8 @@ describe('Init Command', () => {
 
       await runInitWizard();
 
-      expect(mockState.calls.init.length).toBe(1);
-      expect(mockState.calls.init[0][0]).toMatchObject({ force: true });
-    });
-  });
-
-  describe('Prerequisites Check', () => {
-    it('should check prerequisites before proceeding', async () => {
-      await runInitWizard();
-
-      expect(mockState.calls.check.length).toBe(1);
-    });
-
-    it('should show error when prerequisites check fails', async () => {
-      mockState.checkResult = { success: false, error: 'Node.js not found' };
-
-      await runInitWizard();
-
-      expect(mockState.calls.showErrorMessage.length).toBeGreaterThan(0);
-      const [message] = mockState.calls.showErrorMessage[0];
-      expect(message).toContain('Node.js not found');
-      expect(mockState.calls.init.length).toBe(0);
+      expect(mockState.calls.installBundled.length).toBe(1);
+      expect(mockState.calls.installBundled[0][1]).toMatchObject({ force: true });
     });
   });
 
@@ -275,16 +258,16 @@ describe('Init Command', () => {
 
       await runInitWizard();
 
-      expect(mockState.calls.init.length).toBe(0);
+      expect(mockState.calls.installBundled.length).toBe(0);
     });
   });
 
   describe('Installation', () => {
-    it('should call init with correct options', async () => {
+    it('should call installBundled with correct options', async () => {
       await runInitWizard();
 
-      expect(mockState.calls.init.length).toBe(1);
-      expect(mockState.calls.init[0][0]).toMatchObject({
+      expect(mockState.calls.installBundled.length).toBe(1);
+      expect(mockState.calls.installBundled[0][1]).toMatchObject({
         targetPath: '/project',
         variant: 'auto',
       });
@@ -306,7 +289,7 @@ describe('Init Command', () => {
     });
 
     it('should show error message on installation failure', async () => {
-      mockState.initResult = { success: false, error: 'Installation failed' };
+      mockState.installResult = { success: false, error: 'Installation failed' };
 
       await runInitWizard();
 

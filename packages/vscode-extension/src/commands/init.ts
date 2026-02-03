@@ -1,12 +1,31 @@
 /**
  * ARTK Init Command - Multi-step wizard for initializing ARTK
+ *
+ * Uses bundled assets for installation - no npm registry access required.
  */
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { init, check } from '../cli';
+import { installBundled, type BundledInstallOptions } from '../installer';
 import { getWorkspaceContextManager } from '../workspace';
 import type { InitOptions } from '../types';
+
+// Module-level extension context reference
+let extensionContext: vscode.ExtensionContext | undefined;
+
+/**
+ * Set the extension context (called during activation)
+ */
+export function setExtensionContext(context: vscode.ExtensionContext): void {
+  extensionContext = context;
+}
+
+/**
+ * Get the extension context
+ */
+function getExtensionContext(): vscode.ExtensionContext | undefined {
+  return extensionContext;
+}
 
 interface VariantOption {
   label: string;
@@ -99,25 +118,7 @@ export async function runInitWizard(): Promise<void> {
     }
   }
 
-  // Step 2: Check prerequisites
-  const prereqResult = await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: 'Checking prerequisites...',
-    },
-    async () => {
-      return await check();
-    }
-  );
-
-  if (!prereqResult.success) {
-    vscode.window.showErrorMessage(
-      `Failed to check prerequisites: ${prereqResult.error}`
-    );
-    return;
-  }
-
-  // Step 3: Select variant
+  // Step 2: Select variant
   const variantSelection = await vscode.window.showQuickPick(
     VARIANT_OPTIONS.map((opt) => ({
       label: opt.label,
@@ -152,13 +153,20 @@ export async function runInitWizard(): Promise<void> {
     return;
   }
 
-  // Step 6: Run installation
-  const initOptions: InitOptions = {
+  // Step 5: Run installation using bundled assets
+  const installOptions: BundledInstallOptions = {
     targetPath,
     variant: variantSelection.value,
     ...options,
     force: contextManager.isInstalled, // Force if reinstalling
   };
+
+  // Get extension context for accessing bundled assets
+  const extensionContext = getExtensionContext();
+  if (!extensionContext) {
+    vscode.window.showErrorMessage('Failed to get extension context');
+    return;
+  }
 
   const result = await vscode.window.withProgress(
     {
@@ -167,8 +175,7 @@ export async function runInitWizard(): Promise<void> {
       cancellable: false,
     },
     async (progress) => {
-      progress.report({ message: 'Setting up directory structure...' });
-      return await init(initOptions);
+      return await installBundled(extensionContext, installOptions, progress);
     }
   );
 
