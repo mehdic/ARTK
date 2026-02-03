@@ -16,16 +16,20 @@ const testDir = join(process.cwd(), 'test-fixtures', 'run-test');
 const testsDir = join(testDir, 'tests');
 const outputDir = join(testDir, '.artk', 'autogen');
 
-vi.mock('../../src/utils/paths.js', () => ({
-  getAutogenDir: vi.fn(() => join(process.cwd(), 'test-fixtures', 'run-test', '.artk', 'autogen')),
-  getAutogenArtifact: vi.fn((name: string) => join(process.cwd(), 'test-fixtures', 'run-test', '.artk', 'autogen', `${name}.json`)),
-  ensureAutogenDir: vi.fn(async () => {
-    const { mkdirSync } = await import('node:fs');
-    const { join } = await import('node:path');
-    mkdirSync(join(process.cwd(), 'test-fixtures', 'run-test', '.artk', 'autogen'), { recursive: true });
-  }),
-  getHarnessRoot: vi.fn(() => join(process.cwd(), 'test-fixtures', 'run-test')),
-}));
+vi.mock('../../src/utils/paths.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/utils/paths.js')>();
+  return {
+    ...actual,
+    getAutogenDir: vi.fn(() => join(process.cwd(), 'test-fixtures', 'run-test', '.artk', 'autogen')),
+    getAutogenArtifact: vi.fn((name: string) => join(process.cwd(), 'test-fixtures', 'run-test', '.artk', 'autogen', `${name}.json`)),
+    ensureAutogenDir: vi.fn(async () => {
+      const { mkdirSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      mkdirSync(join(process.cwd(), 'test-fixtures', 'run-test', '.artk', 'autogen'), { recursive: true });
+    }),
+    getHarnessRoot: vi.fn(() => join(process.cwd(), 'test-fixtures', 'run-test')),
+  };
+});
 
 // Mock telemetry before importing run
 vi.mock('../../src/shared/telemetry.js', () => ({
@@ -40,8 +44,9 @@ vi.mock('../../src/shared/telemetry.js', () => ({
 
 // Mock pipeline state
 vi.mock('../../src/pipeline/state.js', () => ({
-  loadPipelineState: vi.fn(() => ({ stage: 'generated', journeyIds: [], history: [] })),
+  loadPipelineState: vi.fn().mockResolvedValue({ stage: 'generated', journeyIds: [], history: [] }),
   updatePipelineState: vi.fn().mockResolvedValue({}),
+  canProceedTo: vi.fn(() => ({ allowed: true })),
 }));
 
 // Mock playwright runner (to avoid spawning real processes)
@@ -205,8 +210,9 @@ test('sample', async () => { expect(true).toBe(true); });`);
       const outputPath = join(outputDir, 'results.json');
       vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
 
+      // Use a path within the harness root that doesn't exist
       try {
-        await runRun(['/nonexistent/test.spec.ts', '-o', outputPath, '-q']);
+        await runRun(['tests/nonexistent.spec.ts', '-o', outputPath, '-q']);
       } catch {
         // Expected exit due to test failure
       }
@@ -216,6 +222,24 @@ test('sample', async () => { expect(true).toBe(true); });`);
       const output: RunOutput = JSON.parse(readFileSync(outputPath, 'utf-8'));
       expect(output.results[0].status).toBe('error');
       expect(output.results[0].errors[0].message).toContain('not found');
+    });
+
+    it('should block path traversal attempts', async () => {
+      const outputPath = join(outputDir, 'results.json');
+      vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+
+      // Try an absolute path outside harness root
+      try {
+        await runRun(['/nonexistent/test.spec.ts', '-o', outputPath, '-q']);
+      } catch {
+        // Expected exit due to test failure
+      }
+
+      // Should write results with path traversal error
+      expect(existsSync(outputPath)).toBe(true);
+      const output: RunOutput = JSON.parse(readFileSync(outputPath, 'utf-8'));
+      expect(output.results[0].status).toBe('error');
+      expect(output.results[0].errors[0].message).toContain('Path traversal');
     });
 
     it('should extract journey ID from test file', async () => {
@@ -323,5 +347,41 @@ describe('Error parsing utilities', () => {
     // This would require mocking spawn to return different error outputs
     // For now, we verify the error type enum exists in the output
     expect(['selector', 'timeout', 'assertion', 'navigation', 'typescript', 'runtime', 'unknown']).toBeDefined();
+  });
+});
+
+// Test path validation (security)
+// Note: These tests use a separate import to avoid mock interference
+describe('Path traversal protection', () => {
+  it('should have validatePath and PathTraversalError exported', async () => {
+    // Verify the security utilities are available
+    const { validatePath, PathTraversalError } = await import('../../src/utils/paths.js');
+    expect(validatePath).toBeDefined();
+    expect(PathTraversalError).toBeDefined();
+  });
+
+  it('should block paths with ../ traversal', async () => {
+    const { validatePath, PathTraversalError } = await import('../../src/utils/paths.js');
+    const testRoot = process.cwd();
+
+    expect(() => validatePath('../../../etc/passwd', testRoot))
+      .toThrow(PathTraversalError);
+  });
+
+  it('should block absolute paths outside root', async () => {
+    const { validatePath, PathTraversalError } = await import('../../src/utils/paths.js');
+    const testRoot = process.cwd();
+
+    expect(() => validatePath('/etc/passwd', testRoot))
+      .toThrow(PathTraversalError);
+  });
+
+  it('should allow relative paths within root', async () => {
+    const { validatePath } = await import('../../src/utils/paths.js');
+    const testRoot = process.cwd();
+
+    // Should not throw for valid relative path
+    const result = validatePath('tests/cli/run.test.ts', testRoot);
+    expect(result).toContain('run.test.ts');
   });
 });

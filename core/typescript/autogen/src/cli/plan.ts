@@ -13,7 +13,7 @@ import {
   getAutogenArtifact,
   ensureAutogenDir,
 } from '../utils/paths.js';
-import { updatePipelineState, loadPipelineState } from '../pipeline/state.js';
+import { updatePipelineState, loadPipelineState, canProceedTo } from '../pipeline/state.js';
 import { getTelemetry } from '../shared/telemetry.js';
 import {
   createOrchestratorSampleRequest,
@@ -118,6 +118,7 @@ Options:
   -o, --output <path>    Output path for plan.json (default: .artk/autogen/plan.json)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -413,6 +414,7 @@ export async function runPlan(args: string[]): Promise<void> {
       output: { type: 'string', short: 'o' },
       json: { type: 'boolean', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
+      force: { type: 'boolean', short: 'f', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
@@ -425,6 +427,7 @@ export async function runPlan(args: string[]): Promise<void> {
 
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
   const strategyInput = values.strategy?.toLowerCase().trim() || 'direct';
 
   // Validate and normalize strategy
@@ -440,10 +443,17 @@ export async function runPlan(args: string[]): Promise<void> {
   await telemetry.load();
   const eventId = telemetry.trackCommandStart('plan');
 
-  // Check pipeline state
-  const pipelineState = loadPipelineState();
-  if (pipelineState.stage === 'initial') {
-    console.warn('Warning: No analysis found. Consider running "artk-autogen analyze" first.');
+  // Validate pipeline state transition (unless --force)
+  const pipelineState = await loadPipelineState();
+  if (!force) {
+    const transition = canProceedTo(pipelineState, 'planned');
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error('Use --force to bypass state validation.');
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log('Warning: Bypassing pipeline state validation (--force)');
   }
 
   // Load analysis

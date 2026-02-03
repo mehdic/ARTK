@@ -13,7 +13,7 @@ import { loadConfigs } from '../config/loader.js';
 import { loadExtendedGlossary, getGlossaryStats } from '../mapping/glossary.js';
 import { recordBlockedStep } from '../mapping/telemetry.js';
 import { analyzeBlockedStep, formatBlockedStepAnalysis } from '../mapping/blockedStepAnalysis.js';
-import { updatePipelineState } from '../pipeline/state.js';
+import { updatePipelineState, loadPipelineState, canProceedTo } from '../pipeline/state.js';
 import { getTelemetry } from '../shared/telemetry.js';
 import type { PlanOutput, TestPlan } from './plan.js';
 
@@ -274,6 +274,7 @@ Options:
   --journey <id>           Generate only for specific journey ID from plan
   --dry-run                Preview generation without writing files
   -q, --quiet              Suppress output except errors
+  -f, --force              Skip pipeline state validation
   -h, --help               Show this help message
 
 LLKB Integration Options:
@@ -303,6 +304,7 @@ export async function runGenerate(args: string[]): Promise<void> {
       journey: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
+      force: { type: 'boolean', short: 'f', default: false },
       help: { type: 'boolean', short: 'h', default: false },
       // LLKB integration options
       'llkb-config': { type: 'string' },
@@ -315,6 +317,22 @@ export async function runGenerate(args: string[]): Promise<void> {
   if (values.help) {
     console.log(USAGE);
     return;
+  }
+
+  const quiet = values.quiet;
+  const force = values.force;
+
+  // Validate pipeline state transition (unless --force)
+  if (!force) {
+    const currentState = loadPipelineState();
+    const transition = canProceedTo(currentState, 'generated');
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error('Use --force to bypass state validation.');
+      process.exit(1);
+    }
+  } else if (!quiet) {
+    console.log('Warning: Bypassing pipeline state validation (--force)');
   }
 
   // Initialize telemetry
@@ -366,7 +384,6 @@ export async function runGenerate(args: string[]): Promise<void> {
 
   const outputDir = values.output || './tests/generated';
   const dryRun = values['dry-run'];
-  const quiet = values.quiet;
 
   // Load configs (base + LLKB if provided)
   const configPaths: string[] = [];

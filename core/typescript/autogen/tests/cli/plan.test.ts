@@ -19,8 +19,9 @@ vi.mock('../../src/shared/telemetry.js', () => ({
 
 // Mock pipeline state
 vi.mock('../../src/pipeline/state.js', () => ({
-  loadPipelineState: vi.fn(() => ({ stage: 'analyzed', journeyIds: [], history: [] })),
+  loadPipelineState: vi.fn().mockResolvedValue({ stage: 'analyzed', journeyIds: [], history: [] }),
   updatePipelineState: vi.fn().mockResolvedValue({}),
+  canProceedTo: vi.fn(() => ({ allowed: true })),
 }));
 
 // Mock paths

@@ -20,6 +20,7 @@ vi.mock('../../src/utils/paths.js', () => ({
 
 import {
   loadPipelineState,
+  loadPipelineStateWithInfo,
   savePipelineState,
   updatePipelineState,
   resetPipelineState,
@@ -27,6 +28,7 @@ import {
   getPipelineStateSummary,
   type PipelineState,
 } from '../../src/pipeline/state.js';
+import fg from 'fast-glob';
 
 describe('Pipeline State Management', () => {
   beforeEach(() => {
@@ -78,10 +80,173 @@ describe('Pipeline State Management', () => {
       const statePath = join(autogenDir, 'state.json');
       writeFileSync(statePath, 'invalid json {{{', 'utf-8');
 
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
       const state = loadPipelineState();
 
       // Should return initial state on error
       expect(state.stage).toBe('initial');
+
+      // Should warn about the corruption
+      expect(warnSpy).toHaveBeenCalled();
+      const warnings = warnSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(warnings).toContain('invalid JSON');
+    });
+
+    it('should create backup of corrupted JSON file', async () => {
+      const statePath = join(autogenDir, 'state.json');
+      writeFileSync(statePath, 'totally broken json', 'utf-8');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      loadPipelineState();
+
+      // Should have created a backup
+      const backups = await fg('*.corrupted.*', { cwd: autogenDir });
+      expect(backups.length).toBeGreaterThan(0);
+
+      // Original file should be gone (renamed to backup)
+      expect(existsSync(statePath)).toBe(false);
+
+      // Warn should mention the backup
+      const warnings = warnSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(warnings).toContain('Backup saved');
+    });
+
+    it('should create backup when state has invalid schema', async () => {
+      const statePath = join(autogenDir, 'state.json');
+      // Valid JSON but missing required fields
+      writeFileSync(statePath, JSON.stringify({
+        version: '1.0',
+        stage: 'analyzed',
+        // Missing many required fields
+      }), 'utf-8');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const state = loadPipelineState();
+
+      // Should return initial state
+      expect(state.stage).toBe('initial');
+
+      // Should have created a backup
+      const backups = await fg('*.corrupted.*', { cwd: autogenDir });
+      expect(backups.length).toBeGreaterThan(0);
+
+      // Should warn about invalid structure
+      const warnings = warnSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(warnings).toContain('invalid structure');
+    });
+
+    it('should warn about unknown fields but still load state', () => {
+      const statePath = join(autogenDir, 'state.json');
+      const stateWithExtra = {
+        version: '1.0',
+        stage: 'analyzed',
+        lastCommand: 'analyze',
+        lastCommandAt: new Date().toISOString(),
+        journeyIds: [],
+        testPaths: [],
+        refinementAttempts: 0,
+        isBlocked: false,
+        history: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        // Unknown field from future version
+        futureField: 'some value',
+        anotherFutureField: 123,
+      };
+      writeFileSync(statePath, JSON.stringify(stateWithExtra), 'utf-8');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const state = loadPipelineState();
+
+      // Should still load the state
+      expect(state.stage).toBe('analyzed');
+
+      // Should warn about unknown fields
+      const warnings = warnSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(warnings).toContain('unknown fields');
+      expect(warnings).toContain('futureField');
+    });
+
+    it('should handle invalid stage value', () => {
+      const statePath = join(autogenDir, 'state.json');
+      const stateWithBadStage = {
+        version: '1.0',
+        stage: 'invalidStage',  // Not a valid PipelineStage
+        lastCommand: 'bad',
+        lastCommandAt: new Date().toISOString(),
+        journeyIds: [],
+        testPaths: [],
+        refinementAttempts: 0,
+        isBlocked: false,
+        history: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(statePath, JSON.stringify(stateWithBadStage), 'utf-8');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const state = loadPipelineState();
+
+      // Should return initial state (schema validation fails)
+      expect(state.stage).toBe('initial');
+
+      expect(warnSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('loadPipelineStateWithInfo', () => {
+    it('should return wasReset=true when no file exists', () => {
+      const result = loadPipelineStateWithInfo();
+
+      expect(result.state.stage).toBe('initial');
+      expect(result.wasCorrupted).toBe(false);
+      expect(result.wasReset).toBe(true);
+      expect(result.backupPath).toBeUndefined();
+    });
+
+    it('should return wasCorrupted=true and backupPath when JSON is invalid', async () => {
+      const statePath = join(autogenDir, 'state.json');
+      writeFileSync(statePath, 'not json at all', 'utf-8');
+
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = loadPipelineStateWithInfo();
+
+      expect(result.state.stage).toBe('initial');
+      expect(result.wasCorrupted).toBe(true);
+      expect(result.wasReset).toBe(true);
+      expect(result.backupPath).toBeDefined();
+      expect(result.backupPath).toContain('.corrupted.');
+    });
+
+    it('should return wasCorrupted=false for valid state', () => {
+      const validState: PipelineState = {
+        version: '1.0',
+        stage: 'analyzed',
+        lastCommand: 'analyze',
+        lastCommandAt: new Date().toISOString(),
+        journeyIds: ['JRN-001'],
+        testPaths: [],
+        refinementAttempts: 0,
+        isBlocked: false,
+        history: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const statePath = join(autogenDir, 'state.json');
+      writeFileSync(statePath, JSON.stringify(validState), 'utf-8');
+
+      const result = loadPipelineStateWithInfo();
+
+      expect(result.state.stage).toBe('analyzed');
+      expect(result.wasCorrupted).toBe(false);
+      expect(result.wasReset).toBe(false);
+      expect(result.backupPath).toBeUndefined();
     });
   });
 

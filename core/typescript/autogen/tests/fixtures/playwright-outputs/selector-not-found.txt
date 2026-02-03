@@ -1,0 +1,25 @@
+Running 1 test using 1 worker
+
+  1) [chromium] › tests/dashboard.spec.ts:8:5 › Dashboard › should display user profile ───────────
+
+    Error: locator.click: Error: strict mode violation: locator('[data-testid="profile-menu"]') resolved to 0 elements
+    Call log:
+      - waiting for locator('[data-testid="profile-menu"]')
+
+
+       at tests/dashboard.spec.ts:12:28
+
+      10 |   test('should display user profile', async ({ page }) => {
+      11 |     await page.goto('/dashboard');
+    > 12 |     await page.click('[data-testid="profile-menu"]');
+         |                            ^
+      13 |
+      14 |     await expect(page.locator('.profile-dropdown')).toBeVisible();
+      15 |   });
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/dashboard-Dashboard-should-display-user-profile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/dashboard.spec.ts:8:5 › Dashboard › should display user profile ─────────────

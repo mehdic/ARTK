@@ -51,9 +51,10 @@ vi.mock('../../src/shared/telemetry.js', () => ({
 
 // Mock pipeline state
 vi.mock('../../src/pipeline/state.js', () => ({
-  loadPipelineState: vi.fn(() => ({ stage: 'initial', journeyIds: [], history: [] })),
+  loadPipelineState: vi.fn().mockResolvedValue({ stage: 'initial', journeyIds: [], history: [] }),
   updatePipelineState: vi.fn().mockResolvedValue({}),
   resetPipelineState: vi.fn().mockResolvedValue({}),
+  canProceedTo: vi.fn(() => ({ allowed: true })),
 }));
 
 import { runClean } from '../../src/cli/clean.js';

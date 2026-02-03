@@ -14,8 +14,10 @@ import {
   getHarnessRoot,
   getAutogenArtifact,
   ensureAutogenDir,
+  validatePath,
+  PathTraversalError,
 } from '../utils/paths.js';
-import { updatePipelineState } from '../pipeline/state.js';
+import { updatePipelineState, loadPipelineState, canProceedTo } from '../pipeline/state.js';
 import { getTelemetry } from '../shared/telemetry.js';
 import { checkPlaywrightInstalled } from '../refinement/playwright-runner.js';
 
@@ -108,6 +110,7 @@ Options:
   --debug                Run with debug mode (pause on failure)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -121,24 +124,57 @@ Examples:
 // ERROR PARSING
 // ═══════════════════════════════════════════════════════════════════════════
 
-function parseErrorType(message: string): ErrorType {
+// Export for testing
+export function parseErrorType(message: string): ErrorType {
   const lower = message.toLowerCase();
 
-  if (lower.includes('timeout') || lower.includes('exceeded')) {
-    return 'timeout';
-  }
-  if (lower.includes('locator') || lower.includes('element') || lower.includes('selector')) {
-    return 'selector';
-  }
-  if (lower.includes('expect') || lower.includes('assertion') || lower.includes('tobehave')) {
-    return 'assertion';
-  }
-  if (lower.includes('navigation') || lower.includes('page.goto') || lower.includes('net::')) {
-    return 'navigation';
-  }
-  if (lower.includes('syntaxerror') || lower.includes('typeerror') || lower.includes('ts(')) {
+  // Check for TypeScript/JavaScript errors FIRST (most specific)
+  // These are compilation/syntax issues
+  if (lower.includes('ts(') || lower.includes('error ts') ||
+      /\berror\s+ts\d+\b/.test(lower)) {
     return 'typescript';
   }
+  if (lower.includes('syntaxerror:') || lower.includes('syntax error')) {
+    return 'typescript';
+  }
+
+  // Check for assertion errors (expect, toHave, assertion)
+  // Must come before selector check because "expect(locator)" contains "locator"
+  if (lower.includes('expect(') || lower.includes('tohave') ||
+      lower.includes('tocontain') || lower.includes('tobe') ||
+      lower.includes('assertion') || lower.includes('expected string:') ||
+      lower.includes('received string:')) {
+    return 'assertion';
+  }
+
+  // Check for timeout errors
+  // "Timeout" followed by time is very specific
+  if (/timeout\s+\d+ms/i.test(message) || lower.includes('timeout exceeded') ||
+      lower.includes('exceeded time')) {
+    return 'timeout';
+  }
+
+  // Check for navigation errors
+  if (lower.includes('page.goto') || lower.includes('net::err') ||
+      lower.includes('navigation') || lower.includes('err_name_not_resolved') ||
+      lower.includes('err_connection')) {
+    return 'navigation';
+  }
+
+  // Check for selector/locator errors
+  // These typically have "strict mode violation" or "resolved to 0 elements"
+  if (lower.includes('strict mode violation') || lower.includes('resolved to 0 elements') ||
+      lower.includes('locator.click:') || lower.includes('locator.fill:') ||
+      (lower.includes('locator') && !lower.includes('expect'))) {
+    return 'selector';
+  }
+
+  // Check for TypeError (runtime JS error)
+  if (lower.includes('typeerror:') || lower.includes('referenceerror:')) {
+    return 'runtime';
+  }
+
+  // Generic error patterns last
   if (lower.includes('error:') || lower.includes('exception')) {
     return 'runtime';
   }
@@ -146,7 +182,8 @@ function parseErrorType(message: string): ErrorType {
   return 'unknown';
 }
 
-function parseErrorLocation(message: string): ErrorLocation | undefined {
+// Export for testing
+export function parseErrorLocation(message: string): ErrorLocation | undefined {
   // Try to parse file:line:column format
   const match = message.match(/([^\s:]+\.(ts|js)):(\d+):?(\d+)?/);
   if (match && match[1] && match[3]) {
@@ -159,7 +196,8 @@ function parseErrorLocation(message: string): ErrorLocation | undefined {
   return undefined;
 }
 
-function suggestFix(errorType: ErrorType, message: string): string | undefined {
+// Export for testing
+export function suggestFix(errorType: ErrorType, message: string): string | undefined {
   switch (errorType) {
     case 'selector':
       if (message.includes('locator')) {
@@ -187,25 +225,28 @@ function suggestFix(errorType: ErrorType, message: string): string | undefined {
   }
 }
 
-function parseErrors(stdout: string, stderr: string): TestError[] {
+// Export for testing
+export function parseErrors(stdout: string, stderr: string): TestError[] {
   const errors: TestError[] = [];
   const combined = `${stdout}\n${stderr}`;
 
-  // Parse Playwright error format
-  const errorBlocks = combined.split(/(?=Error:|✘|FAILED|AssertionError)/);
+  // Parse Playwright error format - include TypeScript error patterns (lowercase "error TS")
+  const errorBlocks = combined.split(/(?=Error:|✘|FAILED|AssertionError|\berror TS\d+)/);
 
   for (const block of errorBlocks) {
     if (!block.trim() || block.length < 20) continue;
 
-    // Skip non-error blocks
-    if (!block.includes('Error') && !block.includes('✘') && !block.includes('FAILED')) {
+    const lowerBlock = block.toLowerCase();
+
+    // Skip non-error blocks - case insensitive check for "error"
+    if (!lowerBlock.includes('error') && !block.includes('✘') && !lowerBlock.includes('failed')) {
       continue;
     }
 
     const lines = block.split('\n');
 
-    // Extract error message
-    const message = lines.slice(0, 3).join(' ').trim().substring(0, 500);
+    // Extract error message - use more lines for better context
+    const message = lines.slice(0, 5).join(' ').trim().substring(0, 500);
 
     if (!message) continue;
 
@@ -215,6 +256,20 @@ function parseErrors(stdout: string, stderr: string): TestError[] {
     // Extract code snippet if available
     const snippetMatch = block.match(/>\s*\d+\s*\|(.+)/);
     const snippet = snippetMatch?.[1]?.trim();
+
+    // Skip truncated blocks that appear to be artifacts of aggressive splitting.
+    // A truncated block typically:
+    // - Has no location and no snippet (no useful context)
+    // - Is very short and ends with a colon (incomplete message like "Error: locator.click:")
+    // We preserve the more complete block that contains the actual error details.
+    if (!location && !snippet) {
+      const trimmedMsg = message.trim();
+      // Skip if message is clearly incomplete (ends with : and is short)
+      // This catches split artifacts like "Error: locator.click:"
+      if (trimmedMsg.endsWith(':') && trimmedMsg.length < 80) {
+        continue;
+      }
+    }
 
     errors.push({
       message,
@@ -401,6 +456,7 @@ export async function runRun(args: string[]): Promise<void> {
       debug: { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
+      force: { type: 'boolean', short: 'f', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
@@ -419,6 +475,20 @@ export async function runRun(args: string[]): Promise<void> {
 
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
+
+  // Validate pipeline state transition (unless --force)
+  if (!force) {
+    const currentState = await loadPipelineState();
+    const transition = canProceedTo(currentState, 'tested');
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error('Use --force to bypass state validation.');
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log('Warning: Bypassing pipeline state validation (--force)');
+  }
 
   // Validate timeout and retries
   const timeout = parseInt(values.timeout, 10);
@@ -465,7 +535,28 @@ export async function runRun(args: string[]): Promise<void> {
 
   // Run each test file
   for (const testPath of positionals) {
-    const fullPath = testPath.startsWith('/') ? testPath : join(harnessRoot, testPath);
+    // SECURITY: Validate path to prevent directory traversal attacks
+    let fullPath: string;
+    try {
+      fullPath = validatePath(testPath, harnessRoot);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        console.error(`Error: Path traversal detected: "${testPath}"`);
+        console.error(`  Paths must be within harness root: ${harnessRoot}`);
+        results.push({
+          version: '1.0',
+          testPath,
+          status: 'error',
+          duration: 0,
+          errors: [{ message: `Path traversal blocked: ${testPath}`, type: 'runtime' }],
+          output: { stdout: '', stderr: '', exitCode: 1 },
+          artifacts: {},
+          executedAt: new Date().toISOString(),
+        });
+        continue;
+      }
+      throw error;
+    }
 
     if (!existsSync(fullPath)) {
       console.error(`Warning: Test file not found: ${fullPath}`);

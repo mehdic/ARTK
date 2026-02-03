@@ -15,8 +15,10 @@ import {
   getHarnessRoot,
   getAutogenArtifact,
   ensureAutogenDir,
+  validatePath,
+  PathTraversalError,
 } from '../utils/paths.js';
-import { updatePipelineState } from '../pipeline/state.js';
+import { updatePipelineState, loadPipelineState, canProceedTo } from '../pipeline/state.js';
 import { getTelemetry } from '../shared/telemetry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -98,6 +100,7 @@ Options:
   -o, --output <path>    Output path for analysis.json (default: .artk/autogen/analysis.json)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -324,6 +327,7 @@ export async function runAnalyze(args: string[]): Promise<void> {
       output: { type: 'string', short: 'o' },
       json: { type: 'boolean', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
+      force: { type: 'boolean', short: 'f', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
@@ -342,15 +346,32 @@ export async function runAnalyze(args: string[]): Promise<void> {
 
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
+
+  // Validate pipeline state transition (unless --force)
+  if (!force) {
+    const currentState = await loadPipelineState();
+    const transition = canProceedTo(currentState, 'analyzed');
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error('Use --force to bypass state validation.');
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log('Warning: Bypassing pipeline state validation (--force)');
+  }
 
   // Initialize telemetry
   const telemetry = getTelemetry();
   await telemetry.load();
   const eventId = telemetry.trackCommandStart('analyze');
 
+  const harnessRoot = getHarnessRoot();
+
   // Expand glob patterns
   const journeyFiles = await fg(positionals, {
     absolute: true,
+    cwd: harnessRoot,
   });
 
   if (journeyFiles.length === 0) {
@@ -358,15 +379,35 @@ export async function runAnalyze(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  // SECURITY: Validate all paths are within harness root to prevent path traversal
+  const validatedFiles: string[] = [];
+  for (const file of journeyFiles) {
+    try {
+      const validated = validatePath(file, harnessRoot);
+      validatedFiles.push(validated);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        console.error(`Warning: Skipping file outside harness root: ${file}`);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (validatedFiles.length === 0) {
+    console.error('Error: No valid journey files within harness root');
+    process.exit(1);
+  }
+
   if (!quiet && !outputJson) {
-    console.log(`Analyzing ${journeyFiles.length} journey file(s)...`);
+    console.log(`Analyzing ${validatedFiles.length} journey file(s)...`);
   }
 
   // Analyze each journey
   const journeys: JourneyAnalysis[] = [];
   const allKeywords: string[] = [];
 
-  for (const file of journeyFiles) {
+  for (const file of validatedFiles) {
     if (!existsSync(file)) {
       console.error(`Warning: File not found: ${file}`);
       continue;
@@ -401,7 +442,6 @@ export async function runAnalyze(args: string[]): Promise<void> {
     .slice(0, 10)
     .map(([kw]) => kw);
 
-  const harnessRoot = getHarnessRoot();
   const output: AnalysisOutput = {
     version: '1.0',
     harnessRoot,
