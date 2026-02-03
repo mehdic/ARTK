@@ -666,12 +666,12 @@ export async function runRun(args: string[]): Promise<void> {
             try {
               // Record failure to decrease pattern confidence
               recordPatternFailure(
-                error.message.substring(0, 200), // Truncate for pattern matching
+                error.message.substring(0, 500), // Truncate for pattern matching
                 result.journeyId!
               );
               // Track blocked step for telemetry analysis
               trackBlockedStep({
-                stepText: error.message.substring(0, 200),
+                stepText: error.message.substring(0, 500),
                 journeyId: result.journeyId!,
                 errorType: error.type,
                 timestamp: new Date().toISOString(),

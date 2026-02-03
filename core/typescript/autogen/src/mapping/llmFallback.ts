@@ -126,6 +126,20 @@ let telemetry: LlmFallbackTelemetry = {
 // Simple in-memory cache
 const responseCache = new Map<string, { result: LlmFallbackResult; expiry: number }>();
 
+/** Maximum history entries to keep (avoid unbounded memory growth) */
+const MAX_HISTORY_ENTRIES = 1000;
+
+/**
+ * Add a history entry with bounded array size
+ */
+function addHistoryEntry(entry: LlmFallbackTelemetry['history'][0]): void {
+  telemetry.history.push(entry);
+  // Trim history if it exceeds max size (keep most recent)
+  if (telemetry.history.length > MAX_HISTORY_ENTRIES) {
+    telemetry.history = telemetry.history.slice(-MAX_HISTORY_ENTRIES);
+  }
+}
+
 /**
  * Valid primitive types for schema validation
  */
@@ -202,10 +216,41 @@ export function validateLlmPrimitive(primitive: unknown): { valid: boolean; erro
 
   // Type-specific validation
   switch (prim.type) {
+    // Navigation primitives
     case 'goto':
       if (typeof prim.url !== 'string') errors.push('goto requires url string');
       break;
 
+    case 'waitForURL':
+      if (typeof prim.pattern !== 'string') errors.push('waitForURL requires pattern string');
+      break;
+
+    case 'waitForResponse':
+      if (typeof prim.urlPattern !== 'string') errors.push('waitForResponse requires urlPattern string');
+      break;
+
+    case 'reload':
+    case 'goBack':
+    case 'goForward':
+      // No additional validation needed
+      break;
+
+    case 'waitForLoadingComplete':
+    case 'waitForNetworkIdle':
+      // Optional timeout, no validation needed
+      break;
+
+    // Wait primitives with locator
+    case 'waitForVisible':
+    case 'waitForHidden':
+      if (!validateLocatorSpec(prim.locator)) errors.push(`${prim.type} requires valid locator`);
+      break;
+
+    case 'waitForTimeout':
+      if (typeof prim.ms !== 'number' || prim.ms < 0) errors.push('waitForTimeout requires positive ms');
+      break;
+
+    // Interaction primitives with locator
     case 'click':
     case 'dblclick':
     case 'rightClick':
@@ -231,14 +276,21 @@ export function validateLlmPrimitive(primitive: unknown): { valid: boolean; erro
       if (typeof prim.key !== 'string') errors.push('press requires key string');
       break;
 
-    case 'waitForTimeout':
-      if (typeof prim.ms !== 'number' || prim.ms < 0) errors.push('waitForTimeout requires positive ms');
+    case 'upload':
+      if (!validateLocatorSpec(prim.locator)) errors.push('upload requires valid locator');
+      if (!Array.isArray(prim.files) || prim.files.length === 0) errors.push('upload requires non-empty files array');
       break;
 
+    // Assertion primitives
     case 'expectText':
     case 'expectContainsText':
       if (!validateLocatorSpec(prim.locator)) errors.push(`${prim.type} requires valid locator`);
       if (typeof prim.text !== 'string') errors.push(`${prim.type} requires text string`);
+      break;
+
+    case 'expectValue':
+      if (!validateLocatorSpec(prim.locator)) errors.push('expectValue requires valid locator');
+      if (typeof prim.value !== 'string') errors.push('expectValue requires value string');
       break;
 
     case 'expectVisible':
@@ -246,7 +298,13 @@ export function validateLlmPrimitive(primitive: unknown): { valid: boolean; erro
     case 'expectHidden':
     case 'expectEnabled':
     case 'expectDisabled':
+    case 'expectChecked':
       if (!validateLocatorSpec(prim.locator)) errors.push(`${prim.type} requires valid locator`);
+      break;
+
+    case 'expectCount':
+      if (!validateLocatorSpec(prim.locator)) errors.push('expectCount requires valid locator');
+      if (typeof prim.count !== 'number') errors.push('expectCount requires count number');
       break;
 
     case 'expectURL':
@@ -257,6 +315,26 @@ export function validateLlmPrimitive(primitive: unknown): { valid: boolean; erro
       if (typeof prim.title !== 'string') errors.push('expectTitle requires title string');
       break;
 
+    // Signal primitives
+    case 'expectToast':
+      if (!['success', 'error', 'info', 'warning'].includes(prim.toastType as string)) {
+        errors.push('expectToast requires valid toastType (success|error|info|warning)');
+      }
+      break;
+
+    case 'dismissModal':
+    case 'acceptAlert':
+    case 'dismissAlert':
+      // No additional validation needed
+      break;
+
+    // Module calls
+    case 'callModule':
+      if (typeof prim.module !== 'string') errors.push('callModule requires module string');
+      if (typeof prim.method !== 'string') errors.push('callModule requires method string');
+      break;
+
+    // Blocked steps
     case 'blocked':
       if (typeof prim.reason !== 'string') errors.push('blocked requires reason string');
       if (typeof prim.sourceText !== 'string') errors.push('blocked requires sourceText string');
@@ -447,7 +525,7 @@ export async function llmFallback(
   if (mergedConfig.costBudgetUsd && telemetry.totalCostUsd >= mergedConfig.costBudgetUsd) {
     console.warn('[LLM Fallback] Cost budget exceeded, skipping LLM call');
     telemetry.failedCalls++;
-    telemetry.history.push({
+    addHistoryEntry({
       timestamp: new Date().toISOString(),
       stepText,
       success: false,
@@ -485,7 +563,7 @@ export async function llmFallback(
 
     if (!primitive) {
       telemetry.failedCalls++;
-      telemetry.history.push({
+      addHistoryEntry({
         timestamp: new Date().toISOString(),
         stepText,
         success: false,
@@ -512,7 +590,7 @@ export async function llmFallback(
     telemetry.successfulCalls++;
     telemetry.totalLatencyMs += latencyMs;
     telemetry.totalCostUsd += costUsd;
-    telemetry.history.push({
+    addHistoryEntry({
       timestamp: new Date().toISOString(),
       stepText,
       success: true,
@@ -531,7 +609,7 @@ export async function llmFallback(
     return result;
   } catch (error) {
     telemetry.failedCalls++;
-    telemetry.history.push({
+    addHistoryEntry({
       timestamp: new Date().toISOString(),
       stepText,
       success: false,

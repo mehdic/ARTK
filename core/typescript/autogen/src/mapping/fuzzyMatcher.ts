@@ -247,7 +247,10 @@ export function fuzzyMatch(
     similarity: number;
   }> = [];
 
-  for (const { pattern, examples } of patternsWithExamples) {
+  // Track best match for early termination
+  let bestSimilarity = 0;
+
+  outer: for (const { pattern, examples } of patternsWithExamples) {
     for (const example of examples) {
       const normalizedExample = useNormalization
         ? getCanonicalForm(example)
@@ -257,6 +260,16 @@ export function fuzzyMatch(
 
       if (similarity >= minSimilarity) {
         candidates.push({ pattern, example, similarity });
+
+        // Track best similarity for early termination
+        if (similarity > bestSimilarity) {
+          bestSimilarity = similarity;
+        }
+
+        // Early termination: if we find a perfect or near-perfect match, stop searching
+        if (similarity >= 0.98) {
+          break outer;
+        }
       }
     }
   }

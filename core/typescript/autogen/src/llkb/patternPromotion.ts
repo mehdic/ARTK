@@ -318,7 +318,8 @@ export function generatePromotedPatternsCode(
     lines.push(`      // Example: "${pattern.example}"`);
     lines.push(`      // LLKB Pattern ID: ${pattern.llkbPatternId}`);
     lines.push(`      // Confidence at promotion: ${(pattern.confidenceAtPromotion * 100).toFixed(1)}%`);
-    lines.push(`      return ${JSON.stringify(getDefaultPrimitive(pattern.primitiveType))};`);
+    // Generate actual JavaScript code, not JSON
+    lines.push(`      ${generateExtractorCode(pattern.primitiveType)}`);
     lines.push('    },');
     lines.push('  },');
   }
@@ -330,13 +331,10 @@ export function generatePromotedPatternsCode(
 }
 
 /**
- * Get default primitive for a type (for code generation template)
- * Note: This generates template code, not actual runtime primitives
+ * Generate JavaScript extractor code for a primitive type
+ * Returns actual executable code, not JSON-serialized strings
  */
-function getDefaultPrimitive(type: IRPrimitive['type']): IRPrimitive {
-  // Template locator for code generation
-  const templateLocator = { strategy: 'text', value: 'match[1] || "element"' };
-
+function generateExtractorCode(type: IRPrimitive['type']): string {
   switch (type) {
     case 'click':
     case 'dblclick':
@@ -346,15 +344,14 @@ function getDefaultPrimitive(type: IRPrimitive['type']): IRPrimitive {
     case 'clear':
     case 'check':
     case 'uncheck':
-      return { type, locator: templateLocator } as unknown as IRPrimitive;
+      return `return { type: '${type}', locator: { strategy: 'text', value: match[1] || 'element' } };`;
+
     case 'fill':
-      return {
-        type: 'fill',
-        locator: templateLocator,
-        value: { type: 'literal', value: 'match[2] || ""' },
-      } as unknown as IRPrimitive;
+      return `return { type: 'fill', locator: { strategy: 'text', value: match[1] || 'field' }, value: { type: 'literal', value: match[2] || '' } };`;
+
     case 'goto':
-      return { type: 'goto', url: 'match[1] || "/"' } as unknown as IRPrimitive;
+      return `return { type: 'goto', url: match[1] || '/' };`;
+
     case 'expectVisible':
     case 'expectNotVisible':
     case 'expectHidden':
@@ -362,24 +359,26 @@ function getDefaultPrimitive(type: IRPrimitive['type']): IRPrimitive {
     case 'expectDisabled':
     case 'waitForVisible':
     case 'waitForHidden':
-      return { type, locator: templateLocator } as unknown as IRPrimitive;
+      return `return { type: '${type}', locator: { strategy: 'text', value: match[1] || 'element' } };`;
+
     case 'expectText':
     case 'expectContainsText':
-      return { type, locator: templateLocator, text: 'match[2] || ""' } as unknown as IRPrimitive;
+      return `return { type: '${type}', locator: { strategy: 'text', value: match[1] || 'element' }, text: match[2] || '' };`;
+
     case 'waitForTimeout':
-      return { type: 'waitForTimeout', ms: 1000 } as unknown as IRPrimitive;
+      return `return { type: 'waitForTimeout', ms: parseInt(match[1], 10) || 1000 };`;
+
     case 'waitForNetworkIdle':
-      return { type: 'waitForNetworkIdle' } as unknown as IRPrimitive;
+      return `return { type: 'waitForNetworkIdle' };`;
+
     case 'select':
-      return {
-        type: 'select',
-        locator: templateLocator,
-        option: 'match[2] || ""',
-      } as unknown as IRPrimitive;
+      return `return { type: 'select', locator: { strategy: 'text', value: match[1] || 'dropdown' }, option: match[2] || '' };`;
+
     case 'press':
-      return { type: 'press', key: 'match[1] || "Enter"' } as unknown as IRPrimitive;
+      return `return { type: 'press', key: match[1] || 'Enter' };`;
+
     default:
-      return { type: 'blocked', reason: 'Unknown type', sourceText: '' } as IRPrimitive;
+      return `return { type: 'blocked', reason: 'Unknown type: ${type}', sourceText: match[0] || '' };`;
   }
 }
 

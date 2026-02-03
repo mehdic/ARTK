@@ -298,3 +298,35 @@ export function suggestNewPatterns(): Array<{
 
   return suggestions.slice(0, 10); // Top 10 suggestions
 }
+
+/**
+ * Register exit handlers to flush pending telemetry
+ * Ensures no data loss on process termination
+ */
+function registerExitHandlers(): void {
+  let registered = false;
+
+  const handleExit = (): void => {
+    if (!registered) {
+      registered = true;
+      flushBlockedStepTelemetry();
+    }
+  };
+
+  // Handle normal exit
+  process.on('beforeExit', handleExit);
+
+  // Handle interrupt signals
+  process.on('SIGINT', () => {
+    handleExit();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    handleExit();
+    process.exit(0);
+  });
+}
+
+// Register exit handlers on module load
+registerExitHandlers();
