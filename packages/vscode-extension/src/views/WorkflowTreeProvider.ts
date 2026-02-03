@@ -27,6 +27,12 @@ interface WorkflowStep {
 
 /**
  * All ARTK workflow steps in order
+ *
+ * NOTE: These must match actual prompt files in assets/prompts/
+ * Verified against: /artk.init-playbook, /artk.discover-foundation,
+ * /artk.journey-propose, /artk.journey-define, /artk.journey-clarify,
+ * /artk.testid-audit, /artk.journey-implement, /artk.journey-validate,
+ * /artk.journey-verify
  */
 const WORKFLOW_STEPS: WorkflowStep[] = [
   {
@@ -44,31 +50,22 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     number: 2,
     name: 'Discover Foundation',
     prompt: '/artk.discover-foundation',
-    description: 'Analyze app routes, features, auth, and testability',
+    description: 'Analyze app routes, features, auth, build foundation harness',
     mandatory: true,
     dependsOn: 'init-playbook',
   },
   {
-    id: 'foundation-build',
+    id: 'journey-propose',
     number: 3,
-    name: 'Build Foundation',
-    prompt: '/artk.foundation-build',
-    description: 'Create Playwright harness baseline and foundation modules',
-    mandatory: true,
+    name: 'Propose Journeys (Auto-create from app)',
+    prompt: '/artk.journey-propose',
+    description: 'Auto-propose Journeys from discovery results',
+    mandatory: false, // Optional - user can manually create journeys
     dependsOn: 'discover-foundation',
   },
   {
-    id: 'journey-propose',
-    number: 4,
-    name: 'Propose Journeys',
-    prompt: '/artk.journey-propose',
-    description: 'Auto-propose Journeys from discovery results',
-    mandatory: true,
-    dependsOn: 'foundation-build',
-  },
-  {
     id: 'journey-define',
-    number: 5,
+    number: 4,
     name: 'Define Journey',
     prompt: '/artk.journey-define',
     description: 'Create/promote Journey to canonical structure',
@@ -77,12 +74,21 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
   },
   {
     id: 'journey-clarify',
-    number: 6,
+    number: 5,
     name: 'Clarify Journey',
     prompt: '/artk.journey-clarify',
     description: 'Add deterministic execution detail to Journey',
     mandatory: true,
     dependsOn: 'journey-define',
+  },
+  {
+    id: 'testid-audit',
+    number: 6,
+    name: 'Audit Test IDs',
+    prompt: '/artk.testid-audit',
+    description: 'Audit and add data-testid attributes for reliable selectors',
+    mandatory: false, // Recommended but optional
+    dependsOn: 'journey-clarify',
   },
   {
     id: 'journey-implement',
@@ -91,7 +97,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     prompt: '/artk.journey-implement',
     description: 'Generate Playwright tests from Journey',
     mandatory: true,
-    dependsOn: 'journey-clarify',
+    dependsOn: 'testid-audit',
   },
   {
     id: 'journey-validate',
@@ -110,15 +116,6 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     description: 'Runtime verification gate - run tests',
     mandatory: true,
     dependsOn: 'journey-validate',
-  },
-  {
-    id: 'journey-maintain',
-    number: 10,
-    name: 'Maintain Journeys',
-    prompt: '/artk.journey-maintain',
-    description: 'Quarantine flaky tests, deprecate obsolete Journeys',
-    mandatory: false,
-    dependsOn: 'journey-verify',
   },
 ];
 
@@ -313,6 +310,16 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowTre
   }
 }
 
+// Delay constant for chat initialization
+const CHAT_INIT_DELAY_MS = 150;
+
+/**
+ * Check if GitHub Copilot Chat extension is installed
+ */
+function isCopilotChatInstalled(): boolean {
+  return vscode.extensions.getExtension('GitHub.copilot-chat') !== undefined;
+}
+
 /**
  * Execute a workflow step in Copilot Chat (clear chat first, then auto-submit)
  */
@@ -327,12 +334,24 @@ export async function executeWorkflowStep(
     return;
   }
 
+  // Check for Copilot Chat extension
+  if (!isCopilotChatInstalled()) {
+    const action = await vscode.window.showWarningMessage(
+      'GitHub Copilot Chat is required for workflow steps. Please install it first.',
+      'Open Extensions'
+    );
+    if (action === 'Open Extensions') {
+      await vscode.commands.executeCommand('workbench.extensions.search', 'GitHub.copilot-chat');
+    }
+    return;
+  }
+
   try {
     // Clear chat and start fresh
     await vscode.commands.executeCommand('workbench.action.chat.newChat');
 
-    // Small delay to ensure new chat is ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Delay to ensure new chat is ready (VS Code issue #261118)
+    await new Promise((resolve) => setTimeout(resolve, CHAT_INIT_DELAY_MS));
 
     // Open chat with prompt and auto-execute
     await vscode.commands.executeCommand('workbench.action.chat.open', {
@@ -340,7 +359,9 @@ export async function executeWorkflowStep(
       isPartialQuery: false, // Auto-submit
     });
 
-    // Mark step as completed (for run-once steps)
+    // For run-once steps, mark completed
+    // Note: This marks it when sent, not when completed. For init-playbook,
+    // we also have file-based detection as a backup.
     if (item.step.runOnce) {
       await provider.markStepCompleted(item.step.id);
     }
@@ -366,12 +387,24 @@ export async function editWorkflowStep(item: WorkflowTreeItem): Promise<void> {
     return;
   }
 
+  // Check for Copilot Chat extension
+  if (!isCopilotChatInstalled()) {
+    const action = await vscode.window.showWarningMessage(
+      'GitHub Copilot Chat is required for workflow steps. Please install it first.',
+      'Open Extensions'
+    );
+    if (action === 'Open Extensions') {
+      await vscode.commands.executeCommand('workbench.extensions.search', 'GitHub.copilot-chat');
+    }
+    return;
+  }
+
   try {
     // Clear chat and start fresh
     await vscode.commands.executeCommand('workbench.action.chat.newChat');
 
-    // Small delay to ensure new chat is ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Delay to ensure new chat is ready (VS Code issue #261118)
+    await new Promise((resolve) => setTimeout(resolve, CHAT_INIT_DELAY_MS));
 
     // Open chat with prompt but DON'T auto-execute
     await vscode.commands.executeCommand('workbench.action.chat.open', {
