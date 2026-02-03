@@ -1807,6 +1807,26 @@ export async function installBundled(
   const assetsPath = getAssetsPath(context);
 
   try {
+    // CRITICAL: Validate that bundled assets exist before attempting installation
+    // This catches the common case where the extension was packaged without assets
+    progress?.report({ message: 'Validating bundled assets...' });
+    const coreAssetsPath = path.join(assetsPath, 'core');
+    const promptsAssetsPath = path.join(assetsPath, 'prompts');
+
+    if (!fs.existsSync(assetsPath)) {
+      return {
+        success: false,
+        error: `Bundled assets not found at: ${assetsPath}. The extension may not be properly packaged. Please reinstall the extension.`,
+      };
+    }
+
+    if (!fs.existsSync(coreAssetsPath)) {
+      return {
+        success: false,
+        error: `Core library assets not found. Expected at: ${coreAssetsPath}. The extension may be corrupted.`,
+      };
+    }
+
     // Check if already installed
     if (fs.existsSync(artkE2ePath) && !force) {
       return {
@@ -1857,67 +1877,79 @@ export async function installBundled(
     // P1 FIX: Sanitize projectName for YAML safety (remove chars that break YAML)
     projectName = projectName.replace(/["'\n\r:]/g, '').trim() || 'artk-project';
 
-    // Step 1: Create directory structure
-    progress?.report({ message: 'Creating directory structure...' });
+    // Progress tracking: ~10 steps total, allocate percentages
+    // Steps 1-6: File creation (5% each = 30%)
+    // Step 7: LLKB (5%)
+    // Step 8: Prompts (5%)
+    // Step 9: npm install (40%) - longest step
+    // Step 10: Browser install (20%)
+
+    // Step 1: Create directory structure (5%)
+    progress?.report({ message: 'Step 1/10: Creating directory structure...', increment: 5 });
     await createDirectoryStructure(artkE2ePath);
 
-    // Step 2: Create foundation module stubs
-    progress?.report({ message: 'Creating foundation modules...' });
+    // Step 2: Create foundation module stubs (5%)
+    progress?.report({ message: 'Step 2/10: Creating foundation modules...', increment: 5 });
     await createFoundationStubs(artkE2ePath);
 
-    // Step 3: Create package.json and tsconfig.json
-    progress?.report({ message: 'Creating package.json...' });
+    // Step 3: Create package.json and tsconfig.json (5%)
+    progress?.report({ message: 'Step 3/10: Creating package.json...', increment: 5 });
     await createPackageJson(artkE2ePath, variant);
     await createTsConfig(artkE2ePath);
 
-    // Step 4: Create config files
-    progress?.report({ message: 'Creating configuration files...' });
+    // Step 4: Create config files (5%)
+    progress?.report({ message: 'Step 4/10: Creating configuration files...', increment: 5 });
     await createConfig(artkE2ePath, projectName, browserInfo.channel, browserStrategy);
     await createContext(artkE2ePath, variant, targetPath, browserInfo, backupPath);
     await createGitignore(artkE2ePath);
 
-    // Step 5: Copy vendor libraries (core, autogen)
-    progress?.report({ message: 'Installing ARTK core libraries...' });
+    // Step 5: Copy vendor libraries (core, autogen) (5%)
+    progress?.report({ message: 'Step 5/10: Installing ARTK core libraries...', increment: 5 });
     await installVendorLibs(assetsPath, artkE2ePath, variant);
 
-    // Step 6: Copy templates
-    progress?.report({ message: 'Installing templates...' });
+    // Step 6: Copy templates (5%)
+    progress?.report({ message: 'Step 6/10: Installing templates...', increment: 5 });
     await installTemplates(assetsPath, artkE2ePath);
 
-    // Step 7: Initialize LLKB
+    // Step 7: Initialize LLKB (5%)
     // P2 FIX: Support forceLlkb option to delete and recreate LLKB
     const llkbPath = path.join(artkE2ePath, '.artk', 'llkb');
     if (!skipLlkb) {
       if (forceLlkb && fs.existsSync(llkbPath)) {
-        progress?.report({ message: 'Force reinitializing LLKB (deleting existing)...' });
+        progress?.report({ message: 'Step 7/10: Force reinitializing LLKB...', increment: 2 });
         await fs.promises.rm(llkbPath, { recursive: true, force: true });
       }
-      progress?.report({ message: 'Initializing LLKB...' });
+      progress?.report({ message: 'Step 7/10: Initializing LLKB...', increment: 3 });
       await initializeLLKB(llkbPath);
+    } else {
+      progress?.report({ message: 'Step 7/10: Skipping LLKB...', increment: 5 });
     }
 
-    // Step 8: Install prompts (two-tier architecture)
+    // Step 8: Install prompts (two-tier architecture) (5%)
     if (!noPrompts) {
-      progress?.report({ message: 'Installing AI prompts and agents...' });
+      progress?.report({ message: 'Step 8/10: Installing AI prompts and agents...', increment: 3 });
       await installPrompts(assetsPath, targetPath);
 
       // Generate variant-info.prompt.md (P2 fix)
-      progress?.report({ message: 'Generating variant-specific prompts...' });
+      progress?.report({ message: 'Step 8/10: Generating variant-specific prompts...', increment: 2 });
       await createVariantInfoPrompt(targetPath, variant);
+    } else {
+      progress?.report({ message: 'Step 8/10: Skipping prompts...', increment: 5 });
     }
 
-    // Step 8.5: Install VS Code settings (P1 fix)
+    // Step 8.5: Install VS Code settings
     progress?.report({ message: 'Installing VS Code settings...' });
     await installVscodeSettings(assetsPath, targetPath);
 
-    // Step 9: Run npm install
+    // Step 9: Run npm install (40% - this is the slowest step)
     // P1 FIX: Skip browser download during npm install if system browser will be used
     if (!skipNpm) {
-      progress?.report({ message: 'Installing npm dependencies...' });
+      progress?.report({ message: 'Step 9/10: Installing npm dependencies (this may take a while)...', increment: 10 });
       const useSystemBrowser = browserInfo.channel === 'msedge' || browserInfo.channel === 'chrome';
       const npmResult = await runNpmInstall(artkE2ePath, {
         skipBrowserDownload: useSystemBrowser,
       });
+      progress?.report({ increment: 30 }); // Complete npm portion
       if (!npmResult.success) {
         return {
           success: false,
@@ -1925,10 +1957,13 @@ export async function installBundled(
           artkE2ePath,
         };
       }
+    } else {
+      progress?.report({ message: 'Step 9/10: Skipping npm install...', increment: 40 });
     }
 
-    // Step 10: Install browsers with proper fallback (matches bootstrap.sh)
+    // Step 10: Install browsers with proper fallback (matches bootstrap.sh) (20%)
     if (!skipBrowsers && !skipNpm) {
+      progress?.report({ message: 'Step 10/10: Setting up browsers...', increment: 5 });
       const browserResult = await installBrowsersWithFallback(artkE2ePath, browserInfo, progress);
 
       if (!browserResult.success) {
@@ -1940,11 +1975,39 @@ export async function installBundled(
           artkE2ePath,
         };
       }
+      progress?.report({ increment: 15 }); // Complete browser portion
 
       // Update final browser info in result if it changed during fallback
       if (browserResult.finalBrowser.channel !== browserInfo.channel) {
         // Browser changed during fallback - configs already updated by installBrowsersWithFallback
       }
+    } else {
+      progress?.report({ message: 'Step 10/10: Skipping browser setup...', increment: 20 });
+    }
+
+    // CRITICAL: Verify installation before reporting success
+    progress?.report({ message: 'Verifying installation...' });
+    const verificationChecks = [
+      { path: artkE2ePath, name: 'artk-e2e directory' },
+      { path: path.join(artkE2ePath, 'package.json'), name: 'package.json' },
+      { path: path.join(artkE2ePath, 'artk.config.yml'), name: 'artk.config.yml' },
+      { path: path.join(artkE2ePath, '.artk', 'context.json'), name: 'context.json' },
+      { path: path.join(artkE2ePath, 'vendor', 'artk-core'), name: 'vendor/artk-core' },
+    ];
+
+    const missingItems: string[] = [];
+    for (const check of verificationChecks) {
+      if (!fs.existsSync(check.path)) {
+        missingItems.push(check.name);
+      }
+    }
+
+    if (missingItems.length > 0) {
+      return {
+        success: false,
+        error: `Installation verification failed. Missing: ${missingItems.join(', ')}. The assets may not have been copied correctly.`,
+        artkE2ePath,
+      };
     }
 
     return {
