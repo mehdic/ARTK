@@ -110,6 +110,26 @@
         "command": "artk.runTests",
         "title": "ARTK: Run Tests",
         "icon": "$(play)"
+      },
+      {
+        "command": "artk.workflow.execute",
+        "title": "Run in Copilot",
+        "icon": "$(play)"
+      },
+      {
+        "command": "artk.workflow.edit",
+        "title": "Edit & Run in Copilot",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "artk.workflow.resetStep",
+        "title": "Reset Step",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "artk.workflow.resetAll",
+        "title": "ARTK: Reset All Workflow Steps",
+        "icon": "$(clear-all)"
       }
     ],
     "viewsContainers": {
@@ -129,6 +149,12 @@
           "contextualTitle": "ARTK Status"
         },
         {
+          "id": "artk-workflow",
+          "name": "Workflow",
+          "contextualTitle": "ARTK Workflow Steps",
+          "when": "artk.installed"
+        },
+        {
           "id": "artk-journeys",
           "name": "Journeys",
           "contextualTitle": "ARTK Journeys"
@@ -144,6 +170,10 @@
     "viewsWelcome": [
       {
         "view": "artk-status",
+        "contents": "ARTK is not installed in this workspace.\n[Initialize ARTK](command:artk.init)"
+      },
+      {
+        "view": "artk-workflow",
         "contents": "ARTK is not installed in this workspace.\n[Initialize ARTK](command:artk.init)"
       },
       {
@@ -171,6 +201,11 @@
           "command": "artk.openConfig",
           "when": "view == artk-status",
           "group": "navigation"
+        },
+        {
+          "command": "artk.workflow.resetAll",
+          "when": "view == artk-workflow",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -183,11 +218,38 @@
           "command": "artk.runTests",
           "when": "view == artk-journeys && viewItem == journey",
           "group": "inline"
+        },
+        {
+          "command": "artk.workflow.execute",
+          "when": "view == artk-workflow && viewItem == workflowStep",
+          "group": "inline@1"
+        },
+        {
+          "command": "artk.workflow.edit",
+          "when": "view == artk-workflow && viewItem == workflowStep",
+          "group": "inline@2"
+        },
+        {
+          "command": "artk.workflow.resetStep",
+          "when": "view == artk-workflow && viewItem == workflowStep-disabled",
+          "group": "inline"
         }
       ],
       "commandPalette": [
         {
           "command": "artk.openJourney",
+          "when": "false"
+        },
+        {
+          "command": "artk.workflow.execute",
+          "when": "false"
+        },
+        {
+          "command": "artk.workflow.edit",
+          "when": "false"
+        },
+        {
+          "command": "artk.workflow.resetStep",
           "when": "false"
         }
       ]
