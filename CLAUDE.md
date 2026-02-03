@@ -1203,6 +1203,56 @@ Generated tests include LLKB version metadata in headers:
 
 This enables version tracking and allows `/artk.journey-maintain` (when implemented) to detect outdated tests and offer updates.
 
+### Verify LLKB Feedback Loop (Trigger: "verify llkb loop")
+
+When user says **"verify llkb loop"** or **"test llkb feedback"**, run this verification:
+
+```bash
+# From autogen directory
+cd core/typescript/autogen
+
+# Run full E2E test (includes LLKB verification)
+./tests/e2e/run-full-e2e.sh --keep
+
+# The test verifies:
+# 1. Tests are generated (not empty shells)
+# 2. LLKB patterns are learned (88+ patterns recorded)
+# 3. Pattern coverage is excellent (60/60 patterns)
+# 4. State machine transitions correctly
+```
+
+**What to check in the output:**
+1. **Generate stage**: Should show "LLKB patterns learned: N (M skipped)"
+2. **Pattern coverage**: Should be ≥45/60 (EXCELLENT)
+3. **Final result**: Should be 4/4 stages passed
+
+**To verify LLKB learning manually:**
+```bash
+# In the kept test project (path shown in output)
+cd /path/to/tmp/e2e-test-project-XXXXXX/artk-e2e
+
+# Check learned patterns
+cat .artk/llkb/learned-patterns.json | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(f'Total patterns: {len(data[\"patterns\"])}')
+print(f'Last updated: {data.get(\"lastUpdated\")}')
+high_conf = [p for p in data['patterns'] if p['confidence'] >= 0.5]
+print(f'High confidence (>=0.5): {len(high_conf)}')
+"
+
+# Re-run generate to verify confidence increases
+node /path/to/ARTK/core/typescript/autogen/dist/cli/index.js generate -o tests/ --force
+
+# Check pattern count increased
+cat .artk/llkb/learned-patterns.json | python3 -c "import sys,json; print(f'Patterns after regeneration: {len(json.load(sys.stdin)[\"patterns\"])}')"
+```
+
+**Expected behavior:**
+- First generate: Creates patterns with confidence ~0.44
+- Subsequent generates: Same patterns get successCount++ and confidence increases
+- Patterns reaching confidence ≥0.9 with successCount ≥5 become promotable
+
 ### Architecture Details
 
 **See:**
