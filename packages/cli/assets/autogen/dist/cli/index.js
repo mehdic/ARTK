@@ -8751,8 +8751,9 @@ async function updatePipelineState(command, stage, success, details, baseDir) {
     success,
     details
   });
-  if (state.history.length > 50) {
-    state.history = state.history.slice(-50);
+  const HISTORY_MAX_ENTRIES = 100;
+  if (state.history.length > HISTORY_MAX_ENTRIES) {
+    state.history = state.history.slice(-HISTORY_MAX_ENTRIES);
   }
   if (details?.journeyIds) {
     state.journeyIds = details.journeyIds;
