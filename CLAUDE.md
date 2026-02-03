@@ -34,6 +34,8 @@ End when you sense equilibrium, when each sentence feels quietly complete.
 
 ## Quick Reference: Install ARTK to a Client Project
 
+> **⚠️ SYNC REQUIREMENT:** The bootstrap scripts (`scripts/bootstrap.sh`, `scripts/bootstrap.ps1`) and the VS Code extension bundled installer (`packages/vscode-extension/src/installer/index.ts`) MUST be kept in sync. When modifying one, update the other to maintain feature parity. Both installers should create identical directory structures, module stubs, LLKB initialization, and AI protection markers.
+
 ### Using CLI (Recommended)
 
 ```bash
