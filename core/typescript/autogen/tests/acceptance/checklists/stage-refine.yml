@@ -1,0 +1,151 @@
+# Stage: Refine
+# Verifies the refine command analyzes failures and produces fixes
+# This stage involves LLM analysis and code generation
+
+stage: refine
+command: "artk-autogen refine"
+description: "Analyze test failures and generate refinement suggestions"
+
+prerequisites:
+  - "Results JSON exists with failures"
+  - "State is 'tested'"
+  - "At least one test failed"
+
+checks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE ARTIFACTS
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: REF-001
+    name: "Refinement suggestions created"
+    type: file_exists
+    path: ".artk/autogen/refinements.json"
+    severity: critical
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # REFINEMENT CONTENT
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: REF-010
+    name: "Suggestions array populated"
+    type: json_array_length
+    path: ".artk/autogen/refinements.json"
+    field: "suggestions"
+    min: 1
+    severity: high
+
+  - id: REF-011
+    name: "Each suggestion references a failure"
+    type: json_array_field_exists
+    path: ".artk/autogen/refinements.json"
+    field: "suggestions[*].failureId"
+    severity: high
+
+  - id: REF-012
+    name: "Each suggestion has fix type"
+    type: json_array_field_exists
+    path: ".artk/autogen/refinements.json"
+    field: "suggestions[*].fixType"
+    severity: high
+    description: "Types: selector_update, timing_adjustment, assertion_fix, code_change"
+
+  - id: REF-013
+    name: "Each suggestion has proposed change"
+    type: json_array_field_exists
+    path: ".artk/autogen/refinements.json"
+    field: "suggestions[*].proposedChange"
+    severity: high
+
+  - id: REF-014
+    name: "Confidence score provided"
+    type: json_array_field_exists
+    path: ".artk/autogen/refinements.json"
+    field: "suggestions[*].confidence"
+    severity: medium
+    description: "0.0-1.0 confidence in the fix"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FIX QUALITY (LLM-Generated)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: REF-020
+    name: "Proposed changes are syntactically valid"
+    type: proposed_changes_compile
+    severity: high
+    description: "Each proposedChange should be valid TypeScript"
+
+  - id: REF-021
+    name: "Fix addresses actual error"
+    type: human_verify
+    severity: high
+    prompt: |
+      For each suggestion, verify:
+      1. The fix addresses the actual error (not a symptom)
+      2. The fix is proportionate (not over-engineered)
+      3. The fix doesn't introduce new issues
+
+  - id: REF-022
+    name: "Selector fixes use better patterns"
+    type: human_verify
+    severity: medium
+    prompt: |
+      For selector_update fixes:
+      1. New selector is more stable than old
+      2. Uses data-testid or aria labels when possible
+      3. Avoids fragile patterns
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STATE VALIDATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: REF-030
+    name: "State transitioned to 'refining'"
+    type: state_equals
+    expected_stage: "refining"
+    severity: critical
+
+  - id: REF-031
+    name: "Refinement attempt counter incremented"
+    type: state_field_incremented
+    field: "refinementAttempts"
+    severity: high
+
+  - id: REF-032
+    name: "Command recorded in history"
+    type: state_history_contains
+    command: "refine"
+    severity: high
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CIRCUIT BREAKER
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: REF-040
+    name: "Circuit breaker triggers after max attempts"
+    type: state_blocked_after
+    max_attempts: 3
+    severity: high
+    description: "After 3 failed refinement cycles, state should be 'blocked'"
+
+  - id: REF-041
+    name: "Block reason provided"
+    type: state_conditional
+    condition: "isBlocked == true"
+    then_field: "blockedReason"
+    severity: high
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ERROR CASES
+# ═══════════════════════════════════════════════════════════════════════════
+error_cases:
+  - id: REF-ERR-001
+    name: "Rejects when no failures to refine"
+    precondition_state: "completed"
+    expected_exit_code: 1
+    expected_output_contains: "no failures"
+
+  - id: REF-ERR-002
+    name: "Rejects when state is not 'tested'"
+    precondition_state: "generated"
+    expected_exit_code: 1
+
+  - id: REF-ERR-003
+    name: "Handles blocked state"
+    precondition_state: "blocked"
+    expected_exit_code: 1
+    expected_output_contains: "blocked"

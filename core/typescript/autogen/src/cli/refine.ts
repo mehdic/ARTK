@@ -15,7 +15,7 @@ import {
   getAutogenDir,
   ensureAutogenDir,
 } from '../utils/paths.js';
-import { updatePipelineState } from '../pipeline/state.js';
+import { updatePipelineState, loadPipelineState, canProceedTo } from '../pipeline/state.js';
 import { getTelemetry } from '../shared/telemetry.js';
 import type { RunOutput, TestError, ErrorType } from './run.js';
 import {
@@ -119,6 +119,7 @@ Options:
   --max-attempts <n>     Max refinement attempts before stopping (default: 3)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -343,6 +344,7 @@ export async function runRefine(args: string[]): Promise<void> {
       'max-attempts': { type: 'string', default: '3' },
       json: { type: 'boolean', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
+      force: { type: 'boolean', short: 'f', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
@@ -355,6 +357,20 @@ export async function runRefine(args: string[]): Promise<void> {
 
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
+
+  // Validate pipeline state transition (unless --force)
+  if (!force) {
+    const currentState = loadPipelineState();
+    const transition = canProceedTo(currentState, 'refining');
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error('Use --force to bypass state validation.');
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log('Warning: Bypassing pipeline state validation (--force)');
+  }
 
   // Validate max-attempts
   const maxAttempts = parseInt(values['max-attempts'], 10);

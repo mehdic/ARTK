@@ -36,8 +36,9 @@ vi.mock('../../src/shared/telemetry.js', () => ({
 
 // Mock pipeline state
 vi.mock('../../src/pipeline/state.js', () => ({
-  loadPipelineState: vi.fn(() => ({ stage: 'tested', journeyIds: [], history: [] })),
+  loadPipelineState: vi.fn().mockResolvedValue({ stage: 'tested', journeyIds: [], history: [] }),
   updatePipelineState: vi.fn().mockResolvedValue({}),
+  canProceedTo: vi.fn(() => ({ allowed: true })),
 }));
 
 import { runRefine } from '../../src/cli/refine.js';

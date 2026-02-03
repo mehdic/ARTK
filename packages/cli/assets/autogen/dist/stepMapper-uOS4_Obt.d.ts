@@ -1,6 +1,6 @@
 import { a as IRPrimitive, L as LocatorStrategy, b as LocatorSpec, V as ValueSpec, c as IRStep } from './types-DJnqAI1V.js';
 import { z } from 'zod';
-import { F as AcceptanceCriterion, G as ProceduralStep } from './parseJourney-BY3R1Dwj.js';
+import { F as AcceptanceCriterion, G as ProceduralStep } from './parseJourney-kHery1o3.js';
 
 /**
  * Step Mapping Patterns - Regex patterns for parsing step text into IR primitives
@@ -285,11 +285,11 @@ declare const GlossarySchema: z.ZodObject<{
         params?: Record<string, string> | undefined;
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
-    version: number;
     entries: {
         canonical: string;
         synonyms: string[];
     }[];
+    version: number;
     labelAliases: {
         label: string;
         role?: string | undefined;

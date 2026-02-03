@@ -1,0 +1,21 @@
+Running 1 test using 1 worker
+
+  1) [chromium] › tests/api.spec.ts:10:5 › API Integration › should fetch user data ───────────────
+
+    Error: TypeError: Cannot read properties of undefined (reading 'data')
+       at tests/api.spec.ts:18:28
+
+      16 |     const response = await page.evaluate(async () => {
+      17 |       const result = await fetch('/api/user');
+    > 18 |       return result.json().data.user;
+         |                            ^
+      19 |     });
+      20 |
+      21 |     expect(response.name).toBe('Test User');
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/api-API-Integration-should-fetch-user-data-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/api.spec.ts:10:5 › API Integration › should fetch user data ─────────────────

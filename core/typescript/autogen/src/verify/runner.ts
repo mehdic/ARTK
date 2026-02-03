@@ -2,8 +2,8 @@
  * Playwright CLI Runner Wrapper - Execute tests and capture results
  * @see T050 - Implement Playwright CLI runner wrapper
  */
-import { execSync, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -174,22 +174,24 @@ export function runPlaywrightSync(options: RunnerOptions = {}): RunnerResult {
     };
   }
 
-  // Create temp dir for JSON report
-  const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  // Create temp dir for JSON report (using mkdtempSync for unpredictable names)
+  const tempDir = mkdtempSync(join(tmpdir(), 'autogen-verify-'));
   const reportPath = join(tempDir, 'results.json');
 
-  // Build command
+  // Build command args
   const args = buildPlaywrightArgs({
     ...options,
     reporter: `json,line`,
   });
 
+  // Command string for logging only
   const command = `npx playwright ${args.join(' ')}`;
   const startTime = Date.now();
 
   try {
-    const result = execSync(command, {
+    // SECURITY: Use spawnSync with array args to prevent command injection
+    // This avoids shell interpretation of special characters in file paths
+    const result = spawnSync('npx', ['playwright', ...args], {
       cwd,
       stdio: 'pipe',
       encoding: 'utf-8',
@@ -201,31 +203,23 @@ export function runPlaywrightSync(options: RunnerOptions = {}): RunnerResult {
       timeout: options.timeout ? options.timeout * 10 : 600000, // 10x test timeout or 10 min
     });
 
+    const success = result.status === 0;
     return {
-      success: true,
-      exitCode: 0,
-      stdout: result,
-      stderr: '',
+      success,
+      exitCode: result.status ?? 1,
+      stdout: result.stdout || '',
+      stderr: result.stderr || '',
       reportPath: existsSync(reportPath) ? reportPath : undefined,
       duration: Date.now() - startTime,
       command,
     };
-  } catch (error: unknown) {
-    const execError = error as {
-      status?: number;
-      stdout?: string;
-      stderr?: string;
-    };
-
-    return {
-      success: false,
-      exitCode: execError.status || 1,
-      stdout: execError.stdout || '',
-      stderr: execError.stderr || String(error),
-      reportPath: existsSync(reportPath) ? reportPath : undefined,
-      duration: Date.now() - startTime,
-      command,
-    };
+  } finally {
+    // Always cleanup temp directory
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
   }
 }
 
@@ -238,22 +232,32 @@ export function runPlaywrightAsync(
   return new Promise((resolve) => {
     const { cwd = process.cwd(), env = {} } = options;
 
-    // Create temp dir for JSON report
-    const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-    mkdirSync(tempDir, { recursive: true });
+    // Create temp dir for JSON report (using mkdtempSync for unpredictable names)
+    const tempDir = mkdtempSync(join(tmpdir(), 'autogen-verify-'));
     const reportPath = join(tempDir, 'results.json');
 
-    // Build command
+    // Build command args
     const args = buildPlaywrightArgs({
       ...options,
       reporter: 'json,line',
     });
 
+    // Command string for logging only
     const command = `npx playwright ${args.join(' ')}`;
     const startTime = Date.now();
 
     let stdout = '';
     let stderr = '';
+
+    // Helper to cleanup and resolve
+    const cleanupAndResolve = (result: RunnerResult) => {
+      try {
+        rmSync(tempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+      resolve(result);
+    };
 
     // SECURITY: shell: false (default) prevents command injection via args
     // Node.js v14.18+ handles .cmd/.bat files on Windows automatically
@@ -275,7 +279,7 @@ export function runPlaywrightAsync(
     });
 
     child.on('close', (code: number | null) => {
-      resolve({
+      cleanupAndResolve({
         success: code === 0,
         exitCode: code || 1,
         stdout,
@@ -287,7 +291,7 @@ export function runPlaywrightAsync(
     });
 
     child.on('error', (error: Error) => {
-      resolve({
+      cleanupAndResolve({
         success: false,
         exitCode: 1,
         stdout,
@@ -345,15 +349,13 @@ export function checkTestSyntax(testFilePath: string, cwd?: string): boolean {
     return false;
   }
 
-  try {
-    execSync(`npx tsc --noEmit ${testFilePath}`, {
-      cwd: cwd || dirname(testFilePath),
-      stdio: 'pipe',
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  // SECURITY: Use spawnSync with array args to prevent command injection
+  // This avoids shell interpretation of special characters in testFilePath
+  const result = spawnSync('npx', ['tsc', '--noEmit', testFilePath], {
+    cwd: cwd || dirname(testFilePath),
+    stdio: 'pipe',
+  });
+  return result.status === 0;
 }
 
 /**
@@ -364,30 +366,42 @@ export function writeAndRunTest(
   filename: string,
   options: RunnerOptions = {}
 ): RunnerResult {
-  const tempDir = join(tmpdir(), `autogen-test-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  // Use mkdtempSync for unpredictable temp directory names
+  const tempDir = mkdtempSync(join(tmpdir(), 'autogen-test-'));
 
   const testPath = join(tempDir, filename);
   writeFileSync(testPath, code, 'utf-8');
 
-  return runTestFile(testPath, options);
+  try {
+    return runTestFile(testPath, options);
+  } finally {
+    // Cleanup temp directory
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
 }
 
 /**
  * Get test count from Playwright
  */
 export function getTestCount(testFile: string, cwd?: string): number {
-  try {
-    const result = execSync(`npx playwright test --list ${testFile}`, {
-      cwd,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-    });
+  // SECURITY: Use spawnSync with array args to prevent command injection
+  // This avoids shell interpretation of special characters in testFile
+  const result = spawnSync('npx', ['playwright', 'test', '--list', testFile], {
+    cwd,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+  });
 
-    // Parse "Listing X tests" output
-    const match = result.match(/Listing (\d+) tests?/);
-    return match ? parseInt(match[1]!, 10) : 0;
-  } catch {
+  if (result.status !== 0) {
     return 0;
   }
+
+  // Parse "Listing X tests" output
+  const output = result.stdout || '';
+  const match = output.match(/Listing (\d+) tests?/);
+  return match ? parseInt(match[1]!, 10) : 0;
 }

@@ -1,0 +1,150 @@
+# Stage: Generate
+# Verifies the generate command produces valid Playwright test code
+# This stage involves LLM code generation
+
+stage: generate
+command: "artk-autogen generate"
+description: "Generate Playwright test code from plan"
+
+prerequisites:
+  - "Plan JSON exists"
+  - "State is 'planned'"
+
+checks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE ARTIFACTS
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: GEN-001
+    name: "Test file created"
+    type: file_exists_pattern
+    pattern: "tests/**/*.spec.ts"
+    severity: critical
+
+  - id: GEN-002
+    name: "Test file has content"
+    type: file_min_size
+    pattern: "tests/**/*.spec.ts"
+    min_bytes: 100
+    severity: critical
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CODE STRUCTURAL CHECKS (Deterministic)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: GEN-010
+    name: "TypeScript compiles without errors"
+    type: typescript_compiles
+    severity: critical
+    description: "Run tsc --noEmit on generated file"
+
+  - id: GEN-011
+    name: "Has Playwright import"
+    type: file_contains
+    pattern: "tests/**/*.spec.ts"
+    contains: "import { test, expect }"
+    severity: critical
+
+  - id: GEN-012
+    name: "Has describe block"
+    type: file_contains
+    pattern: "tests/**/*.spec.ts"
+    contains: "test.describe("
+    severity: critical
+
+  - id: GEN-013
+    name: "Has at least one test"
+    type: file_matches_regex
+    pattern: "tests/**/*.spec.ts"
+    regex: "test\\(['\"]"
+    severity: critical
+
+  - id: GEN-014
+    name: "Has expect assertion"
+    type: file_contains
+    pattern: "tests/**/*.spec.ts"
+    contains: "expect("
+    severity: high
+
+  - id: GEN-015
+    name: "Uses page fixture"
+    type: file_contains
+    pattern: "tests/**/*.spec.ts"
+    contains: "page"
+    severity: high
+
+  - id: GEN-016
+    name: "No hardcoded URLs"
+    type: file_not_contains
+    pattern: "tests/**/*.spec.ts"
+    not_contains: "http://localhost"
+    severity: medium
+    allow_in_comments: true
+
+  - id: GEN-017
+    name: "No hardcoded credentials"
+    type: file_not_matches_regex
+    pattern: "tests/**/*.spec.ts"
+    regex: "password\\s*[:=]\\s*['\"][^'\"]+['\"]"
+    severity: high
+    description: "Passwords should come from env/config"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CODE SEMANTIC CHECKS (Requires Human or LLM Verification)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: GEN-020
+    name: "Test steps match journey steps"
+    type: human_verify
+    severity: high
+    prompt: |
+      Compare generated test with journey steps:
+      1. Each journey step should have corresponding test action
+      2. Order should be preserved
+      3. No steps should be skipped without reason
+
+  - id: GEN-021
+    name: "Assertions are meaningful"
+    type: human_verify
+    severity: medium
+    prompt: |
+      Check that assertions verify actual behavior:
+      1. Not just checking page loaded
+      2. Verify expected outcomes from journey
+      3. No trivial assertions (expect(true).toBe(true))
+
+  - id: GEN-022
+    name: "Selectors are reasonable"
+    type: human_verify
+    severity: medium
+    prompt: |
+      Review selectors used:
+      1. Prefer data-testid over CSS classes
+      2. Avoid fragile selectors (nth-child, etc.)
+      3. Selectors should be findable in typical UI
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STATE VALIDATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: GEN-030
+    name: "State transitioned to 'generated'"
+    type: state_equals
+    expected_stage: "generated"
+    severity: critical
+
+  - id: GEN-031
+    name: "Test paths stored in state"
+    type: state_field_not_empty
+    field: "testPaths"
+    severity: high
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ERROR CASES
+# ═══════════════════════════════════════════════════════════════════════════
+error_cases:
+  - id: GEN-ERR-001
+    name: "Rejects when state is not 'planned'"
+    precondition_state: "analyzed"
+    expected_exit_code: 1
+
+  - id: GEN-ERR-002
+    name: "Rejects when plan.json missing"
+    precondition: "delete .artk/autogen/plan.json"
+    expected_exit_code: 1

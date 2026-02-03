@@ -11,6 +11,7 @@
  */
 import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { z } from 'zod';
 import { getAutogenArtifact, ensureAutogenDir } from '../utils/paths.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,6 +52,54 @@ export interface PipelineHistoryEntry {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VALIDATION SCHEMA
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Valid pipeline stages
+ */
+const VALID_STAGES: PipelineStage[] = [
+  'initial', 'analyzed', 'planned', 'generated',
+  'tested', 'refining', 'completed', 'blocked'
+];
+
+/**
+ * Zod schema for validating pipeline state
+ */
+const PipelineHistoryEntrySchema = z.object({
+  command: z.string(),
+  stage: z.enum(['initial', 'analyzed', 'planned', 'generated', 'tested', 'refining', 'completed', 'blocked']),
+  timestamp: z.string(),
+  success: z.boolean(),
+  details: z.record(z.unknown()).optional(),
+});
+
+const PipelineStateSchema = z.object({
+  version: z.literal('1.0'),
+  stage: z.enum(['initial', 'analyzed', 'planned', 'generated', 'tested', 'refining', 'completed', 'blocked']),
+  lastCommand: z.string(),
+  lastCommandAt: z.string(),
+  journeyIds: z.array(z.string()),
+  testPaths: z.array(z.string()),
+  refinementAttempts: z.number(),
+  isBlocked: z.boolean(),
+  blockedReason: z.string().optional(),
+  history: z.array(PipelineHistoryEntrySchema),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).passthrough(); // Allow unknown fields for forward compatibility
+
+/**
+ * Result of loading pipeline state
+ */
+export interface LoadStateResult {
+  state: PipelineState;
+  wasCorrupted: boolean;
+  wasReset: boolean;
+  backupPath?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DEFAULTS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -76,7 +125,27 @@ function createEmptyState(): PipelineState {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
+ * Create a backup of a corrupted state file
+ */
+function backupCorruptedFile(statePath: string): string | undefined {
+  const backupPath = `${statePath}.corrupted.${Date.now()}`;
+  try {
+    renameSync(statePath, backupPath);
+    return backupPath;
+  } catch {
+    // If we can't rename, try to leave the original and just warn
+    return undefined;
+  }
+}
+
+/**
  * Load pipeline state from disk
+ *
+ * Features:
+ * - Validates state against Zod schema
+ * - Creates backup of corrupted files
+ * - Logs warnings for issues
+ * - Returns empty state on unrecoverable errors
  */
 export function loadPipelineState(baseDir?: string): PipelineState {
   const statePath = getAutogenArtifact('state', baseDir);
@@ -85,20 +154,163 @@ export function loadPipelineState(baseDir?: string): PipelineState {
     return createEmptyState();
   }
 
+  let content: string;
+  let parsed: unknown;
+
+  // Step 1: Read file
   try {
-    const content = readFileSync(statePath, 'utf-8');
-    const state = JSON.parse(content) as PipelineState;
-
-    // Validate version
-    if (state.version !== '1.0') {
-      console.warn(`Pipeline state version mismatch: expected 1.0, got ${state.version}`);
-    }
-
-    return state;
-  } catch {
-    // Return empty state on parse error
+    content = readFileSync(statePath, 'utf-8');
+  } catch (error) {
+    console.warn(`Warning: Cannot read pipeline state file: ${statePath}`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : 'Unknown'}`);
     return createEmptyState();
   }
+
+  // Step 2: Parse JSON
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    console.warn(`Warning: Pipeline state file contains invalid JSON, creating backup and resetting.`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : 'Unknown'}`);
+
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+
+    return createEmptyState();
+  }
+
+  // Step 3: Validate against schema
+  const validation = PipelineStateSchema.safeParse(parsed);
+
+  if (!validation.success) {
+    console.warn(`Warning: Pipeline state file has invalid structure, creating backup and resetting.`);
+
+    // Log first few validation errors for debugging
+    const errors = validation.error.errors.slice(0, 3);
+    for (const err of errors) {
+      console.warn(`  - ${err.path.join('.')}: ${err.message}`);
+    }
+    if (validation.error.errors.length > 3) {
+      console.warn(`  ... and ${validation.error.errors.length - 3} more errors`);
+    }
+
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+
+    return createEmptyState();
+  }
+
+  const state = validation.data as PipelineState;
+
+  // Step 4: Warn about unknown fields (for forward compatibility)
+  const knownFields = new Set([
+    'version', 'stage', 'lastCommand', 'lastCommandAt', 'journeyIds',
+    'testPaths', 'refinementAttempts', 'isBlocked', 'blockedReason',
+    'history', 'createdAt', 'updatedAt'
+  ]);
+  const unknownFields = Object.keys(parsed as object).filter(k => !knownFields.has(k));
+  if (unknownFields.length > 0) {
+    console.warn(`Warning: Pipeline state has unknown fields (may be from newer version): ${unknownFields.join(', ')}`);
+  }
+
+  // Step 5: Validate stage is in valid list (extra safety)
+  if (!VALID_STAGES.includes(state.stage)) {
+    console.warn(`Warning: Invalid pipeline stage "${state.stage}", resetting to "initial"`);
+    state.stage = 'initial';
+  }
+
+  return state;
+}
+
+/**
+ * Load pipeline state with detailed result
+ *
+ * Same as loadPipelineState but returns additional metadata about
+ * whether the state was corrupted, reset, or backed up.
+ */
+export function loadPipelineStateWithInfo(baseDir?: string): LoadStateResult {
+  const statePath = getAutogenArtifact('state', baseDir);
+
+  if (!existsSync(statePath)) {
+    return {
+      state: createEmptyState(),
+      wasCorrupted: false,
+      wasReset: true,
+    };
+  }
+
+  let content: string;
+  let parsed: unknown;
+
+  // Step 1: Read file
+  try {
+    content = readFileSync(statePath, 'utf-8');
+  } catch (error) {
+    console.warn(`Warning: Cannot read pipeline state file: ${statePath}`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : 'Unknown'}`);
+    return {
+      state: createEmptyState(),
+      wasCorrupted: true,
+      wasReset: true,
+    };
+  }
+
+  // Step 2: Parse JSON
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    console.warn(`Warning: Pipeline state file contains invalid JSON, creating backup and resetting.`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : 'Unknown'}`);
+
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+
+    return {
+      state: createEmptyState(),
+      wasCorrupted: true,
+      wasReset: true,
+      backupPath,
+    };
+  }
+
+  // Step 3: Validate against schema
+  const validation = PipelineStateSchema.safeParse(parsed);
+
+  if (!validation.success) {
+    console.warn(`Warning: Pipeline state file has invalid structure, creating backup and resetting.`);
+
+    const errors = validation.error.errors.slice(0, 3);
+    for (const err of errors) {
+      console.warn(`  - ${err.path.join('.')}: ${err.message}`);
+    }
+    if (validation.error.errors.length > 3) {
+      console.warn(`  ... and ${validation.error.errors.length - 3} more errors`);
+    }
+
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+
+    return {
+      state: createEmptyState(),
+      wasCorrupted: true,
+      wasReset: true,
+      backupPath,
+    };
+  }
+
+  return {
+    state: validation.data as PipelineState,
+    wasCorrupted: false,
+    wasReset: false,
+  };
 }
 
 /**
@@ -157,7 +369,7 @@ export async function updatePipelineState(
   state.lastCommand = command;
   state.lastCommandAt = now;
 
-  // Add to history (keep last 50 entries)
+  // Add to history (keep last 100 entries)
   state.history.push({
     command,
     stage,
@@ -165,8 +377,9 @@ export async function updatePipelineState(
     success,
     details,
   });
-  if (state.history.length > 50) {
-    state.history = state.history.slice(-50);
+  const HISTORY_MAX_ENTRIES = 100;
+  if (state.history.length > HISTORY_MAX_ENTRIES) {
+    state.history = state.history.slice(-HISTORY_MAX_ENTRIES);
   }
 
   // Update specific fields based on command

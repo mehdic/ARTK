@@ -1,12 +1,12 @@
 import { d as IRJourney } from './types-DJnqAI1V.js';
 export { i as AccessibilityConfig, A as AccessibilityTiming, e as CleanupStrategy, C as CompletionSignal, f as CompletionSignalType, D as DataStrategy, I as IRMappingResult, a as IRPrimitive, c as IRStep, g as JourneyDataConfig, J as JourneyTier, b as LocatorSpec, L as LocatorStrategy, M as ModuleDependencies, N as NegativePath, P as PerformanceConfig, T as TestDataSet, V as ValueSpec, h as VisualRegressionConfig } from './types-DJnqAI1V.js';
 export { IR, JourneyBuilder, LocatorBuilder, SerializeOptions, StepBuilder, ValueBuilder, describeLocator, describePrimitive, serializeJourney, serializePrimitive, serializeStep, summarizeJourney } from './ir/index.js';
-import { A as AutogenConfig } from './schema-U3rjvmCI.js';
-export { d as AutogenConfigSchema, a as EslintRulesSchema, g as EslintSeverity, E as EslintSeveritySchema, j as Heal, H as HealSchema, m as LLKBIntegration, l as LLKBIntegrationLevel, L as LLKBIntegrationLevelSchema, c as LLKBIntegrationSchema, f as Paths, P as PathsSchema, k as RegenerationStrategy, R as RegenerationStrategySchema, h as SelectorPolicy, b as SelectorPolicySchema, e as SelectorStrategy, S as SelectorStrategySchema, i as Validation, V as ValidationSchema } from './schema-U3rjvmCI.js';
+import { A as AutogenConfig } from './schema-8y4eZust.js';
+export { d as AutogenConfigSchema, a as EslintRulesSchema, g as EslintSeverity, E as EslintSeveritySchema, j as Heal, H as HealSchema, m as LLKBIntegration, l as LLKBIntegrationLevel, L as LLKBIntegrationLevelSchema, c as LLKBIntegrationSchema, f as Paths, P as PathsSchema, k as RegenerationStrategy, R as RegenerationStrategySchema, h as SelectorPolicy, b as SelectorPolicySchema, e as SelectorStrategy, S as SelectorStrategySchema, i as Validation, V as ValidationSchema } from './schema-8y4eZust.js';
 export { ConfigLoadError, findConfigFile, getDefaultConfig, getSchemaVersion, loadConfig, loadConfigWithMigration, loadConfigs, loadLLKBConfig, mergeConfigs, needsConfigMigration, resolveConfigPath } from './config/index.js';
-export { F as AcceptanceCriterion, a9 as CodedError, x as JourneyFrontmatter, g as JourneyFrontmatterSchema, z as JourneyParseError, i as JourneyStatus, J as JourneyStatusSchema, B as ParsedJourney, G as ProceduralStep, X as Result, H as StructuredStep, S as StructuredStepAction, a4 as andThen, aa as codedError, a5 as collect, Z as err, $ as isErr, _ as isOk, a2 as map, a3 as mapErr, Y as ok, O as parseJourney, U as parseJourneyContent, R as parseJourneyForAutoGen, K as parseStructuredSteps, a6 as partition, a7 as tryCatch, a8 as tryCatchAsync, W as tryParseJourneyContent, a0 as unwrap, a1 as unwrapOr } from './parseJourney-BY3R1Dwj.js';
-export { N as NormalizeOptions, c as completionSignalsToAssertions, n as normalizeJourney, v as validateJourneyForCodeGen } from './normalize-Cn4bFRDH.js';
-export { a8 as ACMappingResult, $ as ExtendedGlossaryMeta, F as Glossary, G as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, a as PatternMetadata, a6 as StepMapperOptions, a7 as StepMappingResult, S as StepPattern, y as allPatterns, h as authPatterns, g as checkPatterns, a1 as clearExtendedGlossary, e as clickPatterns, c as createLocatorFromMatch, d as createValueFromText, H as defaultGlossary, l as extendedAssertionPatterns, j as extendedClickPatterns, k as extendedFillPatterns, o as extendedNavigationPatterns, q as extendedSelectPatterns, m as extendedWaitPatterns, f as fillPatterns, V as findLabelAlias, E as findMatchingPatterns, X as findModuleMethod, x as focusPatterns, B as getAllPatternNames, N as getGlossary, a4 as getGlossaryStats, Z as getLabelAliases, W as getLocatorFromLabel, ad as getMappingStats, _ as getModuleMethods, C as getPatternCountByCategory, A as getPatternMatches, D as getPatternMetadata, R as getSynonyms, a5 as hasExtendedGlossary, r as hoverPatterns, K as initGlossary, ae as initializeLlkb, af as isLlkbAvailable, T as isSynonymOf, a0 as loadExtendedGlossary, I as loadGlossary, a3 as lookupCoreGlossary, a2 as lookupGlossary, aa as mapAcceptanceCriterion, ab as mapProceduralStep, a9 as mapStepText, ac as mapSteps, z as matchPattern, J as mergeGlossaries, n as navigationPatterns, Q as normalizeStepText, p as parseSelectorToLocator, U as resetGlossaryCache, O as resolveCanonical, Y as resolveModuleMethod, s as selectPatterns, i as structuredPatterns, ag as suggestImprovements, t as toastPatterns, u as urlPatterns, v as visibilityPatterns, w as waitPatterns } from './stepMapper-DzcrpZ9r.js';
+export { F as AcceptanceCriterion, a9 as CodedError, x as JourneyFrontmatter, g as JourneyFrontmatterSchema, z as JourneyParseError, i as JourneyStatus, J as JourneyStatusSchema, B as ParsedJourney, G as ProceduralStep, X as Result, H as StructuredStep, S as StructuredStepAction, a4 as andThen, aa as codedError, a5 as collect, Z as err, $ as isErr, _ as isOk, a2 as map, a3 as mapErr, Y as ok, O as parseJourney, U as parseJourneyContent, R as parseJourneyForAutoGen, K as parseStructuredSteps, a6 as partition, a7 as tryCatch, a8 as tryCatchAsync, W as tryParseJourneyContent, a0 as unwrap, a1 as unwrapOr } from './parseJourney-kHery1o3.js';
+export { N as NormalizeOptions, c as completionSignalsToAssertions, n as normalizeJourney, v as validateJourneyForCodeGen } from './normalize-Cp73lEh5.js';
+export { a8 as ACMappingResult, $ as ExtendedGlossaryMeta, F as Glossary, G as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, a as PatternMetadata, a6 as StepMapperOptions, a7 as StepMappingResult, S as StepPattern, y as allPatterns, h as authPatterns, g as checkPatterns, a1 as clearExtendedGlossary, e as clickPatterns, c as createLocatorFromMatch, d as createValueFromText, H as defaultGlossary, l as extendedAssertionPatterns, j as extendedClickPatterns, k as extendedFillPatterns, o as extendedNavigationPatterns, q as extendedSelectPatterns, m as extendedWaitPatterns, f as fillPatterns, V as findLabelAlias, E as findMatchingPatterns, X as findModuleMethod, x as focusPatterns, B as getAllPatternNames, N as getGlossary, a4 as getGlossaryStats, Z as getLabelAliases, W as getLocatorFromLabel, ad as getMappingStats, _ as getModuleMethods, C as getPatternCountByCategory, A as getPatternMatches, D as getPatternMetadata, R as getSynonyms, a5 as hasExtendedGlossary, r as hoverPatterns, K as initGlossary, ae as initializeLlkb, af as isLlkbAvailable, T as isSynonymOf, a0 as loadExtendedGlossary, I as loadGlossary, a3 as lookupCoreGlossary, a2 as lookupGlossary, aa as mapAcceptanceCriterion, ab as mapProceduralStep, a9 as mapStepText, ac as mapSteps, z as matchPattern, J as mergeGlossaries, n as navigationPatterns, Q as normalizeStepText, p as parseSelectorToLocator, U as resetGlossaryCache, O as resolveCanonical, Y as resolveModuleMethod, s as selectPatterns, i as structuredPatterns, ag as suggestImprovements, t as toastPatterns, u as urlPatterns, v as visibilityPatterns, w as waitPatterns } from './stepMapper-uOS4_Obt.js';
 export { DEFAULT_SELECTOR_PRIORITY, ELEMENT_TYPE_STRATEGIES, NAMEABLE_ROLES, compareLocators, createCssSelector, extractName, getRecommendedStrategies, getSelectorPriority, inferBestSelector, inferButtonSelector, inferCheckboxSelector, inferElementType, inferHeadingSelector, inferInputSelector, inferLinkSelector, inferRole, inferSelectorWithCatalog, inferSelectors, inferSelectorsWithCatalog, inferTabSelector, inferTestIdSelector, inferTextSelector, isCssLocator, isForbiddenSelector, isRoleLocator, isSemanticLocator, isTestIdLocator, scoreLocator, selectBestLocator, suggestSelectorApproach, toPlaywrightLocator, validateLocator } from './selectors/index.js';
 import { z } from 'zod';
 import { GenerateTestOptions, GenerateModuleOptions, GenerateTestResult, GenerateModuleResult } from './codegen/index.js';
@@ -201,13 +201,13 @@ declare const SelectorEntrySchema: z.ZodObject<{
         exact: z.ZodOptional<z.ZodBoolean>;
         level: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
+        name?: string | undefined;
         exact?: boolean | undefined;
         level?: number | undefined;
-        name?: string | undefined;
     }, {
+        name?: string | undefined;
         exact?: boolean | undefined;
         level?: number | undefined;
-        name?: string | undefined;
     }>>;
     /** Component or page this selector belongs to */
     component: z.ZodOptional<z.ZodString>;
@@ -222,32 +222,32 @@ declare const SelectorEntrySchema: z.ZodObject<{
     /** Last verified timestamp */
     lastVerified: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    value: string;
     strategy: "role" | "label" | "text" | "testid" | "css" | "xpath";
+    value: string;
     id: string;
     stable: boolean;
     options?: {
+        name?: string | undefined;
         exact?: boolean | undefined;
         level?: number | undefined;
-        name?: string | undefined;
     } | undefined;
-    tags?: string[] | undefined;
     description?: string | undefined;
+    tags?: string[] | undefined;
     component?: string | undefined;
     sourceFile?: string | undefined;
     sourceLine?: number | undefined;
     lastVerified?: string | undefined;
 }, {
-    value: string;
     strategy: "role" | "label" | "text" | "testid" | "css" | "xpath";
+    value: string;
     id: string;
     options?: {
+        name?: string | undefined;
         exact?: boolean | undefined;
         level?: number | undefined;
-        name?: string | undefined;
     } | undefined;
-    tags?: string[] | undefined;
     description?: string | undefined;
+    tags?: string[] | undefined;
     component?: string | undefined;
     sourceFile?: string | undefined;
     sourceLine?: number | undefined;
@@ -326,11 +326,11 @@ declare const CSSDebtEntrySchema: z.ZodObject<{
         strategy: z.ZodString;
         value: z.ZodString;
     }, "strip", z.ZodTypeAny, {
-        value: string;
         strategy: string;
+        value: string;
     }, {
-        value: string;
         strategy: string;
+        value: string;
     }>>;
     /** Priority for migration (higher = more urgent) */
     priority: z.ZodDefault<z.ZodEnum<["low", "medium", "high"]>>;
@@ -344,8 +344,8 @@ declare const CSSDebtEntrySchema: z.ZodObject<{
         line: number;
     }[];
     suggestedReplacement?: {
-        value: string;
         strategy: string;
+        value: string;
     } | undefined;
     reason?: string | undefined;
 }, {
@@ -356,8 +356,8 @@ declare const CSSDebtEntrySchema: z.ZodObject<{
     }[];
     priority?: "low" | "medium" | "high" | undefined;
     suggestedReplacement?: {
-        value: string;
         strategy: string;
+        value: string;
     } | undefined;
     reason?: string | undefined;
 }>;
@@ -387,13 +387,13 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             exact: z.ZodOptional<z.ZodBoolean>;
             level: z.ZodOptional<z.ZodNumber>;
         }, "strip", z.ZodTypeAny, {
+            name?: string | undefined;
             exact?: boolean | undefined;
             level?: number | undefined;
-            name?: string | undefined;
         }, {
+            name?: string | undefined;
             exact?: boolean | undefined;
             level?: number | undefined;
-            name?: string | undefined;
         }>>;
         /** Component or page this selector belongs to */
         component: z.ZodOptional<z.ZodString>;
@@ -408,32 +408,32 @@ declare const SelectorCatalogSchema: z.ZodObject<{
         /** Last verified timestamp */
         lastVerified: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        value: string;
         strategy: "role" | "label" | "text" | "testid" | "css" | "xpath";
+        value: string;
         id: string;
         stable: boolean;
         options?: {
+            name?: string | undefined;
             exact?: boolean | undefined;
             level?: number | undefined;
-            name?: string | undefined;
         } | undefined;
-        tags?: string[] | undefined;
         description?: string | undefined;
+        tags?: string[] | undefined;
         component?: string | undefined;
         sourceFile?: string | undefined;
         sourceLine?: number | undefined;
         lastVerified?: string | undefined;
     }, {
-        value: string;
         strategy: "role" | "label" | "text" | "testid" | "css" | "xpath";
+        value: string;
         id: string;
         options?: {
+            name?: string | undefined;
             exact?: boolean | undefined;
             level?: number | undefined;
-            name?: string | undefined;
         } | undefined;
-        tags?: string[] | undefined;
         description?: string | undefined;
+        tags?: string[] | undefined;
         component?: string | undefined;
         sourceFile?: string | undefined;
         sourceLine?: number | undefined;
@@ -508,11 +508,11 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             strategy: z.ZodString;
             value: z.ZodString;
         }, "strip", z.ZodTypeAny, {
-            value: string;
             strategy: string;
+            value: string;
         }, {
-            value: string;
             strategy: string;
+            value: string;
         }>>;
         /** Priority for migration (higher = more urgent) */
         priority: z.ZodDefault<z.ZodEnum<["low", "medium", "high"]>>;
@@ -526,8 +526,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             line: number;
         }[];
         suggestedReplacement?: {
-            value: string;
             strategy: string;
+            value: string;
         } | undefined;
         reason?: string | undefined;
     }, {
@@ -538,8 +538,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
         }[];
         priority?: "low" | "medium" | "high" | undefined;
         suggestedReplacement?: {
-            value: string;
             strategy: string;
+            value: string;
         } | undefined;
         reason?: string | undefined;
     }>, "many">>;
@@ -566,17 +566,17 @@ declare const SelectorCatalogSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     version: string;
     selectors: Record<string, {
-        value: string;
         strategy: "role" | "label" | "text" | "testid" | "css" | "xpath";
+        value: string;
         id: string;
         stable: boolean;
         options?: {
+            name?: string | undefined;
             exact?: boolean | undefined;
             level?: number | undefined;
-            name?: string | undefined;
         } | undefined;
-        tags?: string[] | undefined;
         description?: string | undefined;
+        tags?: string[] | undefined;
         component?: string | undefined;
         sourceFile?: string | undefined;
         sourceLine?: number | undefined;
@@ -605,8 +605,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
             line: number;
         }[];
         suggestedReplacement?: {
-            value: string;
             strategy: string;
+            value: string;
         } | undefined;
         reason?: string | undefined;
     }[];
@@ -620,16 +620,16 @@ declare const SelectorCatalogSchema: z.ZodObject<{
     } | undefined;
 }, {
     selectors: Record<string, {
-        value: string;
         strategy: "role" | "label" | "text" | "testid" | "css" | "xpath";
+        value: string;
         id: string;
         options?: {
+            name?: string | undefined;
             exact?: boolean | undefined;
             level?: number | undefined;
-            name?: string | undefined;
         } | undefined;
-        tags?: string[] | undefined;
         description?: string | undefined;
+        tags?: string[] | undefined;
         component?: string | undefined;
         sourceFile?: string | undefined;
         sourceLine?: number | undefined;
@@ -661,8 +661,8 @@ declare const SelectorCatalogSchema: z.ZodObject<{
         }[];
         priority?: "low" | "medium" | "high" | undefined;
         suggestedReplacement?: {
-            value: string;
             strategy: string;
+            value: string;
         } | undefined;
         reason?: string | undefined;
     }[] | undefined;
@@ -1599,11 +1599,11 @@ declare const SCoTConditionSchema: z.ZodObject<{
     state: z.ZodEnum<["visible", "hidden", "enabled", "disabled", "exists", "checked", "unchecked"]>;
     negate: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
-    state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+    state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
     element?: string | undefined;
     negate?: boolean | undefined;
 }, {
-    state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+    state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
     element?: string | undefined;
     negate?: boolean | undefined;
 }>;
@@ -1644,11 +1644,11 @@ declare const SCoTStructureSchema: z.ZodObject<{
         state: z.ZodEnum<["visible", "hidden", "enabled", "disabled", "exists", "checked", "unchecked"]>;
         negate: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
-        state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+        state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
         element?: string | undefined;
         negate?: boolean | undefined;
     }, {
-        state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+        state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
         element?: string | undefined;
         negate?: boolean | undefined;
     }>>;
@@ -1714,8 +1714,8 @@ declare const SCoTStructureSchema: z.ZodObject<{
         assertion?: string | undefined;
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
-    type: "sequential" | "branch" | "loop";
     description: string;
+    type: "sequential" | "branch" | "loop";
     steps?: {
         action: string;
         value?: string | undefined;
@@ -1729,7 +1729,7 @@ declare const SCoTStructureSchema: z.ZodObject<{
         assertion?: string | undefined;
     }[] | undefined;
     condition?: {
-        state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+        state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
         element?: string | undefined;
         negate?: boolean | undefined;
     } | undefined;
@@ -1751,8 +1751,8 @@ declare const SCoTStructureSchema: z.ZodObject<{
         maxIterations?: number | undefined;
     } | undefined;
 }, {
-    type: "sequential" | "branch" | "loop";
     description: string;
+    type: "sequential" | "branch" | "loop";
     steps?: {
         action: string;
         value?: string | undefined;
@@ -1766,7 +1766,7 @@ declare const SCoTStructureSchema: z.ZodObject<{
         assertion?: string | undefined;
     }[] | undefined;
     condition?: {
-        state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+        state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
         element?: string | undefined;
         negate?: boolean | undefined;
     } | undefined;
@@ -1815,11 +1815,11 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
             state: z.ZodEnum<["visible", "hidden", "enabled", "disabled", "exists", "checked", "unchecked"]>;
             negate: z.ZodOptional<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
-            state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+            state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
             element?: string | undefined;
             negate?: boolean | undefined;
         }, {
-            state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+            state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
             element?: string | undefined;
             negate?: boolean | undefined;
         }>>;
@@ -1885,8 +1885,8 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
             assertion?: string | undefined;
         }>, "many">>;
     }, "strip", z.ZodTypeAny, {
-        type: "sequential" | "branch" | "loop";
         description: string;
+        type: "sequential" | "branch" | "loop";
         steps?: {
             action: string;
             value?: string | undefined;
@@ -1900,7 +1900,7 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
             assertion?: string | undefined;
         }[] | undefined;
         condition?: {
-            state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+            state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
             element?: string | undefined;
             negate?: boolean | undefined;
         } | undefined;
@@ -1922,8 +1922,8 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
             maxIterations?: number | undefined;
         } | undefined;
     }, {
-        type: "sequential" | "branch" | "loop";
         description: string;
+        type: "sequential" | "branch" | "loop";
         steps?: {
             action: string;
             value?: string | undefined;
@@ -1937,7 +1937,7 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
             assertion?: string | undefined;
         }[] | undefined;
         condition?: {
-            state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+            state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
             element?: string | undefined;
             negate?: boolean | undefined;
         } | undefined;
@@ -1963,8 +1963,8 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     warnings: string[];
     plan: {
-        type: "sequential" | "branch" | "loop";
         description: string;
+        type: "sequential" | "branch" | "loop";
         steps?: {
             action: string;
             value?: string | undefined;
@@ -1978,7 +1978,7 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
             assertion?: string | undefined;
         }[] | undefined;
         condition?: {
-            state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+            state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
             element?: string | undefined;
             negate?: boolean | undefined;
         } | undefined;
@@ -2004,8 +2004,8 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
     reasoning: string;
 }, {
     plan: {
-        type: "sequential" | "branch" | "loop";
         description: string;
+        type: "sequential" | "branch" | "loop";
         steps?: {
             action: string;
             value?: string | undefined;
@@ -2019,7 +2019,7 @@ declare const SCoTPlanResponseSchema: z.ZodObject<{
             assertion?: string | undefined;
         }[] | undefined;
         condition?: {
-            state: "enabled" | "visible" | "hidden" | "checked" | "disabled" | "exists" | "unchecked";
+            state: "visible" | "hidden" | "enabled" | "checked" | "disabled" | "exists" | "unchecked";
             element?: string | undefined;
             negate?: boolean | undefined;
         } | undefined;
@@ -2347,7 +2347,6 @@ declare const RefinementConfigSchema: z.ZodDefault<z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
-    maxAttempts: number;
     llm: {
         provider: "none" | "local" | "openai" | "anthropic" | "azure" | "bedrock" | "ollama";
         model: string;
@@ -2357,6 +2356,7 @@ declare const RefinementConfigSchema: z.ZodDefault<z.ZodObject<{
         maxRetries: number;
         retryDelayMs: number;
     };
+    maxAttempts: number;
     timeouts: {
         session: number;
         execution: number;
@@ -2385,7 +2385,6 @@ declare const RefinementConfigSchema: z.ZodDefault<z.ZodObject<{
     };
 }, {
     enabled?: boolean | undefined;
-    maxAttempts?: number | undefined;
     llm?: {
         provider?: "none" | "local" | "openai" | "anthropic" | "azure" | "bedrock" | "ollama" | undefined;
         model?: string | undefined;
@@ -2395,6 +2394,7 @@ declare const RefinementConfigSchema: z.ZodDefault<z.ZodObject<{
         maxRetries?: number | undefined;
         retryDelayMs?: number | undefined;
     } | undefined;
+    maxAttempts?: number | undefined;
     timeouts?: {
         session?: number | undefined;
         execution?: number | undefined;
@@ -2682,7 +2682,6 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
-        maxAttempts: number;
         llm: {
             provider: "none" | "local" | "openai" | "anthropic" | "azure" | "bedrock" | "ollama";
             model: string;
@@ -2692,6 +2691,7 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
             maxRetries: number;
             retryDelayMs: number;
         };
+        maxAttempts: number;
         timeouts: {
             session: number;
             execution: number;
@@ -2720,7 +2720,6 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
         };
     }, {
         enabled?: boolean | undefined;
-        maxAttempts?: number | undefined;
         llm?: {
             provider?: "none" | "local" | "openai" | "anthropic" | "azure" | "bedrock" | "ollama" | undefined;
             model?: string | undefined;
@@ -2730,6 +2729,7 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
             maxRetries?: number | undefined;
             retryDelayMs?: number | undefined;
         } | undefined;
+        maxAttempts?: number | undefined;
         timeouts?: {
             session?: number | undefined;
             execution?: number | undefined;
@@ -2872,7 +2872,6 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     refinement: {
         enabled: boolean;
-        maxAttempts: number;
         llm: {
             provider: "none" | "local" | "openai" | "anthropic" | "azure" | "bedrock" | "ollama";
             model: string;
@@ -2882,6 +2881,7 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
             maxRetries: number;
             retryDelayMs: number;
         };
+        maxAttempts: number;
         timeouts: {
             session: number;
             execution: number;
@@ -2956,7 +2956,6 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
 }, {
     refinement?: {
         enabled?: boolean | undefined;
-        maxAttempts?: number | undefined;
         llm?: {
             provider?: "none" | "local" | "openai" | "anthropic" | "azure" | "bedrock" | "ollama" | undefined;
             model?: string | undefined;
@@ -2966,6 +2965,7 @@ declare const AutogenEnhancementConfigSchema: z.ZodObject<{
             maxRetries?: number | undefined;
             retryDelayMs?: number | undefined;
         } | undefined;
+        maxAttempts?: number | undefined;
         timeouts?: {
             session?: number | undefined;
             execution?: number | undefined;

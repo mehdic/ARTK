@@ -1,0 +1,107 @@
+# Scenario: Happy Path - Login Flow
+# Tests the complete pipeline for a simple login journey
+
+name: "Happy Path: Login Flow"
+description: |
+  Complete end-to-end test of the AutoGen pipeline using a simple login journey.
+  This scenario covers:
+  - Journey analysis
+  - Test planning
+  - Code generation (LLM)
+  - Test execution
+  - Refinement (if needed)
+
+journey: "fixtures/journeys/simple-login.md"
+timeout: 600s  # 10 minutes total
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGES
+# ═══════════════════════════════════════════════════════════════════════════
+stages:
+  - stage: analyze
+    checklist: "checklists/stage-analyze.yml"
+    timeout: 30s
+    on_failure: abort
+
+  - stage: plan
+    checklist: "checklists/stage-plan.yml"
+    timeout: 60s
+    on_failure: abort
+
+  - stage: generate
+    checklist: "checklists/stage-generate.yml"
+    timeout: 120s
+    on_failure: abort
+    # Skip human verification in CI
+    skip_human_checks_in_ci: true
+
+  - stage: run
+    checklist: "checklists/stage-run.yml"
+    timeout: 180s
+    # First run might fail - that's expected
+    allow_failure: true
+    capture_failures: true
+
+  - stage: refine
+    checklist: "checklists/stage-refine.yml"
+    timeout: 120s
+    max_iterations: 3
+    # Only run if previous stage failed
+    condition: "previous_stage_failed"
+    # After each refine, run tests again
+    loop_with: "run"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FINAL VERIFICATION
+# ═══════════════════════════════════════════════════════════════════════════
+final_verification:
+  - id: FINAL-001
+    name: "All tests pass eventually"
+    type: state_in
+    expected_stages: ["completed"]
+    severity: high
+    # Allow blocked state with explanation
+    allow_blocked_with_reason: true
+
+  - id: FINAL-002
+    name: "Refinement attempts within limit"
+    type: state_field_max
+    field: "refinementAttempts"
+    max: 3
+    severity: medium
+
+  - id: FINAL-003
+    name: "Test file exists and runs"
+    type: file_exists_pattern
+    pattern: "tests/**/*.spec.ts"
+    severity: critical
+
+  - id: FINAL-004
+    name: "No security issues in generated code"
+    type: no_security_antipatterns
+    patterns:
+      - "eval("
+      - "innerHTML"
+      - "password.*=.*['\"].*['\"]"  # Hardcoded passwords
+    severity: critical
+
+# ═══════════════════════════════════════════════════════════════════════════
+# REPORTING
+# ═══════════════════════════════════════════════════════════════════════════
+reporting:
+  # Generate detailed report
+  output_format: ["json", "markdown"]
+  output_path: ".artk/autogen/acceptance-report"
+
+  # Include artifacts in report
+  include_artifacts:
+    - ".artk/autogen/analysis.json"
+    - ".artk/autogen/plan.json"
+    - ".artk/autogen/results.json"
+    - "tests/**/*.spec.ts"
+
+  # Screenshot on failure
+  screenshot_on_failure: true
+
+  # Timing breakdown
+  include_timing: true

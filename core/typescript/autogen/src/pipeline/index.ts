@@ -5,6 +5,7 @@
 
 export {
   loadPipelineState,
+  loadPipelineStateWithInfo,
   savePipelineState,
   updatePipelineState,
   resetPipelineState,
@@ -13,4 +14,5 @@ export {
   type PipelineState,
   type PipelineStage,
   type PipelineHistoryEntry,
+  type LoadStateResult,
 } from './state.js';

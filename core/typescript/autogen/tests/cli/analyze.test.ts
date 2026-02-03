@@ -11,14 +11,18 @@ const testDir = join(process.cwd(), 'test-fixtures', 'analyze-test');
 const journeysDir = join(testDir, 'journeys');
 const outputDir = join(testDir, '.artk', 'autogen');
 
-vi.mock('../../src/utils/paths.js', () => ({
-  getAutogenDir: vi.fn(() => outputDir),
-  getAutogenArtifact: vi.fn((name: string) => join(outputDir, `${name}.json`)),
-  ensureAutogenDir: vi.fn(async () => {
-    mkdirSync(outputDir, { recursive: true });
-  }),
-  getHarnessRoot: vi.fn(() => testDir),
-}));
+vi.mock('../../src/utils/paths.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/utils/paths.js')>();
+  return {
+    ...actual,
+    getAutogenDir: vi.fn(() => outputDir),
+    getAutogenArtifact: vi.fn((name: string) => join(outputDir, `${name}.json`)),
+    ensureAutogenDir: vi.fn(async () => {
+      mkdirSync(outputDir, { recursive: true });
+    }),
+    getHarnessRoot: vi.fn(() => testDir),
+  };
+});
 
 // Mock telemetry before importing analyze
 vi.mock('../../src/shared/telemetry.js', () => ({
@@ -33,8 +37,9 @@ vi.mock('../../src/shared/telemetry.js', () => ({
 
 // Mock pipeline state
 vi.mock('../../src/pipeline/state.js', () => ({
-  loadPipelineState: vi.fn(() => ({ stage: 'initial', journeyIds: [], history: [] })),
+  loadPipelineState: vi.fn().mockResolvedValue({ stage: 'initial', journeyIds: [], history: [] }),
   updatePipelineState: vi.fn().mockResolvedValue({}),
+  canProceedTo: vi.fn(() => ({ allowed: true })),
 }));
 
 import { runAnalyze } from '../../src/cli/analyze.js';

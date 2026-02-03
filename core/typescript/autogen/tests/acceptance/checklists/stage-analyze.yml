@@ -1,0 +1,120 @@
+# Stage: Analyze
+# Verifies the analyze command produces valid structured analysis
+
+stage: analyze
+command: "artk-autogen analyze"
+description: "Parse journey file and produce structured analysis JSON"
+
+prerequisites:
+  - "Journey file exists and has valid frontmatter"
+  - "Journey status is 'clarified'"
+
+checks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE ARTIFACTS
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: ANAL-001
+    name: "Analysis JSON created"
+    type: file_exists
+    path: ".artk/autogen/analysis.json"
+    severity: critical
+
+  - id: ANAL-002
+    name: "Pipeline state file updated"
+    type: file_exists
+    path: ".artk/autogen/pipeline-state.json"
+    severity: critical
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ANALYSIS CONTENT
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: ANAL-010
+    name: "Journeys array exists"
+    type: json_contains
+    path: ".artk/autogen/analysis.json"
+    field: "journeys"
+    severity: critical
+
+  - id: ANAL-011
+    name: "Summary generated"
+    type: json_contains
+    path: ".artk/autogen/analysis.json"
+    field: "summary"
+    severity: high
+
+  - id: ANAL-012
+    name: "Journeys array populated"
+    type: json_array_length
+    path: ".artk/autogen/analysis.json"
+    field: "journeys"
+    min: 1
+    severity: critical
+
+  - id: ANAL-013
+    name: "Total steps counted"
+    type: json_contains
+    path: ".artk/autogen/analysis.json"
+    field: "summary.totalSteps"
+    severity: high
+
+  - id: ANAL-014
+    name: "Complexity distribution captured"
+    type: json_contains
+    path: ".artk/autogen/analysis.json"
+    field: "summary.complexityDistribution"
+    severity: medium
+
+  - id: ANAL-015
+    name: "Analysis timestamp recorded"
+    type: json_contains
+    path: ".artk/autogen/analysis.json"
+    field: "analyzedAt"
+    severity: medium
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STATE VALIDATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: ANAL-020
+    name: "State transitioned to 'analyzed'"
+    type: state_equals
+    expected_stage: "analyzed"
+    severity: critical
+
+  - id: ANAL-021
+    name: "Command recorded in history"
+    type: state_history_contains
+    command: "analyze"
+    severity: high
+
+  - id: ANAL-022
+    name: "Journey ID stored in state"
+    type: state_field_contains
+    field: "journeyIds"
+    severity: medium
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ERROR CASES
+# ═══════════════════════════════════════════════════════════════════════════
+error_cases:
+  - id: ANAL-ERR-001
+    name: "Rejects non-existent file"
+    input: "non-existent.md"
+    expected_exit_code: 1
+    expected_output_contains: "not found"
+
+  - id: ANAL-ERR-002
+    name: "Rejects invalid YAML frontmatter"
+    input: "fixtures/invalid-yaml.md"
+    expected_exit_code: 1
+
+  - id: ANAL-ERR-003
+    name: "Rejects path traversal"
+    input: "../../../etc/passwd"
+    expected_exit_code: 1
+    expected_output_contains: "traversal"
+
+  - id: ANAL-ERR-004
+    name: "Rejects non-clarified journey"
+    input: "fixtures/proposed-journey.md"
+    expected_exit_code: 1
+    expected_output_contains: "clarified"

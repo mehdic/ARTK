@@ -381,6 +381,113 @@ Test Files  38 passed (38)
 - Missing Playwright browsers → Run `npx playwright install chromium` in `core/typescript/`
 - Missing dependencies → Run `npm install` in repo root and `core/typescript/`
 
+### AutoGen Integration Tests
+
+The AutoGen module has three levels of integration testing:
+
+#### 1. State Machine Tests (Deterministic)
+
+Tests the pipeline state management module directly:
+
+```bash
+cd core/typescript/autogen
+npm test -- tests/integration/full-pipeline.test.ts
+```
+
+**Coverage:**
+- State machine transitions: `initial → analyzed → planned → generated → tested → completed`
+- Invalid transition blocking (e.g., can't skip from `initial` to `generated`)
+- Refinement loop tracking with multiple iterations
+- Blocked state handling and recovery
+- Error recovery from corrupted/missing state files
+- Command history tracking (100 entries max)
+
+**Location:** `tests/integration/full-pipeline.test.ts`
+
+#### 2. CLI Execution Tests (Deterministic)
+
+Tests actual CLI command execution via subprocess:
+
+```bash
+cd core/typescript/autogen
+npm test -- tests/integration/cli-execution.test.ts
+```
+
+**Coverage:**
+- Help and version flags
+- Status command (text and JSON output)
+- Clean command with artifacts
+- Analyze command with journey files
+- Error handling (unknown commands, path traversal)
+- State persistence across commands
+
+**Location:** `tests/integration/cli-execution.test.ts`
+
+#### 3. Acceptance Tests (Non-Deterministic, Includes LLM)
+
+Full end-to-end pipeline tests with LLM code generation:
+
+```bash
+cd core/typescript/autogen
+
+# Structural checks only (no LLM, fast)
+npx tsx tests/acceptance/runner.ts --structural-only
+
+# Full E2E with human verification
+npx tsx tests/acceptance/runner.ts --interactive
+
+# Specific scenario
+npx tsx tests/acceptance/runner.ts --scenario scenarios/happy-path-login.yml
+```
+
+**Coverage:**
+- Complete pipeline: analyze → plan → generate → run → refine
+- Stage-specific checklists with severity levels
+- Human verification prompts for semantic checks
+- Circuit breaker and error recovery
+
+**Location:** `tests/acceptance/`
+
+**Checklist files:**
+- `checklists/stage-analyze.yml` - Analysis validation
+- `checklists/stage-plan.yml` - Plan validation
+- `checklists/stage-generate.yml` - Code generation validation (includes LLM checks)
+- `checklists/stage-run.yml` - Test execution validation
+- `checklists/stage-refine.yml` - Refinement validation
+
+**Note:** All tests use isolated temporary directories and don't affect your actual project state.
+
+#### 4. Full E2E Test (Bootstrap + Pipeline)
+
+Complete end-to-end test that creates a sample project and runs the full CLI pipeline:
+
+```bash
+cd core/typescript/autogen
+
+# Run full E2E (skip generate - no LLM dependency)
+./tests/e2e/run-full-e2e.sh --skip-generate
+
+# Run with generate stage (may fail without LLKB)
+./tests/e2e/run-full-e2e.sh
+
+# Keep project after test for inspection
+./tests/e2e/run-full-e2e.sh --keep
+
+# Verbose output
+./tests/e2e/run-full-e2e.sh --verbose
+```
+
+**What it does:**
+1. Creates a sample project in `tmp/` (gitignored)
+2. Sets up ARTK directory structure
+3. Creates a test journey
+4. Runs: `clean → status → analyze → plan → generate`
+5. Validates state transitions at each step
+
+**Location:** `tests/e2e/run-full-e2e.sh`
+
+**IMPORTANT:** The `tmp/` directory is gitignored. Never commit files from `tmp/`.
+
 ## Key Concepts
 
 ### Journey
