@@ -118,31 +118,35 @@ success "Created package.json"
 # STEP 2: Bootstrap ARTK
 # ═══════════════════════════════════════════════════════════════════════════
 
-section "Step 2: Setting Up ARTK Structure"
+section "Step 2: Full ARTK Installation"
 
 log "Creating artk-e2e directory structure..."
 
-# Create artk-e2e structure manually (lightweight setup for E2E testing)
+# Create full artk-e2e structure
 mkdir -p artk-e2e/.artk/autogen
+mkdir -p artk-e2e/.artk/llkb/{patterns,history}
 mkdir -p artk-e2e/journeys/clarified
 mkdir -p artk-e2e/tests
 mkdir -p artk-e2e/vendor/artk-core
 mkdir -p artk-e2e/vendor/artk-autogen
 
-# Copy autogen dist (we need the CLI)
+# Copy full @artk/core from built distribution
+CORE_DIR="$ARTK_ROOT/core/typescript"
+if [ -d "$CORE_DIR/dist" ]; then
+  cp -r "$CORE_DIR/dist" artk-e2e/vendor/artk-core/
+  cp "$CORE_DIR/package.json" artk-e2e/vendor/artk-core/
+  success "@artk/core installed"
+else
+  fail "@artk/core not built. Run: npm run build in core/typescript/"
+  exit 1
+fi
+
+# Copy @artk/core-autogen
 cp -r "$AUTOGEN_DIR/dist" artk-e2e/vendor/artk-autogen/
 cp "$AUTOGEN_DIR/package.json" artk-e2e/vendor/artk-autogen/
+success "@artk/core-autogen installed"
 
-# Create minimal artk-core structure
-cat > artk-e2e/vendor/artk-core/package.json << 'COREPKG'
-{
-  "name": "@artk/core",
-  "version": "1.0.0",
-  "type": "module"
-}
-COREPKG
-
-# Create artk-e2e package.json
+# Create artk-e2e package.json with all dependencies
 cat > artk-e2e/package.json << 'ARTKPKG'
 {
   "name": "artk-e2e",
@@ -150,12 +154,63 @@ cat > artk-e2e/package.json << 'ARTKPKG'
   "type": "module",
   "scripts": {
     "test": "npx playwright test"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.57.0",
+    "yaml": "^2.3.4",
+    "zod": "^3.22.4"
   }
 }
 ARTKPKG
 
-success "artk-e2e directory created"
-success "CLI installed to vendor/artk-autogen"
+# Initialize LLKB structure
+log "Initializing LLKB..."
+cat > artk-e2e/.artk/llkb/config.yml << 'LLKBCONFIG'
+version: "1.0"
+minConfidenceForExport: 0.7
+autoLearn: true
+historyRetentionDays: 90
+LLKBCONFIG
+
+cat > artk-e2e/.artk/llkb/lessons.json << 'LLKBJSON'
+{
+  "version": "1.0",
+  "lessons": [],
+  "lastUpdated": null
+}
+LLKBJSON
+
+cat > artk-e2e/.artk/llkb/components.json << 'COMPJSON'
+{
+  "version": "1.0",
+  "components": [],
+  "lastUpdated": null
+}
+COMPJSON
+
+cat > artk-e2e/.artk/llkb/analytics.json << 'ANALJSON'
+{
+  "version": "1.0",
+  "totalLessons": 0,
+  "totalComponents": 0,
+  "lastUpdated": null
+}
+ANALJSON
+
+success "LLKB initialized"
+
+# Run npm install in artk-e2e
+log "Installing npm dependencies..."
+cd artk-e2e
+if [ "$VERBOSE" = true ]; then
+  npm install
+else
+  npm install --silent 2>/dev/null || npm install
+fi
+cd ..
+success "npm dependencies installed"
+
+success "Full ARTK installation complete"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # STEP 3: Create Test Journey
@@ -167,9 +222,9 @@ cd "$PROJECT_DIR/artk-e2e"
 
 mkdir -p journeys/clarified
 
-cat > journeys/clarified/JRN-E2E-001__login-flow.md << 'EOF'
+cat > journeys/clarified/JRN-0001__login-flow.md << 'EOF'
 ---
-id: JRN-E2E-001
+id: JRN-0001
 title: E2E Login Flow Test
 status: clarified
 tier: smoke
@@ -205,7 +260,7 @@ Verify that a user can log in with valid credentials.
 - Dashboard page is visible
 EOF
 
-success "Created test journey: JRN-E2E-001"
+success "Created test journey: JRN-0001"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # STEP 4: Run CLI Pipeline
@@ -236,7 +291,7 @@ fi
 
 # 4c. Analyze
 log "Running: artk-autogen analyze"
-$CLI analyze "journeys/clarified/JRN-E2E-001__login-flow.md"
+$CLI analyze "journeys/clarified/JRN-0001__login-flow.md"
 success "Analyze completed"
 
 # Verify analysis.json
