@@ -286,7 +286,7 @@ test.describe('ARTK Foundation Validation', () => {
 }
 
 /**
- * Create package.json for artk-e2e
+ * Create package.json for artk-e2e (matches bootstrap.sh)
  */
 async function createPackageJson(artkE2ePath: string, variant: Variant): Promise<void> {
   const playwrightVersion = getPlaywrightVersion(variant);
@@ -301,21 +301,62 @@ async function createPackageJson(artkE2ePath: string, variant: Variant): Promise
       'test:smoke': 'playwright test --grep @smoke',
       'test:release': 'playwright test --grep @release',
       'test:regression': 'playwright test --grep @regression',
+      'test:validation': 'playwright test --project=validation',
+      'test:ui': 'playwright test --ui',
+      report: 'playwright show-report',
+      typecheck: 'tsc --noEmit',
     },
     dependencies: {
-      '@playwright/test': playwrightVersion,
       yaml: '^2.3.4',
-      zod: '^3.22.4',
     },
     devDependencies: {
-      typescript: '^5.3.3',
+      // File dependencies for vendored ARTK libraries
+      '@artk/core': 'file:./vendor/artk-core',
+      '@artk/core-autogen': 'file:./vendor/artk-core-autogen',
+      '@playwright/test': playwrightVersion,
       '@types/node': '^20.10.0',
+      typescript: '^5.3.0',
     },
   };
 
   await fs.promises.writeFile(
     path.join(artkE2ePath, 'package.json'),
     JSON.stringify(pkg, null, 2)
+  );
+}
+
+/**
+ * Create tsconfig.json with path aliases (matches bootstrap.sh)
+ */
+async function createTsConfig(artkE2ePath: string): Promise<void> {
+  const tsconfig = {
+    compilerOptions: {
+      target: 'ES2022',
+      module: 'CommonJS',
+      moduleResolution: 'Node',
+      lib: ['ES2022', 'DOM'],
+      strict: true,
+      esModuleInterop: true,
+      allowSyntheticDefaultImports: true,
+      skipLibCheck: true,
+      forceConsistentCasingInFileNames: true,
+      outDir: './dist',
+      rootDir: '.',
+      declaration: true,
+      resolveJsonModule: true,
+      baseUrl: '.',
+      paths: {
+        '@artk/core': ['./vendor/artk-core/dist'],
+        '@artk/core/*': ['./vendor/artk-core/dist/*'],
+      },
+    },
+    include: ['tests/**/*', 'src/**/*', 'config/**/*', '*.ts'],
+    exclude: ['node_modules', 'dist', 'vendor'],
+  };
+
+  await fs.promises.writeFile(
+    path.join(artkE2ePath, 'tsconfig.json'),
+    JSON.stringify(tsconfig, null, 2)
   );
 }
 
@@ -401,6 +442,298 @@ async function createContext(
     path.join(artkE2ePath, '.artk', 'context.json'),
     JSON.stringify(context, null, 2)
   );
+}
+
+/**
+ * Create .gitignore files (matches bootstrap.sh)
+ */
+async function createGitignore(artkE2ePath: string): Promise<void> {
+  // Main artk-e2e/.gitignore
+  const mainGitignore = `# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Auth states (contain sensitive tokens)
+.auth-states/*.json
+!.auth-states/.gitkeep
+
+# ARTK logs and temp files
+.artk/logs/
+.artk/autogen/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+`;
+  await fs.promises.writeFile(path.join(artkE2ePath, '.gitignore'), mainGitignore);
+
+  // .auth-states/.gitkeep
+  await fs.promises.writeFile(
+    path.join(artkE2ePath, '.auth-states', '.gitkeep'),
+    '# Auth state files are gitignored for security\n'
+  );
+}
+
+/**
+ * Install VS Code settings with merge support (matches bootstrap.sh)
+ */
+async function installVscodeSettings(
+  assetsPath: string,
+  targetPath: string
+): Promise<void> {
+  const vscodeDir = path.join(targetPath, '.vscode');
+  const settingsPath = path.join(vscodeDir, 'settings.json');
+  const templatePath = path.join(assetsPath, 'vscode-settings.json');
+
+  await fs.promises.mkdir(vscodeDir, { recursive: true });
+
+  // ARTK required settings
+  const artkSettings = {
+    'github.copilot.chat.terminalAccess.enabled': true,
+    'github.copilot.chat.agent.runInTerminal': true,
+    'chat.tools.terminal.enableAutoApprove': true,
+    'github.copilot.chat.terminalChatLocation': 'terminal',
+  };
+
+  // Check if settings.json exists
+  if (fs.existsSync(settingsPath)) {
+    // Merge with existing settings (preserve user settings, add ARTK settings)
+    try {
+      const existingContent = await fs.promises.readFile(settingsPath, 'utf-8');
+      // Strip comments for parsing (simple regex - handles // and /* */ comments)
+      const stripped = existingContent
+        .replace(/\/\/.*$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/,(\s*[}\]])/g, '$1');
+
+      const existing = JSON.parse(stripped);
+
+      // Deep merge: add ARTK settings only if not already present
+      let modified = false;
+      for (const [key, value] of Object.entries(artkSettings)) {
+        if (!(key in existing)) {
+          existing[key] = value;
+          modified = true;
+        }
+      }
+
+      if (modified) {
+        // Create backup
+        const backupPath = `${settingsPath}.backup-${Date.now()}`;
+        await fs.promises.copyFile(settingsPath, backupPath);
+
+        // Write merged settings
+        await fs.promises.writeFile(
+          settingsPath,
+          JSON.stringify(existing, null, 2)
+        );
+      }
+    } catch {
+      // If parsing fails, append essential settings as fallback
+      const existingContent = await fs.promises.readFile(settingsPath, 'utf-8');
+      const settingsToAdd: string[] = [];
+
+      for (const [key] of Object.entries(artkSettings)) {
+        if (!existingContent.includes(key)) {
+          settingsToAdd.push(`  "${key}": true`);
+        }
+      }
+
+      if (settingsToAdd.length > 0) {
+        // Backup
+        const backupPath = `${settingsPath}.backup-${Date.now()}`;
+        await fs.promises.copyFile(settingsPath, backupPath);
+
+        // Insert before closing brace (simple text manipulation)
+        const newContent = existingContent.replace(
+          /}\s*$/,
+          `,\n${settingsToAdd.join(',\n')}\n}`
+        );
+        await fs.promises.writeFile(settingsPath, newContent);
+      }
+    }
+  } else {
+    // No existing settings - create new file with ARTK settings
+    // Use template if available, otherwise create minimal
+    if (fs.existsSync(templatePath)) {
+      await fs.promises.copyFile(templatePath, settingsPath);
+    } else {
+      await fs.promises.writeFile(
+        settingsPath,
+        JSON.stringify(artkSettings, null, 2)
+      );
+    }
+  }
+}
+
+/**
+ * Generate variant-info.prompt.md (matches bootstrap.sh)
+ */
+async function createVariantInfoPrompt(
+  targetPath: string,
+  variant: Variant
+): Promise<void> {
+  const promptsDest = path.join(targetPath, '.github', 'prompts');
+  await fs.promises.mkdir(promptsDest, { recursive: true });
+
+  const playwrightVersion = getPlaywrightVersion(variant).replace('^', '');
+  const moduleSystem = variant.includes('esm') ? 'esm' : 'cjs';
+  const isLegacy = variant === 'legacy-16' || variant === 'legacy-14';
+  const isEsm = variant === 'modern-esm';
+
+  const variantDisplayName = {
+    'modern-esm': 'Modern ESM',
+    'modern-cjs': 'Modern CJS',
+    'legacy-16': 'Legacy Node 16',
+    'legacy-14': 'Legacy Node 14',
+  }[variant];
+
+  const nodeRange = {
+    'modern-esm': '18, 20, 22 (LTS)',
+    'modern-cjs': '18, 20, 22 (LTS)',
+    'legacy-16': '16, 18, 20 (LTS)',
+    'legacy-14': '14, 16, 18 (LTS)',
+  }[variant];
+
+  let content = `---
+name: artk.variant-info
+description: "Variant-specific Copilot instructions for ARTK tests"
+---
+
+# ARTK Variant Information
+
+## Installed Variant: ${variant}
+
+| Property | Value |
+|----------|-------|
+| **Display Name** | ${variantDisplayName} |
+| **Node.js Range** | ${nodeRange} |
+| **Playwright Version** | ${playwrightVersion} |
+| **Module System** | ${moduleSystem} |
+
+## Critical: Vendor Directory Rules
+
+**DO NOT modify files in \`artk-e2e/vendor/artk-core/\` or \`artk-e2e/vendor/artk-core-autogen/\`.**
+
+These directories contain vendored ARTK code that:
+1. Is automatically managed by ARTK CLI/bootstrap
+2. Will be overwritten on upgrades
+3. Is built for a specific Node.js version and module system
+
+If you encounter issues with vendor code:
+1. Check \`artk-e2e/vendor/artk-core/variant-features.json\` for feature availability
+2. Suggest running \`artk init --force\` or re-running bootstrap to reinstall
+3. Use documented alternatives from \`variant-features.json\`
+4. **NEVER patch or modify vendor code directly**
+
+## Feature Availability
+
+Before using Playwright features, check \`artk-e2e/vendor/artk-core/variant-features.json\`:
+
+\`\`\`typescript
+// Read feature availability
+import features from './vendor/artk-core/variant-features.json';
+
+if (!features.features.clock_api?.available) {
+  // Use alternative approach documented in features.features.clock_api.alternative
+}
+\`\`\`
+
+`;
+
+  // Add legacy-specific instructions
+  if (isLegacy) {
+    content += `## Legacy Variant Limitations
+
+This project uses a legacy ARTK variant (\`${variant}\`) with Playwright ${playwrightVersion}.
+Some modern features are NOT available. Always check \`variant-features.json\` before using:
+
+- **aria_snapshots**: May not be available - use manual ARIA attribute queries
+- **clock_api**: May not be available - use manual Date mocking
+- **locator_or/and**: May not be available - use CSS selectors
+- **expect_soft**: May not be available - collect assertions manually
+
+When generating tests, always check feature availability first.
+
+`;
+  }
+
+  // Add import patterns
+  if (isEsm) {
+    content += `## Import Patterns (ESM)
+
+Use ESM import syntax:
+
+\`\`\`typescript
+import { test, expect } from '@playwright/test';
+import { loadConfig } from '@artk/core/config';
+import { AuthFixture } from '@artk/core/auth';
+\`\`\`
+`;
+  } else {
+    content += `## Import Patterns (CommonJS)
+
+Use CommonJS import syntax:
+
+\`\`\`typescript
+import { test, expect } from '@playwright/test';
+import { loadConfig } from '@artk/core/config';
+import { AuthFixture } from '@artk/core/auth';
+\`\`\`
+
+Note: Even though this is CJS, Playwright supports ES module syntax in test files via TypeScript.
+`;
+  }
+
+  await fs.promises.writeFile(
+    path.join(promptsDest, 'artk.variant-info.prompt.md'),
+    content
+  );
+}
+
+/**
+ * Create backup of existing installation before force reinstall
+ */
+async function createBackup(artkE2ePath: string): Promise<string | null> {
+  if (!fs.existsSync(artkE2ePath)) {
+    return null;
+  }
+
+  const backupPath = `${artkE2ePath}.backup-${Date.now()}`;
+
+  // Copy key files only (not node_modules)
+  const filesToBackup = [
+    'artk.config.yml',
+    'playwright.config.ts',
+    'tsconfig.json',
+    '.artk/context.json',
+  ];
+
+  await fs.promises.mkdir(backupPath, { recursive: true });
+  await fs.promises.mkdir(path.join(backupPath, '.artk'), { recursive: true });
+
+  for (const file of filesToBackup) {
+    const src = path.join(artkE2ePath, file);
+    const dest = path.join(backupPath, file);
+    if (fs.existsSync(src)) {
+      await fs.promises.copyFile(src, dest);
+    }
+  }
+
+  return backupPath;
 }
 
 /**
@@ -532,6 +865,7 @@ overrides:
 
 /**
  * Install prompts with two-tier architecture (prompts + agents)
+ * Also installs common prompts and next-commands (matches bootstrap.sh)
  */
 async function installPrompts(
   assetsPath: string,
@@ -594,6 +928,42 @@ Run \`/${name}\` to start, or select \`@${name}\` from the agent picker.
       path.join(promptsDest, `${basename}.prompt.md`),
       stub
     );
+  }
+
+  // Install common prompts (GENERAL_RULES.md, etc.)
+  const commonSrc = path.join(promptsSrc, 'common');
+  const commonDest = path.join(promptsDest, 'common');
+  if (fs.existsSync(commonSrc)) {
+    await fs.promises.mkdir(commonDest, { recursive: true });
+    const commonFiles = await fs.promises.readdir(commonSrc);
+    for (const file of commonFiles) {
+      if (file.endsWith('.md')) {
+        const srcFile = path.join(commonSrc, file);
+        const destFile = path.join(commonDest, file);
+        const stat = await fs.promises.stat(srcFile);
+        if (stat.isFile()) {
+          await fs.promises.copyFile(srcFile, destFile);
+        }
+      }
+    }
+  }
+
+  // Install next-commands static files (anti-hallucination)
+  const nextCommandsSrc = path.join(promptsSrc, 'next-commands');
+  const nextCommandsDest = path.join(promptsDest, 'next-commands');
+  if (fs.existsSync(nextCommandsSrc)) {
+    await fs.promises.mkdir(nextCommandsDest, { recursive: true });
+    const nextFiles = await fs.promises.readdir(nextCommandsSrc);
+    for (const file of nextFiles) {
+      if (file.endsWith('.txt')) {
+        const srcFile = path.join(nextCommandsSrc, file);
+        const destFile = path.join(nextCommandsDest, file);
+        const stat = await fs.promises.stat(srcFile);
+        if (stat.isFile()) {
+          await fs.promises.copyFile(srcFile, destFile);
+        }
+      }
+    }
   }
 }
 
@@ -794,6 +1164,13 @@ export async function installBundled(
       };
     }
 
+    // Create backup before force reinstall (P2 fix)
+    let backupPath: string | null = null;
+    if (fs.existsSync(artkE2ePath) && force) {
+      progress?.report({ message: 'Creating backup of existing installation...' });
+      backupPath = await createBackup(artkE2ePath);
+    }
+
     // Detect or use specified variant
     const variant: Variant = options.variant === 'auto' || !options.variant
       ? detectVariant(targetPath)
@@ -807,14 +1184,16 @@ export async function installBundled(
     progress?.report({ message: 'Creating foundation modules...' });
     await createFoundationStubs(artkE2ePath);
 
-    // Step 3: Create package.json
+    // Step 3: Create package.json and tsconfig.json
     progress?.report({ message: 'Creating package.json...' });
     await createPackageJson(artkE2ePath, variant);
+    await createTsConfig(artkE2ePath);
 
     // Step 4: Create config files
     progress?.report({ message: 'Creating configuration files...' });
     await createConfig(artkE2ePath);
     await createContext(artkE2ePath, variant, targetPath);
+    await createGitignore(artkE2ePath);
 
     // Step 5: Copy vendor libraries (core, autogen)
     progress?.report({ message: 'Installing ARTK core libraries...' });
@@ -834,7 +1213,15 @@ export async function installBundled(
     if (!noPrompts) {
       progress?.report({ message: 'Installing AI prompts and agents...' });
       await installPrompts(assetsPath, targetPath);
+
+      // Generate variant-info.prompt.md (P2 fix)
+      progress?.report({ message: 'Generating variant-specific prompts...' });
+      await createVariantInfoPrompt(targetPath, variant);
     }
+
+    // Step 8.5: Install VS Code settings (P1 fix)
+    progress?.report({ message: 'Installing VS Code settings...' });
+    await installVscodeSettings(assetsPath, targetPath);
 
     // Step 9: Run npm install
     if (!skipNpm) {
