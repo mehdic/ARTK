@@ -783,7 +783,7 @@ function matchPattern(text) {
 function getAllPatternNames() {
   return allPatterns.map((p) => p.name);
 }
-var PATTERN_VERSION, navigationPatterns, clickPatterns, fillPatterns, selectPatterns, checkPatterns, visibilityPatterns, toastPatterns, urlPatterns, authPatterns, waitPatterns, structuredPatterns, extendedClickPatterns, extendedFillPatterns, extendedAssertionPatterns, extendedWaitPatterns, extendedNavigationPatterns, extendedSelectPatterns, hoverPatterns, focusPatterns, allPatterns;
+var PATTERN_VERSION, navigationPatterns, clickPatterns, fillPatterns, selectPatterns, checkPatterns, visibilityPatterns, toastPatterns, urlPatterns, authPatterns, waitPatterns, structuredPatterns, extendedClickPatterns, extendedFillPatterns, extendedAssertionPatterns, extendedWaitPatterns, extendedNavigationPatterns, extendedSelectPatterns, hoverPatterns, focusPatterns, modalAlertPatterns, allPatterns;
 var init_patterns = __esm({
   "src/mapping/patterns.ts"() {
     PATTERN_VERSION = "1.1.0";
@@ -807,6 +807,16 @@ var init_patterns = __esm({
           url: `/${match[1].toLowerCase().replace(/\s+/g, "-")}`,
           waitForLoad: true
         })
+      },
+      {
+        name: "wait-for-url-change",
+        // "Wait for URL to change to '/dashboard'" or "Wait until URL contains '/settings'"
+        regex: /^(?:user\s+)?waits?\s+(?:for\s+)?(?:the\s+)?url\s+(?:to\s+)?(?:change\s+to|contain|include)\s+["']?([^"']+)["']?$/i,
+        primitiveType: "waitForURL",
+        extract: (match) => ({
+          type: "waitForURL",
+          pattern: match[1]
+        })
       }
     ];
     clickPatterns = [
@@ -826,6 +836,26 @@ var init_patterns = __esm({
         extract: (match) => ({
           type: "click",
           locator: createLocatorFromMatch("role", "link", match[1])
+        })
+      },
+      {
+        name: "click-menuitem-quoted",
+        // "Click the 'Settings' menu item" or "Click on 'Edit' menuitem"
+        regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+menu\s*item$/i,
+        primitiveType: "click",
+        extract: (match) => ({
+          type: "click",
+          locator: createLocatorFromMatch("role", "menuitem", match[1])
+        })
+      },
+      {
+        name: "click-tab-quoted",
+        // "Click the 'Details' tab" or "Select the 'Overview' tab"
+        regex: /^(?:user\s+)?(?:clicks?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+tab$/i,
+        primitiveType: "click",
+        extract: (match) => ({
+          type: "click",
+          locator: createLocatorFromMatch("role", "tab", match[1])
         })
       },
       {
@@ -869,6 +899,18 @@ var init_patterns = __esm({
         })
       },
       {
+        name: "fill-placeholder-field",
+        // "Fill 'test@example.com' in the field with placeholder 'Enter email'"
+        // or "Type 'value' into input with placeholder 'Search'"
+        regex: /^(?:user\s+)?(?:enters?|types?|fills?)\s+["']([^"']+)["']\s+(?:in|into)\s+(?:the\s+)?(?:field|input)\s+with\s+placeholder\s+["']([^"']+)["']$/i,
+        primitiveType: "fill",
+        extract: (match) => ({
+          type: "fill",
+          locator: createLocatorFromMatch("placeholder", match[2]),
+          value: createValueFromText(match[1])
+        })
+      },
+      {
         name: "fill-field-generic",
         regex: /^(?:user\s+)?(?:enters?|types?|fills?\s+in?|inputs?)\s+(.+?)\s+(?:in|into)\s+(?:the\s+)?(.+?)\s*(?:field|input)?$/i,
         primitiveType: "fill",
@@ -902,8 +944,28 @@ var init_patterns = __esm({
         })
       },
       {
+        // "Check the terms checkbox" - unquoted checkbox name
+        name: "check-checkbox-unquoted",
+        regex: /^(?:user\s+)?(?:checks?|enables?|ticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
+        primitiveType: "check",
+        extract: (match) => ({
+          type: "check",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
         name: "uncheck-checkbox",
         regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?["']([^"']+)["']\s*(?:checkbox|option)?$/i,
+        primitiveType: "uncheck",
+        extract: (match) => ({
+          type: "uncheck",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        // "Uncheck the newsletter checkbox" - unquoted checkbox name
+        name: "uncheck-checkbox-unquoted",
+        regex: /^(?:user\s+)?(?:unchecks?|disables?|unticks?)\s+(?:the\s+)?(\w+(?:\s+\w+)*)\s+checkbox$/i,
         primitiveType: "uncheck",
         extract: (match) => ({
           type: "uncheck",
@@ -987,6 +1049,26 @@ var init_patterns = __esm({
           type: "expectToast",
           toastType: "info",
           message: match[1]
+        })
+      },
+      {
+        name: "status-message-visible",
+        // "A status message 'Processing...' is visible" or "The status shows 'Loading'"
+        regex: /^(?:a\s+)?status\s+(?:message\s+)?["']([^"']+)["']\s+(?:is\s+)?(?:visible|shown|displayed)$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("role", "status", match[1])
+        })
+      },
+      {
+        name: "verify-status-message",
+        // "Verify the status message shows 'Complete'"
+        regex: /^(?:verify|check)\s+(?:that\s+)?(?:the\s+)?status\s+(?:message\s+)?(?:shows?|displays?|contains?)\s+["']([^"']+)["']$/i,
+        primitiveType: "expectVisible",
+        extract: (match) => ({
+          type: "expectVisible",
+          locator: createLocatorFromMatch("role", "status", match[1])
         })
       }
     ];
@@ -1276,6 +1358,111 @@ var init_patterns = __esm({
       }
     ];
     extendedAssertionPatterns = [
+      // ═══════════════════════════════════════════════════════════════════════════
+      // MOST SPECIFIC: Negative assertions (must come before positive counterparts)
+      // ═══════════════════════════════════════════════════════════════════════════
+      {
+        name: "verify-not-visible",
+        // "Verify the error container is not visible"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+is\s+not\s+visible$/i,
+        primitiveType: "expectHidden",
+        extract: (match) => ({
+          type: "expectHidden",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      {
+        name: "element-should-not-be-visible",
+        // "The error should not be visible" or "Error message is not displayed"
+        regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
+        primitiveType: "expectHidden",
+        extract: (match) => ({
+          type: "expectHidden",
+          locator: createLocatorFromMatch("text", match[1])
+        })
+      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // URL AND TITLE: Specific patterns that match "URL" or "title" keywords
+      // ═══════════════════════════════════════════════════════════════════════════
+      {
+        name: "verify-url-contains",
+        // "Verify the URL contains '/dashboard'"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?url\s+contains?\s+["']([^"']+)["']$/i,
+        primitiveType: "expectURL",
+        extract: (match) => ({
+          type: "expectURL",
+          pattern: match[1]
+        })
+      },
+      {
+        name: "verify-title-is",
+        // "Verify the page title is 'Settings'"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?(?:page\s+)?title\s+(?:is|equals?)\s+["']([^"']+)["']$/i,
+        primitiveType: "expectTitle",
+        extract: (match) => ({
+          type: "expectTitle",
+          title: match[1]
+        })
+      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SPECIFIC STATE ASSERTIONS: enabled, disabled, checked, value, count
+      // ═══════════════════════════════════════════════════════════════════════════
+      {
+        name: "verify-field-value",
+        // "Verify the username field has value 'testuser'"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(\w+)["']?\s+(?:field\s+)?has\s+value\s+["']([^"']+)["']$/i,
+        primitiveType: "expectValue",
+        extract: (match) => ({
+          type: "expectValue",
+          locator: createLocatorFromMatch("label", match[1]),
+          value: match[2]
+        })
+      },
+      {
+        name: "verify-element-enabled",
+        // "Verify the submit button is enabled"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:button\s+)?is\s+enabled$/i,
+        primitiveType: "expectEnabled",
+        extract: (match) => ({
+          type: "expectEnabled",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        name: "verify-element-disabled",
+        // "Verify the disabled input is disabled"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:input\s+)?is\s+disabled$/i,
+        primitiveType: "expectDisabled",
+        extract: (match) => ({
+          type: "expectDisabled",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        name: "verify-checkbox-checked",
+        // "Verify the checkbox is checked"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:checkbox\s+)?is\s+checked$/i,
+        primitiveType: "expectChecked",
+        extract: (match) => ({
+          type: "expectChecked",
+          locator: createLocatorFromMatch("label", match[1])
+        })
+      },
+      {
+        name: "verify-count",
+        // "Verify 5 items are shown" or "Verify 3 elements exist"
+        regex: /^(?:verify|confirm|check)\s+(?:that\s+)?(\d+)\s+(?:items?|elements?|rows?)\s+(?:are\s+)?(?:shown|displayed|exist|visible)$/i,
+        primitiveType: "expectCount",
+        extract: (match) => ({
+          type: "expectCount",
+          locator: { strategy: "text", value: "item" },
+          count: parseInt(match[1], 10)
+        })
+      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // GENERIC VISIBILITY: Catch-all patterns for "is visible/displayed/showing"
+      // These must come AFTER specific patterns to avoid over-matching
+      // ═══════════════════════════════════════════════════════════════════════════
       {
         name: "verify-element-showing",
         // "Verify the dashboard is showing/displayed"
@@ -1309,8 +1496,8 @@ var init_patterns = __esm({
       },
       {
         name: "confirm-that-assertion",
-        // "Confirm that the message appears" or "Confirm the error is shown"
-        regex: /^confirm\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
+        // "Confirm that the message appears", "Verify success message appears", or "Confirm the error is shown"
+        regex: /^(?:verify|confirm)\s+(?:that\s+)?(?:the\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
         primitiveType: "expectVisible",
         extract: (match) => ({
           type: "expectVisible",
@@ -1327,16 +1514,9 @@ var init_patterns = __esm({
           locator: createLocatorFromMatch("text", match[1])
         })
       },
-      {
-        name: "element-should-not-be-visible",
-        // "The error should not be visible" or "Error message is not displayed"
-        regex: /^(?:the\s+)?["']?(.+?)["']?\s+(?:should\s+)?(?:not\s+be|is\s+not)\s+(?:visible|displayed|shown)$/i,
-        primitiveType: "expectHidden",
-        extract: (match) => ({
-          type: "expectHidden",
-          locator: createLocatorFromMatch("text", match[1])
-        })
-      },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // GENERIC TEXT ASSERTIONS: "contains" patterns (must be last to avoid conflicts)
+      // ═══════════════════════════════════════════════════════════════════════════
       {
         name: "element-contains-text",
         // "The header contains 'Welcome'" or "Element should contain 'text'"
@@ -1486,10 +1666,41 @@ var init_patterns = __esm({
         })
       }
     ];
+    modalAlertPatterns = [
+      {
+        name: "dismiss-modal",
+        // "Dismiss the modal" or "Close the modal dialog"
+        regex: /^(?:dismiss|close)\s+(?:the\s+)?(?:modal|dialog)(?:\s+dialog)?$/i,
+        primitiveType: "dismissModal",
+        extract: () => ({
+          type: "dismissModal"
+        })
+      },
+      {
+        name: "accept-alert",
+        // "Accept the alert" or "Click OK on alert"
+        regex: /^(?:accept|confirm|ok)\s+(?:the\s+)?alert$/i,
+        primitiveType: "acceptAlert",
+        extract: () => ({
+          type: "acceptAlert"
+        })
+      },
+      {
+        name: "dismiss-alert",
+        // "Dismiss the alert" or "Cancel the alert"
+        regex: /^(?:dismiss|cancel|close)\s+(?:the\s+)?alert$/i,
+        primitiveType: "dismissAlert",
+        extract: () => ({
+          type: "dismissAlert"
+        })
+      }
+    ];
     allPatterns = [
       ...structuredPatterns,
       ...authPatterns,
       ...toastPatterns,
+      ...modalAlertPatterns,
+      // Modal/alert patterns for dialog handling
       // Extended patterns come BEFORE base patterns to match more specific cases first
       ...extendedNavigationPatterns,
       // Must be before navigationPatterns (e.g., "Go back" vs "Go to")
@@ -8970,7 +9181,7 @@ function parseJourneyFile(filePath) {
     }
   }
   const acceptanceCriteria = [];
-  const acMatch = content.match(/##\s*Acceptance Criteria\s*\n([\s\S]*?)(?=\n##|\n---|\z)/i);
+  const acMatch = content.match(/##\s*Acceptance Criteria\s*\n([\s\S]*?)(?=\n##|\n---|$)/i);
   if (acMatch && acMatch[1]) {
     const lines = acMatch[1].split("\n");
     for (const line of lines) {
@@ -8981,7 +9192,7 @@ function parseJourneyFile(filePath) {
     }
   }
   const steps = [];
-  const stepsMatch = content.match(/##\s*(?:Steps|Procedure|Test Steps)\s*\n([\s\S]*?)(?=\n##|\n---|\z)/i);
+  const stepsMatch = content.match(/##\s*(?:Steps|Procedure|Test Steps)\s*\n([\s\S]*?)(?=\n##|\n---|$)/i);
   if (stepsMatch && stepsMatch[1]) {
     const lines = stepsMatch[1].split("\n");
     let stepIndex = 0;
@@ -9251,58 +9462,395 @@ Examples:
   }
 });
 
+// src/mapping/unifiedMatcher.ts
+function unifiedMatch(text, options = {}) {
+  const {
+    useLlkb = true,
+    llkbRoot,
+    minLlkbConfidence = 0.7,
+    debug = false
+  } = options;
+  const trimmedText = text.trim();
+  for (const pattern of allPatterns) {
+    const match = trimmedText.match(pattern.regex);
+    if (match) {
+      const primitive = pattern.extract(match);
+      if (primitive) {
+        if (debug) {
+          console.debug(`[UnifiedMatcher] Core match: ${pattern.name} for "${trimmedText}"`);
+        }
+        return {
+          primitive,
+          source: "core",
+          patternName: pattern.name
+        };
+      }
+    }
+  }
+  if (useLlkb) {
+    try {
+      const llkbMatch = matchLlkbPattern(trimmedText, {
+        llkbRoot,
+        minConfidence: minLlkbConfidence
+      });
+      if (llkbMatch) {
+        if (debug) {
+          console.debug(
+            `[UnifiedMatcher] LLKB match: ${llkbMatch.patternId} (confidence: ${llkbMatch.confidence}) for "${trimmedText}"`
+          );
+        }
+        return {
+          primitive: llkbMatch.primitive,
+          source: "llkb",
+          llkbPatternId: llkbMatch.patternId,
+          llkbConfidence: llkbMatch.confidence
+        };
+      }
+    } catch (err3) {
+      if (debug) {
+        console.debug(`[UnifiedMatcher] LLKB lookup failed: ${err3}`);
+      }
+    }
+  }
+  if (debug) {
+    console.debug(`[UnifiedMatcher] No match for: "${trimmedText}"`);
+  }
+  return {
+    primitive: null,
+    source: "none"
+  };
+}
+var init_unifiedMatcher = __esm({
+  "src/mapping/unifiedMatcher.ts"() {
+    init_patterns();
+    init_patternExtension();
+  }
+});
+
+// src/mapping/plannedActionAdapter.ts
+function irPrimitiveToPlannedAction(primitive) {
+  switch (primitive.type) {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NAVIGATION
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "goto":
+      return { type: "navigate", target: primitive.url };
+    case "reload":
+      return { type: "reload" };
+    case "goBack":
+      return { type: "goBack" };
+    case "goForward":
+      return { type: "goForward" };
+    case "waitForURL":
+      return {
+        type: "waitForURL",
+        target: typeof primitive.pattern === "string" ? primitive.pattern : primitive.pattern.source
+      };
+    case "waitForResponse":
+      return { type: "waitForNetwork", target: primitive.urlPattern };
+    case "waitForLoadingComplete":
+      return { type: "wait", options: { timeout: primitive.timeout ?? 5e3 } };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // WAIT PRIMITIVES
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "waitForVisible":
+      return { type: "waitForVisible", target: locatorToTarget(primitive.locator) };
+    case "waitForHidden":
+      return { type: "waitForHidden", target: locatorToTarget(primitive.locator) };
+    case "waitForTimeout":
+      return { type: "wait", options: { timeout: primitive.ms } };
+    case "waitForNetworkIdle":
+      return { type: "waitForNetwork" };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CLICK INTERACTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "click":
+      return { type: "click", target: locatorToTarget(primitive.locator) };
+    case "dblclick":
+      return { type: "dblclick", target: locatorToTarget(primitive.locator) };
+    case "rightClick":
+      return { type: "rightClick", target: locatorToTarget(primitive.locator) };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FORM INTERACTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "fill":
+      return {
+        type: "fill",
+        target: locatorToTarget(primitive.locator),
+        value: valueToString(primitive.value)
+      };
+    case "select":
+      return {
+        type: "select",
+        target: locatorToTarget(primitive.locator),
+        value: primitive.option
+      };
+    case "check":
+      return { type: "check", target: locatorToTarget(primitive.locator) };
+    case "uncheck":
+      return { type: "uncheck", target: locatorToTarget(primitive.locator) };
+    case "clear":
+      return { type: "clear", target: locatorToTarget(primitive.locator) };
+    case "upload":
+      return {
+        type: "upload",
+        target: locatorToTarget(primitive.locator),
+        files: primitive.files
+      };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OTHER INTERACTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "press":
+      return { type: "press", key: primitive.key };
+    case "hover":
+      return { type: "hover", target: locatorToTarget(primitive.locator) };
+    case "focus":
+      return { type: "focus", target: locatorToTarget(primitive.locator) };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ASSERTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "expectVisible":
+      return { type: "assert", target: locatorToTarget(primitive.locator) };
+    case "expectNotVisible":
+    case "expectHidden":
+      return { type: "assertHidden", target: locatorToTarget(primitive.locator) };
+    case "expectText":
+      return {
+        type: "assertText",
+        target: locatorToTarget(primitive.locator),
+        value: typeof primitive.text === "string" ? primitive.text : primitive.text.source
+      };
+    case "expectContainsText":
+      return {
+        type: "assertText",
+        target: locatorToTarget(primitive.locator),
+        value: primitive.text
+      };
+    case "expectValue":
+      return {
+        type: "assertValue",
+        target: locatorToTarget(primitive.locator),
+        value: primitive.value
+      };
+    case "expectChecked":
+      return { type: "assertChecked", target: locatorToTarget(primitive.locator) };
+    case "expectEnabled":
+      return { type: "assertEnabled", target: locatorToTarget(primitive.locator) };
+    case "expectDisabled":
+      return { type: "assertDisabled", target: locatorToTarget(primitive.locator) };
+    case "expectURL":
+      return {
+        type: "assertURL",
+        target: typeof primitive.pattern === "string" ? primitive.pattern : primitive.pattern.source
+      };
+    case "expectTitle":
+      return {
+        type: "assertTitle",
+        target: typeof primitive.title === "string" ? primitive.title : primitive.title.source
+      };
+    case "expectCount":
+      return {
+        type: "assertCount",
+        target: locatorToTarget(primitive.locator),
+        count: primitive.count
+      };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SIGNALS (TOASTS, MODALS, ALERTS)
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "expectToast":
+      return {
+        type: "assertToast",
+        toastType: primitive.toastType,
+        value: primitive.message
+      };
+    case "dismissModal":
+      return { type: "dismissModal" };
+    case "acceptAlert":
+      return { type: "acceptAlert" };
+    case "dismissAlert":
+      return { type: "dismissAlert" };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MODULE CALLS
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "callModule":
+      return {
+        type: "callModule",
+        module: primitive.module,
+        method: primitive.method
+      };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BLOCKED/TODO
+    // ═══════════════════════════════════════════════════════════════════════════
+    case "blocked":
+      return { type: "custom", target: primitive.sourceText };
+    default:
+      const _exhaustive = primitive;
+      return { type: "custom", target: String(_exhaustive.type) };
+  }
+}
+function locatorToTarget(locator) {
+  switch (locator.strategy) {
+    case "role":
+      if (locator.options?.name) {
+        return `${locator.value}:${locator.options.name}`;
+      }
+      return locator.value;
+    case "placeholder":
+      return `placeholder:${locator.value}`;
+    case "label":
+    case "text":
+    case "testid":
+      return locator.value;
+    case "css":
+      return locator.value;
+    default:
+      return locator.value;
+  }
+}
+function valueToString(value) {
+  switch (value.type) {
+    case "literal":
+      return value.value;
+    case "actor":
+      return `{{${value.value}}}`;
+    case "testData":
+      return `$${value.value}`;
+    case "generated":
+      return value.value;
+    case "runId":
+      return "${runId}";
+    default:
+      return value.value || "";
+  }
+}
+function plannedActionToIRPrimitive(action) {
+  switch (action.type) {
+    case "navigate":
+      return { type: "goto", url: action.target || "/" };
+    case "reload":
+      return { type: "reload" };
+    case "goBack":
+      return { type: "goBack" };
+    case "goForward":
+      return { type: "goForward" };
+    case "click":
+      return { type: "click", locator: targetToLocator(action.target || "") };
+    case "dblclick":
+      return { type: "dblclick", locator: targetToLocator(action.target || "") };
+    case "rightClick":
+      return { type: "rightClick", locator: targetToLocator(action.target || "") };
+    case "fill":
+      return {
+        type: "fill",
+        locator: targetToLocator(action.target || ""),
+        value: stringToValue(action.value || "")
+      };
+    case "select":
+      return {
+        type: "select",
+        locator: targetToLocator(action.target || ""),
+        option: action.value || ""
+      };
+    case "check":
+      return { type: "check", locator: targetToLocator(action.target || "") };
+    case "uncheck":
+      return { type: "uncheck", locator: targetToLocator(action.target || "") };
+    case "press":
+      return { type: "press", key: action.key || "Enter" };
+    case "hover":
+      return { type: "hover", locator: targetToLocator(action.target || "") };
+    case "focus":
+      return { type: "focus", locator: targetToLocator(action.target || "") };
+    case "clear":
+      return { type: "clear", locator: targetToLocator(action.target || "") };
+    case "assert":
+      return { type: "expectVisible", locator: targetToLocator(action.target || "") };
+    case "assertHidden":
+      return { type: "expectHidden", locator: targetToLocator(action.target || "") };
+    case "assertText":
+      return {
+        type: "expectText",
+        locator: targetToLocator(action.target || ""),
+        text: action.value || ""
+      };
+    case "assertURL":
+      return { type: "expectURL", pattern: action.target || "/" };
+    case "assertTitle":
+      return { type: "expectTitle", title: action.target || "" };
+    case "assertToast":
+      return {
+        type: "expectToast",
+        toastType: action.toastType || "info",
+        message: action.value
+      };
+    case "waitForVisible":
+      return { type: "waitForVisible", locator: targetToLocator(action.target || "") };
+    case "waitForHidden":
+      return { type: "waitForHidden", locator: targetToLocator(action.target || "") };
+    case "waitForNetwork":
+      return { type: "waitForNetworkIdle" };
+    case "wait":
+      return { type: "waitForTimeout", ms: action.options?.timeout || 5e3 };
+    case "dismissModal":
+      return { type: "dismissModal" };
+    case "acceptAlert":
+      return { type: "acceptAlert" };
+    case "dismissAlert":
+      return { type: "dismissAlert" };
+    case "callModule":
+      return {
+        type: "callModule",
+        module: action.module || "unknown",
+        method: action.method || "unknown"
+      };
+    case "custom":
+      return { type: "blocked", reason: "custom action", sourceText: action.target || "" };
+    default:
+      return null;
+  }
+}
+function targetToLocator(target) {
+  const roleMatch = target.match(/^(\w+):(.+)$/);
+  if (roleMatch) {
+    return {
+      strategy: "role",
+      value: roleMatch[1],
+      options: { name: roleMatch[2] }
+    };
+  }
+  return { strategy: "text", value: target };
+}
+function stringToValue(str) {
+  if (/^\{\{.+\}\}$/.test(str)) {
+    return { type: "actor", value: str.slice(2, -2) };
+  }
+  if (/^\$.+/.test(str)) {
+    return { type: "testData", value: str.slice(1) };
+  }
+  if (/\$\{.+\}/.test(str)) {
+    return { type: "generated", value: str };
+  }
+  return { type: "literal", value: str };
+}
+var init_plannedActionAdapter = __esm({
+  "src/mapping/plannedActionAdapter.ts"() {
+  }
+});
+
 // src/cli/plan.ts
 var plan_exports = {};
 __export(plan_exports, {
   runPlan: () => runPlan
 });
-function convertStepToAction(step) {
-  const text = step.text.toLowerCase();
-  if (step.type === "navigation") {
-    const urlMatch = text.match(/(?:to|url|page)\s+["']?([^"'\s]+)/i);
-    return {
-      type: "navigate",
-      target: urlMatch?.[1] || "/"
-    };
+function convertStepToAction(step, options) {
+  const result = unifiedMatch(step.text, {
+    useLlkb: true,
+    llkbRoot: options?.llkbRoot
+  });
+  if (result.primitive) {
+    return irPrimitiveToPlannedAction(result.primitive);
   }
-  if (step.type === "interaction") {
-    return {
-      type: "click",
-      target: extractTarget(text)
-    };
-  }
-  if (step.type === "form") {
-    const valueMatch = text.match(/["']([^"']+)["']/);
-    return {
-      type: "fill",
-      target: extractTarget(text),
-      value: valueMatch?.[1] || ""
-    };
-  }
-  if (step.type === "assertion") {
-    return {
-      type: "assert",
-      target: extractTarget(text)
-    };
-  }
-  if (step.type === "wait") {
-    return {
-      type: "wait",
-      options: { timeout: 5e3 }
-    };
-  }
-  return {
-    type: "custom",
-    target: text
-  };
-}
-function extractTarget(text) {
-  const quoted = text.match(/["']([^"']+)["']/);
-  if (quoted && quoted[1]) return quoted[1];
-  const buttonMatch = text.match(/(?:button|link|input|field)\s+(?:called|named|labeled)?\s*["']?(\w+)/i);
-  if (buttonMatch && buttonMatch[1]) return buttonMatch[1];
-  const words = text.split(/\s+/).filter((w) => w.length > 2);
-  return words[words.length - 1] || "unknown";
+  return { type: "custom", target: step.text };
 }
 function inferSelectors(step) {
   const selectors = [];
@@ -9581,6 +10129,8 @@ var init_plan = __esm({
     init_state();
     init_telemetry();
     init_multi_sampler();
+    init_unifiedMatcher();
+    init_plannedActionAdapter();
     USAGE2 = `
 Usage: artk-autogen plan [options]
 
@@ -9996,11 +10546,23 @@ async function runGenerateFromPlan(planPath, journeyFilter, options) {
   const allModules = [];
   const allWarnings = [];
   const allErrors = [];
+  let totalLlkbRecorded = 0;
+  const useLlkb = !options["no-llkb"];
   for (const plan of plans) {
     if (!quiet) {
       console.log(`  Processing: ${plan.journeyId}`);
     }
-    if (plan.journeyPath && existsSync(plan.journeyPath)) {
+    if (plan.steps && plan.steps.length > 0 && plan.steps.some((s) => s.action)) {
+      const code = generateCodeFromPlan(plan);
+      allTests.push({
+        filename: `${plan.journeyId.toLowerCase()}.spec.ts`,
+        code
+      });
+      if (useLlkb && !dryRun) {
+        const llkbResult = recordLlkbLearning(plan, { quiet });
+        totalLlkbRecorded += llkbResult.recorded;
+      }
+    } else if (plan.journeyPath && existsSync(plan.journeyPath)) {
       const genOptions = {
         journeys: [plan.journeyPath],
         isFilePaths: true,
@@ -10017,7 +10579,7 @@ async function runGenerateFromPlan(planPath, journeyFilter, options) {
     } else {
       const code = generateCodeFromPlan(plan);
       allTests.push({
-        filename: `${plan.journeyId}.spec.ts`,
+        filename: `${plan.journeyId.toLowerCase()}.spec.ts`,
         code
       });
     }
@@ -10027,7 +10589,7 @@ async function runGenerateFromPlan(planPath, journeyFilter, options) {
       mkdirSync(outputDir, { recursive: true });
     }
     for (const test of allTests) {
-      const filePath = join(outputDir, test.filename);
+      const filePath = validateOutputPath(outputDir, test.filename);
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, test.code, "utf-8");
       if (!quiet) {
@@ -10035,7 +10597,7 @@ async function runGenerateFromPlan(planPath, journeyFilter, options) {
       }
     }
     for (const mod of allModules) {
-      const filePath = join(outputDir, "modules", mod.filename);
+      const filePath = validateOutputPath(outputDir, join("modules", mod.filename));
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, mod.code, "utf-8");
       if (!quiet) {
@@ -10060,6 +10622,9 @@ Summary:`);
     console.log(`  Modules: ${allModules.length}`);
     console.log(`  Errors: ${allErrors.length}`);
     console.log(`  Warnings: ${allWarnings.length}`);
+    if (useLlkb && totalLlkbRecorded > 0) {
+      console.log(`  LLKB patterns learned: ${totalLlkbRecorded}`);
+    }
   }
   if (allErrors.length > 0) {
     console.error("\nErrors:");
@@ -10068,6 +10633,36 @@ Summary:`);
     }
     process.exit(1);
   }
+}
+function recordLlkbLearning(plan, options = {}) {
+  let recorded = 0;
+  let skipped = 0;
+  for (const step of plan.steps) {
+    if (step.action.type === "custom") {
+      skipped++;
+      continue;
+    }
+    const primitive = plannedActionToIRPrimitive(step.action);
+    if (!primitive) {
+      skipped++;
+      continue;
+    }
+    try {
+      recordPatternSuccess(
+        step.description,
+        primitive,
+        plan.journeyId,
+        { llkbRoot: options.llkbRoot }
+      );
+      recorded++;
+    } catch (err3) {
+      if (!options.quiet) {
+        console.warn(`  Warning: Failed to record LLKB pattern: ${err3}`);
+      }
+      skipped++;
+    }
+  }
+  return { recorded, skipped };
 }
 function generateCodeFromPlan(plan) {
   const imports = plan.imports.join(", ");
@@ -10078,27 +10673,7 @@ function generateCodeFromPlan(plan) {
   const fixtureList = fixtureSet.size > 0 ? Array.from(fixtureSet) : ["page"];
   const fixtures = `{ ${fixtureList.join(", ")} }`;
   const steps = plan.steps.map((step, idx) => {
-    let code = "";
-    const action = step.action;
-    switch (action.type) {
-      case "navigate":
-        code = `  await page.goto('${action.target || "/"}');`;
-        break;
-      case "click":
-        code = `  await page.locator('${action.target || "button"}').click();`;
-        break;
-      case "fill":
-        code = `  await page.locator('${action.target || "input"}').fill('${action.value || ""}');`;
-        break;
-      case "assert":
-        code = `  await expect(page.locator('${action.target || "*"}')).toBeVisible();`;
-        break;
-      case "wait":
-        code = `  await page.waitForLoadState('${step.waitCondition || "networkidle"}');`;
-        break;
-      default:
-        code = `  // TODO: ${step.description}`;
-    }
+    const code = generateActionCode(step.action, step.waitCondition);
     return `    // Step ${idx + 1}: ${step.description}
 ${code}`;
   }).join("\n\n");
@@ -10115,6 +10690,176 @@ ${steps}
   });
 });
 `;
+}
+function escapeStringForCode(str) {
+  return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/`/g, "\\`").replace(/\$/g, "\\$").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+}
+function validateOutputPath(outputDir, filename) {
+  const { resolve: resolve7, relative: relative4 } = __require("path");
+  const resolvedOutput = resolve7(outputDir);
+  const resolvedFile = resolve7(outputDir, filename);
+  const relativePath = relative4(resolvedOutput, resolvedFile);
+  if (relativePath.startsWith("..") || resolve7(relativePath) === relativePath) {
+    throw new Error(`Security: Path traversal detected in filename "${filename}"`);
+  }
+  return resolvedFile;
+}
+function sanitizeNavigationUrl(url) {
+  const trimmedUrl = url.trim().toLowerCase();
+  for (const scheme of DANGEROUS_URL_SCHEMES) {
+    if (trimmedUrl.startsWith(scheme)) {
+      console.warn(`Security: Blocked dangerous URL scheme "${scheme}" - using "/" instead`);
+      return "/";
+    }
+  }
+  return url;
+}
+function generateActionCode(action, waitCondition) {
+  const target = action.target || "";
+  const value = action.value || "";
+  switch (action.type) {
+    // Navigation
+    case "navigate":
+      return `    await page.goto('${escapeStringForCode(sanitizeNavigationUrl(target || "/"))}');`;
+    case "reload":
+      return `    await page.reload();`;
+    case "goBack":
+      return `    await page.goBack();`;
+    case "goForward":
+      return `    await page.goForward();`;
+    // Click interactions
+    case "click":
+      return generateClickCode(target);
+    case "dblclick":
+      return generateClickCode(target).replace(".click()", ".dblclick()");
+    case "rightClick":
+      return generateClickCode(target).replace(".click()", ".click({ button: 'right' })");
+    // Form interactions
+    case "fill":
+      return generateFillCode(target, value);
+    case "select":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').selectOption('${escapeStringForCode(value)}');`;
+    case "check":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').check();`;
+    case "uncheck":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').uncheck();`;
+    case "clear":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').clear();`;
+    case "upload":
+      const files = action.files?.map((f) => `'${escapeStringForCode(f)}'`).join(", ") || "";
+      return `    await page.getByLabel('${escapeStringForCode(target)}').setInputFiles([${files}]);`;
+    // Other interactions
+    case "press":
+      const key = action.key || "Enter";
+      return `    await page.keyboard.press('${key}');`;
+    case "hover":
+      return generateClickCode(target).replace(".click()", ".hover()");
+    case "focus":
+      return `    await page.getByLabel('${escapeStringForCode(target)}').focus();`;
+    // Visibility assertions
+    case "assert":
+      return generateAssertCode(target);
+    case "assertHidden":
+      return `    await expect(page.getByText('${escapeStringForCode(target)}')).toBeHidden();`;
+    // Text/value assertions
+    case "assertText":
+      return `    await expect(page.getByText('${escapeStringForCode(target)}')).toContainText('${escapeStringForCode(value)}');`;
+    case "assertValue":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toHaveValue('${escapeStringForCode(value)}');`;
+    // State assertions
+    case "assertChecked":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toBeChecked();`;
+    case "assertEnabled":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toBeEnabled();`;
+    case "assertDisabled":
+      return `    await expect(page.getByLabel('${escapeStringForCode(target)}')).toBeDisabled();`;
+    case "assertCount":
+      const count = action.count ?? 1;
+      return `    await expect(page.getByText('${escapeStringForCode(target)}')).toHaveCount(${count});`;
+    // Page assertions
+    case "assertURL":
+      return `    await expect(page).toHaveURL(/${escapeStringForCode(target).replace(/\//g, "\\/")}/);`;
+    case "assertTitle":
+      return `    await expect(page).toHaveTitle('${escapeStringForCode(target)}');`;
+    // Toast/notification assertions
+    case "assertToast":
+      const toastType = action.toastType || "info";
+      const message = value ? `.getByText('${escapeStringForCode(value)}')` : "";
+      return `    await expect(page.getByRole('alert')${message}).toBeVisible(); // ${toastType} toast`;
+    // Modal/alert handling
+    case "dismissModal":
+      return `    await page.getByRole('dialog').getByRole('button', { name: /close|cancel|dismiss/i }).click();`;
+    case "acceptAlert":
+      return `    page.once('dialog', dialog => dialog.accept());`;
+    case "dismissAlert":
+      return `    page.once('dialog', dialog => dialog.dismiss());`;
+    // Wait actions
+    case "wait":
+      return `    await page.waitForLoadState('${waitCondition || "networkidle"}');`;
+    case "waitForVisible":
+      return `    await page.getByText('${escapeStringForCode(target)}').waitFor({ state: 'visible' });`;
+    case "waitForHidden":
+      return `    await page.getByText('${escapeStringForCode(target)}').waitFor({ state: 'hidden' });`;
+    case "waitForURL":
+      return `    await page.waitForURL(/${escapeStringForCode(target).replace(/\//g, "\\/")}/);`;
+    case "waitForNetwork":
+      return `    await page.waitForLoadState('networkidle');`;
+    // Module calls
+    case "callModule":
+      const module = action.module || "unknown";
+      const method = action.method || "run";
+      return `    // Module call: ${module}.${method}()
+    // TODO: Implement module call or use fixture`;
+    // Custom/fallback
+    case "custom":
+    default:
+      return `    // TODO: ${target}`;
+  }
+}
+function generateClickCode(target) {
+  if (target.startsWith("button:")) {
+    const name = target.slice(7);
+    return `    await page.getByRole('button', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("link:")) {
+    const name = target.slice(5);
+    return `    await page.getByRole('link', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("checkbox:")) {
+    const name = target.slice(9);
+    return `    await page.getByLabel('${escapeStringForCode(name)}').click();`;
+  }
+  if (target.startsWith("menu:")) {
+    const name = target.slice(5);
+    return `    await page.getByRole('menuitem', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("tab:")) {
+    const name = target.slice(4);
+    return `    await page.getByRole('tab', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  if (target.startsWith("menuitem:")) {
+    const name = target.slice(9);
+    return `    await page.getByRole('menuitem', { name: '${escapeStringForCode(name)}' }).click();`;
+  }
+  return `    await page.getByText('${escapeStringForCode(target)}').click();`;
+}
+function generateFillCode(target, value) {
+  if (target.startsWith("placeholder:")) {
+    const placeholder = target.slice(12);
+    return `    await page.getByPlaceholder('${escapeStringForCode(placeholder)}').fill('${escapeStringForCode(value)}');`;
+  }
+  return `    await page.getByLabel('${escapeStringForCode(target)}').fill('${escapeStringForCode(value)}');`;
+}
+function generateAssertCode(target) {
+  if (target.startsWith("status:")) {
+    const name = target.slice(7);
+    return `    await expect(page.getByRole('status', { name: '${escapeStringForCode(name)}' })).toBeVisible();`;
+  }
+  const lowerTarget = target.toLowerCase();
+  if (lowerTarget.includes("page") || lowerTarget.includes("dashboard") || lowerTarget.includes("home")) {
+    return `    await expect(page.getByRole('heading', { level: 1 })).toContainText('${escapeStringForCode(target)}');`;
+  }
+  return `    await expect(page.getByText('${escapeStringForCode(target)}')).toBeVisible();`;
 }
 async function loadLlkbResources(options, quiet) {
   const configPaths = [];
@@ -10327,7 +11072,7 @@ async function runGenerate(args) {
       mkdirSync(outputDir, { recursive: true });
     }
     for (const test of result.tests) {
-      const filePath = join(outputDir, test.filename);
+      const filePath = validateOutputPath(outputDir, test.filename);
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, test.code, "utf-8");
       if (!quiet) {
@@ -10335,7 +11080,7 @@ async function runGenerate(args) {
       }
     }
     for (const mod of result.modules) {
-      const filePath = join(outputDir, "modules", mod.filename);
+      const filePath = validateOutputPath(outputDir, join("modules", mod.filename));
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, mod.code, "utf-8");
       if (!quiet) {
@@ -10385,7 +11130,7 @@ Summary:`);
     process.exit(1);
   }
 }
-var USAGE3;
+var DANGEROUS_URL_SCHEMES, USAGE3;
 var init_generate = __esm({
   "src/cli/generate.ts"() {
     init_index();
@@ -10395,6 +11140,14 @@ var init_generate = __esm({
     init_blockedStepAnalysis();
     init_state();
     init_telemetry();
+    init_patternExtension();
+    init_plannedActionAdapter();
+    DANGEROUS_URL_SCHEMES = [
+      "javascript:",
+      "data:",
+      "vbscript:",
+      "file:"
+    ];
     USAGE3 = `
 Usage: artk-autogen generate [options] [journey-files...]
 
@@ -11369,6 +12122,14 @@ function determinePipelineStage(artifacts, persistedState) {
       stage: "tested",
       canProceed: true,
       nextAction: hasFailures2 ? 'Run "artk-autogen refine" to analyze failures' : "Pipeline complete - all tests passing"
+    };
+  }
+  const testsGenerated = persistedState?.stage === "generated" || persistedState?.testPaths && persistedState.testPaths.length > 0;
+  if (testsGenerated && hasPlan) {
+    return {
+      stage: "generated",
+      canProceed: true,
+      nextAction: 'Run "artk-autogen run" to execute generated tests'
     };
   }
   if (hasPlan) {
