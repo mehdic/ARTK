@@ -15,6 +15,7 @@ export interface BundledInstallOptions {
   variant?: 'auto' | 'modern-esm' | 'modern-cjs' | 'legacy-16' | 'legacy-14';
   skipNpm?: boolean;
   skipLlkb?: boolean;
+  forceLlkb?: boolean; // P2 FIX: Force LLKB reinitialization (delete and recreate)
   skipBrowsers?: boolean;
   noPrompts?: boolean;
   force?: boolean;
@@ -170,10 +171,12 @@ function detectProjectNodeVersion(targetPath: string): number {
 /**
  * Detect available system browsers with fallback to bundled
  * Returns browser channel and version info
+ * P1 FIX: Optimized Linux detection - check path existence before spawning
  */
 async function detectBrowser(): Promise<{ channel: string; version: string | null; path: string | null }> {
   const isWindows = process.platform === 'win32';
   const isMac = process.platform === 'darwin';
+  const isLinux = !isWindows && !isMac;
 
   const testBrowser = async (browserPath: string): Promise<string | null> => {
     return new Promise((resolve) => {
@@ -213,6 +216,28 @@ async function detectBrowser(): Promise<{ channel: string; version: string | nul
     });
   };
 
+  // P1 FIX: Check if a command exists on Linux using 'which'
+  const commandExists = (cmd: string): boolean => {
+    if (!isLinux) return true; // Only needed for Linux command names
+    try {
+      const { execSync } = require('child_process');
+      execSync(`which ${cmd}`, { encoding: 'utf-8', timeout: 2000, stdio: 'pipe' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // P1 FIX: Check if browser path is accessible before spawning
+  const browserExists = (browserPath: string): boolean => {
+    // Absolute paths - check with fs.existsSync
+    if (browserPath.startsWith('/') || browserPath.includes('\\')) {
+      return fs.existsSync(browserPath);
+    }
+    // Command names (Linux) - check with 'which'
+    return commandExists(browserPath);
+  };
+
   // Edge paths by platform
   const edgePaths: string[] = isWindows
     ? [
@@ -231,7 +256,7 @@ async function detectBrowser(): Promise<{ channel: string; version: string | nul
   // Try Edge first
   for (const edgePath of edgePaths) {
     try {
-      if (isWindows && !fs.existsSync(edgePath)) continue;
+      if (!browserExists(edgePath)) continue;
       const version = await testBrowser(edgePath);
       if (version) {
         const versionNum = version.match(/[\d.]+/)?.[0] || null;
@@ -261,7 +286,7 @@ async function detectBrowser(): Promise<{ channel: string; version: string | nul
   // Try Chrome
   for (const chromePath of chromePaths) {
     try {
-      if (isWindows && !fs.existsSync(chromePath)) continue;
+      if (!browserExists(chromePath)) continue;
       const version = await testBrowser(chromePath);
       if (version) {
         const versionNum = version.match(/[\d.]+/)?.[0] || null;
@@ -1449,7 +1474,11 @@ If you need different functionality:
     '# AI agents should not modify files in this directory\n# This is vendored code managed by ARTK CLI\n\n*\n'
   );
 
-  // variant-features.json
+  // variant-features.json - P1 FIX: Generate variant-specific features based on Playwright version
+  const isLegacy14 = variant === 'legacy-14';
+  const isLegacy16 = variant === 'legacy-16';
+  const isLegacy = isLegacy14 || isLegacy16;
+
   const features = {
     variant,
     playwrightVersion,
@@ -1457,11 +1486,42 @@ If you need different functionality:
     moduleSystem,
     generatedAt: new Date().toISOString(),
     features: {
+      // Available in all versions (Playwright 1.33+)
       route_from_har: { available: true },
       locator_filter: { available: true },
       web_first_assertions: { available: true },
       trace_viewer: { available: true },
       api_testing: { available: true },
+
+      // Playwright 1.39+ features (not in legacy-14)
+      aria_snapshots: {
+        available: !isLegacy14,
+        alternative: isLegacy14 ? 'Use page.locator("[role=...]") with manual ARIA queries' : undefined,
+      },
+      locator_or: {
+        available: !isLegacy14,
+        alternative: isLegacy14 ? 'Use CSS selector with comma: page.locator("sel1, sel2")' : undefined,
+      },
+      locator_and: {
+        available: !isLegacy14,
+        alternative: isLegacy14 ? 'Chain locators: page.locator("sel1").locator("sel2")' : undefined,
+      },
+
+      // Playwright 1.45+ features (not in legacy-14 or legacy-16)
+      clock_api: {
+        available: !isLegacy,
+        alternative: isLegacy ? 'Use page.addInitScript() to mock Date' : undefined,
+      },
+      expect_soft: {
+        available: !isLegacy,
+        alternative: isLegacy ? 'Collect assertions in array and check at end' : undefined,
+      },
+
+      // Playwright 1.49+ features (only modern)
+      aria_snapshot_matchers: {
+        available: !isLegacy,
+        alternative: isLegacy ? 'Use toHaveAttribute for ARIA attributes' : undefined,
+      },
     },
   };
   await fs.promises.writeFile(
@@ -1721,23 +1781,10 @@ async function installBrowsersWithFallback(
     };
   }
 
-  // Case 3: Bundled install failed - try to detect system browsers as fallback
-  progress?.report({ message: 'Bundled install failed, checking for system browsers...' });
-  const fallbackBrowser = await detectBrowser();
-
-  if (fallbackBrowser.channel === 'msedge' || fallbackBrowser.channel === 'chrome') {
-    const browserName = fallbackBrowser.channel === 'msedge' ? 'Microsoft Edge' : 'Google Chrome';
-    vscode.window.showWarningMessage(
-      `Bundled Chromium install failed. Falling back to system browser: ${browserName}`
-    );
-
-    // Update all configs to use the fallback system browser
-    await updatePlaywrightConfigChannel(artkE2ePath, fallbackBrowser.channel);
-    await updateArtkConfigChannel(artkE2ePath, fallbackBrowser.channel, 'system');
-    await updateContextBrowserInfo(artkE2ePath, fallbackBrowser);
-
-    return { success: true, finalBrowser: fallbackBrowser };
-  }
+  // Case 3: Bundled install failed - P2 FIX: Use cached detection result instead of re-detecting
+  // The initial detection already checked all system browsers. If detectedBrowser.channel is 'chromium',
+  // we already know no system browser was found - no need to waste 10+ seconds re-detecting.
+  // This optimization is especially important on Linux where detection spawns multiple processes.
 
   // Case 4: No browser available at all - this is an error
   return {
@@ -1755,7 +1802,7 @@ export async function installBundled(
   options: BundledInstallOptions,
   progress?: vscode.Progress<{ message?: string; increment?: number }>
 ): Promise<InstallResult> {
-  const { targetPath, skipNpm, skipLlkb, skipBrowsers, noPrompts, force } = options;
+  const { targetPath, skipNpm, skipLlkb, forceLlkb, skipBrowsers, noPrompts, force } = options;
   const artkE2ePath = path.join(targetPath, 'artk-e2e');
   const assetsPath = getAssetsPath(context);
 
@@ -1838,9 +1885,15 @@ export async function installBundled(
     await installTemplates(assetsPath, artkE2ePath);
 
     // Step 7: Initialize LLKB
+    // P2 FIX: Support forceLlkb option to delete and recreate LLKB
+    const llkbPath = path.join(artkE2ePath, '.artk', 'llkb');
     if (!skipLlkb) {
+      if (forceLlkb && fs.existsSync(llkbPath)) {
+        progress?.report({ message: 'Force reinitializing LLKB (deleting existing)...' });
+        await fs.promises.rm(llkbPath, { recursive: true, force: true });
+      }
       progress?.report({ message: 'Initializing LLKB...' });
-      await initializeLLKB(path.join(artkE2ePath, '.artk', 'llkb'));
+      await initializeLLKB(llkbPath);
     }
 
     // Step 8: Install prompts (two-tier architecture)
