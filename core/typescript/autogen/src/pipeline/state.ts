@@ -369,7 +369,7 @@ export async function updatePipelineState(
   state.lastCommand = command;
   state.lastCommandAt = now;
 
-  // Add to history (keep last 50 entries)
+  // Add to history (keep last 100 entries)
   state.history.push({
     command,
     stage,
@@ -377,8 +377,9 @@ export async function updatePipelineState(
     success,
     details,
   });
-  if (state.history.length > 50) {
-    state.history = state.history.slice(-50);
+  const HISTORY_MAX_ENTRIES = 100;
+  if (state.history.length > HISTORY_MAX_ENTRIES) {
+    state.history = state.history.slice(-HISTORY_MAX_ENTRIES);
   }
 
   // Update specific fields based on command

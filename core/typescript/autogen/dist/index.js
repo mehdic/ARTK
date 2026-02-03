@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, mkdtempSync, rmSync } from 'fs';
 import { resolve, join, dirname, relative, basename, extname } from 'path';
 import { pathToFileURL, fileURLToPath } from 'url';
 import { parse, stringify } from 'yaml';
@@ -7,7 +7,7 @@ import crypto, { randomBytes, randomUUID, createHash } from 'crypto';
 import fg from 'fast-glob';
 import ejs from 'ejs';
 import { Project, ModuleKind, ScriptTarget, SyntaxKind } from 'ts-morph';
-import { execSync, spawn } from 'child_process';
+import { spawnSync, execSync, spawn } from 'child_process';
 import { tmpdir } from 'os';
 
 var __defProp = Object.defineProperty;
@@ -8512,28 +8512,24 @@ export default [
 `;
 }
 function isESLintAvailable(cwd) {
-  try {
-    execSync("npx eslint --version", {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("npx", ["eslint", "--version"], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  return result.status === 0;
 }
 function isPlaywrightPluginAvailable(cwd) {
-  try {
-    const result = execSync("npm list eslint-plugin-playwright", {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    return result.includes("eslint-plugin-playwright");
-  } catch {
+  const result = spawnSync("npm", ["list", "eslint-plugin-playwright"], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  if (result.status !== 0) {
     return false;
   }
+  const output = result.stdout || "";
+  return output.includes("eslint-plugin-playwright");
 }
 function convertSeverity(eslintSeverity) {
   return eslintSeverity === 2 ? "error" : "warning";
@@ -8594,21 +8590,21 @@ async function lintCode(code, filename = "test.spec.ts", options = {}) {
       args.push("--config", configPath);
     }
     args.push(tempFile);
-    const result = execSync(`npx ${args.join(" ")}`, {
+    const result = spawnSync("npx", args, {
       cwd,
       stdio: "pipe",
       encoding: "utf-8"
     });
-    return {
-      passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
-      errorCount: 0,
-      warningCount: 0
-    };
-  } catch (err3) {
-    const error = err3;
-    const output = error.stdout || "";
+    const output = result.stdout || "";
+    if (result.status === 0) {
+      return {
+        passed: true,
+        output,
+        issues: parseESLintOutput(output),
+        errorCount: 0,
+        warningCount: 0
+      };
+    }
     try {
       const results = JSON.parse(output);
       const issues = parseESLintOutput(output);
@@ -8673,39 +8669,37 @@ async function lintFile(filePath, options = {}) {
       warningCount: 0
     };
   }
-  try {
-    const args = ["eslint", "--format", "json"];
-    if (fix) {
-      args.push("--fix");
-    }
-    if (configPath && existsSync(configPath)) {
-      args.push("--config", configPath);
-    }
-    args.push(filePath);
-    const result = execSync(`npx ${args.join(" ")}`, {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
+  const args = ["eslint", "--format", "json"];
+  if (fix) {
+    args.push("--fix");
+  }
+  if (configPath && existsSync(configPath)) {
+    args.push("--config", configPath);
+  }
+  args.push(filePath);
+  const result = spawnSync("npx", args, {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  const output = result.stdout || "";
+  if (result.status === 0) {
     return {
       passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
+      output,
+      issues: parseESLintOutput(output),
       errorCount: 0,
       warningCount: 0
     };
-  } catch (err3) {
-    const error = err3;
-    const output = error.stdout || "";
-    const issues = parseESLintOutput(output);
-    return {
-      passed: issues.filter((i) => i.severity === "error").length === 0,
-      output,
-      issues,
-      errorCount: issues.filter((i) => i.severity === "error").length,
-      warningCount: issues.filter((i) => i.severity === "warning").length
-    };
   }
+  const issues = parseESLintOutput(output);
+  return {
+    passed: issues.filter((i) => i.severity === "error").length === 0,
+    output,
+    issues,
+    errorCount: issues.filter((i) => i.severity === "error").length,
+    warningCount: issues.filter((i) => i.severity === "warning").length
+  };
 }
 function hasLintErrors(code) {
   const patterns = [
@@ -9374,8 +9368,7 @@ function runPlaywrightSync(options = {}) {
       command: "npx playwright test"
     };
   }
-  const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  const tempDir = mkdtempSync(join(tmpdir(), "autogen-verify-"));
   const reportPath = join(tempDir, "results.json");
   const args = buildPlaywrightArgs({
     ...options,
@@ -9384,7 +9377,7 @@ function runPlaywrightSync(options = {}) {
   const command = `npx playwright ${args.join(" ")}`;
   const startTime = Date.now();
   try {
-    const result = execSync(command, {
+    const result = spawnSync("npx", ["playwright", ...args], {
       cwd,
       stdio: "pipe",
       encoding: "utf-8",
@@ -9396,33 +9389,27 @@ function runPlaywrightSync(options = {}) {
       timeout: options.timeout ? options.timeout * 10 : 6e5
       // 10x test timeout or 10 min
     });
+    const success = result.status === 0;
     return {
-      success: true,
-      exitCode: 0,
-      stdout: result,
-      stderr: "",
+      success,
+      exitCode: result.status ?? 1,
+      stdout: result.stdout || "",
+      stderr: result.stderr || "",
       reportPath: existsSync(reportPath) ? reportPath : void 0,
       duration: Date.now() - startTime,
       command
     };
-  } catch (error) {
-    const execError = error;
-    return {
-      success: false,
-      exitCode: execError.status || 1,
-      stdout: execError.stdout || "",
-      stderr: execError.stderr || String(error),
-      reportPath: existsSync(reportPath) ? reportPath : void 0,
-      duration: Date.now() - startTime,
-      command
-    };
+  } finally {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+    }
   }
 }
 function runPlaywrightAsync(options = {}) {
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     const { cwd = process.cwd(), env = {} } = options;
-    const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-    mkdirSync(tempDir, { recursive: true });
+    const tempDir = mkdtempSync(join(tmpdir(), "autogen-verify-"));
     const reportPath = join(tempDir, "results.json");
     const args = buildPlaywrightArgs({
       ...options,
@@ -9432,6 +9419,13 @@ function runPlaywrightAsync(options = {}) {
     const startTime = Date.now();
     let stdout = "";
     let stderr = "";
+    const cleanupAndResolve = (result) => {
+      try {
+        rmSync(tempDir, { recursive: true, force: true });
+      } catch {
+      }
+      resolve7(result);
+    };
     const child = spawn("npx", ["playwright", ...args], {
       cwd,
       env: {
@@ -9447,7 +9441,7 @@ function runPlaywrightAsync(options = {}) {
       stderr += data.toString();
     });
     child.on("close", (code) => {
-      resolve6({
+      cleanupAndResolve({
         success: code === 0,
         exitCode: code || 1,
         stdout,
@@ -9458,7 +9452,7 @@ function runPlaywrightAsync(options = {}) {
       });
     });
     child.on("error", (error) => {
-      resolve6({
+      cleanupAndResolve({
         success: false,
         exitCode: 1,
         stdout,
@@ -9496,35 +9490,37 @@ function checkTestSyntax(testFilePath, cwd) {
   if (!existsSync(testFilePath)) {
     return false;
   }
-  try {
-    execSync(`npx tsc --noEmit ${testFilePath}`, {
-      cwd: cwd || dirname(testFilePath),
-      stdio: "pipe"
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("npx", ["tsc", "--noEmit", testFilePath], {
+    cwd: cwd || dirname(testFilePath),
+    stdio: "pipe"
+  });
+  return result.status === 0;
 }
 function writeAndRunTest(code, filename, options = {}) {
-  const tempDir = join(tmpdir(), `autogen-test-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  const tempDir = mkdtempSync(join(tmpdir(), "autogen-test-"));
   const testPath = join(tempDir, filename);
   writeFileSync(testPath, code, "utf-8");
-  return runTestFile(testPath, options);
+  try {
+    return runTestFile(testPath, options);
+  } finally {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+    }
+  }
 }
 function getTestCount(testFile, cwd) {
-  try {
-    const result = execSync(`npx playwright test --list ${testFile}`, {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    const match = result.match(/Listing (\d+) tests?/);
-    return match ? parseInt(match[1], 10) : 0;
-  } catch {
+  const result = spawnSync("npx", ["playwright", "test", "--list", testFile], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  if (result.status !== 0) {
     return 0;
   }
+  const output = result.stdout || "";
+  const match = output.match(/Listing (\d+) tests?/);
+  return match ? parseInt(match[1], 10) : 0;
 }
 function parseReportFile(filePath) {
   if (!existsSync(filePath)) {
@@ -13751,7 +13747,7 @@ function addTokenUsage(a, b) {
   };
 }
 function sleep(ms) {
-  return new Promise((resolve6) => setTimeout(resolve6, ms));
+  return new Promise((resolve7) => setTimeout(resolve7, ms));
 }
 async function runSingleRefinementAttempt(code, errors, llmClient, options = {}) {
   try {
@@ -14524,7 +14520,7 @@ async function runPlaywright(options) {
   if (grep) args.push(`--grep=${grep}`);
   if (project) args.push(`--project=${project}`);
   args.push(...extraArgs);
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     let stdout = "";
     let stderr = "";
     const spawnOptions = {
@@ -14588,7 +14584,7 @@ async function runPlaywright(options) {
           tracePath = traceFile;
         }
       }
-      resolve6({
+      resolve7({
         status,
         exitCode,
         duration,
@@ -14608,7 +14604,7 @@ async function runPlaywright(options) {
         }
       } catch {
       }
-      resolve6({
+      resolve7({
         status: "error",
         exitCode: 1,
         duration: Date.now() - startTime,

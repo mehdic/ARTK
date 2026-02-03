@@ -309,9 +309,9 @@ describe('Pipeline State Management', () => {
       expect(state.journeyIds).toContain('JRN-002');
     });
 
-    it('should limit history to 50 entries', async () => {
-      // Make many updates
-      for (let i = 0; i < 60; i++) {
+    it('should limit history to 100 entries', async () => {
+      // Make many updates (more than 100)
+      for (let i = 0; i < 110; i++) {
         await updatePipelineState(
           `cmd-${i}`,
           i % 2 === 0 ? 'analyzed' : 'planned',
@@ -320,7 +320,7 @@ describe('Pipeline State Management', () => {
       }
 
       const state = loadPipelineState();
-      expect(state.history.length).toBeLessThanOrEqual(50);
+      expect(state.history.length).toBeLessThanOrEqual(100);
     });
   });
 
