@@ -2,14 +2,7 @@ name: Build VS Code Extension
 
 on:
   push:
-    branches:
-      - main
-      - 'claude/*'
-      - 'fix/*'
-      - 'feature/*'
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       version_bump:
