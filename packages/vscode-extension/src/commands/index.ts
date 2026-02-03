@@ -220,6 +220,12 @@ async function runUninstall(): Promise<void> {
         // Remove artk-e2e directory
         await fs.promises.rm(artkE2ePath, { recursive: true, force: true });
 
+        // Remove .artk directory (context, state files)
+        const artkDir = path.join(targetPath, '.artk');
+        if (fs.existsSync(artkDir)) {
+          await fs.promises.rm(artkDir, { recursive: true, force: true });
+        }
+
         // Remove prompts if requested
         if (removePrompts?.remove) {
           const promptsDir = path.join(targetPath, '.github', 'prompts');

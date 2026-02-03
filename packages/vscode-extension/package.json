@@ -206,6 +206,11 @@
           "command": "artk.workflow.resetAll",
           "when": "view == artk-workflow",
           "group": "navigation"
+        },
+        {
+          "command": "artk.uninstall",
+          "when": "view == artk-status && artk.installed",
+          "group": "z_commands"
         }
       ],
       "view/item/context": [
