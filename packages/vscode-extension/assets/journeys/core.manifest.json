@@ -1,0 +1,67 @@
+{
+  "name": "artk-core-journeys",
+  "version": "0.1.0",
+  "schema_version": 1,
+  "generated_at": "2025-12-23",
+  "recommended_runtime": {
+    "node": ">=18"
+  },
+  "recommended_dev_dependencies": {
+    "ajv": "^8.17.1",
+    "fast-glob": "^3.3.2",
+    "yaml": "^2.6.0",
+    "minimist": "^1.2.8"
+  },
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "0ebf9a10b1b1f2960425e28b293fe71ab1dfdd83ab10e716335bd6d08e2fb399",
+      "bytes": 143
+    },
+    {
+      "path": "MIGRATIONS.md",
+      "sha256": "3ae084bb21e42b9213f2facad51597597e5ac7ebcc24d394b53001a7ab0e17b6",
+      "bytes": 139
+    },
+    {
+      "path": "README.md",
+      "sha256": "a83980a48fe18008a08457edf57f2c19d29ae79813e31efc3e7d267c76a2daaa",
+      "bytes": 994
+    },
+    {
+      "path": "journeys/docs/README.template.md",
+      "sha256": "7c806b9a2b4acd933a14aa19d61b4da2aef13d82bdbe651b87651b119b213b04",
+      "bytes": 1015
+    },
+    {
+      "path": "journeys/schema/journey.frontmatter.schema.json",
+      "sha256": "7d11ff07db66573fbf0f8e170fe7c542cc6612909099db87c3debbbcb0c39620",
+      "bytes": 3722
+    },
+    {
+      "path": "journeys/schema/journey.schema.md",
+      "sha256": "b89db8886356187ad4b0396ba9f2fd74ee272c87916b2167881a111f0be42553",
+      "bytes": 1533
+    },
+    {
+      "path": "journeys/templates/journey.proposed.template.md",
+      "sha256": "90f4ce71158540498c94cd052ea51917ad67c6f5a401adef034568d73e8a7a37",
+      "bytes": 479
+    },
+    {
+      "path": "journeys/templates/journey.template.md",
+      "sha256": "e76ea8fbb96257395df7bf190531fa3f3956308efc77b7652038f67f4fdc195e",
+      "bytes": 1069
+    },
+    {
+      "path": "journeys/tools/node/generate.js",
+      "sha256": "17a423aa43dbbdd1fbc02be50a67afaf7a86198672d7787252457ee00b60921f",
+      "bytes": 10639
+    },
+    {
+      "path": "journeys/tools/node/validate.js",
+      "sha256": "4283eb39570f30d2c2299bc4099159328a6558a3c88551a715ea071538b5869b",
+      "bytes": 4685
+    }
+  ]
+}

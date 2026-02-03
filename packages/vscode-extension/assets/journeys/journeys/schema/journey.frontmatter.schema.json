@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artk.dev/schemas/journey.frontmatter.schema.json",
+  "title": "ARTK Journey Frontmatter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "status",
+    "tier",
+    "actor",
+    "scope"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "defined",
+        "clarified",
+        "implemented",
+        "quarantined",
+        "deprecated"
+      ]
+    },
+    "tier": {
+      "type": "string",
+      "enum": [
+        "smoke",
+        "release",
+        "regression"
+      ]
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 2
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 2
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "foundation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "feature": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": []
+        }
+      },
+      "default": {
+        "foundation": [],
+        "feature": []
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "docs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": []
+        }
+      },
+      "default": {
+        "requirements": [],
+        "issues": [],
+        "docs": []
+      }
+    },
+    "owner": {
+      "type": "string"
+    },
+    "statusReason": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string"
+    },
+    "updated": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "implemented"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tests": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "tests"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "quarantined"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "owner",
+          "statusReason"
+        ],
+        "properties": {
+          "links": {
+            "properties": {
+              "issues": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "issues"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "deprecated"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "statusReason"
+        ]
+      }
+    }
+  ]
+}

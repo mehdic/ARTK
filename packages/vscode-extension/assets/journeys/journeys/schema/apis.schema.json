@@ -1,0 +1,506 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artk.dev/schemas/apis.schema.json",
+  "title": "ARTK Test Data APIs Discovery Schema",
+  "description": "Schema for discovered API endpoints and UI forms used for test data setup/teardown",
+  "type": "object",
+  "required": ["version", "discoveredAt", "entities"],
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Schema version for backward compatibility"
+    },
+    "discoveredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of discovery"
+    },
+    "sources": {
+      "type": "array",
+      "description": "Discovery sources used (in order of priority)",
+      "items": {
+        "type": "object",
+        "required": ["type", "path"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["openapi", "swagger", "graphql", "controllers", "ui-forms", "test-factories", "mock-server", "inferred"],
+            "description": "Type of discovery source"
+          },
+          "path": {
+            "type": "string",
+            "description": "File path or glob pattern of the source"
+          },
+          "coverage": {
+            "type": "string",
+            "enum": ["full", "partial", "minimal"],
+            "description": "How complete is this source"
+          },
+          "entitiesFound": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of entities discovered from this source"
+          }
+        }
+      }
+    },
+    "entities": {
+      "type": "array",
+      "description": "Discovered entities with their CRUD operations",
+      "items": {
+        "$ref": "#/$defs/entity"
+      }
+    },
+    "testFactories": {
+      "type": "array",
+      "description": "Existing test factory/builder patterns found in codebase",
+      "items": {
+        "$ref": "#/$defs/testFactory"
+      }
+    },
+    "seedScripts": {
+      "type": "array",
+      "description": "Database seed or fixture scripts",
+      "items": {
+        "$ref": "#/$defs/seedScript"
+      }
+    },
+    "mockServer": {
+      "type": "object",
+      "description": "Mock server configuration if detected",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["msw", "wiremock", "json-server", "miragejs", "custom"],
+          "description": "Mock server framework"
+        },
+        "configPath": {
+          "type": "string",
+          "description": "Path to mock server configuration"
+        },
+        "handlersPath": {
+          "type": "string",
+          "description": "Path to mock handlers/fixtures"
+        }
+      }
+    },
+    "authContext": {
+      "type": "object",
+      "description": "Authentication requirements for API calls",
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether API calls require authentication"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["bearer-token", "cookie", "basic", "api-key", "none"],
+          "description": "Authentication method"
+        },
+        "headerName": {
+          "type": "string",
+          "description": "Header name for auth token (e.g., 'Authorization', 'X-API-Key')"
+        },
+        "storageStateCompatible": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether Playwright storage state can provide auth context"
+        }
+      }
+    },
+    "multiTenant": {
+      "type": "object",
+      "description": "Multi-tenant API patterns if detected",
+      "properties": {
+        "detected": {
+          "type": "boolean",
+          "default": false
+        },
+        "tenantIdLocation": {
+          "type": "string",
+          "enum": ["path", "header", "query", "subdomain"],
+          "description": "Where tenant ID is passed"
+        },
+        "tenantIdName": {
+          "type": "string",
+          "description": "Parameter/header name (e.g., 'X-Tenant-ID', 'tenantId')"
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "description": "Known limitations or gaps in discovery",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["no-create", "no-delete", "auth-required", "partial-schema", "ui-only", "read-only", "complex-dependencies"],
+            "description": "Type of limitation"
+          },
+          "entity": {
+            "type": "string",
+            "description": "Affected entity name"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation"
+          },
+          "workaround": {
+            "type": "string",
+            "description": "Suggested workaround if available"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "entity": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Entity name in PascalCase (e.g., 'Request', 'HRMovement')"
+        },
+        "pluralName": {
+          "type": "string",
+          "description": "Plural form for REST endpoints (e.g., 'requests', 'hr-movements')"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["openapi", "swagger", "graphql", "controllers", "ui-forms", "inferred"],
+          "description": "How this entity was discovered"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Parent entities that must exist before this one",
+          "items": {
+            "type": "object",
+            "properties": {
+              "entity": {
+                "type": "string",
+                "description": "Parent entity name"
+              },
+              "relationship": {
+                "type": "string",
+                "enum": ["belongsTo", "hasOne", "manyToMany"],
+                "description": "Relationship type"
+              },
+              "foreignKey": {
+                "type": "string",
+                "description": "Field name referencing parent (e.g., 'categoryId')"
+              }
+            }
+          }
+        },
+        "operations": {
+          "type": "object",
+          "description": "CRUD operations available for this entity",
+          "properties": {
+            "create": { "$ref": "#/$defs/operation" },
+            "read": { "$ref": "#/$defs/operation" },
+            "update": { "$ref": "#/$defs/operation" },
+            "delete": { "$ref": "#/$defs/operation" },
+            "list": { "$ref": "#/$defs/operation" }
+          }
+        },
+        "uiForms": {
+          "type": "array",
+          "description": "UI forms for creating/editing this entity",
+          "items": {
+            "$ref": "#/$defs/uiForm"
+          }
+        },
+        "testDataStrategy": {
+          "type": "object",
+          "description": "Recommended strategy for test data setup",
+          "properties": {
+            "recommended": {
+              "type": "string",
+              "enum": ["api", "ui", "factory", "seed", "mock"],
+              "description": "Recommended approach"
+            },
+            "fallback": {
+              "type": "string",
+              "enum": ["api", "ui", "factory", "seed", "mock", "manual"],
+              "description": "Fallback if recommended fails"
+            },
+            "cleanupMethod": {
+              "type": "string",
+              "enum": ["api-delete", "soft-delete", "cascade", "manual", "none"],
+              "description": "How to clean up test data"
+            },
+            "notes": {
+              "type": "string",
+              "description": "Additional notes about data setup"
+            }
+          }
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this operation is available"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+          "description": "HTTP method"
+        },
+        "path": {
+          "type": "string",
+          "description": "API path with placeholders (e.g., '/api/requests/{id}')"
+        },
+        "graphqlOperation": {
+          "type": "string",
+          "description": "GraphQL mutation/query name if applicable"
+        },
+        "requiredFields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required fields for request body"
+        },
+        "optionalFields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional fields for request body"
+        },
+        "requestSchema": {
+          "type": "object",
+          "description": "JSON Schema for request body (simplified)"
+        },
+        "responseSchema": {
+          "type": "object",
+          "description": "JSON Schema for response body (simplified)"
+        },
+        "examplePayload": {
+          "type": "object",
+          "description": "Example request payload for test data"
+        },
+        "exampleResponse": {
+          "type": "object",
+          "description": "Example response for assertions"
+        },
+        "idField": {
+          "type": "string",
+          "default": "id",
+          "description": "Field name containing entity ID in response"
+        },
+        "contentType": {
+          "type": "string",
+          "default": "application/json",
+          "description": "Content-Type for request"
+        },
+        "specialHandling": {
+          "type": "array",
+          "description": "Special cases that need handling",
+          "items": {
+            "type": "string",
+            "enum": ["file-upload", "multipart", "form-urlencoded", "binary", "streaming"]
+          }
+        }
+      }
+    },
+    "uiForm": {
+      "type": "object",
+      "required": ["route", "action"],
+      "properties": {
+        "route": {
+          "type": "string",
+          "description": "Route path to the form (e.g., '/requests/new')"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["create", "update"],
+          "description": "Form action type"
+        },
+        "formSelector": {
+          "type": "string",
+          "description": "CSS selector for the form element"
+        },
+        "submitSelector": {
+          "type": "string",
+          "description": "CSS selector for submit button"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/formField"
+          }
+        },
+        "wizardSteps": {
+          "type": "array",
+          "description": "For multi-step forms/wizards",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "nextSelector": { "type": "string" }
+            }
+          }
+        },
+        "successIndicator": {
+          "type": "object",
+          "description": "How to detect successful submission",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["redirect", "toast", "url-change", "element-visible", "element-hidden"]
+            },
+            "value": {
+              "type": "string",
+              "description": "Expected URL pattern, toast message, or selector"
+            }
+          }
+        }
+      }
+    },
+    "formField": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Field name (maps to API field)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "textarea", "number", "email", "password", "select", "multiselect", "checkbox", "radio", "date", "datetime", "file", "rich-text", "autocomplete", "custom"],
+          "description": "Field input type"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS/ARIA selector for the field"
+        },
+        "testId": {
+          "type": "string",
+          "description": "data-testid value if available"
+        },
+        "label": {
+          "type": "string",
+          "description": "Field label text"
+        },
+        "placeholder": {
+          "type": "string",
+          "description": "Placeholder text"
+        },
+        "options": {
+          "type": "array",
+          "description": "For select/radio fields",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "label": { "type": "string" }
+            }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "description": "Validation rules",
+          "properties": {
+            "minLength": { "type": "integer" },
+            "maxLength": { "type": "integer" },
+            "pattern": { "type": "string" },
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          }
+        },
+        "exampleValue": {
+          "description": "Example value for test data"
+        }
+      }
+    },
+    "testFactory": {
+      "type": "object",
+      "required": ["file", "entity"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to factory file"
+        },
+        "entity": {
+          "type": "string",
+          "description": "Entity this factory creates"
+        },
+        "method": {
+          "type": "string",
+          "description": "Method/function name to call"
+        },
+        "async": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the factory is async"
+        },
+        "parameters": {
+          "type": "array",
+          "description": "Parameters the factory accepts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "required": { "type": "boolean" }
+            }
+          }
+        },
+        "returnsId": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether factory returns created entity ID"
+        },
+        "cleanup": {
+          "type": "string",
+          "description": "Cleanup method if available (e.g., 'deleteRequest')"
+        }
+      }
+    },
+    "seedScript": {
+      "type": "object",
+      "required": ["file"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to seed script"
+        },
+        "description": {
+          "type": "string",
+          "description": "What data this script seeds"
+        },
+        "entities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Entities created by this script"
+        },
+        "runCommand": {
+          "type": "string",
+          "description": "Command to run the seed (e.g., 'npm run seed')"
+        },
+        "idempotent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether running multiple times is safe"
+        },
+        "requiresDb": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this requires database access"
+        }
+      }
+    }
+  }
+}
