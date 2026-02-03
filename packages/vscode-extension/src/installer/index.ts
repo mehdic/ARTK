@@ -1522,9 +1522,9 @@ async function runNpmInstall(artkE2ePath: string): Promise<{ success: boolean; e
 }
 
 /**
- * Install Playwright browsers
+ * Install bundled Playwright chromium
  */
-async function installBrowsers(artkE2ePath: string): Promise<{ success: boolean; error?: string }> {
+async function installBundledChromium(artkE2ePath: string): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
     const isWindows = process.platform === 'win32';
     const npx = isWindows ? 'npx.cmd' : 'npx';
@@ -1553,6 +1553,151 @@ async function installBrowsers(artkE2ePath: string): Promise<{ success: boolean;
       resolve({ success: false, error: err.message });
     });
   });
+}
+
+/**
+ * Update playwright.config.ts to use a specific browser channel
+ */
+async function updatePlaywrightConfigChannel(
+  artkE2ePath: string,
+  channel: string
+): Promise<void> {
+  const configPath = path.join(artkE2ePath, 'playwright.config.ts');
+  if (!fs.existsSync(configPath)) return;
+
+  let content = await fs.promises.readFile(configPath, 'utf-8');
+
+  // Update the use.channel setting if it exists
+  if (content.includes('channel:')) {
+    content = content.replace(
+      /channel:\s*['"][^'"]*['"]/g,
+      `channel: '${channel}'`
+    );
+  } else {
+    // Add channel to the use block if not present
+    content = content.replace(
+      /(use:\s*\{)/,
+      `$1\n    channel: '${channel}',`
+    );
+  }
+
+  await fs.promises.writeFile(configPath, content);
+}
+
+/**
+ * Update artk.config.yml browser channel
+ */
+async function updateArtkConfigChannel(
+  artkE2ePath: string,
+  channel: string,
+  strategy: string
+): Promise<void> {
+  const configPath = path.join(artkE2ePath, 'artk.config.yml');
+  if (!fs.existsSync(configPath)) return;
+
+  let content = await fs.promises.readFile(configPath, 'utf-8');
+
+  // Update channel
+  content = content.replace(
+    /^(\s*channel:\s*).+$/m,
+    `$1${channel}`
+  );
+
+  // Update strategy
+  content = content.replace(
+    /^(\s*strategy:\s*).+$/m,
+    `$1${strategy}`
+  );
+
+  await fs.promises.writeFile(configPath, content);
+}
+
+/**
+ * Update context.json browser info
+ */
+async function updateContextBrowserInfo(
+  artkE2ePath: string,
+  browserInfo: { channel: string; version: string | null; path: string | null }
+): Promise<void> {
+  const contextPath = path.join(artkE2ePath, '.artk', 'context.json');
+  if (!fs.existsSync(contextPath)) return;
+
+  const context = JSON.parse(await fs.promises.readFile(contextPath, 'utf-8'));
+  context.browser = {
+    channel: browserInfo.channel,
+    version: browserInfo.version,
+    path: browserInfo.path,
+    detected_at: new Date().toISOString(),
+  };
+
+  await fs.promises.writeFile(contextPath, JSON.stringify(context, null, 2));
+}
+
+/**
+ * Install browsers with proper fallback logic (matches bootstrap.sh)
+ *
+ * Strategy:
+ * 1. If system browser (Edge/Chrome) detected → use it, skip bundled download
+ * 2. If no system browser → try bundled chromium install
+ * 3. If bundled install fails → re-detect system browsers as fallback
+ * 4. Only fail if NO browser is available
+ */
+async function installBrowsersWithFallback(
+  artkE2ePath: string,
+  detectedBrowser: { channel: string; version: string | null; path: string | null },
+  progress?: vscode.Progress<{ message?: string; increment?: number }>
+): Promise<{ success: boolean; finalBrowser: { channel: string; version: string | null; path: string | null }; error?: string }> {
+
+  // Case 1: System browser already detected (Edge or Chrome) - use it directly
+  if (detectedBrowser.channel === 'msedge' || detectedBrowser.channel === 'chrome') {
+    const browserName = detectedBrowser.channel === 'msedge' ? 'Microsoft Edge' : 'Google Chrome';
+    vscode.window.showInformationMessage(
+      `Using system browser: ${browserName} ${detectedBrowser.version || ''}`
+    );
+
+    // Update configs to use system browser
+    await updatePlaywrightConfigChannel(artkE2ePath, detectedBrowser.channel);
+    await updateArtkConfigChannel(artkE2ePath, detectedBrowser.channel, 'system');
+
+    return { success: true, finalBrowser: detectedBrowser };
+  }
+
+  // Case 2: No system browser detected - try bundled chromium
+  progress?.report({ message: 'Installing Playwright bundled Chromium...' });
+  const bundledResult = await installBundledChromium(artkE2ePath);
+
+  if (bundledResult.success) {
+    vscode.window.showInformationMessage('Playwright Chromium installed successfully');
+    return {
+      success: true,
+      finalBrowser: { channel: 'chromium', version: null, path: null }
+    };
+  }
+
+  // Case 3: Bundled install failed - try to detect system browsers as fallback
+  progress?.report({ message: 'Bundled install failed, checking for system browsers...' });
+  const fallbackBrowser = await detectBrowser();
+
+  if (fallbackBrowser.channel === 'msedge' || fallbackBrowser.channel === 'chrome') {
+    const browserName = fallbackBrowser.channel === 'msedge' ? 'Microsoft Edge' : 'Google Chrome';
+    vscode.window.showWarningMessage(
+      `Bundled Chromium install failed. Falling back to system browser: ${browserName}`
+    );
+
+    // Update all configs to use the fallback system browser
+    await updatePlaywrightConfigChannel(artkE2ePath, fallbackBrowser.channel);
+    await updateArtkConfigChannel(artkE2ePath, fallbackBrowser.channel, 'system');
+    await updateContextBrowserInfo(artkE2ePath, fallbackBrowser);
+
+    return { success: true, finalBrowser: fallbackBrowser };
+  }
+
+  // Case 4: No browser available at all - this is an error
+  return {
+    success: false,
+    finalBrowser: { channel: 'chromium', version: null, path: null },
+    error: `No browser available. Bundled Chromium install failed: ${bundledResult.error}. No system Edge or Chrome found. Please install Microsoft Edge or Google Chrome, or fix network access to download Chromium.`
+  };
 }
 
 /**
@@ -1672,15 +1817,23 @@ export async function installBundled(
       }
     }
 
-    // Step 10: Install browsers
+    // Step 10: Install browsers with proper fallback (matches bootstrap.sh)
     if (!skipBrowsers && !skipNpm) {
-      progress?.report({ message: 'Installing Playwright browsers...' });
-      const browserResult = await installBrowsers(artkE2ePath);
+      const browserResult = await installBrowsersWithFallback(artkE2ePath, browserInfo, progress);
+
       if (!browserResult.success) {
-        // Non-fatal - browsers can be installed later
-        vscode.window.showWarningMessage(
-          `Browser installation failed: ${browserResult.error}. You can install browsers later with: npx playwright install chromium`
-        );
+        // This is a real error - no browser available at all
+        vscode.window.showErrorMessage(browserResult.error || 'No browser available');
+        return {
+          success: false,
+          error: browserResult.error,
+          artkE2ePath,
+        };
+      }
+
+      // Update final browser info in result if it changed during fallback
+      if (browserResult.finalBrowser.channel !== browserInfo.channel) {
+        // Browser changed during fallback - configs already updated by installBrowsersWithFallback
       }
     }
 
