@@ -3689,7 +3689,7 @@ var waitPatterns = [
   }
 ];
 function parseSelectorToLocator(selector) {
-  let cleanSelector = selector.replace(/^the\s+/i, "").trim();
+  const cleanSelector = selector.replace(/^the\s+/i, "").trim();
   if (/button$/i.test(cleanSelector)) {
     const buttonName = cleanSelector.replace(/\s*button$/i, "").trim();
     return { strategy: "role", value: "button", name: buttonName };

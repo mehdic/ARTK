@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { existsSync, readFileSync, realpathSync, mkdirSync, writeFileSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync, renameSync, mkdtempSync } from 'fs';
-import { join, dirname, resolve, relative, isAbsolute, basename } from 'path';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, realpathSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync, renameSync, mkdtempSync } from 'fs';
+import { dirname, join, resolve, relative, isAbsolute, basename } from 'path';
 import yaml, { stringify, parse } from 'yaml';
 import { fileURLToPath, pathToFileURL } from 'url';
 import fg2 from 'fast-glob';
@@ -752,7 +752,7 @@ function createValueFromText(text) {
   return { type: "literal", value: text };
 }
 function parseSelectorToLocator(selector) {
-  let cleanSelector = selector.replace(/^the\s+/i, "").trim();
+  const cleanSelector = selector.replace(/^the\s+/i, "").trim();
   if (/button$/i.test(cleanSelector)) {
     const buttonName = cleanSelector.replace(/\s*button$/i, "").trim();
     return { strategy: "role", value: "button", name: buttonName };
@@ -8443,8 +8443,167 @@ var init_refinement_loop = __esm({
 });
 
 // src/refinement/llkb-learning.ts
+function extractLessonsFromSession(session, options = {}) {
+  const opts = { ...DEFAULT_EXTRACTION_OPTIONS, ...options };
+  const lessons = [];
+  for (const attempt of session.attempts) {
+    if (attempt.outcome !== "success" && attempt.outcome !== "partial") {
+      continue;
+    }
+    if (!attempt.appliedFix) {
+      continue;
+    }
+    const fix = attempt.appliedFix;
+    if (fix.confidence < opts.minConfidence) {
+      continue;
+    }
+    const lesson = createLessonFromFix(
+      session.journeyId,
+      fix,
+      attempt.error,
+      attempt.outcome === "success"
+      // verified only if full success
+    );
+    if (lesson && (lesson.verified || opts.includeUnverified)) {
+      lessons.push(lesson);
+    }
+    if (lessons.length >= opts.maxLessonsPerSession) {
+      break;
+    }
+  }
+  return lessons;
+}
+function createLessonFromFix(journeyId, fix, error, verified) {
+  const type = mapFixTypeToLessonType(fix.type);
+  if (!type) {
+    return void 0;
+  }
+  return {
+    id: generateLessonId(journeyId, fix, error),
+    type,
+    context: {
+      journeyId,
+      errorCategory: error.category,
+      originalSelector: error.selector,
+      element: extractElementDescription(fix, error)
+    },
+    solution: {
+      pattern: extractPattern(fix),
+      code: fix.fixedCode,
+      explanation: fix.reasoning || fix.description
+    },
+    confidence: fix.confidence,
+    createdAt: /* @__PURE__ */ new Date(),
+    verified
+  };
+}
+function mapFixTypeToLessonType(fixType) {
+  switch (fixType) {
+    case "SELECTOR_CHANGE":
+    case "LOCATOR_STRATEGY_CHANGED":
+    case "FRAME_CONTEXT_ADDED":
+      return "selector_pattern";
+    case "WAIT_ADDED":
+    case "TIMEOUT_INCREASED":
+    case "RETRY_ADDED":
+      return "wait_strategy";
+    case "FLOW_REORDERED":
+      return "flow_pattern";
+    case "ASSERTION_MODIFIED":
+    case "ERROR_HANDLING_ADDED":
+    case "OTHER":
+      return "error_fix";
+    default:
+      return void 0;
+  }
+}
+function generateLessonId(journeyId, fix, error) {
+  const timestamp = Date.now();
+  const fixHash = hashString(fix.fixedCode.substring(0, 50));
+  return `lesson-${journeyId}-${error.category}-${fixHash}-${timestamp}`;
+}
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+function extractElementDescription(fix, error) {
+  if (fix.location.stepDescription) {
+    return fix.location.stepDescription;
+  }
+  if (error.selector) {
+    return extractElementFromSelector(error.selector);
+  }
+  const locatorMatch = fix.fixedCode.match(/getBy\w+\(['"]([^'"]+)['"]\)/);
+  if (locatorMatch && locatorMatch[1]) {
+    return locatorMatch[1];
+  }
+  return "unknown element";
+}
+function extractElementFromSelector(selector) {
+  const testIdMatch = selector.match(/data-testid[=~*^$]*["']?([^"'\]]+)/);
+  if (testIdMatch && testIdMatch[1]) {
+    return testIdMatch[1];
+  }
+  const roleMatch = selector.match(/role=["']?([^"'\]]+)/);
+  if (roleMatch && roleMatch[1]) {
+    return roleMatch[1];
+  }
+  const classMatch = selector.match(/\.([a-zA-Z0-9_-]+)/);
+  if (classMatch && classMatch[1]) {
+    return classMatch[1];
+  }
+  return selector.substring(0, 30);
+}
+function extractPattern(fix) {
+  switch (fix.type) {
+    case "SELECTOR_CHANGE":
+      return extractSelectorPattern(fix.fixedCode);
+    case "WAIT_ADDED":
+      return extractWaitPattern(fix.fixedCode);
+    case "ASSERTION_MODIFIED":
+      return extractAssertionPattern(fix.fixedCode);
+    default:
+      return fix.type;
+  }
+}
+function extractSelectorPattern(code) {
+  if (code.includes("getByTestId")) return "testid";
+  if (code.includes("getByRole")) return "role";
+  if (code.includes("getByText")) return "text";
+  if (code.includes("getByLabel")) return "label";
+  if (code.includes("getByPlaceholder")) return "placeholder";
+  if (code.includes("locator")) return "css";
+  return "unknown";
+}
+function extractWaitPattern(code) {
+  if (code.includes("waitForSelector")) return "waitForSelector";
+  if (code.includes("waitForLoadState")) return "waitForLoadState";
+  if (code.includes("waitForResponse")) return "waitForResponse";
+  if (code.includes("waitForTimeout")) return "waitForTimeout";
+  if (code.includes("toBeVisible")) return "expectVisible";
+  return "unknown";
+}
+function extractAssertionPattern(code) {
+  if (code.includes("toHaveText")) return "toHaveText";
+  if (code.includes("toHaveValue")) return "toHaveValue";
+  if (code.includes("toBeVisible")) return "toBeVisible";
+  if (code.includes("toBeEnabled")) return "toBeEnabled";
+  if (code.includes("toHaveCount")) return "toHaveCount";
+  return "unknown";
+}
+var DEFAULT_EXTRACTION_OPTIONS;
 var init_llkb_learning = __esm({
   "src/refinement/llkb-learning.ts"() {
+    DEFAULT_EXTRACTION_OPTIONS = {
+      minConfidence: 0.7,
+      includeUnverified: false,
+      maxLessonsPerSession: 10
+    };
   }
 });
 var init_llkb_storage = __esm({
@@ -8453,7 +8612,7 @@ var init_llkb_storage = __esm({
   }
 });
 async function checkPlaywrightInstalled(cwd) {
-  return new Promise((resolve7) => {
+  return new Promise((resolve8) => {
     const proc = spawn("npx", ["playwright", "--version"], {
       cwd: getHarnessRoot(),
       env: process.env
@@ -8469,26 +8628,26 @@ async function checkPlaywrightInstalled(cwd) {
     proc.on("close", (code) => {
       if (code === 0) {
         const versionMatch = stdout.match(/(\d+\.\d+\.\d+)/);
-        resolve7({
+        resolve8({
           installed: true,
           version: versionMatch && versionMatch[1] ? versionMatch[1] : void 0
         });
       } else {
-        resolve7({
+        resolve8({
           installed: false,
           error: stderr || "Playwright not found. Run: npx playwright install"
         });
       }
     });
     proc.on("error", (err3) => {
-      resolve7({
+      resolve8({
         installed: false,
         error: `Failed to check Playwright: ${err3.message}`
       });
     });
     setTimeout(() => {
       proc.kill();
-      resolve7({
+      resolve8({
         installed: false,
         error: "Playwright check timed out"
       });
@@ -9462,12 +9621,797 @@ Examples:
   }
 });
 
+// src/mapping/patternDistance.ts
+function levenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          // substitution
+          matrix[i][j - 1] + 1,
+          // insertion
+          matrix[i - 1][j] + 1
+          // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+function calculateSimilarity(a, b) {
+  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1;
+  return 1 - distance / maxLength;
+}
+var init_patternDistance = __esm({
+  "src/mapping/patternDistance.ts"() {
+  }
+});
+
+// src/mapping/normalize.ts
+function stemWord(word) {
+  const lower = word.toLowerCase();
+  return VERB_STEMS[lower] ?? lower;
+}
+function expandAbbreviations(text) {
+  let result = text.toLowerCase();
+  const sorted = Object.entries(ABBREVIATION_EXPANSIONS).sort(([a], [b]) => b.length - a.length);
+  for (const [abbr, expansion] of sorted) {
+    const regex = new RegExp(`\\b${escapeRegex2(abbr)}\\b`, "gi");
+    result = result.replace(regex, expansion);
+  }
+  return result;
+}
+function escapeRegex2(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function removeActorPrefixes(text) {
+  let result = text;
+  for (const pattern of ACTOR_PREFIXES) {
+    result = result.replace(pattern, "");
+  }
+  return result.trim();
+}
+function removeStopWords(text) {
+  const words = text.split(/\s+/);
+  const filtered = words.filter((word) => !STOP_WORDS.has(word.toLowerCase()));
+  return filtered.join(" ");
+}
+function extractQuotedStrings(text) {
+  const quotes = /* @__PURE__ */ new Map();
+  let placeholderIndex = 0;
+  const processedText = text.replace(/(['"])([^'"]*)\1/g, (_match, quote, content) => {
+    const placeholder = `__QUOTED_${placeholderIndex}__`;
+    quotes.set(placeholder, `${quote}${content}${quote}`);
+    placeholderIndex++;
+    return placeholder;
+  });
+  return { text: processedText, quotes };
+}
+function restoreQuotedStrings(text, quotes) {
+  let result = text;
+  for (const [placeholder, original] of quotes) {
+    result = result.replace(placeholder, original);
+  }
+  return result;
+}
+function normalizeStepTextEnhanced(text, options = {}) {
+  const opts = { ...DEFAULT_OPTIONS5, ...options };
+  let result = text.trim();
+  let quotesMap = /* @__PURE__ */ new Map();
+  if (opts.preserveQuoted) {
+    const extracted = extractQuotedStrings(result);
+    result = extracted.text;
+    quotesMap = extracted.quotes;
+  }
+  if (opts.removeActorPrefixes) {
+    result = removeActorPrefixes(result);
+  }
+  if (opts.lowercase) {
+    result = result.toLowerCase();
+  }
+  if (opts.expandAbbreviations) {
+    result = expandAbbreviations(result);
+  }
+  if (opts.stemVerbs) {
+    const words = result.split(/\s+/);
+    result = words.map((word) => {
+      if (word.startsWith("__QUOTED_") || /[^a-z]/.test(word)) {
+        return word;
+      }
+      return stemWord(word);
+    }).join(" ");
+  }
+  if (opts.removeStopWords) {
+    result = removeStopWords(result);
+  }
+  result = result.replace(/\s+/g, " ").trim();
+  if (opts.preserveQuoted) {
+    result = restoreQuotedStrings(result, quotesMap);
+  }
+  return result;
+}
+function getCanonicalForm(text) {
+  return normalizeStepTextEnhanced(text, {
+    stemVerbs: true,
+    expandAbbreviations: true,
+    removeStopWords: true,
+    removeActorPrefixes: true,
+    lowercase: true,
+    preserveQuoted: true
+  });
+}
+var VERB_STEMS, ABBREVIATION_EXPANSIONS, STOP_WORDS, ACTOR_PREFIXES, DEFAULT_OPTIONS5;
+var init_normalize2 = __esm({
+  "src/mapping/normalize.ts"() {
+    VERB_STEMS = {
+      // Click variants
+      clicking: "click",
+      clicked: "click",
+      clicks: "click",
+      // Fill variants
+      filling: "fill",
+      filled: "fill",
+      fills: "fill",
+      entering: "fill",
+      entered: "fill",
+      enters: "fill",
+      typing: "fill",
+      typed: "fill",
+      types: "fill",
+      // Select variants
+      selecting: "select",
+      selected: "select",
+      selects: "select",
+      choosing: "select",
+      chose: "select",
+      chosen: "select",
+      chooses: "select",
+      // Check variants
+      checking: "check",
+      checked: "check",
+      checks: "check",
+      // Uncheck variants
+      unchecking: "uncheck",
+      unchecked: "uncheck",
+      unchecks: "uncheck",
+      // Navigate variants
+      navigating: "navigate",
+      navigated: "navigate",
+      navigates: "navigate",
+      going: "navigate",
+      went: "navigate",
+      goes: "navigate",
+      visiting: "navigate",
+      visited: "navigate",
+      visits: "navigate",
+      opening: "navigate",
+      opened: "navigate",
+      opens: "navigate",
+      // See/Verify variants
+      seeing: "see",
+      saw: "see",
+      seen: "see",
+      sees: "see",
+      verifying: "verify",
+      verified: "verify",
+      verifies: "verify",
+      confirming: "verify",
+      confirmed: "verify",
+      confirms: "verify",
+      ensuring: "verify",
+      ensured: "verify",
+      ensures: "verify",
+      // Wait variants
+      waiting: "wait",
+      waited: "wait",
+      waits: "wait",
+      // Submit variants
+      submitting: "submit",
+      submitted: "submit",
+      submits: "submit",
+      // Press variants
+      pressing: "press",
+      pressed: "press",
+      presses: "press",
+      // Hover variants
+      hovering: "hover",
+      hovered: "hover",
+      hovers: "hover",
+      // Scroll variants
+      scrolling: "scroll",
+      scrolled: "scroll",
+      scrolls: "scroll",
+      // Focus variants
+      focusing: "focus",
+      focused: "focus",
+      focuses: "focus",
+      // Drag variants
+      dragging: "drag",
+      dragged: "drag",
+      drags: "drag",
+      // Drop variants
+      dropping: "drop",
+      dropped: "drop",
+      drops: "drop",
+      // Clear variants
+      clearing: "clear",
+      cleared: "clear",
+      clears: "clear",
+      // Upload variants
+      uploading: "upload",
+      uploaded: "upload",
+      uploads: "upload",
+      // Download variants
+      downloading: "download",
+      downloaded: "download",
+      downloads: "download",
+      // Assert/Expect variants
+      asserting: "assert",
+      asserted: "assert",
+      asserts: "assert",
+      expecting: "expect",
+      expected: "expect",
+      expects: "expect",
+      // Show/Display variants
+      showing: "show",
+      showed: "show",
+      shown: "show",
+      shows: "show",
+      displaying: "display",
+      displayed: "display",
+      displays: "display",
+      // Hide variants
+      hiding: "hide",
+      hid: "hide",
+      hidden: "hide",
+      hides: "hide",
+      // Enable/Disable variants
+      enabling: "enable",
+      enabled: "enable",
+      enables: "enable",
+      disabling: "disable",
+      disabled: "disable",
+      disables: "disable",
+      // Compound verb forms (hyphenated and spaced)
+      "double-click": "dblclick",
+      "double click": "dblclick",
+      "double-clicking": "dblclick",
+      "double clicking": "dblclick",
+      "double-clicked": "dblclick",
+      "double clicked": "dblclick",
+      doubleclick: "dblclick",
+      doubleclicking: "dblclick",
+      doubleclicked: "dblclick",
+      "right-click": "rightclick",
+      "right click": "rightclick",
+      "right-clicking": "rightclick",
+      "right clicking": "rightclick",
+      "right-clicked": "rightclick",
+      "right clicked": "rightclick",
+      rightclick: "rightclick",
+      rightclicking: "rightclick",
+      rightclicked: "rightclick",
+      "drag-and-drop": "dragdrop",
+      "drag and drop": "dragdrop",
+      "drag-n-drop": "dragdrop",
+      "sign-in": "login",
+      "sign in": "login",
+      "signing-in": "login",
+      "signing in": "login",
+      "signed-in": "login",
+      "signed in": "login",
+      signin: "login",
+      "log-in": "login",
+      "log in": "login",
+      "logging-in": "login",
+      "logging in": "login",
+      "logged-in": "login",
+      "logged in": "login",
+      "sign-out": "logout",
+      "sign out": "logout",
+      "signing-out": "logout",
+      "signing out": "logout",
+      "signed-out": "logout",
+      "signed out": "logout",
+      signout: "logout",
+      "log-out": "logout",
+      "log out": "logout",
+      "logging-out": "logout",
+      "logging out": "logout",
+      "logged-out": "logout",
+      "logged out": "logout",
+      "sign-up": "register",
+      "sign up": "register",
+      "signing-up": "register",
+      "signing up": "register",
+      "signed-up": "register",
+      "signed up": "register",
+      signup: "register"
+    };
+    ABBREVIATION_EXPANSIONS = {
+      // Common abbreviations
+      btn: "button",
+      msg: "message",
+      err: "error",
+      pwd: "password",
+      usr: "user",
+      nav: "navigation",
+      pg: "page",
+      txt: "text",
+      num: "number",
+      val: "value",
+      img: "image",
+      pic: "picture",
+      lbl: "label",
+      chk: "checkbox",
+      chkbox: "checkbox",
+      cb: "checkbox",
+      rb: "radio",
+      dd: "dropdown",
+      sel: "select",
+      dlg: "dialog",
+      mdl: "modal",
+      lnk: "link",
+      tbl: "table",
+      col: "column",
+      hdr: "header",
+      ftr: "footer",
+      sec: "section",
+      // UI element synonyms
+      textbox: "field",
+      "text field": "field",
+      "text input": "field",
+      "input field": "field",
+      inputbox: "field",
+      combobox: "dropdown",
+      "combo box": "dropdown",
+      selectbox: "dropdown",
+      "select box": "dropdown",
+      picker: "dropdown",
+      listbox: "dropdown",
+      "list box": "dropdown",
+      // Action synonyms
+      "sign in": "login",
+      "log in": "login",
+      signin: "login",
+      "sign out": "logout",
+      "log out": "logout",
+      signout: "logout",
+      // Common element names
+      "submit button": "submit",
+      "cancel button": "cancel",
+      "ok button": "ok",
+      "close button": "close",
+      "save button": "save",
+      "delete button": "delete",
+      "edit button": "edit",
+      "add button": "add",
+      "remove button": "remove",
+      "search button": "search",
+      "search box": "search field",
+      "search bar": "search field"
+    };
+    STOP_WORDS = /* @__PURE__ */ new Set([
+      "the",
+      "a",
+      "an",
+      "is",
+      "are",
+      "was",
+      "were",
+      "be",
+      "been",
+      "being",
+      "have",
+      "has",
+      "had",
+      "do",
+      "does",
+      "did",
+      "will",
+      "would",
+      "could",
+      "should",
+      "may",
+      "might",
+      "must",
+      "shall",
+      "can",
+      "need",
+      "dare",
+      "ought",
+      "used",
+      "to",
+      "of",
+      "in",
+      "for",
+      "on",
+      "with",
+      "at",
+      "by",
+      "from",
+      "up",
+      "about",
+      "into",
+      "through",
+      "during",
+      "before",
+      "after",
+      "above",
+      "below",
+      "between",
+      "under",
+      "again",
+      "further",
+      "then",
+      "once",
+      "here",
+      "there",
+      "when",
+      "where",
+      "why",
+      "how",
+      "all",
+      "each",
+      "few",
+      "more",
+      "most",
+      "other",
+      "some",
+      "such",
+      "no",
+      "nor",
+      "not",
+      "only",
+      "own",
+      "same",
+      "so",
+      "than",
+      "too",
+      "very",
+      "just",
+      "and"
+    ]);
+    ACTOR_PREFIXES = [
+      /^user\s+/i,
+      /^the user\s+/i,
+      /^i\s+/i,
+      /^we\s+/i,
+      /^they\s+/i,
+      /^customer\s+/i,
+      /^visitor\s+/i,
+      /^admin\s+/i,
+      /^administrator\s+/i
+    ];
+    DEFAULT_OPTIONS5 = {
+      stemVerbs: true,
+      expandAbbreviations: true,
+      removeStopWords: false,
+      // Keep stop words by default for better pattern matching
+      removeActorPrefixes: true,
+      lowercase: true,
+      preserveQuoted: true
+    };
+  }
+});
+
+// src/mapping/fuzzyMatcher.ts
+function getPatternExamples(pattern) {
+  const examples = [];
+  const name = pattern.name.toLowerCase();
+  if (name.includes("navigate") || name.includes("goto")) {
+    examples.push(
+      "navigate to /home",
+      "go to /login",
+      "open /dashboard",
+      "visit the homepage",
+      "navigate to the settings page"
+    );
+  }
+  if (name.includes("click")) {
+    examples.push(
+      "click the submit button",
+      "click on save",
+      "click cancel button",
+      "press the login button",
+      "tap the menu icon"
+    );
+  }
+  if (name.includes("fill") || name.includes("enter") || name.includes("type")) {
+    examples.push(
+      "enter username in the username field",
+      "fill password in password field",
+      "type hello in the search box",
+      "input test@example.com in email field",
+      "enter value into the input"
+    );
+  }
+  if (name.includes("see") || name.includes("visible") || name.includes("verify")) {
+    examples.push(
+      "see the welcome message",
+      "verify the success message is displayed",
+      "confirm the error appears",
+      "should see login button",
+      "expect the form to be visible"
+    );
+  }
+  if (name.includes("wait")) {
+    examples.push(
+      "wait for network idle",
+      "wait for page to load",
+      "wait 3 seconds",
+      "wait for the spinner to disappear",
+      "wait until the modal closes"
+    );
+  }
+  if (name.includes("select")) {
+    examples.push(
+      "select option 1 from dropdown",
+      "choose value from the list",
+      "pick an item from menu",
+      "select country from country dropdown"
+    );
+  }
+  if (name.includes("check")) {
+    examples.push(
+      "check the checkbox",
+      "tick the agreement box",
+      "check remember me",
+      "uncheck the newsletter option"
+    );
+  }
+  if (name.includes("upload")) {
+    examples.push(
+      "upload file.pdf",
+      "attach document.docx",
+      "upload image to the form"
+    );
+  }
+  if (name.includes("hover")) {
+    examples.push(
+      "hover over the menu",
+      "mouse over the dropdown",
+      "hover on the button"
+    );
+  }
+  if (name.includes("scroll")) {
+    examples.push(
+      "scroll down",
+      "scroll to the bottom",
+      "scroll to element"
+    );
+  }
+  if (name.includes("press")) {
+    examples.push(
+      "press enter",
+      "press tab",
+      "press escape key",
+      "hit the enter key"
+    );
+  }
+  if (name.includes("table") || name.includes("grid")) {
+    examples.push(
+      "see 5 rows in the table",
+      "verify table has data",
+      "check grid contains value"
+    );
+  }
+  if (name.includes("text") || name.includes("contain")) {
+    examples.push(
+      "see text welcome back",
+      "page contains login form",
+      "element has text submit"
+    );
+  }
+  return examples;
+}
+function buildPatternExamplesCache() {
+  return allPatterns.map((pattern) => ({
+    pattern,
+    examples: getPatternExamples(pattern)
+  }));
+}
+function getPatternExamples_cached() {
+  if (!patternExamplesCache) {
+    patternExamplesCache = buildPatternExamplesCache();
+  }
+  return patternExamplesCache;
+}
+function fuzzyMatch(text, config = {}) {
+  const {
+    minSimilarity = 0.85,
+    useNormalization = true,
+    maxCandidates = 10,
+    debug = false
+  } = config;
+  const trimmedText = text.trim();
+  const normalizedText = useNormalization ? getCanonicalForm(trimmedText) : trimmedText.toLowerCase();
+  const patternsWithExamples = getPatternExamples_cached();
+  const candidates = [];
+  outer: for (const { pattern, examples } of patternsWithExamples) {
+    for (const example of examples) {
+      const normalizedExample = useNormalization ? getCanonicalForm(example) : example.toLowerCase();
+      const similarity = calculateSimilarity(normalizedText, normalizedExample);
+      if (similarity >= minSimilarity) {
+        candidates.push({ pattern, example, similarity });
+        if (similarity >= 0.98) {
+          break outer;
+        }
+      }
+    }
+  }
+  candidates.sort((a, b) => b.similarity - a.similarity);
+  const topCandidates = candidates.slice(0, maxCandidates);
+  if (debug && topCandidates.length > 0) {
+    console.log(
+      `[FuzzyMatcher] Top ${topCandidates.length} candidates for "${trimmedText}":`
+    );
+    for (const c of topCandidates) {
+      console.log(`  ${c.pattern.name}: ${(c.similarity * 100).toFixed(1)}% (vs "${c.example}")`);
+    }
+  }
+  if (topCandidates.length > 0) {
+    const best = topCandidates[0];
+    const match = trimmedText.match(best.pattern.regex);
+    if (match) {
+      const primitive = best.pattern.extract(match);
+      if (primitive) {
+        return {
+          primitive,
+          patternName: best.pattern.name,
+          similarity: best.similarity,
+          matchedExample: best.example,
+          originalText: trimmedText,
+          normalizedText
+        };
+      }
+    }
+    if (best.similarity >= 0.9) {
+      const genericPrimitive = createGenericPrimitive(best.pattern, trimmedText);
+      if (genericPrimitive) {
+        if (debug) {
+          console.log(
+            `[FuzzyMatcher] Created generic primitive for ${best.pattern.name}`
+          );
+        }
+        return {
+          primitive: genericPrimitive,
+          patternName: `${best.pattern.name}:fuzzy`,
+          similarity: best.similarity,
+          matchedExample: best.example,
+          originalText: trimmedText,
+          normalizedText
+        };
+      }
+    }
+  }
+  if (debug) {
+    console.log(`[FuzzyMatcher] No match above ${minSimilarity * 100}% for "${trimmedText}"`);
+  }
+  return null;
+}
+function createGenericPrimitive(pattern, text) {
+  const type = pattern.primitiveType;
+  const quotedStrings = text.match(/["']([^"']+)["']/g)?.map((s) => s.slice(1, -1)) || [];
+  const targetStr = quotedStrings[0] || extractTarget(text) || "element";
+  const valueStr = quotedStrings[1] || quotedStrings[0] || "";
+  const makeLocator = (value) => ({
+    strategy: "text",
+    value
+  });
+  switch (type) {
+    case "click":
+    case "dblclick":
+    case "rightClick":
+      return { type, locator: makeLocator(targetStr) };
+    case "fill":
+      return {
+        type: "fill",
+        locator: makeLocator(targetStr),
+        value: { type: "literal", value: valueStr }
+      };
+    case "goto": {
+      const urlMatch = text.match(/(?:to|\/)\s*([\/\w.-]+)/i);
+      return {
+        type: "goto",
+        url: urlMatch?.[1] || "/"
+      };
+    }
+    case "waitForTimeout": {
+      const timeMatch = text.match(/(\d+)\s*(?:second|sec|ms|millisecond)/i);
+      if (timeMatch) {
+        const amount = parseInt(timeMatch[1], 10);
+        const unit = text.toLowerCase().includes("ms") ? "ms" : "s";
+        return {
+          type: "waitForTimeout",
+          ms: unit === "ms" ? amount : amount * 1e3
+        };
+      }
+      return { type: "waitForTimeout", ms: 1e3 };
+    }
+    case "waitForNetworkIdle":
+      return { type: "waitForNetworkIdle" };
+    case "waitForVisible":
+      return { type: "waitForVisible", locator: makeLocator(targetStr) };
+    case "waitForHidden":
+      return { type: "waitForHidden", locator: makeLocator(targetStr) };
+    case "expectVisible":
+    case "expectNotVisible":
+    case "expectHidden":
+      return { type, locator: makeLocator(targetStr) };
+    case "expectText":
+      return {
+        type: "expectText",
+        locator: makeLocator(targetStr),
+        text: valueStr
+      };
+    case "select":
+      return {
+        type: "select",
+        locator: makeLocator(targetStr),
+        option: valueStr
+      };
+    case "hover":
+    case "focus":
+    case "clear":
+    case "check":
+    case "uncheck":
+      return { type, locator: makeLocator(targetStr) };
+    case "press": {
+      const keyMatch = text.match(/(?:press|hit|key)\s+(\w+)/i);
+      return {
+        type: "press",
+        key: keyMatch?.[1] || "Enter"
+      };
+    }
+    default:
+      return null;
+  }
+}
+function extractTarget(text) {
+  const patterns = [
+    /(?:the|a)\s+["']?(\w+(?:\s+\w+)?)["']?\s+(?:button|field|input|link|element)/i,
+    /(?:on|click|tap|press)\s+(?:the\s+)?["']?(\w+(?:\s+\w+)?)["']?/i,
+    /(?:in|into)\s+(?:the\s+)?["']?(\w+(?:\s+\w+)?)["']?\s+(?:field|input)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+var patternExamplesCache;
+var init_fuzzyMatcher = __esm({
+  "src/mapping/fuzzyMatcher.ts"() {
+    init_patternDistance();
+    init_normalize2();
+    init_patterns();
+    patternExamplesCache = null;
+  }
+});
+
 // src/mapping/unifiedMatcher.ts
 function unifiedMatch(text, options = {}) {
   const {
     useLlkb = true,
     llkbRoot,
     minLlkbConfidence = 0.7,
+    useFuzzy = true,
+    minFuzzySimilarity = 0.85,
     debug = false
   } = options;
   const trimmedText = text.trim();
@@ -9477,7 +10421,7 @@ function unifiedMatch(text, options = {}) {
       const primitive = pattern.extract(match);
       if (primitive) {
         if (debug) {
-          console.debug(`[UnifiedMatcher] Core match: ${pattern.name} for "${trimmedText}"`);
+          console.log(`[UnifiedMatcher] Core match: ${pattern.name} for "${trimmedText}"`);
         }
         return {
           primitive,
@@ -9495,7 +10439,7 @@ function unifiedMatch(text, options = {}) {
       });
       if (llkbMatch) {
         if (debug) {
-          console.debug(
+          console.log(
             `[UnifiedMatcher] LLKB match: ${llkbMatch.patternId} (confidence: ${llkbMatch.confidence}) for "${trimmedText}"`
           );
         }
@@ -9508,12 +10452,39 @@ function unifiedMatch(text, options = {}) {
       }
     } catch (err3) {
       if (debug) {
-        console.debug(`[UnifiedMatcher] LLKB lookup failed: ${err3}`);
+        console.log(`[UnifiedMatcher] LLKB lookup failed: ${err3}`);
+      }
+    }
+  }
+  if (useFuzzy) {
+    try {
+      const fuzzyResult = fuzzyMatch(trimmedText, {
+        minSimilarity: minFuzzySimilarity,
+        useNormalization: true,
+        debug
+      });
+      if (fuzzyResult) {
+        if (debug) {
+          console.log(
+            `[UnifiedMatcher] Fuzzy match: ${fuzzyResult.patternName} (similarity: ${(fuzzyResult.similarity * 100).toFixed(1)}%) for "${trimmedText}"`
+          );
+        }
+        return {
+          primitive: fuzzyResult.primitive,
+          source: "fuzzy",
+          patternName: fuzzyResult.patternName,
+          fuzzySimilarity: fuzzyResult.similarity,
+          fuzzyMatchedExample: fuzzyResult.matchedExample
+        };
+      }
+    } catch (err3) {
+      if (debug) {
+        console.log(`[UnifiedMatcher] Fuzzy matching failed: ${err3}`);
       }
     }
   }
   if (debug) {
-    console.debug(`[UnifiedMatcher] No match for: "${trimmedText}"`);
+    console.log(`[UnifiedMatcher] No match for: "${trimmedText}"`);
   }
   return {
     primitive: null,
@@ -9524,6 +10495,7 @@ var init_unifiedMatcher = __esm({
   "src/mapping/unifiedMatcher.ts"() {
     init_patterns();
     init_patternExtension();
+    init_fuzzyMatcher();
   }
 });
 
@@ -10329,10 +11301,6 @@ var init_telemetry2 = __esm({
     TELEMETRY_FILE = "blocked-steps-telemetry.jsonl";
   }
 });
-var init_patternDistance = __esm({
-  "src/mapping/patternDistance.ts"() {
-  }
-});
 
 // src/mapping/blockedStepAnalysis.ts
 function categorizeStep(text) {
@@ -10547,6 +11515,7 @@ async function runGenerateFromPlan(planPath, journeyFilter, options) {
   const allWarnings = [];
   const allErrors = [];
   let totalLlkbRecorded = 0;
+  let totalLlkbSkipped = 0;
   const useLlkb = !options["no-llkb"];
   for (const plan of plans) {
     if (!quiet) {
@@ -10561,6 +11530,7 @@ async function runGenerateFromPlan(planPath, journeyFilter, options) {
       if (useLlkb && !dryRun) {
         const llkbResult = recordLlkbLearning(plan, { quiet });
         totalLlkbRecorded += llkbResult.recorded;
+        totalLlkbSkipped += llkbResult.skipped;
       }
     } else if (plan.journeyPath && existsSync(plan.journeyPath)) {
       const genOptions = {
@@ -10622,8 +11592,8 @@ Summary:`);
     console.log(`  Modules: ${allModules.length}`);
     console.log(`  Errors: ${allErrors.length}`);
     console.log(`  Warnings: ${allWarnings.length}`);
-    if (useLlkb && totalLlkbRecorded > 0) {
-      console.log(`  LLKB patterns learned: ${totalLlkbRecorded}`);
+    if (useLlkb && (totalLlkbRecorded > 0 || totalLlkbSkipped > 0)) {
+      console.log(`  LLKB patterns learned: ${totalLlkbRecorded} (${totalLlkbSkipped} skipped)`);
     }
   }
   if (allErrors.length > 0) {
@@ -10695,11 +11665,10 @@ function escapeStringForCode(str) {
   return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/`/g, "\\`").replace(/\$/g, "\\$").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
 }
 function validateOutputPath(outputDir, filename) {
-  const { resolve: resolve7, relative: relative4 } = __require("path");
-  const resolvedOutput = resolve7(outputDir);
-  const resolvedFile = resolve7(outputDir, filename);
-  const relativePath = relative4(resolvedOutput, resolvedFile);
-  if (relativePath.startsWith("..") || resolve7(relativePath) === relativePath) {
+  const resolvedOutput = resolve(outputDir);
+  const resolvedFile = resolve(outputDir, filename);
+  const relativePath = relative(resolvedOutput, resolvedFile);
+  if (relativePath.startsWith("..") || resolve(relativePath) === relativePath) {
     throw new Error(`Security: Path traversal detected in filename "${filename}"`);
   }
   return resolvedFile;
@@ -11188,6 +12157,159 @@ Examples:
 `;
   }
 });
+function getBlockedStepsFilePath() {
+  const autogenDir = getAutogenDir();
+  return join(autogenDir, BLOCKED_STEPS_FILE);
+}
+function loadBlockedSteps() {
+  const filePath = getBlockedStepsFilePath();
+  if (!existsSync(filePath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+    return Array.isArray(data.records) ? data.records : [];
+  } catch {
+    return [];
+  }
+}
+function saveBlockedSteps(records) {
+  const filePath = getBlockedStepsFilePath();
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const trimmedRecords = records.slice(-MAX_RECORDS);
+  const data = {
+    version: "1.0.0",
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+    recordCount: trimmedRecords.length,
+    records: trimmedRecords
+  };
+  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+function flushPendingRecords() {
+  if (pendingRecords.length === 0) return;
+  const existing = loadBlockedSteps();
+  const combined = [...existing, ...pendingRecords];
+  saveBlockedSteps(combined);
+  pendingRecords = [];
+  if (flushTimeout) {
+    clearTimeout(flushTimeout);
+    flushTimeout = null;
+  }
+}
+function trackBlockedStep(record) {
+  pendingRecords.push({
+    ...record,
+    timestamp: record.timestamp || (/* @__PURE__ */ new Date()).toISOString()
+  });
+  if (!flushTimeout) {
+    flushTimeout = setTimeout(flushPendingRecords, FLUSH_INTERVAL_MS);
+  }
+  if (pendingRecords.length >= 100) {
+    flushPendingRecords();
+  }
+}
+function flushBlockedStepTelemetry() {
+  flushPendingRecords();
+}
+function normalizeForGrouping(text) {
+  return text.toLowerCase().trim().replace(/"[^"]+"/g, '"VALUE"').replace(/'[^']+'/g, "'VALUE'").replace(/\d+/g, "N").replace(/\s+/g, " ");
+}
+function analyzePatternGaps() {
+  flushPendingRecords();
+  const records = loadBlockedSteps();
+  const byErrorType = {};
+  for (const record of records) {
+    const errorType = record.errorType || "unknown";
+    byErrorType[errorType] = (byErrorType[errorType] || 0) + 1;
+  }
+  const byJourney = {};
+  for (const record of records) {
+    byJourney[record.journeyId] = (byJourney[record.journeyId] || 0) + 1;
+  }
+  const patternGroups = /* @__PURE__ */ new Map();
+  for (const record of records) {
+    const normalizedPattern = normalizeForGrouping(record.stepText);
+    const existing = patternGroups.get(normalizedPattern);
+    if (existing) {
+      existing.count++;
+      if (record.errorType) {
+        existing.errorTypes.add(record.errorType);
+      }
+      if (existing.originalTexts.length < 3) {
+        existing.originalTexts.push(record.stepText);
+      }
+    } else {
+      patternGroups.set(normalizedPattern, {
+        count: 1,
+        errorTypes: new Set(record.errorType ? [record.errorType] : []),
+        originalTexts: [record.stepText]
+      });
+    }
+  }
+  const topPatterns = Array.from(patternGroups.entries()).map(([pattern, data]) => ({
+    pattern,
+    count: data.count,
+    errorTypes: Array.from(data.errorTypes),
+    examples: data.originalTexts
+  })).sort((a, b) => b.count - a.count).slice(0, 20);
+  return {
+    totalBlocked: records.length,
+    byErrorType,
+    byJourney,
+    topPatterns,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function suggestNewPatterns() {
+  const stats = analyzePatternGaps();
+  const suggestions = [];
+  for (const pattern of stats.topPatterns) {
+    if (pattern.count < 3) continue;
+    const regex = pattern.pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/"VALUE"/g, '"([^"]+)"').replace(/'VALUE'/g, "'([^']+)'").replace(/N/g, "\\d+");
+    const confidence = Math.min(0.9, 0.5 + pattern.count / 50);
+    suggestions.push({
+      suggestedRegex: `^${regex}$`,
+      coveredCount: pattern.count,
+      examples: pattern.examples || [],
+      confidence
+    });
+  }
+  return suggestions.slice(0, 10);
+}
+function registerExitHandlers() {
+  let registered = false;
+  const handleExit = () => {
+    if (!registered) {
+      registered = true;
+      flushBlockedStepTelemetry();
+    }
+  };
+  process.on("beforeExit", handleExit);
+  process.on("SIGINT", () => {
+    handleExit();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    handleExit();
+    process.exit(0);
+  });
+}
+var BLOCKED_STEPS_FILE, MAX_RECORDS, pendingRecords, flushTimeout, FLUSH_INTERVAL_MS;
+var init_blocked_step_telemetry = __esm({
+  "src/shared/blocked-step-telemetry.ts"() {
+    init_paths();
+    BLOCKED_STEPS_FILE = "blocked-steps-telemetry.json";
+    MAX_RECORDS = 1e4;
+    pendingRecords = [];
+    flushTimeout = null;
+    FLUSH_INTERVAL_MS = 5e3;
+    registerExitHandlers();
+  }
+});
 
 // src/cli/run.ts
 var run_exports = {};
@@ -11309,7 +12431,7 @@ async function runPlaywrightTest(testPath, options) {
   if (options.debug) {
     args.push("--debug");
   }
-  return new Promise((resolve7) => {
+  return new Promise((resolve8) => {
     let stdout = "";
     let stderr = "";
     const proc = spawn("npx", args, {
@@ -11373,7 +12495,7 @@ async function runPlaywrightTest(testPath, options) {
 
 [${name} TRUNCATED - ${text.length - truncateAt} more characters]`;
       };
-      resolve7({
+      resolve8({
         version: "1.0",
         testPath,
         journeyId,
@@ -11390,7 +12512,7 @@ async function runPlaywrightTest(testPath, options) {
       });
     });
     proc.on("error", (err3) => {
-      resolve7({
+      resolve8({
         version: "1.0",
         testPath,
         status: "error",
@@ -11574,6 +12696,33 @@ Output: ${outputPath}`);
   }
   const allPassed = summary.failed === 0 && summary.error === 0 && summary.timeout === 0;
   const pipelineStage = allPassed ? "completed" : "tested";
+  if (!allPassed) {
+    for (const result of results) {
+      if (result.status !== "passed" && result.journeyId) {
+        for (const error of result.errors) {
+          Promise.resolve().then(() => {
+            try {
+              recordPatternFailure(
+                error.message.substring(0, 500),
+                // Truncate for pattern matching
+                result.journeyId
+              );
+              trackBlockedStep({
+                stepText: error.message.substring(0, 500),
+                journeyId: result.journeyId,
+                errorType: error.type,
+                timestamp: (/* @__PURE__ */ new Date()).toISOString()
+              });
+            } catch (e) {
+              if (!quiet) {
+                console.warn(`LLKB recording skipped: ${e instanceof Error ? e.message : "unknown error"}`);
+              }
+            }
+          });
+        }
+      }
+    }
+  }
   await updatePipelineState("run", pipelineStage, allPassed, {
     testPaths: positionals
   });
@@ -11596,6 +12745,8 @@ var init_run = __esm({
     init_state();
     init_telemetry();
     init_playwright_runner();
+    init_patternExtension();
+    init_blocked_step_telemetry();
     USAGE4 = `
 Usage: artk-autogen run [options] <test-files...>
 
@@ -11876,6 +13027,83 @@ async function runRefine(args) {
     if (result.errors.length === 0) {
       status = "converged";
       recommendation = "Test is now passing";
+      if (result.journeyId && state.attempts.length > 0) {
+        Promise.resolve().then(() => {
+          try {
+            const session = {
+              sessionId: `refine-${Date.now()}`,
+              journeyId: result.journeyId,
+              testFile: result.testPath,
+              startTime: new Date(state.attempts[0]?.timestamp ?? Date.now()),
+              originalCode: "",
+              currentCode: "",
+              attempts: state.attempts.map((attempt, idx) => ({
+                attemptNumber: attempt.attemptNumber,
+                timestamp: new Date(attempt.timestamp),
+                error: {
+                  fingerprint: `attempt-${idx}`,
+                  category: attempt.errors[0]?.type === "selector" ? "SELECTOR_NOT_FOUND" : attempt.errors[0]?.type === "timeout" ? "TIMEOUT" : attempt.errors[0]?.type === "assertion" ? "ASSERTION_FAILED" : "UNKNOWN",
+                  message: attempt.errors[0]?.message ?? "Unknown error",
+                  originalError: attempt.errors[0]?.message ?? "",
+                  severity: "major",
+                  timestamp: new Date(attempt.timestamp)
+                },
+                proposedFixes: [],
+                appliedFix: attempt.suggestions[0] ? {
+                  type: "OTHER",
+                  description: attempt.suggestions[0].suggestion,
+                  location: attempt.suggestions[0].location ? {
+                    file: attempt.suggestions[0].location.file,
+                    line: attempt.suggestions[0].location.line
+                  } : { file: result.testPath, line: 0 },
+                  originalCode: "",
+                  fixedCode: attempt.suggestions[0].codeChange?.newCode ?? "",
+                  confidence: attempt.suggestions[0].confidence
+                } : void 0,
+                outcome: idx === state.attempts.length - 1 ? "success" : "partial"
+              })),
+              circuitBreakerState: {
+                isOpen: false,
+                attemptCount: state.attempts.length,
+                errorHistory: [],
+                tokensUsed: 0
+              },
+              convergenceInfo: {
+                converged: true,
+                attempts: state.attempts.length,
+                errorCountHistory: [],
+                uniqueErrorsHistory: [],
+                stagnationCount: 0,
+                trend: "improving"
+              },
+              finalStatus: "SUCCESS",
+              totalTokenUsage: {
+                promptTokens: 0,
+                completionTokens: 0,
+                totalTokens: 0,
+                estimatedCostUsd: 0
+              }
+            };
+            const lessons = extractLessonsFromSession(session);
+            if (lessons.length > 0 && !quiet) {
+              console.log(`  LLKB: Extracted ${lessons.length} lesson(s) from successful refinement`);
+            }
+            for (const suggestion of suggestions) {
+              if (suggestion.confidence >= 0.7) {
+                recordPatternSuccess(
+                  suggestion.suggestion.substring(0, 100),
+                  { type: "blocked", reason: "learned", sourceText: suggestion.suggestion },
+                  result.journeyId
+                );
+              }
+            }
+          } catch (e) {
+            if (!quiet) {
+              console.warn(`LLKB lesson extraction skipped: ${e instanceof Error ? e.message : "unknown error"}`);
+            }
+          }
+        });
+      }
     } else if (analysis.recommendation === "stop" || !analysis.shouldContinue) {
       status = "blocked";
       recommendation = `Refinement blocked: ${analysis.reason}. Manual intervention required.`;
@@ -11968,6 +13196,8 @@ var init_refine = __esm({
     init_state();
     init_telemetry();
     init_convergence_detector();
+    init_llkb_learning();
+    init_patternExtension();
     USAGE5 = `
 Usage: artk-autogen refine [options]
 
@@ -12420,10 +13650,10 @@ Total: ${formatSize(totalSize)}`);
       input: process.stdin,
       output: process.stdout
     });
-    const answer = await new Promise((resolve7) => {
+    const answer = await new Promise((resolve8) => {
       rl.question("\nProceed with deletion? [y/N] ", (ans) => {
         rl.close();
-        resolve7(ans);
+        resolve8(ans);
       });
     });
     if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
@@ -12915,6 +14145,250 @@ var init_upgrade2 = __esm({
     init_upgrade();
   }
 });
+function generatePatternName(text, primitiveType) {
+  const words = text.toLowerCase().replace(/["']/g, "").split(/\s+/).filter((w) => w.length > 2).slice(0, 4);
+  const baseName = words.map((w, i) => i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)).join("");
+  return `llkb-${primitiveType}-${baseName}`;
+}
+function generateExtractionLogic(primitive) {
+  const type = primitive.type;
+  switch (type) {
+    case "click":
+    case "dblclick":
+    case "rightClick":
+    case "hover":
+    case "focus":
+    case "clear":
+    case "check":
+    case "uncheck":
+      return `Extract locator from match groups, return { type: '${type}', locator: { strategy, value } }`;
+    case "fill":
+      return `Extract locator and value from match groups, return { type: 'fill', locator, value: { type: 'literal', value } }`;
+    case "goto":
+      return `Extract URL/path from match groups, return { type: 'goto', url }`;
+    case "expectVisible":
+    case "expectNotVisible":
+    case "expectHidden":
+    case "expectEnabled":
+    case "expectDisabled":
+      return `Extract locator from match groups, return { type: '${type}', locator }`;
+    case "expectText":
+    case "expectContainsText":
+      return `Extract locator and text from match groups, return { type: '${type}', locator, text }`;
+    case "waitForTimeout":
+      return `Extract milliseconds from match groups, return { type: 'waitForTimeout', ms }`;
+    case "waitForNetworkIdle":
+      return `Return { type: 'waitForNetworkIdle' }`;
+    case "waitForVisible":
+    case "waitForHidden":
+      return `Extract locator from match groups, return { type: '${type}', locator }`;
+    case "select":
+      return `Extract locator and option from match groups, return { type: 'select', locator, option }`;
+    case "press":
+      return `Extract key from match groups, return { type: 'press', key }`;
+    default:
+      return `Extract parameters from match groups, return primitive`;
+  }
+}
+function meetsPromotionCriteria(pattern, criteria = DEFAULT_PROMOTION_CRITERIA) {
+  const missingCriteria = [];
+  if (pattern.confidence < criteria.minConfidence) {
+    missingCriteria.push(`confidence: ${(pattern.confidence * 100).toFixed(1)}% < ${(criteria.minConfidence * 100).toFixed(1)}%`);
+  }
+  if (pattern.successCount < criteria.minSuccessCount) {
+    missingCriteria.push(`successCount: ${pattern.successCount} < ${criteria.minSuccessCount}`);
+  }
+  if (pattern.sourceJourneys.length < criteria.minSourceJourneys) {
+    missingCriteria.push(`sourceJourneys: ${pattern.sourceJourneys.length} < ${criteria.minSourceJourneys}`);
+  }
+  if (pattern.failCount > criteria.maxFailCount) {
+    missingCriteria.push(`failCount: ${pattern.failCount} > ${criteria.maxFailCount}`);
+  }
+  const successRate = pattern.successCount / (pattern.successCount + pattern.failCount || 1);
+  if (successRate < criteria.minSuccessRate) {
+    missingCriteria.push(`successRate: ${(successRate * 100).toFixed(1)}% < ${(criteria.minSuccessRate * 100).toFixed(1)}%`);
+  }
+  return {
+    meets: missingCriteria.length === 0,
+    missingCriteria
+  };
+}
+function estimateUsesNeeded(pattern, criteria) {
+  const needed = [];
+  if (pattern.successCount < criteria.minSuccessCount) {
+    needed.push(criteria.minSuccessCount - pattern.successCount);
+  }
+  if (pattern.confidence < criteria.minConfidence) {
+    const targetSuccesses = Math.ceil(
+      criteria.minSuccessCount * (1 + pattern.failCount / 5)
+    );
+    needed.push(Math.max(0, targetSuccesses - pattern.successCount));
+  }
+  return Math.max(...needed, 1);
+}
+function analyzeForPromotion(options) {
+  const criteria = {
+    ...DEFAULT_PROMOTION_CRITERIA,
+    ...options.criteria
+  };
+  const patterns = loadLearnedPatterns({ llkbRoot: options.llkbRoot });
+  const promotablePatterns = [];
+  const nearPromotionPatterns = [];
+  let alreadyPromoted = 0;
+  let needsMoreData = 0;
+  for (const pattern of patterns) {
+    if (pattern.promotedToCore) {
+      alreadyPromoted++;
+      continue;
+    }
+    const { meets, missingCriteria } = meetsPromotionCriteria(pattern, criteria);
+    if (meets) {
+      promotablePatterns.push({
+        name: generatePatternName(pattern.originalText, pattern.mappedPrimitive.type),
+        regex: generateRegexFromText(pattern.originalText),
+        primitiveType: pattern.mappedPrimitive.type,
+        example: pattern.originalText,
+        extractionLogic: generateExtractionLogic(pattern.mappedPrimitive),
+        llkbPatternId: pattern.id,
+        confidenceAtPromotion: pattern.confidence,
+        sourceJourneysCount: pattern.sourceJourneys.length,
+        promotedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } else if (missingCriteria.length <= 2 && pattern.successCount >= 2) {
+      nearPromotionPatterns.push({
+        pattern,
+        missingCriteria,
+        estimatedUsesNeeded: estimateUsesNeeded(pattern, criteria)
+      });
+    } else {
+      needsMoreData++;
+    }
+  }
+  return {
+    analyzedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    totalPatterns: patterns.length,
+    promotablePatterns,
+    nearPromotionPatterns,
+    stats: {
+      alreadyPromoted,
+      eligibleForPromotion: promotablePatterns.length,
+      nearPromotion: nearPromotionPatterns.length,
+      needsMoreData
+    }
+  };
+}
+function generatePromotedPatternsCode(patterns) {
+  if (patterns.length === 0) {
+    return "// No patterns ready for promotion\n";
+  }
+  const lines = [
+    "/**",
+    " * LLKB-Promoted Patterns",
+    ` * Generated at: ${(/* @__PURE__ */ new Date()).toISOString()}`,
+    " * Review and merge into patterns.ts after validation",
+    " */",
+    "",
+    "import type { StepPattern } from './patterns.js';",
+    "",
+    "export const llkbPromotedPatterns: StepPattern[] = ["
+  ];
+  for (const pattern of patterns) {
+    lines.push("  {");
+    lines.push(`    name: '${pattern.name}',`);
+    lines.push(`    regex: /${pattern.regex}/i,`);
+    lines.push(`    primitiveType: '${pattern.primitiveType}',`);
+    lines.push("    extract: (match: RegExpMatchArray) => {");
+    lines.push(`      // ${pattern.extractionLogic}`);
+    lines.push(`      // Example: "${pattern.example}"`);
+    lines.push(`      // LLKB Pattern ID: ${pattern.llkbPatternId}`);
+    lines.push(`      // Confidence at promotion: ${(pattern.confidenceAtPromotion * 100).toFixed(1)}%`);
+    lines.push(`      ${generateExtractorCode(pattern.primitiveType)}`);
+    lines.push("    },");
+    lines.push("  },");
+  }
+  lines.push("];");
+  lines.push("");
+  return lines.join("\n");
+}
+function generateExtractorCode(type) {
+  switch (type) {
+    case "click":
+    case "dblclick":
+    case "rightClick":
+    case "hover":
+    case "focus":
+    case "clear":
+    case "check":
+    case "uncheck":
+      return `return { type: '${type}', locator: { strategy: 'text', value: match[1] || 'element' } };`;
+    case "fill":
+      return `return { type: 'fill', locator: { strategy: 'text', value: match[1] || 'field' }, value: { type: 'literal', value: match[2] || '' } };`;
+    case "goto":
+      return `return { type: 'goto', url: match[1] || '/' };`;
+    case "expectVisible":
+    case "expectNotVisible":
+    case "expectHidden":
+    case "expectEnabled":
+    case "expectDisabled":
+    case "waitForVisible":
+    case "waitForHidden":
+      return `return { type: '${type}', locator: { strategy: 'text', value: match[1] || 'element' } };`;
+    case "expectText":
+    case "expectContainsText":
+      return `return { type: '${type}', locator: { strategy: 'text', value: match[1] || 'element' }, text: match[2] || '' };`;
+    case "waitForTimeout":
+      return `return { type: 'waitForTimeout', ms: parseInt(match[1], 10) || 1000 };`;
+    case "waitForNetworkIdle":
+      return `return { type: 'waitForNetworkIdle' };`;
+    case "select":
+      return `return { type: 'select', locator: { strategy: 'text', value: match[1] || 'dropdown' }, option: match[2] || '' };`;
+    case "press":
+      return `return { type: 'press', key: match[1] || 'Enter' };`;
+    default:
+      return `return { type: 'blocked', reason: 'Unknown type: ${type}', sourceText: match[0] || '' };`;
+  }
+}
+function exportPromotionReport(report, options) {
+  const outputDir = options.outputDir || dirname(getLlkbRoot(options.llkbRoot));
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
+  }
+  const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+  const reportPath = join(outputDir, `promotion-report-${timestamp}.json`);
+  writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf-8");
+  let codePath;
+  if (report.promotablePatterns.length > 0) {
+    codePath = join(outputDir, `llkb-promoted-patterns-${timestamp}.ts`);
+    const code = generatePromotedPatternsCode(report.promotablePatterns);
+    writeFileSync(codePath, code, "utf-8");
+  }
+  return { reportPath, codePath };
+}
+function getPromotionStats(options) {
+  const report = analyzeForPromotion(options);
+  return {
+    total: report.totalPatterns,
+    promoted: report.stats.alreadyPromoted,
+    promotable: report.stats.eligibleForPromotion,
+    nearPromotion: report.stats.nearPromotion,
+    needsWork: report.stats.needsMoreData,
+    promotionRate: report.totalPatterns > 0 ? (report.stats.alreadyPromoted + report.stats.eligibleForPromotion) / report.totalPatterns : 0
+  };
+}
+var DEFAULT_PROMOTION_CRITERIA;
+var init_patternPromotion = __esm({
+  "src/llkb/patternPromotion.ts"() {
+    init_patternExtension();
+    init_paths();
+    DEFAULT_PROMOTION_CRITERIA = {
+      minConfidence: 0.9,
+      minSuccessCount: 5,
+      minSourceJourneys: 2,
+      maxFailCount: 2,
+      minSuccessRate: 0.85
+    };
+  }
+});
 
 // src/cli/patterns.ts
 var patterns_exports = {};
@@ -12990,15 +14464,6 @@ async function runGaps(options) {
   console.log("\u{1F4A1} To add these patterns, edit: autogen/src/mapping/patterns.ts");
   console.log("   Use the suggested patterns as starting points.\n");
 }
-async function runStats(options) {
-  const stats = getTelemetryStats({ baseDir: options.baseDir });
-  if (options.json) {
-    console.log(JSON.stringify(stats, null, 2));
-    return;
-  }
-  console.log(formatStats(stats));
-  console.log();
-}
 async function runList(options) {
   const patternNames = getAllPatternNames();
   if (options.json) {
@@ -13054,10 +14519,10 @@ async function confirmAction(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve7) => {
+  return new Promise((resolve8) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve8(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -13080,6 +14545,156 @@ async function runClear(options) {
   clearTelemetry({ baseDir: options.baseDir });
   console.log("\u2705 Telemetry data cleared.\n");
 }
+async function runSuggest(options) {
+  const suggestions = suggestNewPatterns();
+  if (suggestions.length === 0) {
+    console.log("\n\u2705 No pattern suggestions available.");
+    console.log("   Record more blocked steps to generate suggestions.\n");
+    return;
+  }
+  const limitedSuggestions = suggestions.slice(0, options.limit);
+  if (options.json) {
+    console.log(JSON.stringify(limitedSuggestions, null, 2));
+    return;
+  }
+  console.log(`
+\u{1F4A1} Suggested New Patterns (${limitedSuggestions.length} of ${suggestions.length})
+`);
+  console.log("These patterns are generated from frequently blocked steps:\n");
+  for (let i = 0; i < limitedSuggestions.length; i++) {
+    const suggestion = limitedSuggestions[i];
+    console.log(`  ${i + 1}. Pattern (${suggestion.coveredCount}x blocked)`);
+    console.log(`     Regex: ${suggestion.suggestedRegex}`);
+    console.log(`     Confidence: ${(suggestion.confidence * 100).toFixed(0)}%`);
+    if (suggestion.examples.length > 0) {
+      console.log("     Examples:");
+      for (const example of suggestion.examples.slice(0, 3)) {
+        console.log(`       - "${example}"`);
+      }
+    }
+    console.log();
+  }
+  console.log("\u{1F4A1} Review these patterns and add validated ones to patterns.ts\n");
+}
+async function runPromotion(options) {
+  let llkbStats;
+  try {
+    llkbStats = getPatternStats({ llkbRoot: options.baseDir });
+  } catch {
+    llkbStats = null;
+  }
+  let report;
+  try {
+    report = analyzeForPromotion({ llkbRoot: options.baseDir });
+  } catch {
+    report = null;
+  }
+  if (options.json) {
+    console.log(JSON.stringify({
+      llkbStats,
+      promotionReport: report
+    }, null, 2));
+    return;
+  }
+  console.log("\n\u{1F4C8} LLKB Pattern Promotion Status\n");
+  if (!llkbStats || llkbStats.total === 0) {
+    console.log("  No LLKB patterns recorded yet.");
+    console.log("  Patterns are learned as tests are run and refined.\n");
+    return;
+  }
+  console.log("  LLKB Statistics:");
+  console.log(`    Total learned patterns: ${llkbStats.total}`);
+  console.log(`    Already promoted: ${llkbStats.promoted}`);
+  console.log(`    High confidence (\u22650.7): ${llkbStats.highConfidence}`);
+  console.log(`    Low confidence (<0.3): ${llkbStats.lowConfidence}`);
+  console.log(`    Average confidence: ${(llkbStats.avgConfidence * 100).toFixed(1)}%`);
+  console.log(`    Total successes: ${llkbStats.totalSuccesses}`);
+  console.log(`    Total failures: ${llkbStats.totalFailures}
+`);
+  if (report) {
+    const stats = getPromotionStats({ llkbRoot: options.baseDir });
+    console.log("  Promotion Analysis:");
+    console.log(`    Eligible for promotion: ${stats.promotable}`);
+    console.log(`    Near promotion (need more data): ${stats.nearPromotion}`);
+    console.log(`    Need more work: ${stats.needsWork}`);
+    console.log(`    Overall promotion rate: ${(stats.promotionRate * 100).toFixed(1)}%
+`);
+    if (report.promotablePatterns.length > 0) {
+      console.log("  \u{1F3AF} Patterns Ready for Promotion:\n");
+      for (const pattern of report.promotablePatterns.slice(0, 5)) {
+        console.log(`    - ${pattern.name}`);
+        console.log(`      Regex: ${pattern.regex}`);
+        console.log(`      Type: ${pattern.primitiveType}`);
+        console.log(`      Confidence: ${(pattern.confidenceAtPromotion * 100).toFixed(1)}%`);
+        console.log(`      Example: "${pattern.example}"
+`);
+      }
+      if (report.promotablePatterns.length > 5) {
+        console.log(`    ... and ${report.promotablePatterns.length - 5} more patterns
+`);
+      }
+      if (options.outputDir) {
+        const { reportPath, codePath } = exportPromotionReport(report, { outputDir: options.outputDir });
+        console.log(`  \u{1F4C4} Exported promotion report to: ${reportPath}`);
+        if (codePath) {
+          console.log(`  \u{1F4C4} Exported TypeScript code to: ${codePath}`);
+        }
+        console.log();
+      }
+    }
+    if (report.nearPromotionPatterns.length > 0) {
+      console.log("  \u{1F4CA} Patterns Near Promotion:\n");
+      for (const near of report.nearPromotionPatterns.slice(0, 3)) {
+        console.log(`    - "${near.pattern.originalText}"`);
+        console.log(`      Missing: ${near.missingCriteria.join(", ")}`);
+        console.log(`      Est. uses needed: ${near.estimatedUsesNeeded}
+`);
+      }
+    }
+  }
+  console.log('\u{1F4A1} Use "artk-autogen patterns promotion --json -o ./reports" to export detailed report\n');
+}
+async function runEnhancedStats(options) {
+  const telemetryStats = getTelemetryStats({ baseDir: options.baseDir });
+  let sharedStats;
+  try {
+    sharedStats = analyzePatternGaps();
+  } catch {
+    sharedStats = null;
+  }
+  let llkbStats;
+  try {
+    llkbStats = getPatternStats({ llkbRoot: options.baseDir });
+  } catch {
+    llkbStats = null;
+  }
+  if (options.json) {
+    console.log(JSON.stringify({
+      telemetry: telemetryStats,
+      sharedTelemetry: sharedStats,
+      llkb: llkbStats
+    }, null, 2));
+    return;
+  }
+  console.log(formatStats(telemetryStats));
+  if (sharedStats && sharedStats.totalBlocked > 0) {
+    console.log("\n\u{1F4CA} Shared Blocked Step Telemetry:\n");
+    console.log(`  Total blocked steps: ${sharedStats.totalBlocked}`);
+    console.log(`  Unique patterns: ${sharedStats.topPatterns.length}`);
+    console.log("\n  Top blocked patterns:");
+    for (const pattern of sharedStats.topPatterns.slice(0, 5)) {
+      console.log(`    [${pattern.count}x] ${pattern.pattern.substring(0, 60)}...`);
+    }
+  }
+  if (llkbStats && llkbStats.total > 0) {
+    console.log("\n\u{1F4DA} LLKB Pattern Statistics:\n");
+    console.log(`  Total learned: ${llkbStats.total}`);
+    console.log(`  Promoted: ${llkbStats.promoted}`);
+    console.log(`  High confidence: ${llkbStats.highConfidence}`);
+    console.log(`  Avg confidence: ${(llkbStats.avgConfidence * 100).toFixed(1)}%`);
+  }
+  console.log();
+}
 async function runPatterns(args) {
   const { values, positionals } = parseArgs({
     args,
@@ -13089,6 +14704,7 @@ async function runPatterns(args) {
       json: { type: "boolean", default: false },
       category: { type: "string", short: "c" },
       force: { type: "boolean", short: "f", default: false },
+      output: { type: "string", short: "o" },
       help: { type: "boolean", short: "h" }
     },
     allowPositionals: true
@@ -13102,17 +14718,24 @@ async function runPatterns(args) {
     baseDir: values.dir,
     limit: parseInt(values.limit, 10) || 20,
     json: values.json,
-    category: values.category
+    category: values.category,
+    outputDir: values.output
   };
   switch (subcommand) {
     case "gaps":
       await runGaps(options);
       break;
+    case "suggest":
+      await runSuggest({ json: options.json, limit: options.limit });
+      break;
     case "stats":
-      await runStats(options);
+      await runEnhancedStats(options);
       break;
     case "list":
       await runList(options);
+      break;
+    case "promotion":
+      await runPromotion(options);
       break;
     case "export":
       await runExport(options);
@@ -13131,13 +14754,18 @@ var init_patterns3 = __esm({
   "src/cli/patterns.ts"() {
     init_telemetry2();
     init_patterns();
+    init_blocked_step_telemetry();
+    init_patternPromotion();
+    init_patternExtension();
     PATTERNS_USAGE = `
 Usage: artk-autogen patterns <subcommand> [options]
 
 Subcommands:
   gaps        Analyze blocked steps and show pattern gaps
-  stats       Show telemetry statistics
+  suggest     Generate suggested patterns from telemetry (with regex)
+  stats       Show telemetry statistics (combined: telemetry + LLKB)
   list        List all available patterns
+  promotion   Show LLKB pattern promotion status and candidates
   export      Export gaps as JSON for pattern development
   clear       Clear telemetry data (use with caution)
 
@@ -13147,17 +14775,20 @@ Options:
   --json              Output as JSON
   --category, -c      Filter by category (navigation|interaction|assertion|wait|unknown)
   --force, -f         Skip confirmation prompts (for clear command)
+  --output, -o        Output directory for promotion reports
   -h, --help          Show this help message
 
 Examples:
   artk-autogen patterns gaps                    # Show top 20 pattern gaps
   artk-autogen patterns gaps --limit 50         # Show top 50 pattern gaps
-  artk-autogen patterns gaps --category interaction  # Show only interaction-related gaps
-  artk-autogen patterns stats                   # Show telemetry statistics
+  artk-autogen patterns suggest                 # Get suggested patterns with regex
+  artk-autogen patterns suggest --json          # Get suggestions as JSON
+  artk-autogen patterns stats                   # Show combined statistics
+  artk-autogen patterns promotion               # Show LLKB promotion candidates
+  artk-autogen patterns promotion --json        # Export promotion report
   artk-autogen patterns list                    # List all patterns
   artk-autogen patterns export --json           # Export gaps as JSON
   artk-autogen patterns clear                   # Clear telemetry (with confirmation)
-  artk-autogen patterns clear --force           # Clear telemetry (no confirmation)
 `;
   }
 });
@@ -13210,7 +14841,7 @@ async function runList2(options) {
     console.log();
   }
 }
-async function runStats2(options) {
+async function runStats(options) {
   const stats = getPatternStats({ llkbRoot: options.llkbRoot });
   if (options.json) {
     console.log(JSON.stringify(stats, null, 2));
@@ -13281,10 +14912,10 @@ async function confirmAction2(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve7) => {
+  return new Promise((resolve8) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve8(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -13341,7 +14972,7 @@ async function runLlkbPatterns(args) {
       });
       break;
     case "stats":
-      await runStats2(baseOptions);
+      await runStats(baseOptions);
       break;
     case "promote":
       await runPromote({

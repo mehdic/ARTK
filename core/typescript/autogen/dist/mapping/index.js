@@ -1161,7 +1161,7 @@ var waitPatterns = [
   }
 ];
 function parseSelectorToLocator(selector) {
-  let cleanSelector = selector.replace(/^the\s+/i, "").trim();
+  const cleanSelector = selector.replace(/^the\s+/i, "").trim();
   if (/button$/i.test(cleanSelector)) {
     const buttonName = cleanSelector.replace(/\s*button$/i, "").trim();
     return { strategy: "role", value: "button", name: buttonName };
@@ -2816,11 +2816,788 @@ function clearTelemetry(options = {}) {
 
 // src/mapping/unifiedMatcher.ts
 init_patternExtension();
+
+// src/mapping/normalize.ts
+var VERB_STEMS = {
+  // Click variants
+  clicking: "click",
+  clicked: "click",
+  clicks: "click",
+  // Fill variants
+  filling: "fill",
+  filled: "fill",
+  fills: "fill",
+  entering: "fill",
+  entered: "fill",
+  enters: "fill",
+  typing: "fill",
+  typed: "fill",
+  types: "fill",
+  // Select variants
+  selecting: "select",
+  selected: "select",
+  selects: "select",
+  choosing: "select",
+  chose: "select",
+  chosen: "select",
+  chooses: "select",
+  // Check variants
+  checking: "check",
+  checked: "check",
+  checks: "check",
+  // Uncheck variants
+  unchecking: "uncheck",
+  unchecked: "uncheck",
+  unchecks: "uncheck",
+  // Navigate variants
+  navigating: "navigate",
+  navigated: "navigate",
+  navigates: "navigate",
+  going: "navigate",
+  went: "navigate",
+  goes: "navigate",
+  visiting: "navigate",
+  visited: "navigate",
+  visits: "navigate",
+  opening: "navigate",
+  opened: "navigate",
+  opens: "navigate",
+  // See/Verify variants
+  seeing: "see",
+  saw: "see",
+  seen: "see",
+  sees: "see",
+  verifying: "verify",
+  verified: "verify",
+  verifies: "verify",
+  confirming: "verify",
+  confirmed: "verify",
+  confirms: "verify",
+  ensuring: "verify",
+  ensured: "verify",
+  ensures: "verify",
+  // Wait variants
+  waiting: "wait",
+  waited: "wait",
+  waits: "wait",
+  // Submit variants
+  submitting: "submit",
+  submitted: "submit",
+  submits: "submit",
+  // Press variants
+  pressing: "press",
+  pressed: "press",
+  presses: "press",
+  // Hover variants
+  hovering: "hover",
+  hovered: "hover",
+  hovers: "hover",
+  // Scroll variants
+  scrolling: "scroll",
+  scrolled: "scroll",
+  scrolls: "scroll",
+  // Focus variants
+  focusing: "focus",
+  focused: "focus",
+  focuses: "focus",
+  // Drag variants
+  dragging: "drag",
+  dragged: "drag",
+  drags: "drag",
+  // Drop variants
+  dropping: "drop",
+  dropped: "drop",
+  drops: "drop",
+  // Clear variants
+  clearing: "clear",
+  cleared: "clear",
+  clears: "clear",
+  // Upload variants
+  uploading: "upload",
+  uploaded: "upload",
+  uploads: "upload",
+  // Download variants
+  downloading: "download",
+  downloaded: "download",
+  downloads: "download",
+  // Assert/Expect variants
+  asserting: "assert",
+  asserted: "assert",
+  asserts: "assert",
+  expecting: "expect",
+  expected: "expect",
+  expects: "expect",
+  // Show/Display variants
+  showing: "show",
+  showed: "show",
+  shown: "show",
+  shows: "show",
+  displaying: "display",
+  displayed: "display",
+  displays: "display",
+  // Hide variants
+  hiding: "hide",
+  hid: "hide",
+  hidden: "hide",
+  hides: "hide",
+  // Enable/Disable variants
+  enabling: "enable",
+  enabled: "enable",
+  enables: "enable",
+  disabling: "disable",
+  disabled: "disable",
+  disables: "disable",
+  // Compound verb forms (hyphenated and spaced)
+  "double-click": "dblclick",
+  "double click": "dblclick",
+  "double-clicking": "dblclick",
+  "double clicking": "dblclick",
+  "double-clicked": "dblclick",
+  "double clicked": "dblclick",
+  doubleclick: "dblclick",
+  doubleclicking: "dblclick",
+  doubleclicked: "dblclick",
+  "right-click": "rightclick",
+  "right click": "rightclick",
+  "right-clicking": "rightclick",
+  "right clicking": "rightclick",
+  "right-clicked": "rightclick",
+  "right clicked": "rightclick",
+  rightclick: "rightclick",
+  rightclicking: "rightclick",
+  rightclicked: "rightclick",
+  "drag-and-drop": "dragdrop",
+  "drag and drop": "dragdrop",
+  "drag-n-drop": "dragdrop",
+  "sign-in": "login",
+  "sign in": "login",
+  "signing-in": "login",
+  "signing in": "login",
+  "signed-in": "login",
+  "signed in": "login",
+  signin: "login",
+  "log-in": "login",
+  "log in": "login",
+  "logging-in": "login",
+  "logging in": "login",
+  "logged-in": "login",
+  "logged in": "login",
+  "sign-out": "logout",
+  "sign out": "logout",
+  "signing-out": "logout",
+  "signing out": "logout",
+  "signed-out": "logout",
+  "signed out": "logout",
+  signout: "logout",
+  "log-out": "logout",
+  "log out": "logout",
+  "logging-out": "logout",
+  "logging out": "logout",
+  "logged-out": "logout",
+  "logged out": "logout",
+  "sign-up": "register",
+  "sign up": "register",
+  "signing-up": "register",
+  "signing up": "register",
+  "signed-up": "register",
+  "signed up": "register",
+  signup: "register"
+};
+var ABBREVIATION_EXPANSIONS = {
+  // Common abbreviations
+  btn: "button",
+  msg: "message",
+  err: "error",
+  pwd: "password",
+  usr: "user",
+  nav: "navigation",
+  pg: "page",
+  txt: "text",
+  num: "number",
+  val: "value",
+  img: "image",
+  pic: "picture",
+  lbl: "label",
+  chk: "checkbox",
+  chkbox: "checkbox",
+  cb: "checkbox",
+  rb: "radio",
+  dd: "dropdown",
+  sel: "select",
+  dlg: "dialog",
+  mdl: "modal",
+  lnk: "link",
+  tbl: "table",
+  col: "column",
+  hdr: "header",
+  ftr: "footer",
+  sec: "section",
+  // UI element synonyms
+  textbox: "field",
+  "text field": "field",
+  "text input": "field",
+  "input field": "field",
+  inputbox: "field",
+  combobox: "dropdown",
+  "combo box": "dropdown",
+  selectbox: "dropdown",
+  "select box": "dropdown",
+  picker: "dropdown",
+  listbox: "dropdown",
+  "list box": "dropdown",
+  // Action synonyms
+  "sign in": "login",
+  "log in": "login",
+  signin: "login",
+  "sign out": "logout",
+  "log out": "logout",
+  signout: "logout",
+  // Common element names
+  "submit button": "submit",
+  "cancel button": "cancel",
+  "ok button": "ok",
+  "close button": "close",
+  "save button": "save",
+  "delete button": "delete",
+  "edit button": "edit",
+  "add button": "add",
+  "remove button": "remove",
+  "search button": "search",
+  "search box": "search field",
+  "search bar": "search field"
+};
+var STOP_WORDS = /* @__PURE__ */ new Set([
+  "the",
+  "a",
+  "an",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "must",
+  "shall",
+  "can",
+  "need",
+  "dare",
+  "ought",
+  "used",
+  "to",
+  "of",
+  "in",
+  "for",
+  "on",
+  "with",
+  "at",
+  "by",
+  "from",
+  "up",
+  "about",
+  "into",
+  "through",
+  "during",
+  "before",
+  "after",
+  "above",
+  "below",
+  "between",
+  "under",
+  "again",
+  "further",
+  "then",
+  "once",
+  "here",
+  "there",
+  "when",
+  "where",
+  "why",
+  "how",
+  "all",
+  "each",
+  "few",
+  "more",
+  "most",
+  "other",
+  "some",
+  "such",
+  "no",
+  "nor",
+  "not",
+  "only",
+  "own",
+  "same",
+  "so",
+  "than",
+  "too",
+  "very",
+  "just",
+  "and"
+]);
+var ACTOR_PREFIXES = [
+  /^user\s+/i,
+  /^the user\s+/i,
+  /^i\s+/i,
+  /^we\s+/i,
+  /^they\s+/i,
+  /^customer\s+/i,
+  /^visitor\s+/i,
+  /^admin\s+/i,
+  /^administrator\s+/i
+];
+var DEFAULT_OPTIONS = {
+  stemVerbs: true,
+  expandAbbreviations: true,
+  removeStopWords: false,
+  // Keep stop words by default for better pattern matching
+  removeActorPrefixes: true,
+  lowercase: true,
+  preserveQuoted: true
+};
+function stemWord(word) {
+  const lower = word.toLowerCase();
+  return VERB_STEMS[lower] ?? lower;
+}
+function expandAbbreviations(text) {
+  let result = text.toLowerCase();
+  const sorted = Object.entries(ABBREVIATION_EXPANSIONS).sort(([a], [b]) => b.length - a.length);
+  for (const [abbr, expansion] of sorted) {
+    const regex = new RegExp(`\\b${escapeRegex(abbr)}\\b`, "gi");
+    result = result.replace(regex, expansion);
+  }
+  return result;
+}
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function removeActorPrefixes(text) {
+  let result = text;
+  for (const pattern of ACTOR_PREFIXES) {
+    result = result.replace(pattern, "");
+  }
+  return result.trim();
+}
+function removeStopWords(text) {
+  const words = text.split(/\s+/);
+  const filtered = words.filter((word) => !STOP_WORDS.has(word.toLowerCase()));
+  return filtered.join(" ");
+}
+function extractQuotedStrings(text) {
+  const quotes = /* @__PURE__ */ new Map();
+  let placeholderIndex = 0;
+  const processedText = text.replace(/(['"])([^'"]*)\1/g, (_match, quote, content) => {
+    const placeholder = `__QUOTED_${placeholderIndex}__`;
+    quotes.set(placeholder, `${quote}${content}${quote}`);
+    placeholderIndex++;
+    return placeholder;
+  });
+  return { text: processedText, quotes };
+}
+function restoreQuotedStrings(text, quotes) {
+  let result = text;
+  for (const [placeholder, original] of quotes) {
+    result = result.replace(placeholder, original);
+  }
+  return result;
+}
+function normalizeStepTextEnhanced(text, options = {}) {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  let result = text.trim();
+  let quotesMap = /* @__PURE__ */ new Map();
+  if (opts.preserveQuoted) {
+    const extracted = extractQuotedStrings(result);
+    result = extracted.text;
+    quotesMap = extracted.quotes;
+  }
+  if (opts.removeActorPrefixes) {
+    result = removeActorPrefixes(result);
+  }
+  if (opts.lowercase) {
+    result = result.toLowerCase();
+  }
+  if (opts.expandAbbreviations) {
+    result = expandAbbreviations(result);
+  }
+  if (opts.stemVerbs) {
+    const words = result.split(/\s+/);
+    result = words.map((word) => {
+      if (word.startsWith("__QUOTED_") || /[^a-z]/.test(word)) {
+        return word;
+      }
+      return stemWord(word);
+    }).join(" ");
+  }
+  if (opts.removeStopWords) {
+    result = removeStopWords(result);
+  }
+  result = result.replace(/\s+/g, " ").trim();
+  if (opts.preserveQuoted) {
+    result = restoreQuotedStrings(result, quotesMap);
+  }
+  return result;
+}
+function getCanonicalForm(text) {
+  return normalizeStepTextEnhanced(text, {
+    stemVerbs: true,
+    expandAbbreviations: true,
+    removeStopWords: true,
+    removeActorPrefixes: true,
+    lowercase: true,
+    preserveQuoted: true
+  });
+}
+function getLightNormalization(text) {
+  return normalizeStepTextEnhanced(text, {
+    stemVerbs: true,
+    expandAbbreviations: true,
+    removeStopWords: false,
+    removeActorPrefixes: true,
+    lowercase: true,
+    preserveQuoted: true
+  });
+}
+function areStepsEquivalent(step1, step2) {
+  const canonical1 = getCanonicalForm(step1);
+  const canonical2 = getCanonicalForm(step2);
+  return canonical1 === canonical2;
+}
+function getAllNormalizations(text) {
+  const normalizations = /* @__PURE__ */ new Set();
+  normalizations.add(text.toLowerCase().trim());
+  normalizations.add(getLightNormalization(text));
+  normalizations.add(getCanonicalForm(text));
+  normalizations.add(removeActorPrefixes(text.toLowerCase().trim()));
+  return Array.from(normalizations);
+}
+
+// src/mapping/fuzzyMatcher.ts
+function getPatternExamples(pattern) {
+  const examples = [];
+  const name = pattern.name.toLowerCase();
+  if (name.includes("navigate") || name.includes("goto")) {
+    examples.push(
+      "navigate to /home",
+      "go to /login",
+      "open /dashboard",
+      "visit the homepage",
+      "navigate to the settings page"
+    );
+  }
+  if (name.includes("click")) {
+    examples.push(
+      "click the submit button",
+      "click on save",
+      "click cancel button",
+      "press the login button",
+      "tap the menu icon"
+    );
+  }
+  if (name.includes("fill") || name.includes("enter") || name.includes("type")) {
+    examples.push(
+      "enter username in the username field",
+      "fill password in password field",
+      "type hello in the search box",
+      "input test@example.com in email field",
+      "enter value into the input"
+    );
+  }
+  if (name.includes("see") || name.includes("visible") || name.includes("verify")) {
+    examples.push(
+      "see the welcome message",
+      "verify the success message is displayed",
+      "confirm the error appears",
+      "should see login button",
+      "expect the form to be visible"
+    );
+  }
+  if (name.includes("wait")) {
+    examples.push(
+      "wait for network idle",
+      "wait for page to load",
+      "wait 3 seconds",
+      "wait for the spinner to disappear",
+      "wait until the modal closes"
+    );
+  }
+  if (name.includes("select")) {
+    examples.push(
+      "select option 1 from dropdown",
+      "choose value from the list",
+      "pick an item from menu",
+      "select country from country dropdown"
+    );
+  }
+  if (name.includes("check")) {
+    examples.push(
+      "check the checkbox",
+      "tick the agreement box",
+      "check remember me",
+      "uncheck the newsletter option"
+    );
+  }
+  if (name.includes("upload")) {
+    examples.push(
+      "upload file.pdf",
+      "attach document.docx",
+      "upload image to the form"
+    );
+  }
+  if (name.includes("hover")) {
+    examples.push(
+      "hover over the menu",
+      "mouse over the dropdown",
+      "hover on the button"
+    );
+  }
+  if (name.includes("scroll")) {
+    examples.push(
+      "scroll down",
+      "scroll to the bottom",
+      "scroll to element"
+    );
+  }
+  if (name.includes("press")) {
+    examples.push(
+      "press enter",
+      "press tab",
+      "press escape key",
+      "hit the enter key"
+    );
+  }
+  if (name.includes("table") || name.includes("grid")) {
+    examples.push(
+      "see 5 rows in the table",
+      "verify table has data",
+      "check grid contains value"
+    );
+  }
+  if (name.includes("text") || name.includes("contain")) {
+    examples.push(
+      "see text welcome back",
+      "page contains login form",
+      "element has text submit"
+    );
+  }
+  return examples;
+}
+function buildPatternExamplesCache() {
+  return allPatterns.map((pattern) => ({
+    pattern,
+    examples: getPatternExamples(pattern)
+  }));
+}
+var patternExamplesCache = null;
+function getPatternExamples_cached() {
+  if (!patternExamplesCache) {
+    patternExamplesCache = buildPatternExamplesCache();
+  }
+  return patternExamplesCache;
+}
+function fuzzyMatch(text, config = {}) {
+  const {
+    minSimilarity = 0.85,
+    useNormalization = true,
+    maxCandidates = 10,
+    debug = false
+  } = config;
+  const trimmedText = text.trim();
+  const normalizedText = useNormalization ? getCanonicalForm(trimmedText) : trimmedText.toLowerCase();
+  const patternsWithExamples = getPatternExamples_cached();
+  const candidates = [];
+  outer: for (const { pattern, examples } of patternsWithExamples) {
+    for (const example of examples) {
+      const normalizedExample = useNormalization ? getCanonicalForm(example) : example.toLowerCase();
+      const similarity = calculateSimilarity(normalizedText, normalizedExample);
+      if (similarity >= minSimilarity) {
+        candidates.push({ pattern, example, similarity });
+        if (similarity >= 0.98) {
+          break outer;
+        }
+      }
+    }
+  }
+  candidates.sort((a, b) => b.similarity - a.similarity);
+  const topCandidates = candidates.slice(0, maxCandidates);
+  if (debug && topCandidates.length > 0) {
+    console.log(
+      `[FuzzyMatcher] Top ${topCandidates.length} candidates for "${trimmedText}":`
+    );
+    for (const c of topCandidates) {
+      console.log(`  ${c.pattern.name}: ${(c.similarity * 100).toFixed(1)}% (vs "${c.example}")`);
+    }
+  }
+  if (topCandidates.length > 0) {
+    const best = topCandidates[0];
+    const match = trimmedText.match(best.pattern.regex);
+    if (match) {
+      const primitive = best.pattern.extract(match);
+      if (primitive) {
+        return {
+          primitive,
+          patternName: best.pattern.name,
+          similarity: best.similarity,
+          matchedExample: best.example,
+          originalText: trimmedText,
+          normalizedText
+        };
+      }
+    }
+    if (best.similarity >= 0.9) {
+      const genericPrimitive = createGenericPrimitive(best.pattern, trimmedText);
+      if (genericPrimitive) {
+        if (debug) {
+          console.log(
+            `[FuzzyMatcher] Created generic primitive for ${best.pattern.name}`
+          );
+        }
+        return {
+          primitive: genericPrimitive,
+          patternName: `${best.pattern.name}:fuzzy`,
+          similarity: best.similarity,
+          matchedExample: best.example,
+          originalText: trimmedText,
+          normalizedText
+        };
+      }
+    }
+  }
+  if (debug) {
+    console.log(`[FuzzyMatcher] No match above ${minSimilarity * 100}% for "${trimmedText}"`);
+  }
+  return null;
+}
+function createGenericPrimitive(pattern, text) {
+  const type = pattern.primitiveType;
+  const quotedStrings = text.match(/["']([^"']+)["']/g)?.map((s) => s.slice(1, -1)) || [];
+  const targetStr = quotedStrings[0] || extractTarget(text) || "element";
+  const valueStr = quotedStrings[1] || quotedStrings[0] || "";
+  const makeLocator = (value) => ({
+    strategy: "text",
+    value
+  });
+  switch (type) {
+    case "click":
+    case "dblclick":
+    case "rightClick":
+      return { type, locator: makeLocator(targetStr) };
+    case "fill":
+      return {
+        type: "fill",
+        locator: makeLocator(targetStr),
+        value: { type: "literal", value: valueStr }
+      };
+    case "goto": {
+      const urlMatch = text.match(/(?:to|\/)\s*([\/\w.-]+)/i);
+      return {
+        type: "goto",
+        url: urlMatch?.[1] || "/"
+      };
+    }
+    case "waitForTimeout": {
+      const timeMatch = text.match(/(\d+)\s*(?:second|sec|ms|millisecond)/i);
+      if (timeMatch) {
+        const amount = parseInt(timeMatch[1], 10);
+        const unit = text.toLowerCase().includes("ms") ? "ms" : "s";
+        return {
+          type: "waitForTimeout",
+          ms: unit === "ms" ? amount : amount * 1e3
+        };
+      }
+      return { type: "waitForTimeout", ms: 1e3 };
+    }
+    case "waitForNetworkIdle":
+      return { type: "waitForNetworkIdle" };
+    case "waitForVisible":
+      return { type: "waitForVisible", locator: makeLocator(targetStr) };
+    case "waitForHidden":
+      return { type: "waitForHidden", locator: makeLocator(targetStr) };
+    case "expectVisible":
+    case "expectNotVisible":
+    case "expectHidden":
+      return { type, locator: makeLocator(targetStr) };
+    case "expectText":
+      return {
+        type: "expectText",
+        locator: makeLocator(targetStr),
+        text: valueStr
+      };
+    case "select":
+      return {
+        type: "select",
+        locator: makeLocator(targetStr),
+        option: valueStr
+      };
+    case "hover":
+    case "focus":
+    case "clear":
+    case "check":
+    case "uncheck":
+      return { type, locator: makeLocator(targetStr) };
+    case "press": {
+      const keyMatch = text.match(/(?:press|hit|key)\s+(\w+)/i);
+      return {
+        type: "press",
+        key: keyMatch?.[1] || "Enter"
+      };
+    }
+    default:
+      return null;
+  }
+}
+function extractTarget(text) {
+  const patterns = [
+    /(?:the|a)\s+["']?(\w+(?:\s+\w+)?)["']?\s+(?:button|field|input|link|element)/i,
+    /(?:on|click|tap|press)\s+(?:the\s+)?["']?(\w+(?:\s+\w+)?)["']?/i,
+    /(?:in|into)\s+(?:the\s+)?["']?(\w+(?:\s+\w+)?)["']?\s+(?:field|input)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+function getFuzzyMatchStats() {
+  const patternsWithExamples = getPatternExamples_cached();
+  const examplesByType = {};
+  let totalExamples = 0;
+  for (const { pattern, examples } of patternsWithExamples) {
+    const type = pattern.primitiveType;
+    examplesByType[type] = (examplesByType[type] || 0) + examples.length;
+    totalExamples += examples.length;
+  }
+  return {
+    patternsWithExamples: patternsWithExamples.length,
+    totalExamples,
+    examplesByType
+  };
+}
+function clearFuzzyMatchCache() {
+  patternExamplesCache = null;
+}
+
+// src/mapping/unifiedMatcher.ts
 function unifiedMatch(text, options = {}) {
   const {
     useLlkb = true,
     llkbRoot,
     minLlkbConfidence = 0.7,
+    useFuzzy = true,
+    minFuzzySimilarity = 0.85,
     debug = false
   } = options;
   const trimmedText = text.trim();
@@ -2830,7 +3607,7 @@ function unifiedMatch(text, options = {}) {
       const primitive = pattern.extract(match);
       if (primitive) {
         if (debug) {
-          console.debug(`[UnifiedMatcher] Core match: ${pattern.name} for "${trimmedText}"`);
+          console.log(`[UnifiedMatcher] Core match: ${pattern.name} for "${trimmedText}"`);
         }
         return {
           primitive,
@@ -2848,7 +3625,7 @@ function unifiedMatch(text, options = {}) {
       });
       if (llkbMatch) {
         if (debug) {
-          console.debug(
+          console.log(
             `[UnifiedMatcher] LLKB match: ${llkbMatch.patternId} (confidence: ${llkbMatch.confidence}) for "${trimmedText}"`
           );
         }
@@ -2861,12 +3638,39 @@ function unifiedMatch(text, options = {}) {
       }
     } catch (err) {
       if (debug) {
-        console.debug(`[UnifiedMatcher] LLKB lookup failed: ${err}`);
+        console.log(`[UnifiedMatcher] LLKB lookup failed: ${err}`);
+      }
+    }
+  }
+  if (useFuzzy) {
+    try {
+      const fuzzyResult = fuzzyMatch(trimmedText, {
+        minSimilarity: minFuzzySimilarity,
+        useNormalization: true,
+        debug
+      });
+      if (fuzzyResult) {
+        if (debug) {
+          console.log(
+            `[UnifiedMatcher] Fuzzy match: ${fuzzyResult.patternName} (similarity: ${(fuzzyResult.similarity * 100).toFixed(1)}%) for "${trimmedText}"`
+          );
+        }
+        return {
+          primitive: fuzzyResult.primitive,
+          source: "fuzzy",
+          patternName: fuzzyResult.patternName,
+          fuzzySimilarity: fuzzyResult.similarity,
+          fuzzyMatchedExample: fuzzyResult.matchedExample
+        };
+      }
+    } catch (err) {
+      if (debug) {
+        console.log(`[UnifiedMatcher] Fuzzy matching failed: ${err}`);
       }
     }
   }
   if (debug) {
-    console.debug(`[UnifiedMatcher] No match for: "${trimmedText}"`);
+    console.log(`[UnifiedMatcher] No match for: "${trimmedText}"`);
   }
   return {
     primitive: null,
@@ -2902,6 +3706,24 @@ function unifiedMatchAll(text, options = {}) {
           name: llkbMatch.patternId,
           primitive: llkbMatch.primitive,
           confidence: llkbMatch.confidence
+        });
+      }
+    } catch {
+    }
+  }
+  if (options.useFuzzy !== false) {
+    try {
+      const fuzzyResult = fuzzyMatch(trimmedText, {
+        minSimilarity: 0.5,
+        // Lower threshold for debugging (show more candidates)
+        useNormalization: true
+      });
+      if (fuzzyResult) {
+        matches.push({
+          source: "fuzzy",
+          name: fuzzyResult.patternName,
+          primitive: fuzzyResult.primitive,
+          similarity: fuzzyResult.similarity
         });
       }
     } catch {
@@ -3258,9 +4080,465 @@ function stringToValue(str) {
   return { type: "literal", value: str };
 }
 
+// src/mapping/llmFallback.ts
+var DEFAULT_LLM_CONFIG = {
+  enabled: false,
+  provider: "claude",
+  model: "claude-3-haiku-20240307",
+  apiKeyEnvVar: "ANTHROPIC_API_KEY",
+  maxTokens: 500,
+  temperature: 0.1,
+  // Low temperature for consistency
+  timeout: 1e4,
+  maxRetries: 2,
+  cacheResponses: true,
+  cacheTtlSeconds: 3600,
+  costBudgetUsd: 0.5
+};
+var telemetry = {
+  totalCalls: 0,
+  successfulCalls: 0,
+  failedCalls: 0,
+  cacheHits: 0,
+  totalLatencyMs: 0,
+  totalCostUsd: 0,
+  history: []
+};
+var responseCache = /* @__PURE__ */ new Map();
+var MAX_HISTORY_ENTRIES = 1e3;
+function addHistoryEntry(entry) {
+  telemetry.history.push(entry);
+  if (telemetry.history.length > MAX_HISTORY_ENTRIES) {
+    telemetry.history = telemetry.history.slice(-MAX_HISTORY_ENTRIES);
+  }
+}
+var VALID_PRIMITIVE_TYPES = [
+  "goto",
+  "waitForURL",
+  "waitForResponse",
+  "waitForLoadingComplete",
+  "reload",
+  "goBack",
+  "goForward",
+  "waitForVisible",
+  "waitForHidden",
+  "waitForTimeout",
+  "waitForNetworkIdle",
+  "click",
+  "dblclick",
+  "rightClick",
+  "fill",
+  "select",
+  "check",
+  "uncheck",
+  "upload",
+  "press",
+  "hover",
+  "focus",
+  "clear",
+  "expectVisible",
+  "expectNotVisible",
+  "expectHidden",
+  "expectText",
+  "expectValue",
+  "expectChecked",
+  "expectEnabled",
+  "expectDisabled",
+  "expectURL",
+  "expectTitle",
+  "expectCount",
+  "expectContainsText",
+  "expectToast",
+  "dismissModal",
+  "acceptAlert",
+  "dismissAlert",
+  "callModule",
+  "blocked"
+];
+var VALID_LOCATOR_STRATEGIES = ["role", "label", "placeholder", "text", "testid", "css"];
+function validateLocatorSpec(locator) {
+  if (!locator || typeof locator !== "object") return false;
+  const loc = locator;
+  if (!VALID_LOCATOR_STRATEGIES.includes(loc.strategy)) {
+    return false;
+  }
+  if (typeof loc.value !== "string" || loc.value.length === 0) {
+    return false;
+  }
+  return true;
+}
+function validateValueSpec(value) {
+  if (!value || typeof value !== "object") return false;
+  const val = value;
+  const validTypes = ["literal", "actor", "runId", "generated", "testData"];
+  if (!validTypes.includes(val.type)) {
+    return false;
+  }
+  if (typeof val.value !== "string") {
+    return false;
+  }
+  return true;
+}
+function validateLlmPrimitive(primitive) {
+  const errors = [];
+  if (!primitive || typeof primitive !== "object") {
+    errors.push("Primitive must be an object");
+    return { valid: false, errors };
+  }
+  const prim = primitive;
+  if (!VALID_PRIMITIVE_TYPES.includes(prim.type)) {
+    errors.push(`Invalid primitive type: ${prim.type}`);
+    return { valid: false, errors };
+  }
+  switch (prim.type) {
+    // Navigation primitives
+    case "goto":
+      if (typeof prim.url !== "string") errors.push("goto requires url string");
+      break;
+    case "waitForURL":
+      if (typeof prim.pattern !== "string") errors.push("waitForURL requires pattern string");
+      break;
+    case "waitForResponse":
+      if (typeof prim.urlPattern !== "string") errors.push("waitForResponse requires urlPattern string");
+      break;
+    case "reload":
+    case "goBack":
+    case "goForward":
+      break;
+    case "waitForLoadingComplete":
+    case "waitForNetworkIdle":
+      break;
+    // Wait primitives with locator
+    case "waitForVisible":
+    case "waitForHidden":
+      if (!validateLocatorSpec(prim.locator)) errors.push(`${prim.type} requires valid locator`);
+      break;
+    case "waitForTimeout":
+      if (typeof prim.ms !== "number" || prim.ms < 0) errors.push("waitForTimeout requires positive ms");
+      break;
+    // Interaction primitives with locator
+    case "click":
+    case "dblclick":
+    case "rightClick":
+    case "hover":
+    case "focus":
+    case "clear":
+    case "check":
+    case "uncheck":
+      if (!validateLocatorSpec(prim.locator)) errors.push(`${prim.type} requires valid locator`);
+      break;
+    case "fill":
+      if (!validateLocatorSpec(prim.locator)) errors.push("fill requires valid locator");
+      if (!validateValueSpec(prim.value)) errors.push("fill requires valid value");
+      break;
+    case "select":
+      if (!validateLocatorSpec(prim.locator)) errors.push("select requires valid locator");
+      if (typeof prim.option !== "string") errors.push("select requires option string");
+      break;
+    case "press":
+      if (typeof prim.key !== "string") errors.push("press requires key string");
+      break;
+    case "upload":
+      if (!validateLocatorSpec(prim.locator)) errors.push("upload requires valid locator");
+      if (!Array.isArray(prim.files) || prim.files.length === 0) errors.push("upload requires non-empty files array");
+      break;
+    // Assertion primitives
+    case "expectText":
+    case "expectContainsText":
+      if (!validateLocatorSpec(prim.locator)) errors.push(`${prim.type} requires valid locator`);
+      if (typeof prim.text !== "string") errors.push(`${prim.type} requires text string`);
+      break;
+    case "expectValue":
+      if (!validateLocatorSpec(prim.locator)) errors.push("expectValue requires valid locator");
+      if (typeof prim.value !== "string") errors.push("expectValue requires value string");
+      break;
+    case "expectVisible":
+    case "expectNotVisible":
+    case "expectHidden":
+    case "expectEnabled":
+    case "expectDisabled":
+    case "expectChecked":
+      if (!validateLocatorSpec(prim.locator)) errors.push(`${prim.type} requires valid locator`);
+      break;
+    case "expectCount":
+      if (!validateLocatorSpec(prim.locator)) errors.push("expectCount requires valid locator");
+      if (typeof prim.count !== "number") errors.push("expectCount requires count number");
+      break;
+    case "expectURL":
+      if (typeof prim.pattern !== "string") errors.push("expectURL requires pattern string");
+      break;
+    case "expectTitle":
+      if (typeof prim.title !== "string") errors.push("expectTitle requires title string");
+      break;
+    // Signal primitives
+    case "expectToast":
+      if (!["success", "error", "info", "warning"].includes(prim.toastType)) {
+        errors.push("expectToast requires valid toastType (success|error|info|warning)");
+      }
+      break;
+    case "dismissModal":
+    case "acceptAlert":
+    case "dismissAlert":
+      break;
+    // Module calls
+    case "callModule":
+      if (typeof prim.module !== "string") errors.push("callModule requires module string");
+      if (typeof prim.method !== "string") errors.push("callModule requires method string");
+      break;
+    // Blocked steps
+    case "blocked":
+      if (typeof prim.reason !== "string") errors.push("blocked requires reason string");
+      if (typeof prim.sourceText !== "string") errors.push("blocked requires sourceText string");
+      break;
+  }
+  return { valid: errors.length === 0, errors };
+}
+function generatePrompt(stepText) {
+  return `You are an expert at converting natural language test steps into structured IR (Intermediate Representation) primitives for Playwright test automation.
+
+Given this test step:
+"${stepText}"
+
+Return a JSON object representing the IR primitive. The primitive must follow this schema:
+
+Primitive Types:
+- Navigation: goto (url), waitForURL (pattern), reload, goBack, goForward
+- Wait: waitForVisible (locator), waitForHidden (locator), waitForTimeout (ms), waitForNetworkIdle
+- Actions: click (locator), fill (locator, value), select (locator, option), check (locator), uncheck (locator), press (key), hover (locator)
+- Assertions: expectVisible (locator), expectText (locator, text), expectValue (locator, value), expectURL (pattern), expectTitle (title)
+
+Locator format:
+{
+  "strategy": "role" | "label" | "text" | "testid" | "css",
+  "value": "string",
+  "options": { "name": "string", "exact": boolean } // optional
+}
+
+Value format (for fill):
+{
+  "type": "literal" | "actor" | "testData",
+  "value": "string"
+}
+
+Examples:
+- "Click the Submit button" \u2192 {"type": "click", "locator": {"strategy": "role", "value": "button", "options": {"name": "Submit"}}}
+- "Enter 'john@test.com' in email field" \u2192 {"type": "fill", "locator": {"strategy": "label", "value": "email"}, "value": {"type": "literal", "value": "john@test.com"}}
+- "Wait for page to load" \u2192 {"type": "waitForNetworkIdle"}
+
+RESPOND WITH ONLY THE JSON OBJECT, NO EXPLANATION.`;
+}
+function parseResponse(response) {
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+    const validation = validateLlmPrimitive(parsed);
+    if (validation.valid) {
+      return parsed;
+    }
+    console.warn("[LLM Fallback] Validation errors:", validation.errors);
+    return null;
+  } catch (e) {
+    console.warn("[LLM Fallback] Failed to parse response:", e);
+    return null;
+  }
+}
+function getCacheKey(stepText, config) {
+  return `${config.provider}:${config.model}:${stepText.toLowerCase().trim()}`;
+}
+function estimateCost(_provider, model, inputTokens, outputTokens) {
+  const costs = {
+    "claude-3-haiku": { input: 0.25, output: 1.25 },
+    "claude-3-sonnet": { input: 3, output: 15 },
+    "gpt-4o-mini": { input: 0.15, output: 0.6 },
+    "gpt-4o": { input: 5, output: 15 },
+    "gemini-1.5-flash": { input: 0.075, output: 0.3 }
+  };
+  const modelKey = Object.keys(costs).find((k) => model.includes(k)) || "gpt-4o-mini";
+  const rates = costs[modelKey];
+  return (inputTokens * rates.input + outputTokens * rates.output) / 1e6;
+}
+async function mockLlmCall(stepText) {
+  await new Promise((r) => setTimeout(r, 100));
+  const lower = stepText.toLowerCase();
+  let primitive;
+  if (lower.includes("click")) {
+    const match = stepText.match(/["']([^"']+)["']/);
+    primitive = {
+      type: "click",
+      locator: { strategy: "role", value: "button", options: { name: match?.[1] || "button" } }
+    };
+  } else if (lower.includes("enter") || lower.includes("fill") || lower.includes("type")) {
+    const matches = stepText.match(/["']([^"']+)["']/g);
+    const value = matches?.[0]?.slice(1, -1) || "";
+    const field = matches?.[1]?.slice(1, -1) || "input";
+    primitive = {
+      type: "fill",
+      locator: { strategy: "label", value: field },
+      value: { type: "literal", value }
+    };
+  } else if (lower.includes("see") || lower.includes("visible")) {
+    const match = stepText.match(/["']([^"']+)["']/);
+    primitive = {
+      type: "expectVisible",
+      locator: { strategy: "text", value: match?.[1] || "element" }
+    };
+  } else if (lower.includes("navigate") || lower.includes("go to")) {
+    const match = stepText.match(/(?:to|\/)\s*([\/\w.-]+)/i);
+    primitive = { type: "goto", url: match?.[1] || "/" };
+  } else if (lower.includes("wait")) {
+    primitive = { type: "waitForNetworkIdle" };
+  } else {
+    primitive = { type: "blocked", reason: "LLM mock could not interpret", sourceText: stepText };
+  }
+  return {
+    response: JSON.stringify(primitive),
+    latencyMs: 100
+  };
+}
+async function callLlmApi(_prompt, _config) {
+  throw new Error(
+    "LLM API calls not implemented. Use mock provider for testing or implement callLlmApi with your preferred provider SDK."
+  );
+}
+async function llmFallback(stepText, config = {}) {
+  const mergedConfig = { ...DEFAULT_LLM_CONFIG, ...config };
+  if (!mergedConfig.enabled) {
+    return null;
+  }
+  const startTime = Date.now();
+  const cacheKey = getCacheKey(stepText, mergedConfig);
+  if (mergedConfig.cacheResponses) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) {
+      telemetry.cacheHits++;
+      return { ...cached.result, fromCache: true };
+    }
+  }
+  if (mergedConfig.costBudgetUsd && telemetry.totalCostUsd >= mergedConfig.costBudgetUsd) {
+    console.warn("[LLM Fallback] Cost budget exceeded, skipping LLM call");
+    telemetry.failedCalls++;
+    addHistoryEntry({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      stepText,
+      success: false,
+      latencyMs: 0,
+      costUsd: 0,
+      error: "Cost budget exceeded"
+    });
+    return null;
+  }
+  telemetry.totalCalls++;
+  try {
+    let response;
+    let latencyMs;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    if (mergedConfig.provider === "mock") {
+      const result2 = await mockLlmCall(stepText);
+      response = result2.response;
+      latencyMs = result2.latencyMs;
+      inputTokens = Math.ceil(stepText.length / 4);
+      outputTokens = Math.ceil(response.length / 4);
+    } else {
+      const prompt = generatePrompt(stepText);
+      const result2 = await callLlmApi(prompt, mergedConfig);
+      response = result2.response;
+      latencyMs = result2.latencyMs;
+      inputTokens = result2.inputTokens;
+      outputTokens = result2.outputTokens;
+    }
+    const primitive = parseResponse(response);
+    if (!primitive) {
+      telemetry.failedCalls++;
+      addHistoryEntry({
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        stepText,
+        success: false,
+        latencyMs: Date.now() - startTime,
+        costUsd: 0,
+        error: "Failed to parse response"
+      });
+      return null;
+    }
+    const costUsd = estimateCost(mergedConfig.provider, mergedConfig.model || "", inputTokens, outputTokens);
+    const result = {
+      primitive,
+      confidence: primitive.type === "blocked" ? 0.3 : 0.7,
+      fromCache: false,
+      latencyMs,
+      estimatedCostUsd: costUsd,
+      provider: mergedConfig.provider,
+      model: mergedConfig.model || "unknown"
+    };
+    telemetry.successfulCalls++;
+    telemetry.totalLatencyMs += latencyMs;
+    telemetry.totalCostUsd += costUsd;
+    addHistoryEntry({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      stepText,
+      success: true,
+      latencyMs,
+      costUsd
+    });
+    if (mergedConfig.cacheResponses) {
+      responseCache.set(cacheKey, {
+        result,
+        expiry: Date.now() + (mergedConfig.cacheTtlSeconds || 3600) * 1e3
+      });
+    }
+    return result;
+  } catch (error) {
+    telemetry.failedCalls++;
+    addHistoryEntry({
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      stepText,
+      success: false,
+      latencyMs: Date.now() - startTime,
+      costUsd: 0,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+    return null;
+  }
+}
+function getLlmFallbackTelemetry() {
+  return { ...telemetry };
+}
+function resetLlmFallbackTelemetry() {
+  telemetry = {
+    totalCalls: 0,
+    successfulCalls: 0,
+    failedCalls: 0,
+    cacheHits: 0,
+    totalLatencyMs: 0,
+    totalCostUsd: 0,
+    history: []
+  };
+}
+function clearLlmResponseCache() {
+  responseCache.clear();
+}
+function isLlmFallbackAvailable(config = {}) {
+  const mergedConfig = { ...DEFAULT_LLM_CONFIG, ...config };
+  if (!mergedConfig.enabled) {
+    return { available: false, reason: "LLM fallback is disabled" };
+  }
+  if (mergedConfig.provider === "mock") {
+    return { available: true };
+  }
+  const apiKey = process.env[mergedConfig.apiKeyEnvVar || "ANTHROPIC_API_KEY"];
+  if (!apiKey) {
+    return {
+      available: false,
+      reason: `API key not found in environment variable: ${mergedConfig.apiKeyEnvVar}`
+    };
+  }
+  return { available: true };
+}
+
 // src/mapping/index.ts
 init_patternExtension();
 
-export { PATTERN_VERSION, allPatterns, analyzeBlockedPatterns, analyzeBlockedStep, authPatterns, calculateConfidence, calculateSimilarity, categorizeStep, categorizeStepText, checkPatterns, clearExtendedGlossary, clearLearnedPatterns, clearTelemetry, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, explainMismatch, exportPatternsToConfig, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, fillPatterns, findLabelAlias, findMatchingPatterns, findModuleMethod, findNearestPattern, focusPatterns, formatBlockedStepAnalysis, generatePatternId, generateRegexFromText, getAllPatternNames, getAssertionSuggestions, getCorePatterns, getGenericSuggestions, getGlossary, getGlossaryStats, getInteractionSuggestions, getLabelAliases, getLocatorFromLabel, getMappingStats, getMatchedPatternName, getModuleMethods, getNavigationSuggestions, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getPatternStats, getPatternsFilePath, getPromotablePatterns, getSynonyms, getTelemetryPath, getTelemetryStats, getUnifiedMatcherStats, getWaitSuggestions, hasExtendedGlossary, hasPatternMatch, hoverPatterns, inferMachineHint, initGlossary, initializeLlkb, invalidatePatternCache, irPrimitiveToPlannedAction, isLlkbAvailable, isSynonymOf, levenshteinDistance, loadExtendedGlossary, loadGlossary, loadLearnedPatterns, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, markPatternsPromoted, matchLlkbPattern, matchPattern, mergeGlossaries, modalAlertPatterns, navigationPatterns, normalizeStepText, normalizeStepTextForTelemetry, parseSelectorToLocator, plannedActionToIRPrimitive, prunePatterns, readBlockedStepRecords, recordBlockedStep, recordPatternFailure, recordPatternSuccess, recordUserFix, resetGlossaryCache, resolveCanonical, resolveModuleMethod, saveLearnedPatterns, selectPatterns, structuredPatterns, suggestImprovements, toastPatterns, unifiedMatch, unifiedMatchAll, urlPatterns, visibilityPatterns, waitPatterns, warmUpUnifiedMatcher };
+export { DEFAULT_LLM_CONFIG, PATTERN_VERSION, allPatterns, analyzeBlockedPatterns, analyzeBlockedStep, areStepsEquivalent, authPatterns, calculateConfidence, calculateSimilarity, categorizeStep, categorizeStepText, checkPatterns, clearExtendedGlossary, clearFuzzyMatchCache, clearLearnedPatterns, clearLlmResponseCache, clearTelemetry, clickPatterns, createLocatorFromMatch, createValueFromText, defaultGlossary, expandAbbreviations, explainMismatch, exportPatternsToConfig, extendedAssertionPatterns, extendedClickPatterns, extendedFillPatterns, extendedNavigationPatterns, extendedSelectPatterns, extendedWaitPatterns, fillPatterns, findLabelAlias, findMatchingPatterns, findModuleMethod, findNearestPattern, focusPatterns, formatBlockedStepAnalysis, fuzzyMatch, generatePatternId, generateRegexFromText, getAllNormalizations, getAllPatternNames, getAssertionSuggestions, getCanonicalForm, getCorePatterns, getFuzzyMatchStats, getGenericSuggestions, getGlossary, getGlossaryStats, getInteractionSuggestions, getLabelAliases, getLightNormalization, getLlmFallbackTelemetry, getLocatorFromLabel, getMappingStats, getMatchedPatternName, getModuleMethods, getNavigationSuggestions, getPatternCountByCategory, getPatternMatches, getPatternMetadata, getPatternStats, getPatternsFilePath, getPromotablePatterns, getSynonyms, getTelemetryPath, getTelemetryStats, getUnifiedMatcherStats, getWaitSuggestions, hasExtendedGlossary, hasPatternMatch, hoverPatterns, inferMachineHint, initGlossary, initializeLlkb, invalidatePatternCache, irPrimitiveToPlannedAction, isLlkbAvailable, isLlmFallbackAvailable, isSynonymOf, levenshteinDistance, llmFallback, loadExtendedGlossary, loadGlossary, loadLearnedPatterns, lookupCoreGlossary, lookupGlossary, mapAcceptanceCriterion, mapProceduralStep, mapStepText, mapSteps, markPatternsPromoted, matchLlkbPattern, matchPattern, mergeGlossaries, modalAlertPatterns, navigationPatterns, normalizeStepText, normalizeStepTextEnhanced, normalizeStepTextForTelemetry, parseSelectorToLocator, plannedActionToIRPrimitive, prunePatterns, readBlockedStepRecords, recordBlockedStep, recordPatternFailure, recordPatternSuccess, recordUserFix, removeActorPrefixes, removeStopWords, resetGlossaryCache, resetLlmFallbackTelemetry, resolveCanonical, resolveModuleMethod, saveLearnedPatterns, selectPatterns, stemWord, structuredPatterns, suggestImprovements, toastPatterns, unifiedMatch, unifiedMatchAll, urlPatterns, validateLlmPrimitive, visibilityPatterns, waitPatterns, warmUpUnifiedMatcher };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

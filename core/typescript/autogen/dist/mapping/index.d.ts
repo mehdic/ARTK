@@ -1,8 +1,8 @@
-import { S as StepPattern } from '../stepMapper-DZ3x4qT1.js';
-export { a9 as ACMappingResult, a0 as ExtendedGlossaryMeta, H as Glossary, G as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, a as PatternMetadata, a7 as StepMapperOptions, a8 as StepMappingResult, z as allPatterns, h as authPatterns, g as checkPatterns, a2 as clearExtendedGlossary, e as clickPatterns, c as createLocatorFromMatch, d as createValueFromText, I as defaultGlossary, l as extendedAssertionPatterns, j as extendedClickPatterns, k as extendedFillPatterns, o as extendedNavigationPatterns, q as extendedSelectPatterns, m as extendedWaitPatterns, f as fillPatterns, W as findLabelAlias, F as findMatchingPatterns, Y as findModuleMethod, x as focusPatterns, C as getAllPatternNames, O as getGlossary, a5 as getGlossaryStats, _ as getLabelAliases, X as getLocatorFromLabel, ae as getMappingStats, $ as getModuleMethods, D as getPatternCountByCategory, B as getPatternMatches, E as getPatternMetadata, T as getSynonyms, a6 as hasExtendedGlossary, r as hoverPatterns, N as initGlossary, af as initializeLlkb, ag as isLlkbAvailable, U as isSynonymOf, a1 as loadExtendedGlossary, J as loadGlossary, a4 as lookupCoreGlossary, a3 as lookupGlossary, ab as mapAcceptanceCriterion, ac as mapProceduralStep, aa as mapStepText, ad as mapSteps, A as matchPattern, K as mergeGlossaries, y as modalAlertPatterns, n as navigationPatterns, R as normalizeStepText, p as parseSelectorToLocator, V as resetGlossaryCache, Q as resolveCanonical, Z as resolveModuleMethod, s as selectPatterns, i as structuredPatterns, ah as suggestImprovements, t as toastPatterns, u as urlPatterns, v as visibilityPatterns, w as waitPatterns } from '../stepMapper-DZ3x4qT1.js';
+import { S as StepPattern } from '../stepMapper-B4jJ_-Xm.js';
+export { a9 as ACMappingResult, a0 as ExtendedGlossaryMeta, H as Glossary, G as GlossaryEntry, L as LabelAlias, M as ModuleMethodMapping, P as PATTERN_VERSION, b as PatternMatch, a as PatternMetadata, a7 as StepMapperOptions, a8 as StepMappingResult, z as allPatterns, h as authPatterns, g as checkPatterns, a2 as clearExtendedGlossary, e as clickPatterns, c as createLocatorFromMatch, d as createValueFromText, I as defaultGlossary, l as extendedAssertionPatterns, j as extendedClickPatterns, k as extendedFillPatterns, o as extendedNavigationPatterns, q as extendedSelectPatterns, m as extendedWaitPatterns, f as fillPatterns, W as findLabelAlias, F as findMatchingPatterns, Y as findModuleMethod, x as focusPatterns, C as getAllPatternNames, O as getGlossary, a5 as getGlossaryStats, _ as getLabelAliases, X as getLocatorFromLabel, ae as getMappingStats, $ as getModuleMethods, D as getPatternCountByCategory, B as getPatternMatches, E as getPatternMetadata, T as getSynonyms, a6 as hasExtendedGlossary, r as hoverPatterns, N as initGlossary, af as initializeLlkb, ag as isLlkbAvailable, U as isSynonymOf, a1 as loadExtendedGlossary, J as loadGlossary, a4 as lookupCoreGlossary, a3 as lookupGlossary, ab as mapAcceptanceCriterion, ac as mapProceduralStep, aa as mapStepText, ad as mapSteps, A as matchPattern, K as mergeGlossaries, y as modalAlertPatterns, n as navigationPatterns, R as normalizeStepText, p as parseSelectorToLocator, V as resetGlossaryCache, Q as resolveCanonical, Z as resolveModuleMethod, s as selectPatterns, i as structuredPatterns, ah as suggestImprovements, t as toastPatterns, u as urlPatterns, v as visibilityPatterns, w as waitPatterns } from '../stepMapper-B4jJ_-Xm.js';
 import { a as IRPrimitive } from '../types-DJnqAI1V.js';
 import 'zod';
-import '../parseJourney-kHery1o3.js';
+import '../parseJourney-BY3R1Dwj.js';
 
 /**
  * Pattern distance calculation for finding nearest matching patterns
@@ -219,12 +219,15 @@ declare function clearTelemetry(options?: {
 
 /**
  * Unified Pattern Matcher - Single entry point for all pattern matching
- * Combines core patterns (patterns.ts) with LLKB learned patterns
+ * Combines core patterns (patterns.ts) with LLKB learned patterns and fuzzy matching
+ *
+ * Coverage Flow: Normalization → Core Patterns → LLKB → Fuzzy → LLM → TODO
  *
  * This eliminates duplicate pattern logic in plan.ts and ensures consistent
  * pattern matching behavior across the entire system.
  *
  * @see research/2026-02-03_unified-pattern-matching-plan.md Phase 2
+ * @see research/2026-02-03_multi-ai-debate-coverage-improvement.md
  */
 
 /**
@@ -237,6 +240,10 @@ interface UnifiedMatchOptions {
     llkbRoot?: string;
     /** Minimum confidence for LLKB patterns (default: 0.7) */
     minLlkbConfidence?: number;
+    /** Use fuzzy matching as final fallback before TODO (default: true) */
+    useFuzzy?: boolean;
+    /** Minimum similarity for fuzzy matching (default: 0.85) */
+    minFuzzySimilarity?: number;
     /** Enable debug logging (default: false) */
     debug?: boolean;
 }
@@ -247,20 +254,26 @@ interface UnifiedMatchResult {
     /** The matched IR primitive, or null if no match */
     primitive: IRPrimitive | null;
     /** Source of the match */
-    source: 'core' | 'llkb' | 'none';
-    /** Pattern name that matched (if core) */
+    source: 'core' | 'llkb' | 'fuzzy' | 'none';
+    /** Pattern name that matched (if core or fuzzy) */
     patternName?: string;
     /** LLKB pattern ID (if LLKB) */
     llkbPatternId?: string;
     /** LLKB confidence (if LLKB) */
     llkbConfidence?: number;
+    /** Fuzzy match similarity score (if fuzzy) */
+    fuzzySimilarity?: number;
+    /** Fuzzy matched example (if fuzzy) */
+    fuzzyMatchedExample?: string;
 }
 /**
  * Match step text against unified pattern system
  *
- * Priority order:
- * 1. Core patterns from patterns.ts (57+ patterns)
+ * Priority order (Coverage Flow):
+ * 1. Core patterns from patterns.ts (84+ patterns)
  * 2. LLKB learned patterns (dynamic, confidence-filtered)
+ * 3. Fuzzy matching (high similarity threshold, 0.85+)
+ * 4. No match → TODO (or LLM fallback in future)
  *
  * @param text - Step text to match
  * @param options - Matching options
@@ -271,10 +284,11 @@ declare function unifiedMatch(text: string, options?: UnifiedMatchOptions): Unif
  * Match step text and return all potential matches (for debugging)
  */
 declare function unifiedMatchAll(text: string, options?: UnifiedMatchOptions): Array<{
-    source: 'core' | 'llkb';
+    source: 'core' | 'llkb' | 'fuzzy';
     name: string;
     primitive: IRPrimitive;
     confidence?: number;
+    similarity?: number;
 }>;
 /**
  * Get statistics about the unified matcher
@@ -344,6 +358,249 @@ declare function irPrimitiveToPlannedAction(primitive: IRPrimitive): PlannedActi
  * This is useful for testing and debugging
  */
 declare function plannedActionToIRPrimitive(action: PlannedAction): IRPrimitive | null;
+
+/**
+ * Fuzzy match configuration
+ */
+interface FuzzyMatchConfig {
+    /** Minimum similarity threshold (0-1, default: 0.85) */
+    minSimilarity?: number;
+    /** Use normalized text for comparison (default: true) */
+    useNormalization?: boolean;
+    /** Maximum candidates to consider (default: 10) */
+    maxCandidates?: number;
+    /** Enable debug logging (default: false) */
+    debug?: boolean;
+}
+/**
+ * Fuzzy match result
+ */
+interface FuzzyMatchResult {
+    /** The matched primitive */
+    primitive: IRPrimitive;
+    /** The pattern that matched */
+    patternName: string;
+    /** Similarity score (0-1) */
+    similarity: number;
+    /** The example that was matched */
+    matchedExample: string;
+    /** Original input text */
+    originalText: string;
+    /** Normalized input text */
+    normalizedText: string;
+}
+/**
+ * Find best fuzzy match for step text
+ *
+ * @param text - Step text to match
+ * @param config - Fuzzy match configuration
+ * @returns Best match if similarity >= threshold, null otherwise
+ */
+declare function fuzzyMatch(text: string, config?: FuzzyMatchConfig): FuzzyMatchResult | null;
+/**
+ * Get fuzzy match statistics
+ */
+declare function getFuzzyMatchStats(): {
+    patternsWithExamples: number;
+    totalExamples: number;
+    examplesByType: Record<string, number>;
+};
+/**
+ * Clear the pattern examples cache (for testing)
+ */
+declare function clearFuzzyMatchCache(): void;
+
+/**
+ * Enhanced Normalization Pipeline for Step Text
+ * Implements Tier 1 of the coverage improvement strategy:
+ * - Stemming (verb form normalization)
+ * - Glossary expansion
+ * - Canonical form transformation
+ * - Whitespace and punctuation normalization
+ *
+ * @see research/2026-02-03_multi-ai-debate-coverage-improvement.md
+ */
+/**
+ * Normalize options
+ */
+interface NormalizeOptions {
+    /** Apply verb stemming */
+    stemVerbs?: boolean;
+    /** Expand abbreviations */
+    expandAbbreviations?: boolean;
+    /** Remove stop words */
+    removeStopWords?: boolean;
+    /** Remove actor prefixes (e.g., "user clicks" -> "click") */
+    removeActorPrefixes?: boolean;
+    /** Lowercase everything */
+    lowercase?: boolean;
+    /** Preserve quoted strings */
+    preserveQuoted?: boolean;
+}
+/**
+ * Stem a single word (verb normalization)
+ */
+declare function stemWord(word: string): string;
+/**
+ * Expand abbreviations in text
+ */
+declare function expandAbbreviations(text: string): string;
+/**
+ * Remove actor prefixes from step text
+ */
+declare function removeActorPrefixes(text: string): string;
+/**
+ * Remove stop words from text
+ */
+declare function removeStopWords(text: string): string;
+/**
+ * Enhanced step text normalization
+ * Applies all normalization transformations
+ */
+declare function normalizeStepTextEnhanced(text: string, options?: NormalizeOptions): string;
+/**
+ * Get the canonical form of a step (most normalized version)
+ */
+declare function getCanonicalForm(text: string): string;
+/**
+ * Get a less aggressive normalization (preserves more structure)
+ */
+declare function getLightNormalization(text: string): string;
+/**
+ * Check if two step texts are semantically equivalent after normalization
+ */
+declare function areStepsEquivalent(step1: string, step2: string): boolean;
+/**
+ * Get all possible normalizations of a step (for fuzzy matching)
+ */
+declare function getAllNormalizations(text: string): string[];
+
+/**
+ * LLM Fallback - Final tier in coverage architecture
+ * Handles blocked steps that can't be matched by patterns, LLKB, or fuzzy matching
+ *
+ * Coverage Flow: Normalization → Core Patterns → LLKB → Fuzzy → LLM → TODO
+ *
+ * Key features:
+ * - Schema-constrained outputs (only valid IR primitives)
+ * - Validation before use
+ * - Cost and latency tracking
+ * - Non-determinism awareness (logging, telemetry)
+ * - Disabled by default for deterministic builds
+ *
+ * @see research/2026-02-03_multi-ai-debate-coverage-improvement.md
+ */
+
+/**
+ * LLM provider type
+ */
+type LlmProvider = 'claude' | 'gpt' | 'gemini' | 'mock';
+/**
+ * Configuration for LLM fallback
+ */
+interface LlmFallbackConfig {
+    /** Whether LLM fallback is enabled (default: false) */
+    enabled: boolean;
+    /** LLM provider to use */
+    provider: LlmProvider;
+    /** Model name (e.g., 'claude-3-haiku', 'gpt-4o-mini') */
+    model?: string;
+    /** API key (environment variable name) */
+    apiKeyEnvVar?: string;
+    /** Maximum tokens for response */
+    maxTokens?: number;
+    /** Temperature (0-1, lower = more deterministic) */
+    temperature?: number;
+    /** Timeout in milliseconds */
+    timeout?: number;
+    /** Maximum retries on failure */
+    maxRetries?: number;
+    /** Whether to cache LLM responses */
+    cacheResponses?: boolean;
+    /** Cache TTL in seconds */
+    cacheTtlSeconds?: number;
+    /** Cost budget per session (in USD) */
+    costBudgetUsd?: number;
+}
+/**
+ * Default configuration (disabled by default)
+ */
+declare const DEFAULT_LLM_CONFIG: LlmFallbackConfig;
+/**
+ * LLM fallback result
+ */
+interface LlmFallbackResult {
+    /** The generated primitive */
+    primitive: IRPrimitive;
+    /** Confidence in the result (0-1) */
+    confidence: number;
+    /** Whether result is from cache */
+    fromCache: boolean;
+    /** Latency in milliseconds */
+    latencyMs: number;
+    /** Estimated cost in USD */
+    estimatedCostUsd: number;
+    /** Provider used */
+    provider: LlmProvider;
+    /** Model used */
+    model: string;
+}
+/**
+ * LLM fallback telemetry
+ */
+interface LlmFallbackTelemetry {
+    /** Total LLM calls made */
+    totalCalls: number;
+    /** Successful calls */
+    successfulCalls: number;
+    /** Failed calls (validation failures, timeouts) */
+    failedCalls: number;
+    /** Cache hits */
+    cacheHits: number;
+    /** Total latency (ms) */
+    totalLatencyMs: number;
+    /** Total estimated cost (USD) */
+    totalCostUsd: number;
+    /** Call history for analysis */
+    history: Array<{
+        timestamp: string;
+        stepText: string;
+        success: boolean;
+        latencyMs: number;
+        costUsd: number;
+        error?: string;
+    }>;
+}
+/**
+ * Validate an IR primitive from LLM response
+ */
+declare function validateLlmPrimitive(primitive: unknown): {
+    valid: boolean;
+    errors: string[];
+};
+/**
+ * Main LLM fallback function
+ */
+declare function llmFallback(stepText: string, config?: Partial<LlmFallbackConfig>): Promise<LlmFallbackResult | null>;
+/**
+ * Get current telemetry
+ */
+declare function getLlmFallbackTelemetry(): LlmFallbackTelemetry;
+/**
+ * Reset telemetry (for testing)
+ */
+declare function resetLlmFallbackTelemetry(): void;
+/**
+ * Clear response cache (for testing)
+ */
+declare function clearLlmResponseCache(): void;
+/**
+ * Check if LLM fallback is available and configured
+ */
+declare function isLlmFallbackAvailable(config?: Partial<LlmFallbackConfig>): {
+    available: boolean;
+    reason?: string;
+};
 
 /**
  * A pattern learned from successful step mappings
@@ -523,4 +780,4 @@ declare function clearLearnedPatterns(options?: {
     llkbRoot?: string;
 }): void;
 
-export { type BlockedStepAnalysis, type BlockedStepRecord, type LearnedPattern, type LlkbPatternMatch, type NearestPatternResult, type PatternDefinition, type PatternGap, type PromotedPattern, type PruneOptions, type StepCategory, StepPattern, type StepSuggestion, type TelemetryStats, type UnifiedMatchOptions, type UnifiedMatchResult, analyzeBlockedPatterns, analyzeBlockedStep, calculateConfidence, calculateSimilarity, categorizeStep, categorizeStepText, clearLearnedPatterns, clearTelemetry, explainMismatch, exportPatternsToConfig, findNearestPattern, formatBlockedStepAnalysis, generatePatternId, generateRegexFromText, getAssertionSuggestions, getCorePatterns, getGenericSuggestions, getInteractionSuggestions, getMatchedPatternName, getNavigationSuggestions, getPatternStats, getPatternsFilePath, getPromotablePatterns, getTelemetryPath, getTelemetryStats, getUnifiedMatcherStats, getWaitSuggestions, hasPatternMatch, inferMachineHint, invalidatePatternCache, irPrimitiveToPlannedAction, levenshteinDistance, loadLearnedPatterns, markPatternsPromoted, matchLlkbPattern, normalizeStepTextForTelemetry, plannedActionToIRPrimitive, prunePatterns, readBlockedStepRecords, recordBlockedStep, recordPatternFailure, recordPatternSuccess, recordUserFix, saveLearnedPatterns, unifiedMatch, unifiedMatchAll, warmUpUnifiedMatcher };
+export { type BlockedStepAnalysis, type BlockedStepRecord, DEFAULT_LLM_CONFIG, type FuzzyMatchConfig, type FuzzyMatchResult, type LearnedPattern, type LlkbPatternMatch, type LlmFallbackConfig, type LlmFallbackResult, type LlmFallbackTelemetry, type LlmProvider, type NearestPatternResult, type NormalizeOptions, type PatternDefinition, type PatternGap, type PromotedPattern, type PruneOptions, type StepCategory, StepPattern, type StepSuggestion, type TelemetryStats, type UnifiedMatchOptions, type UnifiedMatchResult, analyzeBlockedPatterns, analyzeBlockedStep, areStepsEquivalent, calculateConfidence, calculateSimilarity, categorizeStep, categorizeStepText, clearFuzzyMatchCache, clearLearnedPatterns, clearLlmResponseCache, clearTelemetry, expandAbbreviations, explainMismatch, exportPatternsToConfig, findNearestPattern, formatBlockedStepAnalysis, fuzzyMatch, generatePatternId, generateRegexFromText, getAllNormalizations, getAssertionSuggestions, getCanonicalForm, getCorePatterns, getFuzzyMatchStats, getGenericSuggestions, getInteractionSuggestions, getLightNormalization, getLlmFallbackTelemetry, getMatchedPatternName, getNavigationSuggestions, getPatternStats, getPatternsFilePath, getPromotablePatterns, getTelemetryPath, getTelemetryStats, getUnifiedMatcherStats, getWaitSuggestions, hasPatternMatch, inferMachineHint, invalidatePatternCache, irPrimitiveToPlannedAction, isLlmFallbackAvailable, levenshteinDistance, llmFallback, loadLearnedPatterns, markPatternsPromoted, matchLlkbPattern, normalizeStepTextEnhanced, normalizeStepTextForTelemetry, plannedActionToIRPrimitive, prunePatterns, readBlockedStepRecords, recordBlockedStep, recordPatternFailure, recordPatternSuccess, recordUserFix, removeActorPrefixes, removeStopWords, resetLlmFallbackTelemetry, saveLearnedPatterns, stemWord, unifiedMatch, unifiedMatchAll, validateLlmPrimitive, warmUpUnifiedMatcher };
