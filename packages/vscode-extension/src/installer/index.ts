@@ -115,12 +115,168 @@ function stripJsonComments(content: string): string {
 }
 
 /**
+ * Detect project's Node.js version from various sources
+ * Priority: .nvmrc > package.json engines > PATH node > Electron's node
+ */
+function detectProjectNodeVersion(targetPath: string): number {
+  // Try .nvmrc first
+  try {
+    const nvmrcPath = path.join(targetPath, '.nvmrc');
+    if (fs.existsSync(nvmrcPath)) {
+      const content = fs.readFileSync(nvmrcPath, 'utf-8').trim();
+      // Parse versions like "v20", "20", "v20.10.0", "lts/*"
+      const match = content.match(/^v?(\d+)/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
+    }
+  } catch {
+    // Continue to next method
+  }
+
+  // Try package.json engines.node
+  try {
+    const pkgPath = path.join(targetPath, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      if (pkg.engines?.node) {
+        // Parse versions like ">=18", "^20", "18.x", ">=18.0.0"
+        const match = pkg.engines.node.match(/(\d+)/);
+        if (match) {
+          return parseInt(match[1], 10);
+        }
+      }
+    }
+  } catch {
+    // Continue to next method
+  }
+
+  // Try running 'node --version' from PATH (async would be better, but keeping sync for simplicity)
+  try {
+    const { execSync } = require('child_process');
+    const result = execSync('node --version', { encoding: 'utf-8', timeout: 5000 }).trim();
+    const match = result.match(/^v?(\d+)/);
+    if (match) {
+      return parseInt(match[1], 10);
+    }
+  } catch {
+    // Continue to fallback
+  }
+
+  // Fallback to Electron's Node version (VS Code's built-in)
+  return parseInt(process.versions.node.split('.')[0], 10);
+}
+
+/**
+ * Detect available system browsers with fallback to bundled
+ * Returns browser channel and version info
+ */
+async function detectBrowser(): Promise<{ channel: string; version: string | null; path: string | null }> {
+  const isWindows = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
+
+  const testBrowser = async (browserPath: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const proc = spawn(browserPath, ['--version'], {
+        shell: false,
+        windowsHide: true,
+        timeout: 5000,
+      });
+
+      let output = '';
+      proc.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0 && output) {
+          resolve(output.trim());
+        } else {
+          resolve(null);
+        }
+      });
+
+      proc.on('error', () => {
+        resolve(null);
+      });
+
+      // Timeout fallback
+      setTimeout(() => {
+        proc.kill();
+        resolve(null);
+      }, 5000);
+    });
+  };
+
+  // Edge paths by platform
+  const edgePaths: string[] = isWindows
+    ? [
+        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      ]
+    : isMac
+      ? ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge']
+      : [
+          'microsoft-edge',
+          'microsoft-edge-stable',
+          '/snap/bin/microsoft-edge',
+          '/var/lib/flatpak/exports/bin/com.microsoft.Edge',
+        ];
+
+  // Try Edge first
+  for (const edgePath of edgePaths) {
+    try {
+      if (isWindows && !fs.existsSync(edgePath)) continue;
+      const version = await testBrowser(edgePath);
+      if (version) {
+        const versionNum = version.match(/[\d.]+/)?.[0] || null;
+        return { channel: 'msedge', version: versionNum, path: edgePath };
+      }
+    } catch {
+      // Continue to next
+    }
+  }
+
+  // Chrome paths by platform
+  const chromePaths: string[] = isWindows
+    ? [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      ]
+    : isMac
+      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+      : [
+          'google-chrome',
+          'google-chrome-stable',
+          '/usr/bin/google-chrome-stable',
+          '/snap/bin/chromium',
+          '/var/lib/flatpak/exports/bin/com.google.Chrome',
+        ];
+
+  // Try Chrome
+  for (const chromePath of chromePaths) {
+    try {
+      if (isWindows && !fs.existsSync(chromePath)) continue;
+      const version = await testBrowser(chromePath);
+      if (version) {
+        const versionNum = version.match(/[\d.]+/)?.[0] || null;
+        return { channel: 'chrome', version: versionNum, path: chromePath };
+      }
+    } catch {
+      // Continue to next
+    }
+  }
+
+  // Fallback to bundled chromium
+  return { channel: 'chromium', version: null, path: null };
+}
+
+/**
  * Detect Node.js version and module system
  */
 function detectVariant(targetPath: string): Variant {
-  // Check Node.js version
-  const nodeVersion = process.versions.node;
-  const majorVersion = parseInt(nodeVersion.split('.')[0], 10);
+  // Check Node.js version - use project's node, not Electron's
+  const majorVersion = detectProjectNodeVersion(targetPath);
 
   // Check package.json for module type
   let isEsm = false;
@@ -421,15 +577,37 @@ async function createTsConfig(artkE2ePath: string): Promise<void> {
 }
 
 /**
- * Create artk.config.yml
+ * Create artk.config.yml with complete schema (matches bootstrap.sh)
  */
-async function createConfig(artkE2ePath: string): Promise<void> {
+async function createConfig(
+  artkE2ePath: string,
+  projectName: string,
+  browserChannel: string,
+  browserStrategy: string
+): Promise<void> {
+  const timestamp = new Date().toISOString();
+
+  // Read journeys version from manifest if available
+  let journeysVersion = '0.1.0';
+  const journeysManifest = path.join(artkE2ePath, 'vendor', 'artk-core-journeys', 'core.manifest.json');
+  try {
+    if (fs.existsSync(journeysManifest)) {
+      const manifest = JSON.parse(await fs.promises.readFile(journeysManifest, 'utf-8'));
+      journeysVersion = manifest.version || journeysVersion;
+    }
+  } catch {
+    // Use default version
+  }
+
   const config = `# ARTK Configuration
-# See documentation for all options
+# Generated by ARTK VS Code Extension on ${timestamp}
+
+version: "1.0"
 
 app:
-  name: "My Application"
-  # baseUrl will be set per environment
+  name: "${projectName}"
+  type: web
+  description: "E2E tests for ${projectName}"
 
 environments:
   local:
@@ -451,8 +629,8 @@ environments:
 browsers:
   enabled:
     - chromium
-  channel: chromium
-  strategy: auto
+  channel: ${browserChannel}
+  strategy: ${browserStrategy}
   viewport:
     width: 1280
     height: 720
@@ -462,6 +640,19 @@ browsers:
 llkb:
   enabled: true
   minConfidence: 0.7
+
+# Core component versions (managed by bootstrap)
+core:
+  runtime:
+    install: vendor
+    installDir: vendor/artk-core
+  autogen:
+    install: vendor
+    installDir: vendor/artk-core-autogen
+  journeys:
+    install: vendor
+    installDir: vendor/artk-core-journeys
+    version: "${journeysVersion}"
 `;
 
   await fs.promises.writeFile(path.join(artkE2ePath, 'artk.config.yml'), config);
@@ -474,9 +665,11 @@ async function createContext(
   artkE2ePath: string,
   variant: Variant,
   targetPath: string,
+  browserInfo: { channel: string; version: string | null; path: string | null },
   backupPath?: string | null
 ): Promise<void> {
-  const nodeVersion = process.versions.node;
+  // Use project's Node version, not Electron's
+  const nodeVersion = String(detectProjectNodeVersion(targetPath));
   const playwrightVersion = getPlaywrightVersion(variant).replace('^', '');
   const moduleSystem = variant.includes('esm') ? 'esm' : 'cjs';
   const templateVariant = moduleSystem === 'esm' ? 'esm' : 'commonjs';
@@ -498,9 +691,9 @@ async function createContext(
     harnessRoot: artkE2ePath,
     next_suggested: '/artk.init-playbook', // UI hint for next action
     browser: {
-      channel: 'chromium',
-      version: null,
-      path: null,
+      channel: browserInfo.channel,
+      version: browserInfo.version,
+      path: browserInfo.path,
       detected_at: new Date().toISOString(),
     },
     // Track backup if force reinstall was used
@@ -1400,6 +1593,25 @@ export async function installBundled(
       ? detectVariant(targetPath)
       : options.variant as Variant;
 
+    // Detect available browser (Edge > Chrome > bundled)
+    progress?.report({ message: 'Detecting available browsers...' });
+    const browserInfo = await detectBrowser();
+    const browserStrategy = browserInfo.channel === 'chromium' ? 'auto' : 'prefer-system';
+
+    // Get project name from package.json or folder name
+    let projectName = path.basename(targetPath);
+    try {
+      const pkgPath = path.join(targetPath, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(await fs.promises.readFile(pkgPath, 'utf-8'));
+        if (pkg.name) {
+          projectName = pkg.name;
+        }
+      }
+    } catch {
+      // Use folder name as fallback
+    }
+
     // Step 1: Create directory structure
     progress?.report({ message: 'Creating directory structure...' });
     await createDirectoryStructure(artkE2ePath);
@@ -1415,8 +1627,8 @@ export async function installBundled(
 
     // Step 4: Create config files
     progress?.report({ message: 'Creating configuration files...' });
-    await createConfig(artkE2ePath);
-    await createContext(artkE2ePath, variant, targetPath, backupPath);
+    await createConfig(artkE2ePath, projectName, browserInfo.channel, browserStrategy);
+    await createContext(artkE2ePath, variant, targetPath, browserInfo, backupPath);
     await createGitignore(artkE2ePath);
 
     // Step 5: Copy vendor libraries (core, autogen)
