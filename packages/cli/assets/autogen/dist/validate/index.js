@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import 'yaml';
 import { z } from 'zod';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { tmpdir } from 'os';
 
 // src/journey/parseJourney.ts
@@ -538,28 +538,24 @@ export default [
 `;
 }
 function isESLintAvailable(cwd) {
-  try {
-    execSync("npx eslint --version", {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("npx", ["eslint", "--version"], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  return result.status === 0;
 }
 function isPlaywrightPluginAvailable(cwd) {
-  try {
-    const result = execSync("npm list eslint-plugin-playwright", {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    return result.includes("eslint-plugin-playwright");
-  } catch {
+  const result = spawnSync("npm", ["list", "eslint-plugin-playwright"], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  if (result.status !== 0) {
     return false;
   }
+  const output = result.stdout || "";
+  return output.includes("eslint-plugin-playwright");
 }
 function convertSeverity(eslintSeverity) {
   return eslintSeverity === 2 ? "error" : "warning";
@@ -620,21 +616,21 @@ async function lintCode(code, filename = "test.spec.ts", options = {}) {
       args.push("--config", configPath);
     }
     args.push(tempFile);
-    const result = execSync(`npx ${args.join(" ")}`, {
+    const result = spawnSync("npx", args, {
       cwd,
       stdio: "pipe",
       encoding: "utf-8"
     });
-    return {
-      passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
-      errorCount: 0,
-      warningCount: 0
-    };
-  } catch (err2) {
-    const error = err2;
-    const output = error.stdout || "";
+    const output = result.stdout || "";
+    if (result.status === 0) {
+      return {
+        passed: true,
+        output,
+        issues: parseESLintOutput(output),
+        errorCount: 0,
+        warningCount: 0
+      };
+    }
     try {
       const results = JSON.parse(output);
       const issues = parseESLintOutput(output);
@@ -699,39 +695,37 @@ async function lintFile(filePath, options = {}) {
       warningCount: 0
     };
   }
-  try {
-    const args = ["eslint", "--format", "json"];
-    if (fix) {
-      args.push("--fix");
-    }
-    if (configPath && existsSync(configPath)) {
-      args.push("--config", configPath);
-    }
-    args.push(filePath);
-    const result = execSync(`npx ${args.join(" ")}`, {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
+  const args = ["eslint", "--format", "json"];
+  if (fix) {
+    args.push("--fix");
+  }
+  if (configPath && existsSync(configPath)) {
+    args.push("--config", configPath);
+  }
+  args.push(filePath);
+  const result = spawnSync("npx", args, {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  const output = result.stdout || "";
+  if (result.status === 0) {
     return {
       passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
+      output,
+      issues: parseESLintOutput(output),
       errorCount: 0,
       warningCount: 0
     };
-  } catch (err2) {
-    const error = err2;
-    const output = error.stdout || "";
-    const issues = parseESLintOutput(output);
-    return {
-      passed: issues.filter((i) => i.severity === "error").length === 0,
-      output,
-      issues,
-      errorCount: issues.filter((i) => i.severity === "error").length,
-      warningCount: issues.filter((i) => i.severity === "warning").length
-    };
   }
+  const issues = parseESLintOutput(output);
+  return {
+    passed: issues.filter((i) => i.severity === "error").length === 0,
+    output,
+    issues,
+    errorCount: issues.filter((i) => i.severity === "error").length,
+    warningCount: issues.filter((i) => i.severity === "warning").length
+  };
 }
 function hasLintErrors(code) {
   const patterns = [

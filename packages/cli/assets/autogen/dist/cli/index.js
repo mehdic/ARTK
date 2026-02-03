@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync, renameSync } from 'fs';
-import { join, dirname, basename, resolve } from 'path';
+import { existsSync, readFileSync, realpathSync, mkdirSync, writeFileSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync, renameSync, mkdtempSync } from 'fs';
+import { join, dirname, resolve, relative, isAbsolute, basename } from 'path';
 import yaml, { stringify, parse } from 'yaml';
 import { fileURLToPath, pathToFileURL } from 'url';
 import fg2 from 'fast-glob';
 import { randomBytes, createHash } from 'crypto';
 import ejs from 'ejs';
 import 'ts-morph';
-import { spawn, execSync } from 'child_process';
+import { spawn, spawnSync, execSync } from 'child_process';
 import { tmpdir } from 'os';
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
@@ -2180,6 +2180,7 @@ var init_parseHints = __esm({
 // src/utils/paths.ts
 var paths_exports = {};
 __export(paths_exports, {
+  PathTraversalError: () => PathTraversalError,
   cleanAutogenArtifacts: () => cleanAutogenArtifacts,
   clearPathCache: () => clearPathCache,
   ensureAutogenDir: () => ensureAutogenDir,
@@ -2191,7 +2192,9 @@ __export(paths_exports, {
   getPackageRoot: () => getPackageRoot,
   getTemplatePath: () => getTemplatePath,
   getTemplatesDir: () => getTemplatesDir,
-  hasAutogenArtifacts: () => hasAutogenArtifacts
+  hasAutogenArtifacts: () => hasAutogenArtifacts,
+  validatePath: () => validatePath,
+  validatePaths: () => validatePaths
 });
 function getModuleDir() {
   if (cachedModuleDir) {
@@ -2392,9 +2395,81 @@ function hasAutogenArtifacts(explicitBaseDir) {
   const artifactTypes = ["analysis", "plan", "state", "results"];
   return artifactTypes.some((artifact) => existsSync(getAutogenArtifact(artifact, explicitBaseDir)));
 }
-var cachedPackageRoot, cachedModuleDir, cachedHarnessRoot;
+function validatePath(userPath, allowedRoot) {
+  if (!userPath || userPath.trim() === "") {
+    throw new PathTraversalError(userPath, allowedRoot, "");
+  }
+  if (userPath.includes("\0") || userPath.includes("\n") || userPath.includes("\r")) {
+    throw new PathTraversalError(userPath, allowedRoot, "invalid-characters");
+  }
+  if (process.platform === "win32") {
+    const colonIndex = userPath.indexOf(":");
+    if (colonIndex !== -1 && colonIndex !== 1) {
+      throw new PathTraversalError(userPath, allowedRoot, "alternate-data-stream");
+    }
+    if (userPath.startsWith("\\\\") || userPath.startsWith("//")) {
+      throw new PathTraversalError(userPath, allowedRoot, "unc-path");
+    }
+  }
+  const resolved = resolve(allowedRoot, userPath);
+  let realResolved;
+  let realRoot;
+  try {
+    realRoot = realpathSync(allowedRoot);
+  } catch {
+    realRoot = resolve(allowedRoot);
+  }
+  try {
+    realResolved = realpathSync(resolved);
+  } catch {
+    let current = resolved;
+    let parentResolved = resolved;
+    while (current !== dirname(current)) {
+      const parent = dirname(current);
+      try {
+        const realParent = realpathSync(parent);
+        const relativePart = relative(parent, resolved);
+        parentResolved = join(realParent, relativePart);
+        break;
+      } catch {
+        current = parent;
+      }
+    }
+    realResolved = parentResolved;
+  }
+  const rel = relative(realRoot, realResolved);
+  if (rel.startsWith("..") || isAbsolute(rel) && !rel.startsWith(realRoot)) {
+    throw new PathTraversalError(userPath, allowedRoot, realResolved);
+  }
+  return realResolved;
+}
+function validatePaths(paths, allowedRoot, onInvalid) {
+  const validPaths = [];
+  for (const userPath of paths) {
+    try {
+      const validated = validatePath(userPath, allowedRoot);
+      validPaths.push(validated);
+    } catch (e) {
+      if (e instanceof PathTraversalError && onInvalid) {
+        onInvalid(userPath);
+      }
+    }
+  }
+  return validPaths;
+}
+var cachedPackageRoot, cachedModuleDir, cachedHarnessRoot, PathTraversalError;
 var init_paths = __esm({
   "src/utils/paths.ts"() {
+    PathTraversalError = class extends Error {
+      constructor(userPath, allowedRoot, resolvedPath) {
+        super(`Path traversal detected: "${userPath}" resolves outside allowed root "${allowedRoot}"`);
+        this.userPath = userPath;
+        this.allowedRoot = allowedRoot;
+        this.name = "PathTraversalError";
+        this.resolvedPath = resolvedPath;
+      }
+      resolvedPath;
+    };
   }
 });
 
@@ -2468,11 +2543,11 @@ function calculateConfidence(successCount, failCount) {
   const total = successCount + failCount;
   if (total === 0) return 0.5;
   const p = successCount / total;
-  const z8 = 1.96;
+  const z9 = 1.96;
   const n = total;
-  const denominator = 1 + z8 * z8 / n;
-  const center = p + z8 * z8 / (2 * n);
-  const spread = z8 * Math.sqrt((p * (1 - p) + z8 * z8 / (4 * n)) / n);
+  const denominator = 1 + z9 * z9 / n;
+  const center = p + z9 * z9 / (2 * n);
+  const spread = z9 * Math.sqrt((p * (1 - p) + z9 * z9 / (4 * n)) / n);
   return Math.max(0, Math.min(1, (center - spread) / denominator));
 }
 function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
@@ -4427,16 +4502,12 @@ var init_patterns2 = __esm({
   }
 });
 function isESLintAvailable(cwd) {
-  try {
-    execSync("npx eslint --version", {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("npx", ["eslint", "--version"], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  return result.status === 0;
 }
 function convertSeverity(eslintSeverity) {
   return eslintSeverity === 2 ? "error" : "warning";
@@ -4497,21 +4568,21 @@ async function lintCode(code, filename = "test.spec.ts", options = {}) {
       args.push("--config", configPath);
     }
     args.push(tempFile);
-    const result = execSync(`npx ${args.join(" ")}`, {
+    const result = spawnSync("npx", args, {
       cwd,
       stdio: "pipe",
       encoding: "utf-8"
     });
-    return {
-      passed: true,
-      output: result,
-      issues: parseESLintOutput(result),
-      errorCount: 0,
-      warningCount: 0
-    };
-  } catch (err3) {
-    const error = err3;
-    const output = error.stdout || "";
+    const output = result.stdout || "";
+    if (result.status === 0) {
+      return {
+        passed: true,
+        output,
+        issues: parseESLintOutput(output),
+        errorCount: 0,
+        warningCount: 0
+      };
+    }
     try {
       const results = JSON.parse(output);
       const issues = parseESLintOutput(output);
@@ -5014,8 +5085,7 @@ function runPlaywrightSync(options = {}) {
       command: "npx playwright test"
     };
   }
-  const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  const tempDir = mkdtempSync(join(tmpdir(), "autogen-verify-"));
   const reportPath = join(tempDir, "results.json");
   const args = buildPlaywrightArgs({
     ...options,
@@ -5024,7 +5094,7 @@ function runPlaywrightSync(options = {}) {
   const command = `npx playwright ${args.join(" ")}`;
   const startTime = Date.now();
   try {
-    const result = execSync(command, {
+    const result = spawnSync("npx", ["playwright", ...args], {
       cwd,
       stdio: "pipe",
       encoding: "utf-8",
@@ -5036,26 +5106,21 @@ function runPlaywrightSync(options = {}) {
       timeout: options.timeout ? options.timeout * 10 : 6e5
       // 10x test timeout or 10 min
     });
+    const success = result.status === 0;
     return {
-      success: true,
-      exitCode: 0,
-      stdout: result,
-      stderr: "",
+      success,
+      exitCode: result.status ?? 1,
+      stdout: result.stdout || "",
+      stderr: result.stderr || "",
       reportPath: existsSync(reportPath) ? reportPath : void 0,
       duration: Date.now() - startTime,
       command
     };
-  } catch (error) {
-    const execError = error;
-    return {
-      success: false,
-      exitCode: execError.status || 1,
-      stdout: execError.stdout || "",
-      stderr: execError.stderr || String(error),
-      reportPath: existsSync(reportPath) ? reportPath : void 0,
-      duration: Date.now() - startTime,
-      command
-    };
+  } finally {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+    }
   }
 }
 var init_runner = __esm({
@@ -8163,7 +8228,7 @@ var init_llkb_storage = __esm({
   }
 });
 async function checkPlaywrightInstalled(cwd) {
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     const proc = spawn("npx", ["playwright", "--version"], {
       cwd: getHarnessRoot(),
       env: process.env
@@ -8179,26 +8244,26 @@ async function checkPlaywrightInstalled(cwd) {
     proc.on("close", (code) => {
       if (code === 0) {
         const versionMatch = stdout.match(/(\d+\.\d+\.\d+)/);
-        resolve6({
+        resolve7({
           installed: true,
           version: versionMatch && versionMatch[1] ? versionMatch[1] : void 0
         });
       } else {
-        resolve6({
+        resolve7({
           installed: false,
           error: stderr || "Playwright not found. Run: npx playwright install"
         });
       }
     });
     proc.on("error", (err3) => {
-      resolve6({
+      resolve7({
         installed: false,
         error: `Failed to check Playwright: ${err3.message}`
       });
     });
     setTimeout(() => {
       proc.kill();
-      resolve6({
+      resolve7({
         installed: false,
         error: "Playwright check timed out"
       });
@@ -8565,21 +8630,80 @@ function createEmptyState() {
     updatedAt: now
   };
 }
+function backupCorruptedFile(statePath) {
+  const backupPath = `${statePath}.corrupted.${Date.now()}`;
+  try {
+    renameSync(statePath, backupPath);
+    return backupPath;
+  } catch {
+    return void 0;
+  }
+}
 function loadPipelineState(baseDir) {
   const statePath = getAutogenArtifact("state", baseDir);
   if (!existsSync(statePath)) {
     return createEmptyState();
   }
+  let content;
+  let parsed;
   try {
-    const content = readFileSync(statePath, "utf-8");
-    const state = JSON.parse(content);
-    if (state.version !== "1.0") {
-      console.warn(`Pipeline state version mismatch: expected 1.0, got ${state.version}`);
-    }
-    return state;
-  } catch {
+    content = readFileSync(statePath, "utf-8");
+  } catch (error) {
+    console.warn(`Warning: Cannot read pipeline state file: ${statePath}`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : "Unknown"}`);
     return createEmptyState();
   }
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    console.warn(`Warning: Pipeline state file contains invalid JSON, creating backup and resetting.`);
+    console.warn(`  Error: ${error instanceof Error ? error.message : "Unknown"}`);
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+    return createEmptyState();
+  }
+  const validation = PipelineStateSchema.safeParse(parsed);
+  if (!validation.success) {
+    console.warn(`Warning: Pipeline state file has invalid structure, creating backup and resetting.`);
+    const errors = validation.error.errors.slice(0, 3);
+    for (const err3 of errors) {
+      console.warn(`  - ${err3.path.join(".")}: ${err3.message}`);
+    }
+    if (validation.error.errors.length > 3) {
+      console.warn(`  ... and ${validation.error.errors.length - 3} more errors`);
+    }
+    const backupPath = backupCorruptedFile(statePath);
+    if (backupPath) {
+      console.warn(`  Backup saved to: ${backupPath}`);
+    }
+    return createEmptyState();
+  }
+  const state = validation.data;
+  const knownFields = /* @__PURE__ */ new Set([
+    "version",
+    "stage",
+    "lastCommand",
+    "lastCommandAt",
+    "journeyIds",
+    "testPaths",
+    "refinementAttempts",
+    "isBlocked",
+    "blockedReason",
+    "history",
+    "createdAt",
+    "updatedAt"
+  ]);
+  const unknownFields = Object.keys(parsed).filter((k) => !knownFields.has(k));
+  if (unknownFields.length > 0) {
+    console.warn(`Warning: Pipeline state has unknown fields (may be from newer version): ${unknownFields.join(", ")}`);
+  }
+  if (!VALID_STAGES.includes(state.stage)) {
+    console.warn(`Warning: Invalid pipeline stage "${state.stage}", resetting to "initial"`);
+    state.stage = "initial";
+  }
+  return state;
 }
 async function savePipelineState(state, baseDir) {
   await ensureAutogenDir(baseDir);
@@ -8635,6 +8759,35 @@ async function updatePipelineState(command, stage, success, details, baseDir) {
 async function resetPipelineState(baseDir) {
   await savePipelineState(createEmptyState(), baseDir);
 }
+function canProceedTo(currentState, targetStage) {
+  const validTransitions = {
+    initial: ["analyzed"],
+    analyzed: ["planned", "initial"],
+    // Can go back via clean
+    planned: ["generated", "analyzed", "initial"],
+    generated: ["tested", "planned", "initial"],
+    tested: ["refining", "completed", "generated", "initial"],
+    refining: ["tested", "completed", "blocked", "initial"],
+    completed: ["initial", "analyzed"],
+    // Can restart
+    blocked: ["initial", "analyzed"]
+    // Can only restart or re-analyze
+  };
+  const allowed = validTransitions[currentState.stage]?.includes(targetStage) ?? false;
+  if (!allowed) {
+    return {
+      allowed: false,
+      reason: `Cannot transition from '${currentState.stage}' to '${targetStage}'. Valid transitions: ${validTransitions[currentState.stage]?.join(", ") || "none"}`
+    };
+  }
+  if (currentState.isBlocked && !["initial", "analyzed"].includes(targetStage)) {
+    return {
+      allowed: false,
+      reason: `Pipeline is blocked: ${currentState.blockedReason}. Clean or re-analyze to continue.`
+    };
+  }
+  return { allowed: true };
+}
 function getPipelineStateSummary(state) {
   const lines = [
     `Stage: ${state.stage}`,
@@ -8654,9 +8807,41 @@ function getPipelineStateSummary(state) {
   }
   return lines.join("\n");
 }
+var VALID_STAGES, PipelineHistoryEntrySchema, PipelineStateSchema;
 var init_state = __esm({
   "src/pipeline/state.ts"() {
     init_paths();
+    VALID_STAGES = [
+      "initial",
+      "analyzed",
+      "planned",
+      "generated",
+      "tested",
+      "refining",
+      "completed",
+      "blocked"
+    ];
+    PipelineHistoryEntrySchema = z.object({
+      command: z.string(),
+      stage: z.enum(["initial", "analyzed", "planned", "generated", "tested", "refining", "completed", "blocked"]),
+      timestamp: z.string(),
+      success: z.boolean(),
+      details: z.record(z.unknown()).optional()
+    });
+    PipelineStateSchema = z.object({
+      version: z.literal("1.0"),
+      stage: z.enum(["initial", "analyzed", "planned", "generated", "tested", "refining", "completed", "blocked"]),
+      lastCommand: z.string(),
+      lastCommandAt: z.string(),
+      journeyIds: z.array(z.string()),
+      testPaths: z.array(z.string()),
+      refinementAttempts: z.number(),
+      isBlocked: z.boolean(),
+      blockedReason: z.string().optional(),
+      history: z.array(PipelineHistoryEntrySchema),
+      createdAt: z.string(),
+      updatedAt: z.string()
+    }).passthrough();
   }
 });
 
@@ -8839,6 +9024,7 @@ async function runAnalyze(args) {
       output: { type: "string", short: "o" },
       json: { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h", default: false }
     },
     allowPositionals: true
@@ -8854,22 +9040,53 @@ async function runAnalyze(args) {
   }
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
+  if (!force) {
+    const currentState = await loadPipelineState();
+    const transition = canProceedTo(currentState, "analyzed");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
   const telemetry = getTelemetry();
   await telemetry.load();
   const eventId = telemetry.trackCommandStart("analyze");
+  const harnessRoot = getHarnessRoot();
   const journeyFiles = await fg2(positionals, {
-    absolute: true
+    absolute: true,
+    cwd: harnessRoot
   });
   if (journeyFiles.length === 0) {
     console.error("Error: No journey files found matching the patterns");
     process.exit(1);
   }
+  const validatedFiles = [];
+  for (const file of journeyFiles) {
+    try {
+      const validated = validatePath(file, harnessRoot);
+      validatedFiles.push(validated);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        console.error(`Warning: Skipping file outside harness root: ${file}`);
+        continue;
+      }
+      throw error;
+    }
+  }
+  if (validatedFiles.length === 0) {
+    console.error("Error: No valid journey files within harness root");
+    process.exit(1);
+  }
   if (!quiet && !outputJson) {
-    console.log(`Analyzing ${journeyFiles.length} journey file(s)...`);
+    console.log(`Analyzing ${validatedFiles.length} journey file(s)...`);
   }
   const journeys = [];
   const allKeywords = [];
-  for (const file of journeyFiles) {
+  for (const file of validatedFiles) {
     if (!existsSync(file)) {
       console.error(`Warning: File not found: ${file}`);
       continue;
@@ -8896,7 +9113,6 @@ async function runAnalyze(args) {
     keywordCounts.set(kw, (keywordCounts.get(kw) || 0) + 1);
   }
   const commonKeywords = [...keywordCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([kw]) => kw);
-  const harnessRoot = getHarnessRoot();
   const output = {
     version: "1.0",
     harnessRoot,
@@ -8952,6 +9168,7 @@ Options:
   -o, --output <path>    Output path for analysis.json (default: .artk/autogen/analysis.json)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -9232,6 +9449,7 @@ async function runPlan(args) {
       output: { type: "string", short: "o" },
       json: { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h", default: false }
     },
     allowPositionals: true
@@ -9242,6 +9460,7 @@ async function runPlan(args) {
   }
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
   const strategyInput = values.strategy?.toLowerCase().trim() || "direct";
   const validStrategies = ["direct", "scot", "multi-sample"];
   if (!validStrategies.includes(strategyInput)) {
@@ -9252,9 +9471,16 @@ async function runPlan(args) {
   const telemetry = getTelemetry();
   await telemetry.load();
   const eventId = telemetry.trackCommandStart("plan");
-  const pipelineState = loadPipelineState();
-  if (pipelineState.stage === "initial") {
-    console.warn('Warning: No analysis found. Consider running "artk-autogen analyze" first.');
+  const pipelineState = await loadPipelineState();
+  if (!force) {
+    const transition = canProceedTo(pipelineState, "planned");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
   }
   const analysisPath = values.analysis || getAutogenArtifact("analysis");
   if (!existsSync(analysisPath)) {
@@ -9352,6 +9578,7 @@ Options:
   -o, --output <path>    Output path for plan.json (default: .artk/autogen/plan.json)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -9912,6 +10139,7 @@ async function runGenerate(args) {
       journey: { type: "string" },
       "dry-run": { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h", default: false },
       // LLKB integration options
       "llkb-config": { type: "string" },
@@ -9923,6 +10151,19 @@ async function runGenerate(args) {
   if (values.help) {
     console.log(USAGE3);
     return;
+  }
+  const quiet = values.quiet;
+  const force = values.force;
+  if (!force) {
+    const currentState = loadPipelineState();
+    const transition = canProceedTo(currentState, "generated");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
   }
   const telemetry = getTelemetry();
   await telemetry.load();
@@ -9961,7 +10202,6 @@ async function runGenerate(args) {
   }
   const outputDir = values.output || "./tests/generated";
   const dryRun = values["dry-run"];
-  const quiet = values.quiet;
   const configPaths = [];
   if (values.config) {
     configPaths.push(values.config);
@@ -10160,6 +10400,7 @@ Options:
   --journey <id>           Generate only for specific journey ID from plan
   --dry-run                Preview generation without writing files
   -q, --quiet              Suppress output except errors
+  -f, --force              Skip pipeline state validation
   -h, --help               Show this help message
 
 LLKB Integration Options:
@@ -10183,24 +10424,34 @@ Examples:
 // src/cli/run.ts
 var run_exports = {};
 __export(run_exports, {
-  runRun: () => runRun
+  parseErrorLocation: () => parseErrorLocation,
+  parseErrorType: () => parseErrorType,
+  parseErrors: () => parseErrors2,
+  runRun: () => runRun,
+  suggestFix: () => suggestFix
 });
 function parseErrorType(message) {
   const lower = message.toLowerCase();
-  if (lower.includes("timeout") || lower.includes("exceeded")) {
-    return "timeout";
+  if (lower.includes("ts(") || lower.includes("error ts") || /\berror\s+ts\d+\b/.test(lower)) {
+    return "typescript";
   }
-  if (lower.includes("locator") || lower.includes("element") || lower.includes("selector")) {
-    return "selector";
+  if (lower.includes("syntaxerror:") || lower.includes("syntax error")) {
+    return "typescript";
   }
-  if (lower.includes("expect") || lower.includes("assertion") || lower.includes("tobehave")) {
+  if (lower.includes("expect(") || lower.includes("tohave") || lower.includes("tocontain") || lower.includes("tobe") || lower.includes("assertion") || lower.includes("expected string:") || lower.includes("received string:")) {
     return "assertion";
   }
-  if (lower.includes("navigation") || lower.includes("page.goto") || lower.includes("net::")) {
+  if (/timeout\s+\d+ms/i.test(message) || lower.includes("timeout exceeded") || lower.includes("exceeded time")) {
+    return "timeout";
+  }
+  if (lower.includes("page.goto") || lower.includes("net::err") || lower.includes("navigation") || lower.includes("err_name_not_resolved") || lower.includes("err_connection")) {
     return "navigation";
   }
-  if (lower.includes("syntaxerror") || lower.includes("typeerror") || lower.includes("ts(")) {
-    return "typescript";
+  if (lower.includes("strict mode violation") || lower.includes("resolved to 0 elements") || lower.includes("locator.click:") || lower.includes("locator.fill:") || lower.includes("locator") && !lower.includes("expect")) {
+    return "selector";
+  }
+  if (lower.includes("typeerror:") || lower.includes("referenceerror:")) {
+    return "runtime";
   }
   if (lower.includes("error:") || lower.includes("exception")) {
     return "runtime";
@@ -10243,19 +10494,26 @@ function parseErrors2(stdout, stderr) {
   const errors = [];
   const combined = `${stdout}
 ${stderr}`;
-  const errorBlocks = combined.split(/(?=Error:|✘|FAILED|AssertionError)/);
+  const errorBlocks = combined.split(/(?=Error:|✘|FAILED|AssertionError|\berror TS\d+)/);
   for (const block of errorBlocks) {
     if (!block.trim() || block.length < 20) continue;
-    if (!block.includes("Error") && !block.includes("\u2718") && !block.includes("FAILED")) {
+    const lowerBlock = block.toLowerCase();
+    if (!lowerBlock.includes("error") && !block.includes("\u2718") && !lowerBlock.includes("failed")) {
       continue;
     }
     const lines = block.split("\n");
-    const message = lines.slice(0, 3).join(" ").trim().substring(0, 500);
+    const message = lines.slice(0, 5).join(" ").trim().substring(0, 500);
     if (!message) continue;
     const errorType = parseErrorType(message);
     const location = parseErrorLocation(block);
     const snippetMatch = block.match(/>\s*\d+\s*\|(.+)/);
     const snippet = snippetMatch?.[1]?.trim();
+    if (!location && !snippet) {
+      const trimmedMsg = message.trim();
+      if (trimmedMsg.endsWith(":") && trimmedMsg.length < 80) {
+        continue;
+      }
+    }
     errors.push({
       message,
       type: errorType,
@@ -10283,7 +10541,7 @@ async function runPlaywrightTest(testPath, options) {
   if (options.debug) {
     args.push("--debug");
   }
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     let stdout = "";
     let stderr = "";
     const proc = spawn("npx", args, {
@@ -10347,7 +10605,7 @@ async function runPlaywrightTest(testPath, options) {
 
 [${name} TRUNCATED - ${text.length - truncateAt} more characters]`;
       };
-      resolve6({
+      resolve7({
         version: "1.0",
         testPath,
         journeyId,
@@ -10364,7 +10622,7 @@ async function runPlaywrightTest(testPath, options) {
       });
     });
     proc.on("error", (err3) => {
-      resolve6({
+      resolve7({
         version: "1.0",
         testPath,
         status: "error",
@@ -10395,6 +10653,7 @@ async function runRun(args) {
       debug: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h", default: false }
     },
     allowPositionals: true
@@ -10410,6 +10669,18 @@ async function runRun(args) {
   }
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
+  if (!force) {
+    const currentState = await loadPipelineState();
+    const transition = canProceedTo(currentState, "tested");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
   const timeout = parseInt(values.timeout, 10);
   const retries = parseInt(values.retries, 10);
   if (isNaN(timeout) || timeout <= 0) {
@@ -10443,7 +10714,27 @@ async function runRun(args) {
   const harnessRoot = getHarnessRoot();
   const results = [];
   for (const testPath of positionals) {
-    const fullPath = testPath.startsWith("/") ? testPath : join(harnessRoot, testPath);
+    let fullPath;
+    try {
+      fullPath = validatePath(testPath, harnessRoot);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        console.error(`Error: Path traversal detected: "${testPath}"`);
+        console.error(`  Paths must be within harness root: ${harnessRoot}`);
+        results.push({
+          version: "1.0",
+          testPath,
+          status: "error",
+          duration: 0,
+          errors: [{ message: `Path traversal blocked: ${testPath}`, type: "runtime" }],
+          output: { stdout: "", stderr: "", exitCode: 1 },
+          artifacts: {},
+          executedAt: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        continue;
+      }
+      throw error;
+    }
     if (!existsSync(fullPath)) {
       console.error(`Warning: Test file not found: ${fullPath}`);
       results.push({
@@ -10553,6 +10844,7 @@ Options:
   --debug                Run with debug mode (pause on failure)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -10721,6 +11013,7 @@ async function runRefine(args) {
       "max-attempts": { type: "string", default: "3" },
       json: { type: "boolean", default: false },
       quiet: { type: "boolean", short: "q", default: false },
+      force: { type: "boolean", short: "f", default: false },
       help: { type: "boolean", short: "h", default: false }
     },
     allowPositionals: true
@@ -10731,6 +11024,18 @@ async function runRefine(args) {
   }
   const quiet = values.quiet;
   const outputJson = values.json;
+  const force = values.force;
+  if (!force) {
+    const currentState = loadPipelineState();
+    const transition = canProceedTo(currentState, "refining");
+    if (!transition.allowed) {
+      console.error(`Error: ${transition.reason}`);
+      console.error("Use --force to bypass state validation.");
+      process.exit(1);
+    }
+  } else if (!quiet && !outputJson) {
+    console.log("Warning: Bypassing pipeline state validation (--force)");
+  }
   const maxAttempts = parseInt(values["max-attempts"], 10);
   if (isNaN(maxAttempts) || maxAttempts <= 0) {
     console.error(`Error: Invalid max-attempts value "${values["max-attempts"]}". Must be a positive number.`);
@@ -10905,6 +11210,7 @@ Options:
   --max-attempts <n>     Max refinement attempts before stopping (default: 3)
   --json                 Output JSON to stdout instead of file
   -q, --quiet            Suppress output except errors
+  -f, --force            Skip pipeline state validation
   -h, --help             Show this help message
 
 Examples:
@@ -11337,10 +11643,10 @@ Total: ${formatSize(totalSize)}`);
       input: process.stdin,
       output: process.stdout
     });
-    const answer = await new Promise((resolve6) => {
+    const answer = await new Promise((resolve7) => {
       rl.question("\nProceed with deletion? [y/N] ", (ans) => {
         rl.close();
-        resolve6(ans);
+        resolve7(ans);
       });
     });
     if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
@@ -11971,10 +12277,10 @@ async function confirmAction(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve6(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -12198,10 +12504,10 @@ async function confirmAction2(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve6(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve7(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }

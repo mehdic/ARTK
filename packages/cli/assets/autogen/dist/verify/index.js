@@ -1,5 +1,5 @@
-import { execSync, spawn } from 'child_process';
-import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'fs';
+import { execSync, spawnSync, spawn } from 'child_process';
+import { mkdtempSync, existsSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 
@@ -83,8 +83,7 @@ function runPlaywrightSync(options = {}) {
       command: "npx playwright test"
     };
   }
-  const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  const tempDir = mkdtempSync(join(tmpdir(), "autogen-verify-"));
   const reportPath = join(tempDir, "results.json");
   const args = buildPlaywrightArgs({
     ...options,
@@ -93,7 +92,7 @@ function runPlaywrightSync(options = {}) {
   const command = `npx playwright ${args.join(" ")}`;
   const startTime = Date.now();
   try {
-    const result = execSync(command, {
+    const result = spawnSync("npx", ["playwright", ...args], {
       cwd,
       stdio: "pipe",
       encoding: "utf-8",
@@ -105,33 +104,27 @@ function runPlaywrightSync(options = {}) {
       timeout: options.timeout ? options.timeout * 10 : 6e5
       // 10x test timeout or 10 min
     });
+    const success = result.status === 0;
     return {
-      success: true,
-      exitCode: 0,
-      stdout: result,
-      stderr: "",
+      success,
+      exitCode: result.status ?? 1,
+      stdout: result.stdout || "",
+      stderr: result.stderr || "",
       reportPath: existsSync(reportPath) ? reportPath : void 0,
       duration: Date.now() - startTime,
       command
     };
-  } catch (error) {
-    const execError = error;
-    return {
-      success: false,
-      exitCode: execError.status || 1,
-      stdout: execError.stdout || "",
-      stderr: execError.stderr || String(error),
-      reportPath: existsSync(reportPath) ? reportPath : void 0,
-      duration: Date.now() - startTime,
-      command
-    };
+  } finally {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+    }
   }
 }
 function runPlaywrightAsync(options = {}) {
   return new Promise((resolve) => {
     const { cwd = process.cwd(), env = {} } = options;
-    const tempDir = join(tmpdir(), `autogen-verify-${Date.now()}`);
-    mkdirSync(tempDir, { recursive: true });
+    const tempDir = mkdtempSync(join(tmpdir(), "autogen-verify-"));
     const reportPath = join(tempDir, "results.json");
     const args = buildPlaywrightArgs({
       ...options,
@@ -141,6 +134,13 @@ function runPlaywrightAsync(options = {}) {
     const startTime = Date.now();
     let stdout = "";
     let stderr = "";
+    const cleanupAndResolve = (result) => {
+      try {
+        rmSync(tempDir, { recursive: true, force: true });
+      } catch {
+      }
+      resolve(result);
+    };
     const child = spawn("npx", ["playwright", ...args], {
       cwd,
       env: {
@@ -156,7 +156,7 @@ function runPlaywrightAsync(options = {}) {
       stderr += data.toString();
     });
     child.on("close", (code) => {
-      resolve({
+      cleanupAndResolve({
         success: code === 0,
         exitCode: code || 1,
         stdout,
@@ -167,7 +167,7 @@ function runPlaywrightAsync(options = {}) {
       });
     });
     child.on("error", (error) => {
-      resolve({
+      cleanupAndResolve({
         success: false,
         exitCode: 1,
         stdout,
@@ -205,35 +205,37 @@ function checkTestSyntax(testFilePath, cwd) {
   if (!existsSync(testFilePath)) {
     return false;
   }
-  try {
-    execSync(`npx tsc --noEmit ${testFilePath}`, {
-      cwd: cwd || dirname(testFilePath),
-      stdio: "pipe"
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("npx", ["tsc", "--noEmit", testFilePath], {
+    cwd: cwd || dirname(testFilePath),
+    stdio: "pipe"
+  });
+  return result.status === 0;
 }
 function writeAndRunTest(code, filename, options = {}) {
-  const tempDir = join(tmpdir(), `autogen-test-${Date.now()}`);
-  mkdirSync(tempDir, { recursive: true });
+  const tempDir = mkdtempSync(join(tmpdir(), "autogen-test-"));
   const testPath = join(tempDir, filename);
   writeFileSync(testPath, code, "utf-8");
-  return runTestFile(testPath, options);
+  try {
+    return runTestFile(testPath, options);
+  } finally {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+    }
+  }
 }
 function getTestCount(testFile, cwd) {
-  try {
-    const result = execSync(`npx playwright test --list ${testFile}`, {
-      cwd,
-      stdio: "pipe",
-      encoding: "utf-8"
-    });
-    const match = result.match(/Listing (\d+) tests?/);
-    return match ? parseInt(match[1], 10) : 0;
-  } catch {
+  const result = spawnSync("npx", ["playwright", "test", "--list", testFile], {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf-8"
+  });
+  if (result.status !== 0) {
     return 0;
   }
+  const output = result.stdout || "";
+  const match = output.match(/Listing (\d+) tests?/);
+  return match ? parseInt(match[1], 10) : 0;
 }
 function parseReportFile(filePath) {
   if (!existsSync(filePath)) {
