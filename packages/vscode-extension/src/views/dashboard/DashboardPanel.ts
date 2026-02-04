@@ -527,10 +527,10 @@ export class DashboardPanel {
    */
   private isInitialized(): boolean {
     const contextManager = getWorkspaceContextManager();
-    const artkRoot = contextManager.workspaceInfo?.artkRoot;
-    if (!artkRoot) return false;
+    const artkE2ePath = contextManager.workspaceInfo?.artkE2ePath;
+    if (!artkE2ePath) return false;
 
-    const playbookPath = path.join(artkRoot, 'docs', 'PLAYBOOK.md');
+    const playbookPath = path.join(artkE2ePath, 'docs', 'PLAYBOOK.md');
     return fs.existsSync(playbookPath);
   }
 

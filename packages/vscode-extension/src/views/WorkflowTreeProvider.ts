@@ -398,10 +398,10 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowTre
    */
   private checkInitPlaybookCompleted(): boolean {
     const workspaceInfo = this.contextManager.workspaceInfo;
-    if (!workspaceInfo?.artkRoot) return false;
+    if (!workspaceInfo?.artkE2ePath) return false;
 
     // Check for PLAYBOOK.md - this is specifically created by init-playbook
-    const playbookPath = path.join(workspaceInfo.artkRoot, 'docs', 'PLAYBOOK.md');
+    const playbookPath = path.join(workspaceInfo.artkE2ePath, 'docs', 'PLAYBOOK.md');
 
     return fs.existsSync(playbookPath);
   }
