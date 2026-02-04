@@ -1,8 +1,8 @@
 name: Build VS Code Extension
 
+# Only runs manually - not on every push/PR
+# To trigger: Actions → Build VS Code Extension → Run workflow
 on:
-  push:
-  pull_request:
   workflow_dispatch:
     inputs:
       version_bump:
@@ -50,7 +50,7 @@ jobs:
 
       - name: Bump version
         id: bump
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.version_bump != 'none')
+        if: github.event.inputs.version_bump != 'none'
         run: |
           # Determine bump type
           BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
@@ -151,7 +151,8 @@ jobs:
     name: Create Release
     needs: [build, test-install]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Creates release when manually triggered on main branch
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Download VSIX
