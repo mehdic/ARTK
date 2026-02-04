@@ -74,6 +74,31 @@ function copyFile(src: string, dest: string): void {
 }
 
 /**
+ * Copy package.json with devDependencies and scripts stripped
+ * This prevents npm from spending 200+ seconds resolving unused dependencies
+ * when the package is used as a file: dependency in artk-e2e
+ */
+function copyPackageJsonStripped(src: string, dest: string): void {
+  if (!fs.existsSync(src)) {
+    console.warn(`Source not found: ${src}`);
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+
+  const pkg = JSON.parse(fs.readFileSync(src, 'utf-8'));
+
+  // Remove devDependencies and scripts - not needed for vendored usage
+  delete pkg.devDependencies;
+  delete pkg.scripts;
+
+  // Mark as private to prevent accidental publish
+  pkg.private = true;
+
+  fs.writeFileSync(dest, JSON.stringify(pkg, null, 2));
+}
+
+/**
  * Main bundling function
  */
 async function bundleAssets(): Promise<void> {
@@ -124,9 +149,9 @@ async function bundleAssets(): Promise<void> {
     console.log('   - templates/');
   }
 
-  // Copy package.json
-  copyFile(path.join(CORE_SOURCE, 'package.json'), path.join(CORE_TARGET, 'package.json'));
-  console.log('   - package.json');
+  // Copy package.json (stripped of devDependencies/scripts to prevent npm hanging)
+  copyPackageJsonStripped(path.join(CORE_SOURCE, 'package.json'), path.join(CORE_TARGET, 'package.json'));
+  console.log('   - package.json (stripped)');
 
   // Copy version.json if exists
   const versionJsonPath = path.join(CORE_SOURCE, 'version.json');
@@ -148,9 +173,9 @@ async function bundleAssets(): Promise<void> {
     console.warn(`   @artk/core-autogen dist not found. Run 'npm run build' in core/typescript/autogen first.`);
   }
 
-  // Copy package.json
-  copyFile(path.join(AUTOGEN_SOURCE, 'package.json'), path.join(AUTOGEN_TARGET, 'package.json'));
-  console.log('   - package.json');
+  // Copy package.json (stripped of devDependencies/scripts to prevent npm hanging)
+  copyPackageJsonStripped(path.join(AUTOGEN_SOURCE, 'package.json'), path.join(AUTOGEN_TARGET, 'package.json'));
+  console.log('   - package.json (stripped)');
 
   // 4. Bundle bootstrap templates
   console.log('\n4. Bundling bootstrap templates...');
