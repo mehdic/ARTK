@@ -517,6 +517,130 @@ var init_paths = __esm({
   }
 });
 
+// src/mapping/patternDistance.ts
+function levenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          // substitution
+          matrix[i][j - 1] + 1,
+          // insertion
+          matrix[i - 1][j] + 1
+          // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+function calculateSimilarity(a, b) {
+  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1;
+  return 1 - distance / maxLength;
+}
+function generateExampleFromRegex(regex, patternName) {
+  void regex.source;
+  if (patternName.includes("navigate")) {
+    return "User navigates to /path";
+  }
+  if (patternName.includes("click")) {
+    return 'User clicks "Button" button';
+  }
+  if (patternName.includes("fill") || patternName.includes("enter") || patternName.includes("type")) {
+    return 'User enters "value" in "Field" field';
+  }
+  if (patternName.includes("see") || patternName.includes("visible") || patternName.includes("expect")) {
+    return 'User should see "Content"';
+  }
+  if (patternName.includes("wait")) {
+    return "Wait for network idle";
+  }
+  return `Step matching ${patternName}`;
+}
+function findNearestPattern(text, patterns) {
+  let nearest = null;
+  let minDistance = Infinity;
+  const normalizedText = text.toLowerCase().trim();
+  const patternArray = patterns instanceof Map ? Array.from(patterns.entries()) : patterns.map((p) => [p.name, p]);
+  for (const [name, pattern] of patternArray) {
+    const examples = "examples" in pattern && pattern.examples ? pattern.examples : [generateExampleFromRegex(pattern.regex, pattern.name)];
+    for (const example of examples) {
+      const distance = levenshteinDistance(normalizedText, example.toLowerCase());
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = {
+          name,
+          distance,
+          exampleMatch: example,
+          mismatchReason: explainMismatch(text, pattern)
+        };
+      }
+    }
+  }
+  if (nearest && nearest.exampleMatch) {
+    const similarity = calculateSimilarity(text, nearest.exampleMatch);
+    if (similarity > 0.5) {
+      return nearest;
+    }
+  }
+  return null;
+}
+function explainMismatch(text, pattern) {
+  const reasons = [];
+  const lowerText = text.toLowerCase();
+  const requiredKeywords = "requiredKeywords" in pattern ? pattern.requiredKeywords : inferRequiredKeywords(pattern);
+  if (requiredKeywords) {
+    const missing = requiredKeywords.filter(
+      (kw) => !lowerText.includes(kw.toLowerCase())
+    );
+    if (missing.length > 0) {
+      reasons.push(`Missing keywords: ${missing.join(", ")}`);
+    }
+  }
+  if (!text.includes("(") && !text.includes("testid=") && !text.includes("role=")) {
+    reasons.push("Missing locator hint (e.g., testid=..., role=button)");
+  }
+  if (pattern.primitiveType === "click" && !text.match(/['"].+?['"]/)) {
+    reasons.push("Target element name not quoted");
+  }
+  return reasons.length > 0 ? reasons.join("; ") : "Pattern format mismatch";
+}
+function inferRequiredKeywords(pattern) {
+  const name = pattern.name.toLowerCase();
+  if (name.includes("navigate")) {
+    return ["navigate", "go", "open"];
+  }
+  if (name.includes("click")) {
+    return ["click", "press", "tap"];
+  }
+  if (name.includes("fill") || name.includes("enter")) {
+    return ["enter", "type", "fill", "input"];
+  }
+  if (name.includes("see") || name.includes("visible")) {
+    return ["see", "visible", "shown"];
+  }
+  if (name.includes("wait")) {
+    return ["wait"];
+  }
+  return void 0;
+}
+var init_patternDistance = __esm({
+  "src/mapping/patternDistance.ts"() {
+  }
+});
+
 // src/llkb/patternExtension.ts
 var patternExtension_exports = {};
 __export(patternExtension_exports, {
@@ -641,16 +765,40 @@ function recordPatternFailure(originalText, _journeyId, options = {}) {
 function matchLlkbPattern(text, options = {}) {
   const patterns = loadLearnedPatterns(options);
   const normalizedText = normalizeStepText(text);
-  const minConfidence = options.minConfidence ?? 0.7;
-  const match = patterns.find(
+  const minConfidence = options.minConfidence ?? 0.5;
+  const minSimilarity = options.minSimilarity ?? 0.7;
+  const useFuzzyMatch = options.useFuzzyMatch ?? true;
+  const exactMatch = patterns.find(
     (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
   );
-  if (match) {
+  if (exactMatch) {
     return {
-      patternId: match.id,
-      primitive: match.mappedPrimitive,
-      confidence: match.confidence
+      patternId: exactMatch.id,
+      primitive: exactMatch.mappedPrimitive,
+      confidence: exactMatch.confidence
     };
+  }
+  if (useFuzzyMatch) {
+    let bestMatch = null;
+    let bestSimilarity = 0;
+    for (const pattern of patterns) {
+      if (pattern.promotedToCore || pattern.confidence < minConfidence) {
+        continue;
+      }
+      const similarity = calculateSimilarity(normalizedText, pattern.normalizedText);
+      if (similarity >= minSimilarity && similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestMatch = pattern;
+      }
+    }
+    if (bestMatch) {
+      const adjustedConfidence = bestMatch.confidence * bestSimilarity;
+      return {
+        patternId: bestMatch.id,
+        primitive: bestMatch.mappedPrimitive,
+        confidence: adjustedConfidence
+      };
+    }
   }
   return null;
 }
@@ -766,6 +914,7 @@ var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
     init_glossary();
     init_paths();
+    init_patternDistance();
     PATTERNS_FILE = "learned-patterns.json";
     patternCache = null;
     CACHE_TTL_MS = 5e3;
@@ -2334,127 +2483,11 @@ function suggestImprovements(blockedSteps) {
   return suggestions;
 }
 
-// src/mapping/patternDistance.ts
-function levenshteinDistance(a, b) {
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          // substitution
-          matrix[i][j - 1] + 1,
-          // insertion
-          matrix[i - 1][j] + 1
-          // deletion
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-}
-function calculateSimilarity(a, b) {
-  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
-  const maxLength = Math.max(a.length, b.length);
-  if (maxLength === 0) return 1;
-  return 1 - distance / maxLength;
-}
-function generateExampleFromRegex(regex, patternName) {
-  void regex.source;
-  if (patternName.includes("navigate")) {
-    return "User navigates to /path";
-  }
-  if (patternName.includes("click")) {
-    return 'User clicks "Button" button';
-  }
-  if (patternName.includes("fill") || patternName.includes("enter") || patternName.includes("type")) {
-    return 'User enters "value" in "Field" field';
-  }
-  if (patternName.includes("see") || patternName.includes("visible") || patternName.includes("expect")) {
-    return 'User should see "Content"';
-  }
-  if (patternName.includes("wait")) {
-    return "Wait for network idle";
-  }
-  return `Step matching ${patternName}`;
-}
-function findNearestPattern(text, patterns) {
-  let nearest = null;
-  let minDistance = Infinity;
-  const normalizedText = text.toLowerCase().trim();
-  const patternArray = patterns instanceof Map ? Array.from(patterns.entries()) : patterns.map((p) => [p.name, p]);
-  for (const [name, pattern] of patternArray) {
-    const examples = "examples" in pattern && pattern.examples ? pattern.examples : [generateExampleFromRegex(pattern.regex, pattern.name)];
-    for (const example of examples) {
-      const distance = levenshteinDistance(normalizedText, example.toLowerCase());
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearest = {
-          name,
-          distance,
-          exampleMatch: example,
-          mismatchReason: explainMismatch(text, pattern)
-        };
-      }
-    }
-  }
-  if (nearest && nearest.exampleMatch) {
-    const similarity = calculateSimilarity(text, nearest.exampleMatch);
-    if (similarity > 0.5) {
-      return nearest;
-    }
-  }
-  return null;
-}
-function explainMismatch(text, pattern) {
-  const reasons = [];
-  const lowerText = text.toLowerCase();
-  const requiredKeywords = "requiredKeywords" in pattern ? pattern.requiredKeywords : inferRequiredKeywords(pattern);
-  if (requiredKeywords) {
-    const missing = requiredKeywords.filter(
-      (kw) => !lowerText.includes(kw.toLowerCase())
-    );
-    if (missing.length > 0) {
-      reasons.push(`Missing keywords: ${missing.join(", ")}`);
-    }
-  }
-  if (!text.includes("(") && !text.includes("testid=") && !text.includes("role=")) {
-    reasons.push("Missing locator hint (e.g., testid=..., role=button)");
-  }
-  if (pattern.primitiveType === "click" && !text.match(/['"].+?['"]/)) {
-    reasons.push("Target element name not quoted");
-  }
-  return reasons.length > 0 ? reasons.join("; ") : "Pattern format mismatch";
-}
-function inferRequiredKeywords(pattern) {
-  const name = pattern.name.toLowerCase();
-  if (name.includes("navigate")) {
-    return ["navigate", "go", "open"];
-  }
-  if (name.includes("click")) {
-    return ["click", "press", "tap"];
-  }
-  if (name.includes("fill") || name.includes("enter")) {
-    return ["enter", "type", "fill", "input"];
-  }
-  if (name.includes("see") || name.includes("visible")) {
-    return ["see", "visible", "shown"];
-  }
-  if (name.includes("wait")) {
-    return ["wait"];
-  }
-  return void 0;
-}
+// src/mapping/index.ts
+init_patternDistance();
 
 // src/mapping/blockedStepAnalysis.ts
+init_patternDistance();
 function categorizeStep(text) {
   const lowerText = text.toLowerCase();
   if (lowerText.includes("navigate") || lowerText.includes("go to") || lowerText.includes("open") || lowerText.includes("visit")) {
@@ -2816,6 +2849,9 @@ function clearTelemetry(options = {}) {
 
 // src/mapping/unifiedMatcher.ts
 init_patternExtension();
+
+// src/mapping/fuzzyMatcher.ts
+init_patternDistance();
 
 // src/mapping/normalize.ts
 var VERB_STEMS = {
