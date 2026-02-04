@@ -1219,16 +1219,37 @@ extract_yaml_value() {
     grep -m1 "^${key}:" "$file" 2>/dev/null | sed "s/^${key}: *//; s/^[\"']//; s/[\"']$//" || echo ""
 }
 
+# Helper function to extract handoffs section from YAML frontmatter
+extract_handoffs() {
+    local file="$1"
+    # Use awk to extract the handoffs array from YAML frontmatter
+    awk '
+        /^---$/ { if (in_frontmatter) exit; in_frontmatter=1; next }
+        in_frontmatter && /^handoffs:/ { in_handoffs=1; print; next }
+        in_handoffs && /^[a-zA-Z]/ { exit }
+        in_handoffs { print }
+    ' "$file" 2>/dev/null
+}
+
 # Helper function to generate stub prompt content
 generate_stub_prompt() {
     local name="$1"
     local description="$2"
+    local handoffs="$3"
+
+    # Start with basic frontmatter
+    echo "---"
+    echo "name: ${name}"
+    echo "description: \"${description}\""
+    echo "agent: ${name}"
+
+    # Include handoffs if present
+    if [ -n "$handoffs" ]; then
+        echo "$handoffs"
+    fi
+
+    echo "---"
     cat << STUBEOF
----
-name: ${name}
-description: "${description}"
-agent: ${name}
----
 # ARTK ${name}
 
 ## 🛑 MANDATORY: Before ANY action, you MUST:
@@ -1259,6 +1280,9 @@ for file in "$ARTK_PROMPTS"/artk.*.md; do
         DESCRIPTION=$(extract_yaml_value "$file" "description")
         [ -z "$DESCRIPTION" ] && DESCRIPTION="ARTK prompt"
 
+        # Extract handoffs from source file
+        HANDOFFS=$(extract_handoffs "$file")
+
         # 1. Copy full content to staging agents/
         if ! cp "$file" "$AGENTS_STAGING/${basename_no_ext}.agent.md" 2>/dev/null; then
             echo -e "${RED}  Failed to copy agent: ${basename_no_ext}${NC}"
@@ -1267,7 +1291,7 @@ for file in "$ARTK_PROMPTS"/artk.*.md; do
         fi
 
         # 2. Generate stub to staging prompts/
-        if ! generate_stub_prompt "$NAME" "$DESCRIPTION" > "$PROMPTS_STAGING/${basename_no_ext}.prompt.md" 2>/dev/null; then
+        if ! generate_stub_prompt "$NAME" "$DESCRIPTION" "$HANDOFFS" > "$PROMPTS_STAGING/${basename_no_ext}.prompt.md" 2>/dev/null; then
             echo -e "${RED}  Failed to generate stub: ${basename_no_ext}${NC}"
             INSTALL_FAILED=true
             break

@@ -1284,18 +1284,54 @@ async function installPrompts(
       const descMatch = content.match(/^description:\s*["']?([^"'\n]+)["']?/m);
       const description = descMatch ? descMatch[1].trim() : 'ARTK prompt';
 
+      // Extract handoffs section from frontmatter
+      const extractHandoffs = (text: string): string => {
+        const lines = text.split('\n');
+        const handoffsLines: string[] = [];
+        let inFrontmatter = false;
+        let inHandoffs = false;
+
+        for (const line of lines) {
+          if (line === '---') {
+            if (inFrontmatter) break;
+            inFrontmatter = true;
+            continue;
+          }
+          if (inFrontmatter && line.startsWith('handoffs:')) {
+            inHandoffs = true;
+            handoffsLines.push(line);
+            continue;
+          }
+          if (inHandoffs) {
+            // Check if we've exited the handoffs array (new top-level key)
+            if (/^[a-zA-Z]/.test(line)) break;
+            handoffsLines.push(line);
+          }
+        }
+        return handoffsLines.join('\n');
+      };
+
+      const handoffs = extractHandoffs(content);
+
       // 1. Copy full content to agents staging
       await fs.promises.writeFile(
         path.join(agentsStaging, `${basename}.agent.md`),
         content
       );
 
-      // 2. Generate stub to prompts staging
-      const stub = `---
+      // 2. Generate stub to prompts staging (with handoffs)
+      let stubFrontmatter = `---
 name: ${name}
 description: "${description}"
-agent: ${name}
----
+agent: ${name}`;
+
+      if (handoffs) {
+        stubFrontmatter += '\n' + handoffs;
+      }
+
+      stubFrontmatter += '\n---';
+
+      const stubBody = `
 # ARTK ${name}
 
 ## 🛑 MANDATORY: Before ANY action, you MUST:
@@ -1311,7 +1347,7 @@ The agent file contains the complete implementation with all steps, validation r
 `;
       await fs.promises.writeFile(
         path.join(promptsStaging, `${basename}.prompt.md`),
-        stub
+        stubFrontmatter + stubBody
       );
     }
 

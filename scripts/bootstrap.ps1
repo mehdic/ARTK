@@ -1317,18 +1317,59 @@ function Get-YamlValue {
     return ""
 }
 
+# Helper function to extract handoffs section from YAML frontmatter
+function Get-Handoffs {
+    param(
+        [string]$FilePath
+    )
+    $content = Get-Content $FilePath -ErrorAction SilentlyContinue
+    $handoffs = @()
+    $inFrontmatter = $false
+    $inHandoffs = $false
+
+    foreach ($line in $content) {
+        if ($line -match "^---$") {
+            if ($inFrontmatter) { break }
+            $inFrontmatter = $true
+            continue
+        }
+        if ($inFrontmatter -and $line -match "^handoffs:") {
+            $inHandoffs = $true
+            $handoffs += $line
+            continue
+        }
+        if ($inHandoffs) {
+            # Check if we've exited the handoffs array (new top-level key)
+            if ($line -match "^[a-zA-Z]") { break }
+            $handoffs += $line
+        }
+    }
+    return $handoffs -join "`n"
+}
+
 # Helper function to generate stub prompt content
 function New-StubPrompt {
     param(
         [string]$Name,
-        [string]$Description
+        [string]$Description,
+        [string]$Handoffs
     )
-    return @"
+    $frontmatter = @"
 ---
 name: $Name
 description: "$Description"
 agent: $Name
----
+"@
+
+    # Add handoffs if present
+    if ($Handoffs) {
+        $frontmatter += "`n$Handoffs"
+    }
+
+    $frontmatter += "`n---"
+
+    $body = @"
+
 # ARTK $Name
 
 ## 🛑 MANDATORY: Before ANY action, you MUST:
@@ -1342,6 +1383,8 @@ agent: $Name
 
 The agent file contains the complete implementation with all steps, validation rules, and suggested next actions (handoffs).
 "@
+
+    return $frontmatter + $body
 }
 
 # [M4] Install to staging first, then move to final destination
@@ -1360,12 +1403,15 @@ foreach ($file in $PromptFiles) {
     $Description = Get-YamlValue -FilePath $file.FullName -Key "description"
     if (-not $Description) { $Description = "ARTK prompt" }
 
+    # Extract handoffs from source file
+    $Handoffs = Get-Handoffs -FilePath $file.FullName
+
     try {
         # 1. Copy full content to staging agents/
         Copy-Item $file.FullName -Destination (Join-Path $AgentsStagingDir "$basenameNoExt.agent.md") -Force -ErrorAction Stop
 
         # 2. Generate stub to staging prompts/
-        $stubContent = New-StubPrompt -Name $Name -Description $Description
+        $stubContent = New-StubPrompt -Name $Name -Description $Description -Handoffs $Handoffs
         Set-Content -Path (Join-Path $PromptsStagingDir "$basenameNoExt.prompt.md") -Value $stubContent -Encoding UTF8 -ErrorAction Stop
 
         $InstalledCount++
