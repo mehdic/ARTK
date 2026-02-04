@@ -3,9 +3,15 @@
 
 set -e
 
-# Sync VS Code extension prompts
+# Sync VS Code extension prompts (cross-platform)
 echo "Syncing VS Code extension prompts..."
-./scripts/sync-vscode-prompts.sh
+if [ -n "$WINDIR" ] || [ "$(uname -s)" = "MINGW"* ] || [ "$(uname -s)" = "MSYS"* ]; then
+  # Windows: use PowerShell
+  powershell.exe -ExecutionPolicy Bypass -File "./scripts/sync-vscode-prompts.ps1"
+else
+  # Unix/macOS: use bash
+  ./scripts/sync-vscode-prompts.sh
+fi
 
 if ! git diff --quiet -- packages/vscode-extension/assets/prompts; then
   echo "ERROR: packages/vscode-extension/assets/prompts changed. Please commit the updated prompts before pushing."

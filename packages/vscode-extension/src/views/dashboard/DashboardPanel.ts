@@ -496,7 +496,11 @@ export class DashboardPanel {
         const journeyIds = target.getAttribute('data-journey-ids');
         const message = { command: command };
         if (journeyIds) {
-          message.journeyIds = JSON.parse(journeyIds);
+          try {
+            message.journeyIds = JSON.parse(journeyIds);
+          } catch (err) {
+            console.error('Invalid journey IDs JSON:', journeyIds);
+          }
         }
         vscode.postMessage(message);
       }
