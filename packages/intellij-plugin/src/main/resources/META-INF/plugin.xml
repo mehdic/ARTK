@@ -1,0 +1,157 @@
+<idea-plugin>
+    <id>com.artk.intellij</id>
+    <name>ARTK - Automatic Regression Testing Kit</name>
+    <vendor email="support@artk.dev" url="https://artk.dev">ARTK</vendor>
+
+    <description><![CDATA[
+    Visual tools for ARTK test automation with Playwright.
+    <ul>
+        <li>Initialize and manage ARTK projects</li>
+        <li>Journey management and visualization</li>
+        <li>LLKB (Lessons Learned Knowledge Base) integration</li>
+        <li>Workflow guidance with Copilot integration</li>
+        <li>Interactive dashboard</li>
+    </ul>
+
+    <h3>Features</h3>
+    <ul>
+        <li><b>Project Detection</b> - Automatically detects ARTK installations</li>
+        <li><b>Journey Tree</b> - Browse and manage test journeys by status</li>
+        <li><b>Workflow Panel</b> - Step-by-step ARTK workflow guidance</li>
+        <li><b>LLKB Panel</b> - View and manage learned patterns</li>
+        <li><b>Dashboard</b> - Interactive overview with stats and actions</li>
+        <li><b>Status Bar</b> - Quick status indicator with click-to-dashboard</li>
+        <li><b>CLI Integration</b> - Full artk-cli and autogen integration</li>
+    </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="terminal.xml">org.jetbrains.plugins.terminal</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Tool Window -->
+        <toolWindow id="ARTK"
+                    anchor="right"
+                    icon="/icons/artk-13.svg"
+                    factoryClass="com.artk.intellij.toolwindow.ARTKToolWindowFactory"/>
+
+        <!-- Status Bar Widget -->
+        <statusBarWidgetFactory id="ARTKStatusBar"
+                                implementation="com.artk.intellij.statusbar.ARTKStatusBarWidgetFactory"
+                                order="after encodingWidget"/>
+
+        <!-- Project Service -->
+        <projectService serviceImplementation="com.artk.intellij.services.ARTKProjectService"/>
+
+        <!-- Application Service -->
+        <applicationService serviceImplementation="com.artk.intellij.services.ARTKApplicationService"/>
+
+        <!-- Settings -->
+        <projectConfigurable instance="com.artk.intellij.settings.ARTKSettingsConfigurable"
+                             id="com.artk.intellij.settings"
+                             displayName="ARTK"
+                             groupId="tools"/>
+
+        <!-- File Listener -->
+        <vfs.asyncListener implementation="com.artk.intellij.listeners.ARTKFileListener"/>
+
+        <!-- Startup Activity -->
+        <postStartupActivity implementation="com.artk.intellij.startup.ARTKStartupActivity"/>
+
+        <!-- Notification Group -->
+        <notificationGroup id="ARTK Notifications"
+                           displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <!-- Main Action Group -->
+        <group id="ARTK.MainMenu" text="ARTK" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <action id="ARTK.Init"
+                    class="com.artk.intellij.actions.InitAction"
+                    text="Initialize ARTK"
+                    description="Initialize ARTK in this project"
+                    icon="AllIcons.Actions.Execute"/>
+
+            <action id="ARTK.Doctor"
+                    class="com.artk.intellij.actions.DoctorAction"
+                    text="Run Doctor"
+                    description="Diagnose and fix ARTK issues"
+                    icon="AllIcons.General.InspectionsEye"/>
+
+            <action id="ARTK.Check"
+                    class="com.artk.intellij.actions.CheckAction"
+                    text="Check Prerequisites"
+                    description="Check Node.js, npm, and Playwright"
+                    icon="AllIcons.Actions.Checked"/>
+
+            <action id="ARTK.Upgrade"
+                    class="com.artk.intellij.actions.UpgradeAction"
+                    text="Upgrade ARTK"
+                    description="Upgrade @artk/core to latest version"
+                    icon="AllIcons.Actions.Download"/>
+
+            <separator/>
+
+            <action id="ARTK.OpenConfig"
+                    class="com.artk.intellij.actions.OpenConfigAction"
+                    text="Open Configuration"
+                    description="Open artk.config.yml"
+                    icon="AllIcons.General.Settings"/>
+
+            <action id="ARTK.OpenDashboard"
+                    class="com.artk.intellij.actions.OpenDashboardAction"
+                    text="Open Dashboard"
+                    description="Open ARTK Dashboard"
+                    icon="AllIcons.Actions.Preview"/>
+
+            <separator/>
+
+            <group id="ARTK.LLKB" text="LLKB" popup="true">
+                <action id="ARTK.LLKB.Health"
+                        class="com.artk.intellij.actions.llkb.HealthAction"
+                        text="Check Health"
+                        icon="AllIcons.General.InspectionsOK"/>
+                <action id="ARTK.LLKB.Stats"
+                        class="com.artk.intellij.actions.llkb.StatsAction"
+                        text="View Statistics"
+                        icon="AllIcons.Toolwindows.ToolWindowProblemsEmpty"/>
+                <action id="ARTK.LLKB.Export"
+                        class="com.artk.intellij.actions.llkb.ExportAction"
+                        text="Export Patterns"
+                        icon="AllIcons.ToolbarDecorator.Export"/>
+            </group>
+
+            <separator/>
+
+            <action id="ARTK.Uninstall"
+                    class="com.artk.intellij.actions.UninstallAction"
+                    text="Uninstall ARTK"
+                    description="Remove ARTK from this project"
+                    icon="AllIcons.Actions.GC"/>
+        </group>
+
+        <!-- Editor Context Menu -->
+        <group id="ARTK.EditorPopup">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <separator/>
+            <action id="ARTK.RunJourneyTest"
+                    class="com.artk.intellij.actions.RunJourneyTestAction"
+                    text="Run Journey Test"
+                    description="Run Playwright test for this journey"
+                    icon="AllIcons.Actions.Execute"/>
+        </group>
+
+        <!-- Project View Context Menu -->
+        <group id="ARTK.ProjectViewPopup">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <separator/>
+            <action id="ARTK.CreateJourney"
+                    class="com.artk.intellij.actions.CreateJourneyAction"
+                    text="New ARTK Journey"
+                    description="Create a new ARTK journey file"
+                    icon="AllIcons.FileTypes.Any_type"/>
+        </group>
+    </actions>
+</idea-plugin>
