@@ -3,33 +3,21 @@ name: artk.journey-propose
 mode: agent
 description: "Auto-propose high-signal Journeys from discovery findings - generates proposed Journey files and JOURNEY_PROPOSALS.md"
 handoffs:
-  - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
-    agent: artk.init-playbook
-    prompt: "Bootstrap ARTK in this repo"
-  - label: "MANDATORY - /artk.discover-foundation: analyze app and build harness"
-    agent: artk.discover-foundation
-    prompt: "Analyze app and build foundation harness"
-  - label: "OPTIONAL - /artk.journey-propose: propose journeys from discovery"
-    agent: artk.journey-propose
-    prompt: "Propose journeys from discovery outputs"
-  - label: "MANDATORY - /artk.journey-define: create journey file"
+  - label: "1. RECOMMENDED - /artk.journey-define: define a proposed journey with full structure"
+    agent: artk.journey-define
+    prompt: "source=JRN-####"
+  - label: "2. ALTERNATIVE - /artk.journey-define: define a new journey manually"
     agent: artk.journey-define
     prompt: 'id=JRN-#### title="<title>"'
-  - label: "MANDATORY - /artk.journey-clarify: add machine hints"
+  - label: "3. AFTER DEFINE - /artk.journey-clarify: add execution detail to a journey"
     agent: artk.journey-clarify
     prompt: "id=JRN-####"
-  - label: "RECOMMENDED - /artk.testid-audit: audit selectors and add test hooks"
-    agent: artk.testid-audit
-    prompt: "mode=report"
-  - label: "MANDATORY - /artk.journey-implement: generate tests"
+  - label: "4. AFTER CLARIFY - /artk.journey-implement: generate Playwright tests"
     agent: artk.journey-implement
     prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-validate: static validation gate"
-    agent: artk.journey-validate
-    prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-verify: run tests and verify"
-    agent: artk.journey-verify
-    prompt: "id=JRN-####"
+  - label: "5. OPTIONAL - /artk.testid-audit: audit selectors for stable test hooks"
+    agent: artk.testid-audit
+    prompt: "mode=report"
 ---
 
 # ARTK /artk.journey-propose — Automatic Journey Identification (Phase 5)

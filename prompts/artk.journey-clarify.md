@@ -3,32 +3,17 @@ name: artk.journey-clarify
 mode: agent
 description: "Add deterministic execution detail to a Journey - data strategy, assertions, async handling, promotes to clarified"
 handoffs:
-  - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
-    agent: artk.init-playbook
-    prompt: "Bootstrap ARTK in this repo"
-  - label: "MANDATORY - /artk.discover-foundation: analyze app and build harness"
-    agent: artk.discover-foundation
-    prompt: "Analyze app and build foundation harness"
-  - label: "OPTIONAL - /artk.journey-propose: propose journeys from discovery"
-    agent: artk.journey-propose
-    prompt: "Propose journeys from discovery outputs"
-  - label: "MANDATORY - /artk.journey-define: create journey file"
-    agent: artk.journey-define
-    prompt: 'id=JRN-#### title="<title>"'
-  - label: "MANDATORY - /artk.journey-clarify: add machine hints"
-    agent: artk.journey-clarify
-    prompt: "id=JRN-####"
-  - label: "RECOMMENDED - /artk.testid-audit: audit selectors and add test hooks"
+  - label: "1. RECOMMENDED - /artk.testid-audit: audit selectors before implementation"
     agent: artk.testid-audit
-    prompt: "mode=report"
-  - label: "MANDATORY - /artk.journey-implement: generate tests"
+    prompt: "mode=report scope=journey:<JRN-ID>"
+  - label: "2. RECOMMENDED - /artk.journey-implement: implement the journey as Playwright tests"
     agent: artk.journey-implement
-    prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-validate: static validation gate"
+    prompt: "id=<JRN-ID>"
+  - label: "3. AFTER IMPLEMENT - /artk.journey-validate: validate the generated tests"
     agent: artk.journey-validate
-    prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-verify: run tests and verify"
-    agent: artk.journey-verify
+    prompt: "id=<JRN-ID>"
+  - label: "4. OPTIONAL - /artk.journey-clarify: clarify another journey"
+    agent: artk.journey-clarify
     prompt: "id=JRN-####"
 ---
 
