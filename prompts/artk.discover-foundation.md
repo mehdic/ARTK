@@ -40,6 +40,8 @@ By combining these, discovery findings directly inform foundation build decision
 8. **Local-first defaults.** Retries should be low locally; CI can raise them later.
 9. **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
 10. **Final output is mandatory.** Before ending, MUST READ and display the "Next Commands" file from `.github/prompts/next-commands/`. Do not generate your own version.
+11. **🛑 Environment detection is mandatory.** MUST search codebase for environments (Step D1.5) and ASK user to confirm. Never assume defaults are correct.
+12. **🛑 Auth bypass detection is mandatory.** MUST search codebase for auth bypass mechanisms (Step D6) and ASK user about auth strategy. Never skip this step.
 
 ---
 
@@ -161,9 +163,108 @@ If context has `interactive_fallback_needed: true`:
 - Prompt user to confirm/correct detected targets before proceeding
 - Update context.json with confirmed values
 
-Also load `artk.config.yml` (if present) and enumerate configured environments.
+Also load `artk.config.yml` (if present) for initial environment hints.
+
+## Step D1.5 — Detect and Confirm Environments (MANDATORY)
+
+**🛑 THIS STEP IS MANDATORY — DO NOT SKIP**
+
+You MUST search the codebase for environment configurations and ALWAYS ask the user to confirm.
+
+### A) Search for Environment Indicators
+
+Search these locations for base URLs and environment names:
+
+**1. Environment files:**
+```
+.env, .env.local, .env.development, .env.staging, .env.production
+.env.test, .env.intg, .env.ctlq, .env.example
+```
+Extract: `VITE_*_URL`, `REACT_APP_*_URL`, `NEXT_PUBLIC_*_URL`, `API_URL`, `BASE_URL`, `APP_URL`
+
+**2. Build tool configs:**
+```
+vite.config.ts, vite.config.js, webpack.config.js, next.config.js, angular.json
+```
+Extract: `proxy` settings, `define` constants, environment-specific configurations
+
+**3. Package.json scripts:**
+```json
+"scripts": {
+  "start:local": "...",
+  "start:intg": "...",
+  "dev": "..."
+}
+```
+Extract: Environment names from script names (local, dev, intg, ctlq, staging, prod)
+
+**4. Config directories:**
+```
+config/, environments/, env/, src/environments/
+```
+Extract: Environment-specific config files with base URLs
+
+**5. API client configurations:**
+```
+src/api/*, src/services/*, src/config/*
+```
+Extract: Base URL constants, API endpoint configurations
+
+### B) Compile Detected Environments
+
+Create a list of detected environments with:
+| Environment | Source | Base URL | Confidence |
+|-------------|--------|----------|------------|
+| local | .env.local | http://localhost:3000 | high |
+| intg | package.json script | unknown | medium |
+| prod | vite.config.ts proxy | https://prod.example.com | high |
+
+### C) MANDATORY: Ask User to Confirm Environments
+
+**You MUST ask this question — do not assume the defaults are correct:**
+
+```
+I detected the following environments in your codebase:
+
+1. local: http://localhost:3000 (from .env.local)
+2. intg: [not detected] (from package.json script name)
+3. prod: https://prod.example.com (from vite.config.ts)
+
+Please confirm or modify these environments:
+
+1. Keep detected environments as-is
+2. Add missing base URLs (I'll ask for each)
+3. Add/remove environments
+4. Skip environment configuration (use defaults)
+
+Which option? (default: 2 - I'll ask for missing URLs)
+```
+
+**If user selects option 2, ask for each missing URL:**
+```
+What is the base URL for the 'intg' environment?
+(Enter URL or 'skip' to remove this environment)
+```
+
+### D) Update artk.config.yml
+
+After confirmation, update `artk.config.yml` with the confirmed environments:
+```yaml
+environments:
+  local:
+    baseUrl: http://localhost:3000
+  intg:
+    baseUrl: https://intg.example.com
+  prod:
+    baseUrl: https://prod.example.com
+```
+
+---
+
+## Step D1.6 — Generate Environment Matrix
+
 Produce an **Environment Matrix** in `docs/DISCOVERY.md` and regenerate it on every run.
-If `artk.config.yml` has no `environments`, create a single `local` row and mark unknowns.
+If no environments were confirmed, create a single `local` row and mark unknowns.
 
 The Environment Matrix must include, per environment:
 - base URL
@@ -262,6 +363,8 @@ Produce a feature map:
 
 ## Step D6 — Identify auth entry points + role/permission hints
 
+**🛑 THIS STEP IS MANDATORY — DO NOT SKIP**
+
 Collect:
 - login/logout URLs or components
 - SSO/OIDC hints (`oidc`, `saml`, `msal`, `auth0`, `keycloak`)
@@ -271,17 +374,80 @@ Collect:
 
 ### MANDATORY: Auth Bypass Detection
 
-**You MUST read and follow `.github/prompts/common/AUTH_BYPASS_PATTERNS.md` to detect skip/bypass auth mechanisms.**
+**🛑 STOP — You MUST execute these searches before proceeding:**
 
-This document contains:
-- 5 pattern groups to search (skip flags, env vars, config flags, mock users, conditional rendering)
-- Documentation requirements for each finding
-- Output format for the "Local auth bypass signals" table
+**First, read the patterns file:**
+Read `.github/prompts/common/AUTH_BYPASS_PATTERNS.md` for the complete list of patterns.
+
+**Then execute these searches (ALL are required):**
+
+```bash
+# Group 1: Skip/Bypass flags in code
+grep -rn "skipAuth\|bypassAuth\|mockAuth\|noAuth\|skipOidc\|skipAuthentication\|skip-auth\|skipLogin" src/
+
+# Group 2: Environment variables
+grep -rn "SKIP_AUTH\|NO_AUTH\|AUTH_DISABLED\|DISABLE_AUTH\|BYPASS_AUTH\|MOCK_AUTH" .env* src/
+
+# Group 3: Config flags (check for false/disabled values)
+grep -rn "oauthEnabled\|authEnabled\|enableAuth\|requireAuth\|authRequired\|useAuth" src/ config/
+
+# Group 4: Mock/Dev user patterns
+grep -rn "mockUser\|devUser\|testUser\|fakeUser\|DEV_USER\|MOCK_USER\|TEST_USER" src/
+
+# Group 5: Conditional auth rendering
+grep -rn "if.*auth.*enabled\|config\.auth\|config\.oauth\|AuthProvider.*\?\|canActivate" src/
+```
+
+**For EACH pattern found, document:**
+| Flag/Mechanism | Location | How to Enable | Mode |
+|----------------|----------|---------------|------|
+| `oauthEnabled` | `src/main.tsx:64` | Set to `false` in backend config | identityless |
+
+**If auth bypass IS detected:**
+```
+✓ Auth bypass detected: [mechanism name]
+  Location: [file:line]
+  Enable with: [how to enable]
+  Mode: [identityless | mock-identity]
+
+  This means you can run tests locally WITHOUT real authentication.
+  Tests tagged @auth or @rbac should be skipped in local env.
+```
+
+**If NO auth bypass is detected:**
+```
+✗ No auth bypass mechanism detected.
+  Tests will require real authentication credentials.
+  Consider requesting a test account or adding a local bypass mechanism.
+```
+
+### MANDATORY: Ask User About Auth Strategy
+
+**After detecting auth mechanisms, you MUST ask:**
+
+```
+I detected the following authentication setup:
+
+Auth Provider: [OIDC/Form/SSO/None]
+Auth Bypass Available: [Yes - oauthEnabled=false / No]
+Login URL: [detected URL or 'not found']
+
+How would you like to handle authentication for testing?
+
+1. Use auth bypass locally (oauthEnabled=false) - fastest for development
+2. Use real OIDC authentication - requires test credentials
+3. Use storage state from manual login - I'll guide you through setup
+4. Multiple modes (bypass locally, real auth in CI/staging)
+5. Skip auth configuration for now
+
+Which option?
+```
 
 Output:
 - "Auth entry points" table
 - "Role/permission hints" list
 - "Local auth bypass signals" table (format specified in AUTH_BYPASS_PATTERNS.md)
+- User's chosen auth strategy
 
 Do NOT request credentials.
 
@@ -1711,22 +1877,28 @@ CLI Commands Available:
 - Provide recommended defaults
 - Wait for user response before asking the next question
 
-### QUICK (≤ 5 questions)
+### 🛑 MANDATORY Questions (ALL MODES)
+
+**These questions are embedded in discovery steps and MUST be asked:**
+
+1. **Environment Confirmation** (Step D1.5) — Detect environments from codebase, ask user to confirm/modify
+2. **Auth Strategy** (Step D6) — Detect auth bypass, ask user how to handle authentication
+
+**DO NOT skip these questions regardless of mode setting.**
+
+### QUICK (≤ 3 additional questions)
 1) Which app scope (if multiple frontends)?
 2) Any top 3 business-critical flows to prioritize?
-3) Auth type: login form vs SSO redirect?
-4) What is the baseUrl for at least one env?
-5) test id attribute convention?
+3) test id attribute convention?
 
-### STANDARD (≤ 10 questions, default)
+### STANDARD (≤ 7 additional questions, default)
 Quick +:
-6) Test data approach: seeded env / API setup / manual only?
-7) Which environments are accessible from your location?
-8) Any areas to exclude from testing?
-9) Main actor list (standard-user/admin ok)?
-10) Browsers to run locally?
+4) Test data approach: seeded env / API setup / manual only?
+5) Any areas to exclude from testing?
+6) Main actor list (standard-user/admin ok)?
+7) Browsers to run locally?
 
-### MAX (add up to 5)
+### MAX (add up to 5 more)
 Standard +:
 - Roles/actors to cover first
 - Feature flag system
@@ -1738,11 +1910,10 @@ Provide a reply template:
 ```text
 app: <name>
 critical_flows: [login, checkout, dashboard]
-auth: SSO
-baseUrl: http://localhost:5173
+auth: SSO (or bypass:oauthEnabled=false)
+envs: [local, intg, prod]
 testId: data-testid
 data: create_api
-envs: [local, intg]
 exclude: [payments]
 actors: [user, admin]
 browsers: [chromium]
