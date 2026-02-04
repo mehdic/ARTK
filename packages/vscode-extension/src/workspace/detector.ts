@@ -97,9 +97,10 @@ export async function detectArtkWorkspaceAsync(
 
   // Check for artk-e2e directory (primary indicator)
   const artkE2ePath = path.join(root, 'artk-e2e');
-  const contextPath = path.join(root, '.artk', 'context.json');
+  // Context and LLKB are inside artk-e2e/.artk/, not at project root
+  const contextPath = path.join(artkE2ePath, '.artk', 'context.json');
   const configPath = path.join(artkE2ePath, 'artk.config.yml');
-  const llkbPath = path.join(root, '.artk', 'llkb');
+  const llkbPath = path.join(artkE2ePath, '.artk', 'llkb');
 
   // Check paths in parallel for better performance
   const [artkE2eExists, contextExists, configExists, llkbExists, llkbConfigExists] = await Promise.all([
@@ -144,9 +145,10 @@ export function detectArtkWorkspace(
 
   // Check for artk-e2e directory (primary indicator)
   const artkE2ePath = path.join(root, 'artk-e2e');
-  const contextPath = path.join(root, '.artk', 'context.json');
+  // Context and LLKB are inside artk-e2e/.artk/, not at project root
+  const contextPath = path.join(artkE2ePath, '.artk', 'context.json');
   const configPath = path.join(artkE2ePath, 'artk.config.yml');
-  const llkbPath = path.join(root, '.artk', 'llkb');
+  const llkbPath = path.join(artkE2ePath, '.artk', 'llkb');
 
   if (!pathExistsSync(artkE2ePath)) {
     return { detected: false, projectRoot: root };
