@@ -2349,9 +2349,12 @@ if [ "$SKIP_NPM" = false ]; then
 
     set +e
     if [ "$VERBOSE" = true ]; then
-        # In verbose mode, stream to console AND log file
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 $NPM_TIMEOUT npm $NPM_ARGS 2>&1 | tee "$NPM_INSTALL_LOG"
-        NPM_STATUS=${PIPESTATUS[0]}
+        # VERBOSE MODE: Stream directly to console in real-time (no buffering)
+        echo ""
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 $NPM_TIMEOUT npm $NPM_ARGS
+        NPM_STATUS=$?
+        # In verbose mode, user sees everything - no need for log file
+        echo "Verbose mode - output shown on console" > "$NPM_INSTALL_LOG"
     else
         # Silent mode - log only
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 $NPM_TIMEOUT npm $NPM_ARGS >"$NPM_INSTALL_LOG" 2>&1
