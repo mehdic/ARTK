@@ -2419,32 +2419,25 @@ if (-not $SkipNpm) {
 
         $exitCode = 1
         try {
-            # Detect if npm is a PowerShell script (e.g., nvm4w) vs executable/cmd
-            $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
-            if ($npmCmd -and $npmCmd.Path -match '\.ps1$') {
-                # npm is a PowerShell script (nvm4w), use direct invocation with output capture
-                Write-Host "  (detected nvm4w/PowerShell npm)" -ForegroundColor DarkGray
-                if ($VerboseOutput) {
-                    # Stream output to console in verbose mode
-                    # Capture output to array first to preserve exit code
-                    $output = & npm @npmArgs 2>&1
-                    $exitCode = $LASTEXITCODE
-                    $output | Tee-Object -FilePath $npmLogOut
-                } else {
+            if ($VerboseOutput) {
+                # VERBOSE MODE: Stream directly to console in real-time
+                # Use cmd /c to run npm and capture exit code properly
+                Write-Host ""
+                & cmd /c "npm $($npmArgs -join ' ') 2>&1"
+                $exitCode = $LASTEXITCODE
+                # In verbose mode, user sees everything - no need for log file
+                "Verbose mode - output shown on console" | Out-File -FilePath $npmLogOut -Encoding utf8
+            } else {
+                # SILENT MODE: Capture to log file only
+                $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+                if ($npmCmd -and $npmCmd.Path -match '\.ps1$') {
+                    # npm is a PowerShell script (nvm4w)
+                    Write-Host "  (detected nvm4w/PowerShell npm)" -ForegroundColor DarkGray
                     $output = & npm @npmArgs 2>&1
                     $exitCode = $LASTEXITCODE
                     $output | Out-File -FilePath $npmLogOut -Encoding utf8
-                }
-            } else {
-                # Standard npm.cmd or npm.exe
-                if ($VerboseOutput) {
-                    # In verbose mode, capture output first then display AND log
-                    # This ensures $LASTEXITCODE is captured correctly
-                    $output = & npm @npmArgs 2>&1
-                    $exitCode = $LASTEXITCODE
-                    $output | Tee-Object -FilePath $npmLogOut
                 } else {
-                    # Silent mode - use Start-Process for proper output redirection
+                    # Standard npm.cmd or npm.exe - use Start-Process for proper output redirection
                     $proc = Start-Process -FilePath "npm" -ArgumentList $npmArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $npmLogOut -RedirectStandardError $npmLogErr
                     $exitCode = $proc.ExitCode
                 }
