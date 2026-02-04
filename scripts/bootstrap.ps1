@@ -12,6 +12,7 @@
 #   -SkipValidation            Skip validation of generated code
 #   -Yes                       Skip confirmation prompts (auto-approve all)
 #   -DryRun                    Preview changes without applying them
+#   -VerboseJson               Show detailed JSON repair logging
 #
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
@@ -43,7 +44,10 @@ param(
     [Alias("y")]
     [switch]$Yes,
 
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    [Alias("v")]
+    [switch]$VerboseJson
 )
 
 # Multi-variant support functions
@@ -1409,6 +1413,34 @@ $VscodeTemplate = Join-Path $ArtkRepo "templates\vscode\settings.json"
 
 New-Item -ItemType Directory -Force -Path $VscodeDir | Out-Null
 
+# JSON Repair Logging - set by -VerboseJson flag
+$script:JsonRepairLog = @()
+
+function Write-JsonRepairLog {
+    param([string]$Message, [string]$Level = "INFO")
+    $script:JsonRepairLog += @{ Time = Get-Date; Level = $Level; Message = $Message }
+    if ($VerboseJson) {
+        $color = switch ($Level) {
+            "WARN" { "Yellow" }
+            "ERROR" { "Red" }
+            "FIX" { "Green" }
+            default { "Gray" }
+        }
+        Write-Host "    [JSON-$Level] $Message" -ForegroundColor $color
+    }
+}
+
+function Get-JsonRepairSummary {
+    $fixes = $script:JsonRepairLog | Where-Object { $_.Level -eq "FIX" }
+    $warns = $script:JsonRepairLog | Where-Object { $_.Level -eq "WARN" }
+    return @{
+        FixCount = $fixes.Count
+        WarnCount = $warns.Count
+        Fixes = $fixes | ForEach-Object { $_.Message }
+        Warnings = $warns | ForEach-Object { $_.Message }
+    }
+}
+
 # Helper to strip JSONC comments for parsing (robust state-machine approach)
 # This handles comments inside strings correctly (e.g., URLs with //)
 function Remove-JsonComments {
@@ -1419,6 +1451,9 @@ function Remove-JsonComments {
     $len = $JsonText.Length
     $inString = $false
     $escape = $false
+    $commentsRemoved = 0
+    $singleLineComments = 0
+    $multiLineComments = 0
 
     while ($i -lt $len) {
         $char = $JsonText[$i]
@@ -1431,16 +1466,16 @@ function Remove-JsonComments {
             continue
         }
 
-        if ($char -eq '\' -and $inString) {
-            # Escape character inside string
+        # Check for backslash escape inside string
+        if ($inString -and $char -eq [char]'\') {
             [void]$result.Append($char)
             $escape = $true
             $i++
             continue
         }
 
-        if ($char -eq '"' -and -not $escape) {
-            # Toggle string state
+        # Toggle string state on unescaped double-quote
+        if ($char -eq [char]'"' -and -not $escape) {
             $inString = -not $inString
             [void]$result.Append($char)
             $i++
@@ -1451,20 +1486,25 @@ function Remove-JsonComments {
             # Outside string - check for comments
             if ($i + 1 -lt $len) {
                 $nextChar = $JsonText[$i + 1]
-                if ($char -eq '/' -and $nextChar -eq '/') {
+                if ($char -eq [char]'/' -and $nextChar -eq [char]'/') {
                     # Single-line comment - skip to end of line
-                    while ($i -lt $len -and $JsonText[$i] -ne "`n") {
+                    $commentStart = $i
+                    while ($i -lt $len -and $JsonText[$i] -ne [char]"`n") {
                         $i++
                     }
+                    $singleLineComments++
+                    $commentsRemoved++
                     continue
                 }
-                if ($char -eq '/' -and $nextChar -eq '*') {
+                if ($char -eq [char]'/' -and $nextChar -eq [char]'*') {
                     # Multi-line comment - skip to */
                     $i += 2
-                    while ($i + 1 -lt $len -and -not ($JsonText[$i] -eq '*' -and $JsonText[$i + 1] -eq '/')) {
+                    while ($i + 1 -lt $len -and -not ($JsonText[$i] -eq [char]'*' -and $JsonText[$i + 1] -eq [char]'/')) {
                         $i++
                     }
                     $i += 2  # Skip */
+                    $multiLineComments++
+                    $commentsRemoved++
                     continue
                 }
             }
@@ -1474,66 +1514,99 @@ function Remove-JsonComments {
         $i++
     }
 
+    if ($commentsRemoved -gt 0) {
+        Write-JsonRepairLog "Removed $singleLineComments single-line and $multiLineComments multi-line comments" "FIX"
+    }
+
     # Now remove trailing commas (safe since comments are already removed)
     $cleaned = $result.ToString()
+    $originalLen = $cleaned.Length
+
     # Remove trailing commas before } or ] (with optional whitespace)
     $cleaned = $cleaned -replace ',(\s*[}\]])', '$1'
+    if ($cleaned.Length -ne $originalLen) {
+        Write-JsonRepairLog "Removed trailing commas before ] or }" "FIX"
+    }
+
+    $beforeLen = $cleaned.Length
     # Remove multiple consecutive commas (malformed JSON recovery)
     $cleaned = $cleaned -replace ',(\s*,)+', ','
-    # Remove empty lines to reduce noise
+    if ($cleaned.Length -ne $beforeLen) {
+        Write-JsonRepairLog "Removed consecutive commas" "FIX"
+    }
+
+    # Remove excessive empty lines to reduce noise
     $cleaned = $cleaned -replace '(\r?\n){3,}', "`n`n"
 
     return $cleaned
 }
 
 # Attempt to repair common JSON issues after comment stripping
+# NOTE: This is conservative - we only fix issues that are clearly safe
 function Repair-JsonStructure {
     param([string]$JsonText)
 
     $text = $JsonText
-
-    # Fix common issues that break JSON parsing:
+    $repairs = @()
 
     # 1. Remove BOM if present
-    $text = $text -replace '^\xEF\xBB\xBF', ''
+    if ($text.Length -gt 0 -and [int][char]$text[0] -eq 0xFEFF) {
+        $text = $text.Substring(1)
+        $repairs += "Removed BOM"
+    }
+    # Also check for UTF-8 BOM bytes
+    if ($text -match '^\xEF\xBB\xBF') {
+        $text = $text -replace '^\xEF\xBB\xBF', ''
+        $repairs += "Removed UTF-8 BOM"
+    }
 
     # 2. Normalize line endings
+    $hadCRLF = $text -match '\r\n'
+    $hadCR = $text -match '\r[^\n]'
     $text = $text -replace '\r\n', "`n"
     $text = $text -replace '\r', "`n"
+    if ($hadCRLF -or $hadCR) {
+        $repairs += "Normalized line endings"
+    }
 
-    # 3. Remove any remaining comment artifacts (lines that are just whitespace after comment removal)
+    # 3. Remove excessive empty lines (more than 2 consecutive)
+    $beforeLines = ($text -split "`n").Count
     $lines = $text -split "`n"
     $cleanedLines = @()
-    $prevWasEmpty = $false
+    $emptyCount = 0
     foreach ($line in $lines) {
         $trimmed = $line.Trim()
         if ($trimmed -eq '') {
-            if (-not $prevWasEmpty) {
+            $emptyCount++
+            if ($emptyCount -le 2) {
                 $cleanedLines += ''
-                $prevWasEmpty = $true
             }
         } else {
+            $emptyCount = 0
             $cleanedLines += $line
-            $prevWasEmpty = $false
         }
     }
     $text = $cleanedLines -join "`n"
+    $afterLines = ($text -split "`n").Count
+    if ($beforeLines -ne $afterLines) {
+        $repairs += "Collapsed $($beforeLines - $afterLines) excessive empty lines"
+    }
 
-    # 4. Fix trailing commas more aggressively (handle multiple trailing commas)
-    $text = $text -replace ',(\s*,)+', ','
+    # 4. Fix trailing commas (conservative - only obvious cases)
+    $beforeLen = $text.Length
     $text = $text -replace ',(\s*\])', '$1'
     $text = $text -replace ',(\s*\})', '$1'
+    if ($text.Length -ne $beforeLen) {
+        $repairs += "Removed trailing commas"
+    }
 
-    # 5. Fix missing commas between properties (common after comment removal)
-    # Pattern: "key": value\n"nextkey" -> "key": value,\n"nextkey"
-    $text = $text -replace '([\}\]\"\d])\s*\n(\s*")', '$1,' + "`n" + '$2'
+    # NOTE: We intentionally do NOT:
+    # - Add missing commas (too risky - could create valid but wrong JSON)
+    # - Truncate after last brace (could lose legitimate content)
+    # These were identified as dangerous in code review
 
-    # 6. Remove any text after the final closing brace (sometimes leftover from bad edits)
-    if ($text -match '\}[^}]*$') {
-        $lastBrace = $text.LastIndexOf('}')
-        if ($lastBrace -ge 0) {
-            $text = $text.Substring(0, $lastBrace + 1)
-        }
+    foreach ($repair in $repairs) {
+        Write-JsonRepairLog $repair "FIX"
     }
 
     return $text.Trim()
@@ -1543,42 +1616,78 @@ function Repair-JsonStructure {
 function Parse-JsonWithRepair {
     param([string]$JsonText)
 
+    $script:JsonRepairLog = @()  # Reset log for each parse attempt
+    Write-JsonRepairLog "Starting JSON parse (input: $($JsonText.Length) chars)"
+
     # Step 1: Try parsing as-is
+    Write-JsonRepairLog "Attempt 1: Parse as-is"
     try {
-        return $JsonText | ConvertFrom-Json
+        $result = $JsonText | ConvertFrom-Json
+        Write-JsonRepairLog "Success: Parsed without modification" "INFO"
+        return $result
     } catch {
-        # Continue to repair
+        Write-JsonRepairLog "Failed: $($_.Exception.Message)" "WARN"
     }
 
     # Step 2: Strip comments
+    Write-JsonRepairLog "Attempt 2: Strip JSONC comments"
     $cleaned = Remove-JsonComments $JsonText
     try {
-        return $cleaned | ConvertFrom-Json
+        $result = $cleaned | ConvertFrom-Json
+        Write-JsonRepairLog "Success: Parsed after comment removal" "INFO"
+        return $result
     } catch {
-        # Continue to repair
+        Write-JsonRepairLog "Failed: $($_.Exception.Message)" "WARN"
     }
 
     # Step 3: Apply structural repairs
+    Write-JsonRepairLog "Attempt 3: Apply structural repairs"
     $repaired = Repair-JsonStructure $cleaned
     try {
-        return $repaired | ConvertFrom-Json
+        $result = $repaired | ConvertFrom-Json
+        Write-JsonRepairLog "Success: Parsed after structural repair" "INFO"
+        return $result
     } catch {
-        # Step 4: Last resort - try to extract just the root object
-        Write-Host "  Attempting aggressive JSON repair..." -ForegroundColor Yellow
+        Write-JsonRepairLog "Failed: $($_.Exception.Message)" "WARN"
+    }
 
-        # Find the first { and last }
-        $firstBrace = $repaired.IndexOf('{')
-        $lastBrace = $repaired.LastIndexOf('}')
-        if ($firstBrace -ge 0 -and $lastBrace -gt $firstBrace) {
-            $extracted = $repaired.Substring($firstBrace, $lastBrace - $firstBrace + 1)
-            try {
-                return $extracted | ConvertFrom-Json
-            } catch {
-                throw "JSON repair failed: $($_.Exception.Message)"
+    # Step 4: Last resort - extract root object with brace matching
+    Write-JsonRepairLog "Attempt 4: Extract balanced root object" "WARN"
+
+    # Find properly balanced braces (not just first/last)
+    $depth = 0
+    $start = -1
+    $end = -1
+    for ($i = 0; $i -lt $repaired.Length; $i++) {
+        $c = $repaired[$i]
+        if ($c -eq [char]'{') {
+            if ($depth -eq 0) { $start = $i }
+            $depth++
+        } elseif ($c -eq [char]'}') {
+            $depth--
+            if ($depth -eq 0 -and $start -ge 0) {
+                $end = $i
+                break
             }
         }
-        throw "Could not find valid JSON structure"
     }
+
+    if ($start -ge 0 -and $end -gt $start) {
+        $extracted = $repaired.Substring($start, $end - $start + 1)
+        Write-JsonRepairLog "Extracted object from position $start to $end ($($extracted.Length) chars)" "FIX"
+        try {
+            $result = $extracted | ConvertFrom-Json
+            Write-JsonRepairLog "Success: Parsed extracted object" "INFO"
+            return $result
+        } catch {
+            Write-JsonRepairLog "Failed: $($_.Exception.Message)" "ERROR"
+        }
+    }
+
+    # All attempts failed
+    $summary = Get-JsonRepairSummary
+    Write-JsonRepairLog "All repair attempts failed after $($summary.FixCount) fixes" "ERROR"
+    throw "JSON repair failed after 4 attempts. Use -VerboseJson for details."
 }
 
 # Convert PSCustomObject to hashtable (PowerShell 5.1 compatibility)

@@ -13,6 +13,7 @@
 #   --skip-validation         Skip validation of generated code
 #   --yes                     Skip confirmation prompts (auto-approve all)
 #   --dry-run                 Preview changes without applying them
+#   --verbose-json            Show detailed JSON repair logging
 #   --template-variant=<v>    Legacy option (use --variant instead)
 #
 # This is the ONLY script you need to run. It does everything:
@@ -574,6 +575,7 @@ FORCE_DETECT=false
 SKIP_VALIDATION=false
 YES_MODE=false
 DRY_RUN=false
+VERBOSE_JSON=false
 TEMPLATE_VARIANT=""
 FORCED_VARIANT=""
 
@@ -602,6 +604,9 @@ for arg in "$@"; do
             ;;
         --dry-run)
             DRY_RUN=true
+            ;;
+        --verbose-json|-v)
+            VERBOSE_JSON=true
             ;;
         --variant=*)
             FORCED_VARIANT="${arg#*=}"
@@ -643,6 +648,7 @@ if [ -z "$TARGET" ]; then
     echo "  --skip-validation             Skip validation of generated code"
     echo "  --yes, -y                     Skip confirmation prompts (auto-approve all)"
     echo "  --dry-run                     Preview changes without applying them"
+    echo "  --verbose-json                Show detailed JSON repair logging"
     echo ""
     echo "Available variants:"
     echo "  modern-esm   Node 18+, ESM, Playwright 1.57.x"
@@ -1284,15 +1290,27 @@ if [ -f "$VSCODE_TEMPLATE" ]; then
         # Existing settings found - preview changes and ask for confirmation
         if command -v node >/dev/null 2>&1; then
             # Preview what will be added (dry-run analysis)
-            PREVIEW_RESULT=$(node -e "
-const fs = require('fs');
+            PREVIEW_RESULT=$(VERBOSE_JSON="$VERBOSE_JSON" node -e '
+const fs = require("fs");
+const verboseJson = process.env.VERBOSE_JSON === "true";
+const log = [];
+
+function logRepair(level, msg) {
+    log.push({ level, msg });
+    if (verboseJson) {
+        const colors = { INFO: "\x1b[90m", WARN: "\x1b[33m", FIX: "\x1b[32m", ERROR: "\x1b[31m" };
+        console.error(`    [JSON-${level}] ${msg}`);
+    }
+}
 
 // Strip JSONC comments using state machine (handles // in URLs correctly)
 function stripComments(jsonc) {
-    let result = '';
+    let result = "";
     let i = 0;
     let inString = false;
     let escape = false;
+    let singleLineComments = 0;
+    let multiLineComments = 0;
 
     while (i < jsonc.length) {
         const char = jsonc[i];
@@ -1304,14 +1322,16 @@ function stripComments(jsonc) {
             continue;
         }
 
-        if (char === '\\\\\\\\' && inString) {
+        // Check for backslash escape inside string (single backslash char)
+        if (char === "\\" && inString) {
             result += char;
             escape = true;
             i++;
             continue;
         }
 
-        if (char === '\"' && !escape) {
+        // Toggle string state on unescaped double-quote
+        if (char === "\"" && !escape) {
             inString = !inString;
             result += char;
             i++;
@@ -1321,16 +1341,18 @@ function stripComments(jsonc) {
         if (!inString) {
             if (i + 1 < jsonc.length) {
                 const next = jsonc[i + 1];
-                if (char === '/' && next === '/') {
+                if (char === "/" && next === "/") {
                     // Single-line comment - skip to end of line
-                    while (i < jsonc.length && jsonc[i] !== '\\n') i++;
+                    while (i < jsonc.length && jsonc[i] !== "\n") i++;
+                    singleLineComments++;
                     continue;
                 }
-                if (char === '/' && next === '*') {
+                if (char === "/" && next === "*") {
                     // Multi-line comment - skip to */
                     i += 2;
-                    while (i + 1 < jsonc.length && !(jsonc[i] === '*' && jsonc[i + 1] === '/')) i++;
+                    while (i + 1 < jsonc.length && !(jsonc[i] === "*" && jsonc[i + 1] === "/")) i++;
                     i += 2;
+                    multiLineComments++;
                     continue;
                 }
             }
@@ -1340,11 +1362,20 @@ function stripComments(jsonc) {
         i++;
     }
 
+    if (singleLineComments + multiLineComments > 0) {
+        logRepair("FIX", `Removed ${singleLineComments} single-line and ${multiLineComments} multi-line comments`);
+    }
+
     // Remove trailing commas and cleanup
-    return result
-        .replace(/,(\\s*[}\\]])/g, '\$1')
-        .replace(/,(\\s*,)+/g, ',')
-        .replace(/(\\r?\\n){3,}/g, '\\n\\n');
+    const beforeLen = result.length;
+    result = result.replace(/,(\s*[}\]])/g, "$1");
+    if (result.length !== beforeLen) {
+        logRepair("FIX", "Removed trailing commas");
+    }
+    result = result.replace(/,(\s*,)+/g, ",");
+    result = result.replace(/(\r?\n){3,}/g, "\n\n");
+
+    return result;
 }
 
 // Deep merge with array union support
@@ -1353,16 +1384,14 @@ function deepMerge(target, source) {
     for (const [key, value] of Object.entries(source)) {
         if (key in result) {
             if (Array.isArray(result[key]) && Array.isArray(value)) {
-                // Array union: add new items that don't exist
                 const existing = new Set(result[key]);
                 const newItems = value.filter(v => !existing.has(v));
                 result[key] = [...result[key], ...newItems];
-            } else if (typeof result[key] === 'object' && result[key] !== null &&
-                typeof value === 'object' && value !== null &&
+            } else if (typeof result[key] === "object" && result[key] !== null &&
+                typeof value === "object" && value !== null &&
                 !Array.isArray(result[key]) && !Array.isArray(value)) {
                 result[key] = deepMerge(result[key], value);
             }
-            // Otherwise preserve existing value (don't overwrite)
         } else {
             result[key] = value;
         }
@@ -1370,42 +1399,100 @@ function deepMerge(target, source) {
     return result;
 }
 
-// Repair common JSON issues
+// Repair common JSON issues (conservative - only safe fixes)
 function repairJson(text) {
+    const repairs = [];
+    // Remove BOM
+    if (text.charCodeAt(0) === 0xFEFF) {
+        text = text.slice(1);
+        repairs.push("Removed BOM");
+    }
     // Normalize line endings
-    text = text.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
-    // Remove multiple empty lines
-    text = text.replace(/(\\n\\s*){3,}/g, '\\n\\n');
-    // Fix trailing commas more aggressively
-    text = text.replace(/,(\\s*,)+/g, ',');
-    text = text.replace(/,(\\s*\\])/g, '\$1');
-    text = text.replace(/,(\\s*\\})/g, '\$1');
+    if (text.includes("\r")) {
+        text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        repairs.push("Normalized line endings");
+    }
+    // Remove excessive empty lines
+    const beforeLines = text.split("\n").length;
+    text = text.replace(/(\n\s*){3,}/g, "\n\n");
+    const afterLines = text.split("\n").length;
+    if (beforeLines !== afterLines) {
+        repairs.push(`Collapsed ${beforeLines - afterLines} empty lines`);
+    }
+    // Fix trailing commas
+    const beforeLen = text.length;
+    text = text.replace(/,(\s*\])/g, "$1").replace(/,(\s*\})/g, "$1");
+    if (text.length !== beforeLen) {
+        repairs.push("Removed trailing commas");
+    }
+    repairs.forEach(r => logRepair("FIX", r));
     return text.trim();
 }
 
 // Parse JSON with automatic repair attempts
-function parseJsonWithRepair(text) {
+function parseJsonWithRepair(text, filename) {
+    logRepair("INFO", `Parsing ${filename} (${text.length} chars)`);
+
     // Try 1: Parse as-is
-    try { return JSON.parse(text); } catch (e) {}
+    try {
+        const result = JSON.parse(text);
+        logRepair("INFO", "Parsed without modification");
+        return result;
+    } catch (e) {
+        logRepair("WARN", `Direct parse failed: ${e.message}`);
+    }
+
     // Try 2: Strip comments
     const cleaned = stripComments(text);
-    try { return JSON.parse(cleaned); } catch (e) {}
+    try {
+        const result = JSON.parse(cleaned);
+        logRepair("INFO", "Parsed after comment removal");
+        return result;
+    } catch (e) {
+        logRepair("WARN", `After comments: ${e.message}`);
+    }
+
     // Try 3: Repair structure
     const repaired = repairJson(cleaned);
-    try { return JSON.parse(repaired); } catch (e) {}
-    // Try 4: Extract root object
-    const first = repaired.indexOf('{');
-    const last = repaired.lastIndexOf('}');
-    if (first >= 0 && last > first) {
-        try { return JSON.parse(repaired.substring(first, last + 1)); } catch (e) {}
+    try {
+        const result = JSON.parse(repaired);
+        logRepair("INFO", "Parsed after structural repair");
+        return result;
+    } catch (e) {
+        logRepair("WARN", `After repair: ${e.message}`);
     }
-    throw new Error('JSON repair failed');
+
+    // Try 4: Extract balanced root object
+    logRepair("WARN", "Attempting to extract balanced root object");
+    let depth = 0, start = -1, end = -1;
+    for (let i = 0; i < repaired.length; i++) {
+        if (repaired[i] === "{") {
+            if (depth === 0) start = i;
+            depth++;
+        } else if (repaired[i] === "}") {
+            depth--;
+            if (depth === 0 && start >= 0) { end = i; break; }
+        }
+    }
+    if (start >= 0 && end > start) {
+        const extracted = repaired.substring(start, end + 1);
+        logRepair("FIX", `Extracted object from ${start} to ${end}`);
+        try {
+            const result = JSON.parse(extracted);
+            logRepair("INFO", "Parsed extracted object");
+            return result;
+        } catch (e) {
+            logRepair("ERROR", `Extracted parse failed: ${e.message}`);
+        }
+    }
+
+    throw new Error("JSON repair failed after 4 attempts");
 }
 
 try {
-    const existingRaw = fs.readFileSync('$VSCODE_SETTINGS', 'utf8');
-    const existing = parseJsonWithRepair(existingRaw);
-    const artk = parseJsonWithRepair(fs.readFileSync('$VSCODE_TEMPLATE', 'utf8'));
+    const existingRaw = fs.readFileSync(process.argv[1], "utf8");
+    const existing = parseJsonWithRepair(existingRaw, "settings.json");
+    const artk = parseJsonWithRepair(fs.readFileSync(process.argv[2], "utf8"), "template");
 
     let newKeys = [];
     let mergedKeys = [];
@@ -1460,7 +1547,7 @@ try {
 } catch (err) {
     console.log(JSON.stringify({ newKeys: [], mergedKeys: [], arrayMergedKeys: [], skippedKeys: [], conflicts: [], hasComments: false, error: err.message }));
 }
-" 2>/dev/null)
+" "$VSCODE_SETTINGS" "$VSCODE_TEMPLATE" 2>/dev/null)
 
             # Parse preview result using here-string (avoids subshell issues)
             NEW_KEYS=$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.newKeys.join('\n'))" "$PREVIEW_RESULT" 2>/dev/null || echo "")
