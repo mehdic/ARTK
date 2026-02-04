@@ -46,8 +46,7 @@ param(
 
     [switch]$DryRun,
 
-    [Alias("v")]
-    [switch]$VerboseOutput
+    [switch]$V
 )
 
 # Multi-variant support functions
@@ -1419,7 +1418,7 @@ $script:JsonRepairLog = @()
 function Write-JsonRepairLog {
     param([string]$Message, [string]$Level = "INFO")
     $script:JsonRepairLog += @{ Time = Get-Date; Level = $Level; Message = $Message }
-    if ($VerboseOutput) {
+    if ($V) {
         $color = switch ($Level) {
             "WARN" { "Yellow" }
             "ERROR" { "Red" }
@@ -2397,7 +2396,7 @@ Write-FileWithRetry -Path (Join-Path $ArtkE2e ".gitignore") -Content $GitIgnore 
 # Step 6: Run npm install
 if (-not $SkipNpm) {
     Write-Host "[6/7] Running npm install..." -ForegroundColor Yellow
-    if ($VerboseOutput) {
+    if ($V) {
         Write-Host "  (verbose mode enabled - showing npm output)" -ForegroundColor DarkGray
     }
     Push-Location $ArtkE2e
@@ -2412,14 +2411,14 @@ if (-not $SkipNpm) {
 
         # Build npm arguments
         $npmArgs = @("install", "--legacy-peer-deps")
-        if ($VerboseOutput) {
+        if ($V) {
             $npmArgs += "--loglevel"
             $npmArgs += "verbose"
         }
 
         $exitCode = 1
         try {
-            if ($VerboseOutput) {
+            if ($V) {
                 # VERBOSE MODE: Stream directly to console in real-time
                 # Use cmd /c to run npm and capture exit code properly
                 Write-Host ""
