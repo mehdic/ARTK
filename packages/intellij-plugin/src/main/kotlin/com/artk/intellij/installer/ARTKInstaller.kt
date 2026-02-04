@@ -192,6 +192,132 @@ class ARTKInstaller(private val project: Project) {
     }
 
     /**
+     * Upgrade ARTK in the target directory
+     * Preserves user customizations while updating core files
+     */
+    fun upgrade(
+        targetPath: Path,
+        indicator: ProgressIndicator? = null
+    ): InstallResult {
+        val targetDir = targetPath.toFile()
+        val artkE2eDir = File(targetDir, "artk-e2e")
+
+        if (!artkE2eDir.exists()) {
+            return InstallResult(
+                success = false,
+                error = "ARTK is not installed. Cannot upgrade."
+            )
+        }
+
+        try {
+            indicator?.text = "Creating backup..."
+            indicator?.fraction = 0.1
+
+            // Backup existing installation
+            val backupPath = createBackup(artkE2eDir)
+
+            indicator?.text = "Upgrading vendor libraries..."
+            indicator?.fraction = 0.3
+
+            // Re-detect variant from existing context
+            val contextFile = File(artkE2eDir, ".artk/context.json")
+            val variant = if (contextFile.exists()) {
+                try {
+                    val content = contextFile.readText()
+                    val variantId = Regex(""""variant"\s*:\s*"([^"]+)"""").find(content)?.groupValues?.get(1)
+                    VariantDetector.Variant.fromId(variantId ?: "modern-esm") ?: VariantDetector.Variant.MODERN_ESM
+                } catch (e: Exception) {
+                    VariantDetector.Variant.MODERN_ESM
+                }
+            } else {
+                VariantDetector.Variant.MODERN_ESM
+            }
+
+            // Upgrade vendor libs
+            installVendorLibs(artkE2eDir, variant)
+
+            indicator?.text = "Updating configuration..."
+            indicator?.fraction = 0.6
+
+            // Update context with upgrade info
+            if (contextFile.exists()) {
+                var content = contextFile.readText()
+                content = content.replace(
+                    Regex(""""artkVersion"\s*:\s*"[^"]*""""),
+                    """"artkVersion": "$ARTK_VERSION""""
+                )
+                content = content.replace(
+                    Regex(""""variantInstalledAt"\s*:\s*"[^"]*""""),
+                    """"variantInstalledAt": "${Instant.now()}""""
+                )
+                contextFile.writeText(content)
+            }
+
+            indicator?.text = "Upgrade complete"
+            indicator?.fraction = 1.0
+
+            return InstallResult(
+                success = true,
+                artkE2ePath = artkE2eDir.absolutePath,
+                backupPath = backupPath,
+                variant = variant
+            )
+
+        } catch (e: Exception) {
+            return InstallResult(
+                success = false,
+                error = "Upgrade failed: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * Uninstall ARTK from the target directory
+     */
+    fun uninstall(targetPath: Path): InstallResult {
+        val targetDir = targetPath.toFile()
+        val artkE2eDir = File(targetDir, "artk-e2e")
+
+        if (!artkE2eDir.exists()) {
+            return InstallResult(
+                success = false,
+                error = "ARTK is not installed. Nothing to uninstall."
+            )
+        }
+
+        try {
+            // Create backup before uninstall
+            val backupPath = createBackup(artkE2eDir)
+
+            // Remove artk-e2e directory
+            artkE2eDir.deleteRecursively()
+
+            // Remove .github/prompts/artk.* files
+            val promptsDir = File(targetDir, ".github/prompts")
+            if (promptsDir.exists()) {
+                promptsDir.listFiles()?.filter { it.name.startsWith("artk.") }?.forEach { it.delete() }
+            }
+
+            // Remove .github/agents/artk.* files
+            val agentsDir = File(targetDir, ".github/agents")
+            if (agentsDir.exists()) {
+                agentsDir.listFiles()?.filter { it.name.startsWith("artk.") }?.forEach { it.delete() }
+            }
+
+            return InstallResult(
+                success = true,
+                backupPath = backupPath
+            )
+
+        } catch (e: Exception) {
+            return InstallResult(
+                success = false,
+                error = "Uninstall failed: ${e.message}"
+            )
+        }
+    }
+
+    /**
      * Create backup of existing installation
      */
     private fun createBackup(artkE2eDir: File): String {
@@ -870,6 +996,116 @@ overrides:
 
         // Create variant-info prompt
         createVariantInfoPrompt(promptsDir, variant)
+
+        // Create stub prompts that delegate to agents
+        val promptConfigs = listOf(
+            PromptConfig("init-playbook", "Initialize ARTK playbook and configuration"),
+            PromptConfig("discover-foundation", "Discover and build foundation modules"),
+            PromptConfig("journey-propose", "Propose new test journeys from discovery"),
+            PromptConfig("journey-define", "Define journey structure and acceptance criteria"),
+            PromptConfig("journey-clarify", "Clarify journey with deterministic execution detail"),
+            PromptConfig("journey-implement", "Implement journey as Playwright tests")
+        )
+
+        for (config in promptConfigs) {
+            createStubPrompt(promptsDir, config)
+            createAgentFile(agentsDir, config)
+        }
+    }
+
+    private data class PromptConfig(val name: String, val description: String)
+
+    private fun createStubPrompt(promptsDir: File, config: PromptConfig) {
+        val content = """---
+name: artk.${config.name}
+description: "${config.description}"
+agent: artk.${config.name}
+---
+
+# ARTK ${config.name.replace("-", " ").replaceFirstChar { it.uppercase() }}
+
+This prompt delegates to the `@artk.${config.name}` agent.
+
+To use this prompt, invoke it with `/artk.${config.name}` in GitHub Copilot Chat.
+"""
+        File(promptsDir, "artk.${config.name}.prompt.md").writeText(content)
+    }
+
+    private fun createAgentFile(agentsDir: File, config: PromptConfig) {
+        val content = """---
+name: artk.${config.name}
+description: "${config.description}"
+---
+
+# ARTK ${config.name.replace("-", " ").replaceFirstChar { it.uppercase() }} Agent
+
+## Overview
+
+This agent handles the `${config.name}` phase of the ARTK workflow.
+
+## Instructions
+
+${getAgentInstructions(config.name)}
+
+## Handoffs
+
+When this task is complete, the following prompts may be useful:
+${getHandoffs(config.name)}
+"""
+        File(agentsDir, "artk.${config.name}.agent.md").writeText(content)
+    }
+
+    private fun getAgentInstructions(name: String): String = when (name) {
+        "init-playbook" -> """
+1. Read the existing ARTK configuration from `artk-e2e/artk.config.yml`
+2. Verify the installation is complete by checking `.artk/context.json`
+3. Generate project-specific Copilot instructions based on the detected variant
+4. Create or update the playbook document in `artk-e2e/docs/playbook.md`
+"""
+        "discover-foundation" -> """
+1. Analyze the target application's route structure
+2. Identify authentication patterns and user roles
+3. Detect UI frameworks and component libraries
+4. Build foundation modules in `src/modules/foundation/`
+5. Initialize LLKB if not already done
+"""
+        "journey-propose" -> """
+1. Read discovery reports from `artk-e2e/reports/discovery/`
+2. Identify high-value test scenarios based on user flows
+3. Generate proposed journeys in `artk-e2e/journeys/proposed/`
+4. Create journey files with proper frontmatter schema
+"""
+        "journey-define" -> """
+1. Read a proposed journey file
+2. Add structured acceptance criteria
+3. Define the actor, scope, and tier
+4. Move the journey to `artk-e2e/journeys/defined/`
+"""
+        "journey-clarify" -> """
+1. Read a defined journey file
+2. Add deterministic execution steps
+3. Specify exact selectors and data requirements
+4. Move the journey to `artk-e2e/journeys/clarified/`
+"""
+        "journey-implement" -> """
+1. Verify LLKB is initialized
+2. Read a clarified journey file
+3. Generate Playwright test code using AutoGen patterns
+4. Create test file in appropriate tier directory
+5. Update journey status to `implemented`
+6. Move to `artk-e2e/journeys/implemented/`
+"""
+        else -> "Follow the standard ARTK workflow for this phase."
+    }
+
+    private fun getHandoffs(name: String): String = when (name) {
+        "init-playbook" -> "- `/artk.discover-foundation` - Build foundation modules"
+        "discover-foundation" -> "- `/artk.journey-propose` - Propose test journeys"
+        "journey-propose" -> "- `/artk.journey-define` - Define a proposed journey"
+        "journey-define" -> "- `/artk.journey-clarify` - Clarify the journey"
+        "journey-clarify" -> "- `/artk.journey-implement` - Implement as tests"
+        "journey-implement" -> "- `/artk.journey-propose` - Propose more journeys\n- `/artk.discover-foundation` - Expand foundation modules"
+        else -> "- See ARTK documentation for next steps"
     }
 
     /**
@@ -934,7 +1170,14 @@ overrides:
             mapOf("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" to "1")
         } else emptyMap()
 
-        return ProcessUtils.executeNpm(listOf("install"), artkE2eDir, 300, env)
+        // Use execute() instead of executeNpm() to pass environment variables
+        val command = if (ProcessUtils.isWindows) {
+            listOf("cmd", "/c", "npm", "install")
+        } else {
+            listOf("npm", "install")
+        }
+
+        return ProcessUtils.execute(command, artkE2eDir, 300, env)
     }
 
     /**

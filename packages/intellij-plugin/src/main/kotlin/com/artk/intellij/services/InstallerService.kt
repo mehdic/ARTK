@@ -79,7 +79,7 @@ class InstallerService(private val project: Project) {
             skipLlkb = options.skipLlkb,
             forceLlkb = false,
             skipBrowsers = options.skipBrowsers,
-            noPrompts = true,
+            noPrompts = false, // Install prompts and agents by default
             force = options.force
         )
 
@@ -96,8 +96,9 @@ class InstallerService(private val project: Project) {
         // Refresh project service
         ARTKProjectService.getInstance(project).refresh()
 
-        onComplete(InstallResult(result.success, result.message))
-        notifyInstallationCompleted(result.success, if (result.success) null else result.message)
+        val message = if (result.success) "Installation successful" else (result.error ?: "Unknown error")
+        onComplete(InstallResult(result.success, message))
+        notifyInstallationCompleted(result.success, if (result.success) null else result.error)
     }
 
     /**
@@ -120,7 +121,8 @@ class InstallerService(private val project: Project) {
                 )
 
                 ARTKProjectService.getInstance(project).refresh()
-                onComplete(InstallResult(result.success, result.message))
+                val message = if (result.success) "Upgrade successful" else (result.error ?: "Unknown error")
+                onComplete(InstallResult(result.success, message))
             }
 
             override fun onThrowable(error: Throwable) {
@@ -146,7 +148,8 @@ class InstallerService(private val project: Project) {
                 val result = installer.uninstall(Path.of(basePath))
 
                 ARTKProjectService.getInstance(project).refresh()
-                onComplete(InstallResult(result.success, result.message))
+                val message = if (result.success) "Uninstall successful" else (result.error ?: "Unknown error")
+                onComplete(InstallResult(result.success, message))
             }
 
             override fun onThrowable(error: Throwable) {
