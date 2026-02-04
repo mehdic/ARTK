@@ -1331,9 +1331,16 @@ agent: $Name
 ---
 # ARTK $Name
 
-This prompt delegates to the ``@$Name`` agent for full functionality including suggested next actions (handoffs).
+## 🛑 MANDATORY: Before ANY action, you MUST:
 
-Run ``/$Name`` to start, or select ``@$Name`` from the agent picker.
+1. **READ FIRST:** Open and read the agent file: ``.github/agents/$Name.agent.md``
+2. **FOLLOW EXACTLY:** Execute every step in that file sequentially - DO NOT skip steps
+3. **DO NOT IMPROVISE:** If instructions are unclear, ASK - do not guess or make up actions
+4. **PROOF REQUIRED:** After each action, output markers like ``✓ Created: <file>`` or ``✓ Ran: <command>``
+
+**STOP.** Do not proceed until you have read the agent file above.
+
+The agent file contains the complete implementation with all steps, validation rules, and suggested next actions (handoffs).
 "@
 }
 
