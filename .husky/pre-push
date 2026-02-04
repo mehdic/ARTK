@@ -1,7 +1,20 @@
 #!/bin/sh
 # Pre-push hook: sync deployed assets before pushing
+#
+# To skip asset sync (for faster pushes):
+#   SKIP_ASSET_SYNC=1 git push
+#
+# To run asset sync manually:
+#   ./scripts/sync-vscode-prompts.sh
+#   npm --prefix packages/cli run bundle-assets
 
 set -e
+
+# Allow skipping asset sync for faster pushes
+if [ "$SKIP_ASSET_SYNC" = "1" ]; then
+  echo "⏭️  Skipping asset sync (SKIP_ASSET_SYNC=1)"
+  exit 0
+fi
 
 # Sync VS Code extension prompts (cross-platform)
 echo "Syncing VS Code extension prompts..."
