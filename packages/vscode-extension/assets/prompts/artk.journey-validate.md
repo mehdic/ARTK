@@ -4,32 +4,14 @@ description: "Phase 9: Validate Journey implementation quality (static gates). C
 argument-hint: "mode=standard|quick|max id=<JRN-0001> file=<path> harnessRoot=e2e artkRoot=<path> strict=true|false autofix=auto|true|false lint=auto|eslint|grep contract=auto|strict|basic updateJourney=true|false reportPath=auto|reports/validation/<id>.md dryRun=true|false"
 agent: agent
 handoffs:
-  - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
-    agent: artk.init-playbook
-    prompt: "Bootstrap ARTK in this repo"
-  - label: "MANDATORY - /artk.discover-foundation: analyze app and build harness"
-    agent: artk.discover-foundation
-    prompt: "Analyze app and build foundation harness"
-  - label: "OPTIONAL - /artk.journey-propose: propose journeys from discovery"
-    agent: artk.journey-propose
-    prompt: "Propose journeys from discovery outputs"
-  - label: "MANDATORY - /artk.journey-define: create journey file"
-    agent: artk.journey-define
-    prompt: 'id=JRN-#### title="<title>"'
-  - label: "MANDATORY - /artk.journey-clarify: add machine hints"
-    agent: artk.journey-clarify
-    prompt: "id=JRN-####"
-  - label: "RECOMMENDED - /artk.testid-audit: audit selectors and add test hooks"
-    agent: artk.testid-audit
-    prompt: "mode=report"
-  - label: "MANDATORY - /artk.journey-implement: generate tests"
-    agent: artk.journey-implement
-    prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-validate: static validation gate"
-    agent: artk.journey-validate
-    prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-verify: run tests and verify"
+  - label: "1. IF VALIDATION PASSED - /artk.journey-verify: run and verify the tests"
     agent: artk.journey-verify
+    prompt: "id=<JRN-ID>"
+  - label: "2. IF VALIDATION FAILED - /artk.journey-implement: fix issues and re-implement"
+    agent: artk.journey-implement
+    prompt: "id=<JRN-ID>"
+  - label: "3. OPTIONAL - /artk.journey-validate: validate another journey"
+    agent: artk.journey-validate
     prompt: "id=JRN-####"
 ---
 
