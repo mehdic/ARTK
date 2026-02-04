@@ -1413,7 +1413,7 @@ $VscodeTemplate = Join-Path $ArtkRepo "templates\vscode\settings.json"
 
 New-Item -ItemType Directory -Force -Path $VscodeDir | Out-Null
 
-# JSON Repair Logging - set by -VerboseMode flag
+# JSON Repair Logging - set by -V flag
 $script:JsonRepairLog = @()
 
 function Write-JsonRepairLog {
@@ -1554,9 +1554,9 @@ function Repair-JsonStructure {
         $text = $text.Substring(1)
         $repairs += "Removed BOM"
     }
-    # Also check for UTF-8 BOM bytes
-    if ($text -match '^\xEF\xBB\xBF') {
-        $text = $text -replace '^\xEF\xBB\xBF', ''
+    # Also check for UTF-8 BOM bytes (0xEF 0xBB 0xBF)
+    if ($text.Length -ge 3 -and [int][char]$text[0] -eq 0xEF -and [int][char]$text[1] -eq 0xBB -and [int][char]$text[2] -eq 0xBF) {
+        $text = $text.Substring(3)
         $repairs += "Removed UTF-8 BOM"
     }
 
@@ -1687,7 +1687,7 @@ function Parse-JsonWithRepair {
     # All attempts failed
     $summary = Get-JsonRepairSummary
     Write-JsonRepairLog "All repair attempts failed after $($summary.FixCount) fixes" "ERROR"
-    throw "JSON repair failed after 4 attempts. Use -VerboseJson for details."
+    throw "JSON repair failed after 4 attempts. Use -V for details."
 }
 
 # Convert PSCustomObject to hashtable (PowerShell 5.1 compatibility)
@@ -2426,18 +2426,23 @@ if (-not $SkipNpm) {
                 Write-Host "  (detected nvm4w/PowerShell npm)" -ForegroundColor DarkGray
                 if ($VerboseOutput) {
                     # Stream output to console in verbose mode
-                    & npm @npmArgs 2>&1 | Tee-Object -FilePath $npmLogOut
+                    # Capture output to array first to preserve exit code
+                    $output = & npm @npmArgs 2>&1
+                    $exitCode = $LASTEXITCODE
+                    $output | Tee-Object -FilePath $npmLogOut
                 } else {
                     $output = & npm @npmArgs 2>&1
+                    $exitCode = $LASTEXITCODE
                     $output | Out-File -FilePath $npmLogOut -Encoding utf8
                 }
-                $exitCode = $LASTEXITCODE
             } else {
                 # Standard npm.cmd or npm.exe
                 if ($VerboseOutput) {
-                    # In verbose mode, run directly so output streams to console
-                    & npm @npmArgs 2>&1 | Tee-Object -FilePath $npmLogOut
+                    # In verbose mode, capture output first then display AND log
+                    # This ensures $LASTEXITCODE is captured correctly
+                    $output = & npm @npmArgs 2>&1
                     $exitCode = $LASTEXITCODE
+                    $output | Tee-Object -FilePath $npmLogOut
                 } else {
                     # Silent mode - use Start-Process for proper output redirection
                     $proc = Start-Process -FilePath "npm" -ArgumentList $npmArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $npmLogOut -RedirectStandardError $npmLogErr

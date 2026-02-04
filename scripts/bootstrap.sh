@@ -2300,11 +2300,12 @@ if [ "$SKIP_NPM" = false ]; then
     fi
 
     setup_rollback_trap() {
-        trap 'rollback_on_error' ERR EXIT
+        trap 'rollback_on_error $?' ERR EXIT
     }
 
     rollback_on_error() {
-        if [ $? -ne 0 ]; then
+        local exit_status="${1:-1}"
+        if [ "$exit_status" -ne 0 ]; then
             echo -e "${RED}Bootstrap failed, rolling back changes...${NC}"
             if [ -f "$ARTK_E2E/artk.config.yml.bootstrap-backup" ]; then
                 mv "$ARTK_E2E/artk.config.yml.bootstrap-backup" "$ARTK_E2E/artk.config.yml"
@@ -2338,17 +2339,33 @@ if [ "$SKIP_NPM" = false ]; then
         NPM_ARGS="$NPM_ARGS --loglevel verbose"
     fi
 
+    # Determine timeout command (10 minutes max for npm install)
+    NPM_TIMEOUT=""
+    if command -v timeout >/dev/null 2>&1; then
+        NPM_TIMEOUT="timeout 600"
+    elif command -v gtimeout >/dev/null 2>&1; then
+        NPM_TIMEOUT="gtimeout 600"  # macOS with coreutils
+    fi
+
     set +e
     if [ "$VERBOSE" = true ]; then
         # In verbose mode, stream to console AND log file
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm $NPM_ARGS 2>&1 | tee "$NPM_INSTALL_LOG"
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 $NPM_TIMEOUT npm $NPM_ARGS 2>&1 | tee "$NPM_INSTALL_LOG"
         NPM_STATUS=${PIPESTATUS[0]}
     else
         # Silent mode - log only
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm $NPM_ARGS >"$NPM_INSTALL_LOG" 2>&1
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 $NPM_TIMEOUT npm $NPM_ARGS >"$NPM_INSTALL_LOG" 2>&1
         NPM_STATUS=$?
     fi
     set -e
+
+    # Check for timeout (exit code 124)
+    if [ "$NPM_STATUS" -eq 124 ]; then
+        echo -e "${RED}npm install: TIMEOUT (exceeded 10 minutes)${NC}"
+        echo -e "${YELLOW}This may indicate network issues or a slow registry.${NC}"
+        echo -e "${YELLOW}Try running with --verbose to see what's happening.${NC}"
+        exit 1
+    fi
 
     if [ "$NPM_STATUS" -eq 0 ]; then
         echo -e "${GREEN}npm install: SUCCESS${NC}"

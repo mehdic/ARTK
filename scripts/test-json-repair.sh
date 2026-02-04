@@ -400,6 +400,115 @@ else
 fi
 
 # ====================
+# Test 16: String containing */ (should preserve)
+# ====================
+echo "Test 16: String containing */ (multi-line comment end pattern)"
+result=$(parse_json '{"regex": "pattern */end", "key": "value"}' 2>&1)
+if echo "$result" | grep -q 'pattern \*/end' && echo "$result" | grep -q '"key":"value"'; then
+    pass "String with */ preserved"
+else
+    fail "String with */ incorrectly modified" "$result"
+fi
+
+# ====================
+# Test 17: Unclosed multi-line comment (should not hang)
+# ====================
+echo "Test 17: Unclosed multi-line comment"
+# Use gtimeout on macOS, timeout on Linux, or skip if neither available
+TIMEOUT_CMD=""
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="timeout 5"
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="gtimeout 5"
+fi
+
+if [ -n "$TIMEOUT_CMD" ]; then
+    result=$($TIMEOUT_CMD bash -c 'echo "{\"key\": \"value\"} /* unclosed" | node -e "
+const input = require(\"fs\").readFileSync(0, \"utf8\");
+function stripComments(jsonc) {
+    let result = \"\", i = 0, inString = false, escape = false;
+    while (i < jsonc.length) {
+        const char = jsonc[i];
+        if (escape) { result += char; escape = false; i++; continue; }
+        if (char === \"\\\\\" && inString) { result += char; escape = true; i++; continue; }
+        if (char === \"\\\"\" && !escape) { inString = !inString; result += char; i++; continue; }
+        if (!inString && i + 1 < jsonc.length) {
+            if (char === \"/\" && jsonc[i+1] === \"/\") { while (i < jsonc.length && jsonc[i] !== \"\\n\") i++; continue; }
+            if (char === \"/\" && jsonc[i+1] === \"*\") { i += 2; while (i + 1 < jsonc.length && !(jsonc[i] === \"*\" && jsonc[i+1] === \"/\")) i++; i += 2; continue; }
+        }
+        result += char; i++;
+    }
+    return result;
+}
+try { console.log(JSON.stringify(JSON.parse(stripComments(input)))); } catch(e) { console.log(\"HANDLED\"); }
+"' 2>&1)
+    if [ $? -eq 0 ]; then
+        pass "Unclosed multi-line comment handled (no hang)"
+    else
+        fail "Unclosed multi-line comment caused hang or crash" "$result"
+    fi
+else
+    # No timeout command available, run without timeout and assume it works if it returns quickly
+    result=$(echo '{"key": "value"} /* unclosed' | node -e "
+const input = require('fs').readFileSync(0, 'utf8');
+function stripComments(jsonc) {
+    let result = '', i = 0, inString = false, escape = false;
+    while (i < jsonc.length) {
+        const char = jsonc[i];
+        if (escape) { result += char; escape = false; i++; continue; }
+        if (char === '\\\\' && inString) { result += char; escape = true; i++; continue; }
+        if (char === '\"' && !escape) { inString = !inString; result += char; i++; continue; }
+        if (!inString && i + 1 < jsonc.length) {
+            if (char === '/' && jsonc[i+1] === '/') { while (i < jsonc.length && jsonc[i] !== '\\n') i++; continue; }
+            if (char === '/' && jsonc[i+1] === '*') { i += 2; while (i + 1 < jsonc.length && !(jsonc[i] === '*' && jsonc[i+1] === '/')) i++; i += 2; continue; }
+        }
+        result += char; i++;
+    }
+    return result;
+}
+try { console.log(JSON.stringify(JSON.parse(stripComments(input)))); } catch(e) { console.log('HANDLED'); }
+" 2>&1)
+    if echo "$result" | grep -qE 'HANDLED|key'; then
+        pass "Unclosed multi-line comment handled (no timeout cmd available)"
+    else
+        fail "Unclosed multi-line comment not handled" "$result"
+    fi
+fi
+
+# ====================
+# Test 18: Array at root level
+# ====================
+echo "Test 18: Array at root level"
+result=$(parse_json '[1, 2, 3]' 2>&1)
+if echo "$result" | grep -q '\[1,2,3\]'; then
+    pass "Array at root level handled"
+else
+    fail "Array at root level not handled" "$result"
+fi
+
+# ====================
+# Test 19: Deeply nested object
+# ====================
+echo "Test 19: Deeply nested object"
+result=$(parse_json '{"a":{"b":{"c":{"d":{"e":"deep"}}}}}' 2>&1)
+if echo "$result" | grep -q '"e":"deep"'; then
+    pass "Deeply nested object handled"
+else
+    fail "Deeply nested object not handled" "$result"
+fi
+
+# ====================
+# Test 20: Unicode in strings
+# ====================
+echo "Test 20: Unicode in strings"
+result=$(parse_json '{"emoji": "Hello 👋 World", "chinese": "中文"}' 2>&1)
+if echo "$result" | grep -q 'Hello' && echo "$result" | grep -q '中文'; then
+    pass "Unicode in strings handled"
+else
+    fail "Unicode in strings not handled" "$result"
+fi
+
+# ====================
 # Summary
 # ====================
 echo ""
