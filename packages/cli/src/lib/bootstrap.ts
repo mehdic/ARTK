@@ -492,14 +492,88 @@ function extractYamlValue(content: string, key: string): string {
 }
 
 /**
+ * Extract handoffs section from YAML frontmatter
+ * Fixes applied based on multi-AI review:
+ * - FIX CRLF: Normalize line endings (Windows compatibility)
+ * - FIX EXIT: Exit on ANY non-indented line, not just [a-zA-Z]
+ * - FIX WHITESPACE: Trim lines before delimiter check
+ * - FIX CASE: Accept both 'handoffs:' and 'Handoffs:'
+ */
+function extractHandoffs(content: string): string {
+  // Normalize line endings (CRLF -> LF)
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n');
+  const handoffsLines: string[] = [];
+  let inFrontmatter = false;
+  let inHandoffs = false;
+
+  for (const rawLine of lines) {
+    // Trim trailing whitespace
+    const line = rawLine.trimEnd();
+
+    // Match frontmatter delimiter (allow trailing whitespace)
+    if (/^---\s*$/.test(line)) {
+      if (inFrontmatter) break;
+      inFrontmatter = true;
+      continue;
+    }
+
+    // Detect handoffs key (case-insensitive)
+    if (inFrontmatter && /^[Hh]andoffs:/.test(line)) {
+      inHandoffs = true;
+      handoffsLines.push(line);
+      continue;
+    }
+
+    if (inHandoffs) {
+      // Exit on ANY non-whitespace at column 0 (new top-level key)
+      if (/^[^\s]/.test(line)) break;
+
+      // Skip pure comment lines but keep content
+      if (!/^\s*#\s/.test(line)) {
+        handoffsLines.push(line);
+      }
+    }
+  }
+  return handoffsLines.join('\n');
+}
+
+/**
+ * Escape YAML string to prevent injection
+ */
+function escapeYamlString(str: string): string {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '');
+}
+
+/**
+ * Sanitize handoffs by removing document separators
+ */
+function sanitizeHandoffs(handoffs: string): string {
+  return handoffs.split('\n').filter(line => !/^---\s*$/.test(line)).join('\n');
+}
+
+/**
  * Generate stub prompt content that delegates to an agent
  */
-function generateStubPrompt(name: string, description: string): string {
-  return `---
+function generateStubPrompt(name: string, description: string, handoffs: string): string {
+  const escapedDescription = escapeYamlString(description);
+  let frontmatter = `---
 name: ${name}
-description: "${description}"
-agent: ${name}
----
+description: "${escapedDescription}"
+agent: ${name}`;
+
+  // Include handoffs if present (sanitized)
+  if (handoffs) {
+    frontmatter += '\n' + sanitizeHandoffs(handoffs);
+  }
+
+  frontmatter += '\n---';
+
+  return `${frontmatter}
 # ARTK ${name}
 
 This prompt delegates to the \`@${name}\` agent for full functionality including suggested next actions (handoffs).
@@ -570,6 +644,7 @@ async function installPrompts(projectPath: string, logger: Logger): Promise<void
         // Extract metadata from source file
         const name = extractYamlValue(content, 'name') || file.replace(/\.md$/, '');
         const description = extractYamlValue(content, 'description') || 'ARTK prompt';
+        const handoffs = extractHandoffs(content);
 
         // Generate base filename (artk.journey-define)
         const baseName = file.replace(/\.md$/, '');
@@ -579,8 +654,8 @@ async function installPrompts(projectPath: string, logger: Logger): Promise<void
         await fs.copy(source, agentTarget, { overwrite: true });
         logger.debug(`Installed agent: ${baseName}.agent.md`);
 
-        // 2. Generate stub for prompts/ as .prompt.md
-        const stubContent = generateStubPrompt(name, description);
+        // 2. Generate stub for prompts/ as .prompt.md (with handoffs)
+        const stubContent = generateStubPrompt(name, description, handoffs);
         const promptTarget = path.join(promptsTarget, `${baseName}.prompt.md`);
         await fs.writeFile(promptTarget, stubContent, 'utf8');
         logger.debug(`Installed stub prompt: ${baseName}.prompt.md`);
