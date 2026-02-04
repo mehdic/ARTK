@@ -130,6 +130,30 @@
         "command": "artk.workflow.resetAll",
         "title": "ARTK: Reset All Workflow Steps",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "artk.workflow.executeAllJourneys",
+        "title": "All Journeys",
+        "icon": "$(list-tree)",
+        "category": "ARTK Workflow"
+      },
+      {
+        "command": "artk.workflow.executeAllSmoke",
+        "title": "All Smoke",
+        "icon": "$(flame)",
+        "category": "ARTK Workflow"
+      },
+      {
+        "command": "artk.workflow.executeAllRelease",
+        "title": "All Release",
+        "icon": "$(rocket)",
+        "category": "ARTK Workflow"
+      },
+      {
+        "command": "artk.workflow.executeAllRegression",
+        "title": "All Regression",
+        "icon": "$(history)",
+        "category": "ARTK Workflow"
       }
     ],
     "viewsContainers": {
@@ -221,18 +245,38 @@
         },
         {
           "command": "artk.workflow.execute",
-          "when": "view == artk-workflow && viewItem == workflowStep",
+          "when": "view == artk-workflow && viewItem =~ /^workflowStep(-withTiers)?$/",
           "group": "inline@1"
         },
         {
           "command": "artk.workflow.edit",
-          "when": "view == artk-workflow && viewItem == workflowStep",
+          "when": "view == artk-workflow && viewItem =~ /^workflowStep(-withTiers)?$/",
           "group": "inline@2"
         },
         {
           "command": "artk.workflow.resetStep",
           "when": "view == artk-workflow && viewItem == workflowStep-disabled",
           "group": "inline"
+        },
+        {
+          "command": "artk.workflow.executeAllJourneys",
+          "when": "view == artk-workflow && viewItem == workflowStep-withTiers",
+          "group": "inline@3"
+        },
+        {
+          "command": "artk.workflow.executeAllSmoke",
+          "when": "view == artk-workflow && viewItem == workflowStep-withTiers",
+          "group": "inline@4"
+        },
+        {
+          "command": "artk.workflow.executeAllRelease",
+          "when": "view == artk-workflow && viewItem == workflowStep-withTiers",
+          "group": "inline@5"
+        },
+        {
+          "command": "artk.workflow.executeAllRegression",
+          "when": "view == artk-workflow && viewItem == workflowStep-withTiers",
+          "group": "inline@6"
         }
       ],
       "commandPalette": [
@@ -250,6 +294,22 @@
         },
         {
           "command": "artk.workflow.resetStep",
+          "when": "false"
+        },
+        {
+          "command": "artk.workflow.executeAllJourneys",
+          "when": "false"
+        },
+        {
+          "command": "artk.workflow.executeAllSmoke",
+          "when": "false"
+        },
+        {
+          "command": "artk.workflow.executeAllRelease",
+          "when": "false"
+        },
+        {
+          "command": "artk.workflow.executeAllRegression",
           "when": "false"
         }
       ]
@@ -297,6 +357,18 @@
             "Never allow automatic terminal access"
           ],
           "description": "Controls when ARTK can access the integrated terminal"
+        },
+        "artk.chatInitDelay": {
+          "type": "number",
+          "default": 200,
+          "minimum": 50,
+          "maximum": 2000,
+          "description": "Delay in milliseconds to wait for Copilot Chat initialization (increase if chat fails to open)"
+        },
+        "artk.confirmBatchExecution": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show confirmation dialog before running tier-based batch operations (All Journeys, All Smoke, etc.)"
         }
       }
     }

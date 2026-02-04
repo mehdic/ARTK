@@ -24,7 +24,36 @@ interface WorkflowStep {
   runOnce?: boolean;
   runOnceMessage?: string;
   dependsOn?: string; // Step ID that must be completed first
+  supportsTiers?: boolean; // Whether this step supports tier-based execution (all journeys, all smoke, etc.)
 }
+
+/**
+ * Tier suffix options for batch execution
+ */
+export type TierSuffix = 'all journeys' | 'all smoke' | 'all release' | 'all regression';
+
+/**
+ * Tier command configuration for registration
+ */
+interface TierCommandConfig {
+  command: string;
+  tier: TierSuffix;
+}
+
+/**
+ * All tier command configurations
+ */
+const TIER_COMMANDS: TierCommandConfig[] = [
+  { command: 'artk.workflow.executeAllJourneys', tier: 'all journeys' },
+  { command: 'artk.workflow.executeAllSmoke', tier: 'all smoke' },
+  { command: 'artk.workflow.executeAllRelease', tier: 'all release' },
+  { command: 'artk.workflow.executeAllRegression', tier: 'all regression' },
+];
+
+/**
+ * Execution state to prevent race conditions from rapid button clicks
+ */
+let isExecuting = false;
 
 /**
  * All ARTK workflow steps in order
@@ -128,6 +157,7 @@ scope: feature area
 **When to run:** For each user journey you want to test.`,
     mandatory: true,
     dependsOn: 'journey-propose',
+    supportsTiers: true,
   },
   {
     id: 'journey-clarify',
@@ -153,6 +183,7 @@ scope: feature area
 **When to run:** After defining a journey, before implementation.`,
     mandatory: true,
     dependsOn: 'journey-define',
+    supportsTiers: true,
   },
   {
     id: 'testid-audit',
@@ -204,6 +235,7 @@ scope: feature area
 **When to run:** After clarifying a journey.`,
     mandatory: true,
     dependsOn: 'testid-audit',
+    supportsTiers: true,
   },
   {
     id: 'journey-validate',
@@ -228,6 +260,7 @@ scope: feature area
 **When to run:** After implementing, before running tests.`,
     mandatory: true,
     dependsOn: 'journey-implement',
+    supportsTiers: true,
   },
   {
     id: 'journey-verify',
@@ -253,13 +286,19 @@ scope: feature area
 **When to run:** After validation passes, to confirm tests work.`,
     mandatory: true,
     dependsOn: 'journey-validate',
+    supportsTiers: true,
   },
 ];
 
 /**
- * Workflow tree item
+ * Workflow tree item (exported for type safety in external code)
  */
-class WorkflowTreeItem extends vscode.TreeItem {
+export class WorkflowTreeItem extends vscode.TreeItem {
+  /**
+   * Normalized supportsTiers flag (always boolean, never undefined)
+   */
+  public readonly supportsTiers: boolean;
+
   constructor(
     public readonly step: WorkflowStep,
     public readonly isCompleted: boolean,
@@ -270,6 +309,9 @@ class WorkflowTreeItem extends vscode.TreeItem {
       `${step.number}. ${step.name}`,
       vscode.TreeItemCollapsibleState.None
     );
+
+    // Normalize supportsTiers to boolean (fixes undefined vs false ambiguity)
+    this.supportsTiers = step.supportsTiers === true;
 
     // Build description with mandatory/optional tag
     const tag = step.mandatory ? '(Required)' : '(Optional)';
@@ -287,7 +329,8 @@ class WorkflowTreeItem extends vscode.TreeItem {
       step.fullDescription,
     ];
 
-    if (step.runOnce) {
+    // Only add runOnce message if both flags are set (fixes undefined handling)
+    if (step.runOnce && step.runOnceMessage) {
       tooltipLines.push('', '---', '', `⚠️ **${step.runOnceMessage}**`);
     }
 
@@ -311,8 +354,12 @@ class WorkflowTreeItem extends vscode.TreeItem {
     }
 
     // Context value for menu filtering
+    // Steps with tier support get 'workflowStep-withTiers' to show tier buttons
+    // Note: Disabled takes priority over tier support (disabled steps shouldn't show tier buttons)
     if (isDisabled) {
       this.contextValue = 'workflowStep-disabled';
+    } else if (this.supportsTiers) {
+      this.contextValue = 'workflowStep-withTiers';
     } else {
       this.contextValue = 'workflowStep';
     }
@@ -406,7 +453,29 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowTre
     return fs.existsSync(playbookPath);
   }
 
+  /**
+   * Detect auto-completed steps based on file system state.
+   * Called during refresh() to avoid side effects during rendering.
+   * Handles both completion AND un-completion (e.g., if PLAYBOOK.md is deleted).
+   */
+  private detectAutoCompletedSteps(): void {
+    // Auto-detect init-playbook completion (bidirectional)
+    if (this.checkInitPlaybookCompleted()) {
+      this.completedSteps.add('init-playbook');
+    } else {
+      // If file was deleted, remove from completed (fixes stale state)
+      this.completedSteps.delete('init-playbook');
+    }
+  }
+
   refresh(): void {
+    // Detect auto-completed steps before refreshing (moved from getChildren)
+    try {
+      this.detectAutoCompletedSteps();
+    } catch (error) {
+      // Don't let detection errors block refresh
+      console.error('ARTK: Failed to detect auto-completed steps:', error);
+    }
     this._onDidChangeTreeData.fire(undefined);
   }
 
@@ -424,10 +493,8 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowTre
       return [];
     }
 
-    // Auto-detect init-playbook completion
-    if (this.checkInitPlaybookCompleted()) {
-      this.completedSteps.add('init-playbook');
-    }
+    // Note: Auto-detection moved to detectAutoCompletedSteps() called in refresh()
+    // This keeps getChildren() idempotent (no side effects during render)
 
     return WORKFLOW_STEPS.map((step) => {
       const isCompleted = this.completedSteps.has(step.id);
@@ -447,6 +514,13 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowTre
   }
 
   /**
+   * Check if a dependency step is completed
+   */
+  isStepCompleted(stepId: string): boolean {
+    return this.completedSteps.has(stepId);
+  }
+
+  /**
    * Get step by ID
    */
   getStep(stepId: string): WorkflowStep | undefined {
@@ -454,8 +528,26 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowTre
   }
 }
 
-// Delay constant for chat initialization
-const CHAT_INIT_DELAY_MS = 150;
+// Default delay constant for chat initialization (configurable via settings)
+const DEFAULT_CHAT_INIT_DELAY_MS = 200;
+
+// Maximum retry attempts for chat initialization
+const CHAT_INIT_MAX_RETRIES = 3;
+
+/**
+ * Get configured chat initialization delay with runtime validation.
+ * Clamps value to valid range even if user bypasses VS Code settings UI.
+ */
+function getChatInitDelay(): number {
+  const config = vscode.workspace.getConfiguration('artk');
+  const value = config.get<number>('chatInitDelay', DEFAULT_CHAT_INIT_DELAY_MS);
+
+  // Validate: must be finite number, clamp to valid range (50-2000ms)
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_CHAT_INIT_DELAY_MS;
+  }
+  return Math.max(50, Math.min(2000, value));
+}
 
 /**
  * Check if GitHub Copilot Chat extension is installed
@@ -465,19 +557,33 @@ function isCopilotChatInstalled(): boolean {
 }
 
 /**
- * Execute a workflow step in Copilot Chat (clear chat first, then auto-submit)
+ * Validate that item and item.step are valid (guard against null/undefined)
  */
-export async function executeWorkflowStep(
-  item: WorkflowTreeItem,
-  provider: WorkflowTreeProvider
-): Promise<void> {
-  if (item.isDisabled) {
-    vscode.window.showWarningMessage(
-      `This step is disabled: ${item.disabledReason}`
-    );
-    return;
-  }
+function isValidWorkflowItem(item: WorkflowTreeItem | undefined | null): item is WorkflowTreeItem {
+  return item !== undefined && item !== null && item.step !== undefined && item.step !== null;
+}
 
+/**
+ * Options for executing in Copilot Chat
+ */
+interface ExecuteInCopilotOptions {
+  /** Mark step as completed after execution (for run-once steps) */
+  markCompleted?: boolean;
+  /** Provider instance for marking completion */
+  provider?: WorkflowTreeProvider;
+  /** Display name for the execution (shown in info message) */
+  displayName: string;
+}
+
+/**
+ * Shared helper to execute a prompt in Copilot Chat
+ * Handles: Copilot check, chat initialization with retry, error handling
+ */
+async function executeInCopilotChat(
+  item: WorkflowTreeItem,
+  prompt: string,
+  options: ExecuteInCopilotOptions
+): Promise<boolean> {
   // Check for Copilot Chat extension
   if (!isCopilotChatInstalled()) {
     const action = await vscode.window.showWarningMessage(
@@ -487,36 +593,198 @@ export async function executeWorkflowStep(
     if (action === 'Open Extensions') {
       await vscode.commands.executeCommand('workbench.extensions.search', 'GitHub.copilot-chat');
     }
-    return;
+    return false;
   }
+
+  const chatDelay = getChatInitDelay();
 
   try {
     // Clear chat and start fresh
-    await vscode.commands.executeCommand('workbench.action.chat.newChat');
-
-    // Delay to ensure new chat is ready (VS Code issue #261118)
-    await new Promise((resolve) => setTimeout(resolve, CHAT_INIT_DELAY_MS));
-
-    // Open chat with prompt and auto-execute
-    await vscode.commands.executeCommand('workbench.action.chat.open', {
-      query: item.step.prompt,
-      isPartialQuery: false, // Auto-submit
-    });
-
-    // For run-once steps, mark completed
-    // Note: This marks it when sent, not when completed. For init-playbook,
-    // we also have file-based detection as a backup.
-    if (item.step.runOnce) {
-      await provider.markStepCompleted(item.step.id);
+    try {
+      await vscode.commands.executeCommand('workbench.action.chat.newChat');
+    } catch (newChatError) {
+      throw new Error(`Failed to open new chat: ${newChatError instanceof Error ? newChatError.message : String(newChatError)}`);
     }
 
-    vscode.window.showInformationMessage(
-      `Executing: ${item.step.name}`
-    );
+    // Retry loop for chat initialization (handles slow machines/load)
+    let lastError: Error | undefined;
+    for (let attempt = 0; attempt < CHAT_INIT_MAX_RETRIES; attempt++) {
+      try {
+        // Delay to ensure new chat is ready (VS Code issue #261118)
+        await new Promise((resolve) => setTimeout(resolve, chatDelay));
+
+        // Open chat with prompt and auto-execute
+        await vscode.commands.executeCommand('workbench.action.chat.open', {
+          query: prompt,
+          isPartialQuery: false, // Auto-submit
+        });
+
+        // If we get here, execution succeeded - clear any previous error
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt < CHAT_INIT_MAX_RETRIES - 1) {
+          // Wait longer before retry
+          await new Promise((resolve) => setTimeout(resolve, chatDelay * (attempt + 1)));
+        }
+      }
+    }
+
+    // If all retries failed, throw the last error
+    if (lastError) {
+      throw lastError;
+    }
+
+    // For run-once steps, mark completed
+    if (options.markCompleted && options.provider && item.step.runOnce) {
+      await options.provider.markStepCompleted(item.step.id);
+    }
+
+    vscode.window.showInformationMessage(`Executing: ${options.displayName}`);
+    return true;
   } catch (error) {
     vscode.window.showErrorMessage(
       `Failed to execute workflow step: ${error instanceof Error ? error.message : String(error)}`
     );
+    return false;
+  }
+}
+
+/**
+ * Check if step dependencies are met, warn user if not
+ * Returns true if execution should proceed, false to abort
+ */
+async function checkDependencies(
+  item: WorkflowTreeItem,
+  provider: WorkflowTreeProvider
+): Promise<boolean> {
+  if (!item.step.dependsOn) {
+    return true; // No dependency
+  }
+
+  if (provider.isStepCompleted(item.step.dependsOn)) {
+    return true; // Dependency met
+  }
+
+  // Find the prerequisite step name
+  const prereqStep = provider.getStep(item.step.dependsOn);
+  const prereqName = prereqStep?.name ?? item.step.dependsOn;
+
+  const confirm = await vscode.window.showWarningMessage(
+    `"${prereqName}" should be completed first. Run "${item.step.name}" anyway?`,
+    'Continue',
+    'Cancel'
+  );
+
+  return confirm === 'Continue';
+}
+
+/**
+ * Execute a workflow step in Copilot Chat (clear chat first, then auto-submit)
+ */
+export async function executeWorkflowStep(
+  item: WorkflowTreeItem,
+  provider: WorkflowTreeProvider
+): Promise<void> {
+  // Guard against null/undefined item (VS Code edge cases)
+  if (!isValidWorkflowItem(item)) {
+    vscode.window.showErrorMessage('Invalid workflow step. Please refresh the view and try again.');
+    return;
+  }
+
+  if (item.isDisabled) {
+    vscode.window.showWarningMessage(
+      `This step is disabled: ${item.disabledReason}`
+    );
+    return;
+  }
+
+  // Race condition guard - prevent multiple simultaneous executions
+  if (isExecuting) {
+    vscode.window.showWarningMessage('A workflow step is already executing. Please wait.');
+    return;
+  }
+
+  // Check dependencies
+  if (!await checkDependencies(item, provider)) {
+    return;
+  }
+
+  isExecuting = true;
+  try {
+    await executeInCopilotChat(item, item.step.prompt, {
+      markCompleted: true,
+      provider,
+      displayName: item.step.name,
+    });
+  } finally {
+    isExecuting = false;
+  }
+}
+
+/**
+ * Execute a workflow step with a tier suffix (e.g., "/artk.journey-implement all smoke")
+ */
+export async function executeWorkflowStepWithTier(
+  item: WorkflowTreeItem,
+  tier: TierSuffix,
+  provider: WorkflowTreeProvider
+): Promise<void> {
+  // Guard against null/undefined item (VS Code edge cases)
+  if (!isValidWorkflowItem(item)) {
+    vscode.window.showErrorMessage('Invalid workflow step. Please refresh the view and try again.');
+    return;
+  }
+
+  if (item.isDisabled) {
+    vscode.window.showWarningMessage(
+      `This step is disabled: ${item.disabledReason}`
+    );
+    return;
+  }
+
+  // Use normalized supportsTiers from WorkflowTreeItem (handles undefined vs false)
+  if (!item.supportsTiers) {
+    vscode.window.showWarningMessage(
+      `This step does not support tier-based execution.`
+    );
+    return;
+  }
+
+  // Race condition guard - prevent multiple simultaneous executions
+  if (isExecuting) {
+    vscode.window.showWarningMessage('A workflow step is already executing. Please wait.');
+    return;
+  }
+
+  // Check dependencies
+  if (!await checkDependencies(item, provider)) {
+    return;
+  }
+
+  // Optional: Batch confirmation (can be enabled via settings)
+  const config = vscode.workspace.getConfiguration('artk');
+  const confirmBatch = config.get<boolean>('confirmBatchExecution', false);
+  if (confirmBatch) {
+    const confirm = await vscode.window.showWarningMessage(
+      `Run "${item.step.name}" for ${tier}? This may affect multiple journeys.`,
+      'Run',
+      'Cancel'
+    );
+    if (confirm !== 'Run') {
+      return;
+    }
+  }
+
+  isExecuting = true;
+  try {
+    const promptWithTier = `${item.step.prompt} ${tier}`;
+    await executeInCopilotChat(item, promptWithTier, {
+      displayName: `${item.step.name} (${tier})`,
+    });
+  } finally {
+    isExecuting = false;
   }
 }
 
@@ -524,6 +792,12 @@ export async function executeWorkflowStep(
  * Open a workflow step in Copilot Chat for editing (don't auto-submit)
  */
 export async function editWorkflowStep(item: WorkflowTreeItem): Promise<void> {
+  // Guard against null/undefined item (VS Code edge cases)
+  if (!isValidWorkflowItem(item)) {
+    vscode.window.showErrorMessage('Invalid workflow step. Please refresh the view and try again.');
+    return;
+  }
+
   if (item.isDisabled) {
     vscode.window.showWarningMessage(
       `This step is disabled: ${item.disabledReason}`
@@ -543,12 +817,14 @@ export async function editWorkflowStep(item: WorkflowTreeItem): Promise<void> {
     return;
   }
 
+  const chatDelay = getChatInitDelay();
+
   try {
     // Clear chat and start fresh
     await vscode.commands.executeCommand('workbench.action.chat.newChat');
 
     // Delay to ensure new chat is ready (VS Code issue #261118)
-    await new Promise((resolve) => setTimeout(resolve, CHAT_INIT_DELAY_MS));
+    await new Promise((resolve) => setTimeout(resolve, chatDelay));
 
     // Open chat with prompt but DON'T auto-execute
     await vscode.commands.executeCommand('workbench.action.chat.open', {
@@ -594,6 +870,11 @@ export function registerWorkflowCommands(
     vscode.commands.registerCommand(
       'artk.workflow.resetStep',
       async (item: WorkflowTreeItem) => {
+        // Guard against null/undefined item (consistency with other commands)
+        if (!isValidWorkflowItem(item)) {
+          vscode.window.showWarningMessage('No step selected to reset.');
+          return;
+        }
         await provider.resetStep(item.step.id);
         vscode.window.showInformationMessage(`Reset: ${item.step.name}`);
       }
@@ -614,4 +895,14 @@ export function registerWorkflowCommands(
       }
     })
   );
+
+  // Tier-based execution commands (using loop to reduce verbosity)
+  for (const { command, tier } of TIER_COMMANDS) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        command,
+        (item: WorkflowTreeItem) => executeWorkflowStepWithTier(item, tier, provider)
+      )
+    );
+  }
 }
