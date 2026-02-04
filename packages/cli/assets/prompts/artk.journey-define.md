@@ -3,33 +3,18 @@ name: artk.journey-define
 mode: agent
 description: "Create or promote a Journey to defined status - structured test scenario contract with acceptance criteria"
 handoffs:
-  - label: "MANDATORY - /artk.init-playbook: bootstrap ARTK, playbook, journey system"
-    agent: artk.init-playbook
-    prompt: "Bootstrap ARTK in this repo"
-  - label: "MANDATORY - /artk.discover-foundation: analyze app and build harness"
-    agent: artk.discover-foundation
-    prompt: "Analyze app and build foundation harness"
-  - label: "OPTIONAL - /artk.journey-propose: propose journeys from discovery"
-    agent: artk.journey-propose
-    prompt: "Propose journeys from discovery outputs"
-  - label: "MANDATORY - /artk.journey-define: create journey file"
+  - label: "1. RECOMMENDED - /artk.journey-clarify: add execution detail to this journey"
+    agent: artk.journey-clarify
+    prompt: "id=<JRN-ID>"
+  - label: "2. OPTIONAL - /artk.testid-audit: audit selectors before implementation"
+    agent: artk.testid-audit
+    prompt: "mode=report scope=journey:<JRN-ID>"
+  - label: "3. AFTER CLARIFY - /artk.journey-implement: implement the journey as Playwright tests"
+    agent: artk.journey-implement
+    prompt: "id=<JRN-ID>"
+  - label: "4. OPTIONAL - /artk.journey-define: define another journey"
     agent: artk.journey-define
     prompt: 'id=JRN-#### title="<title>"'
-  - label: "MANDATORY - /artk.journey-clarify: add machine hints"
-    agent: artk.journey-clarify
-    prompt: "id=JRN-####"
-  - label: "RECOMMENDED - /artk.testid-audit: audit selectors and add test hooks"
-    agent: artk.testid-audit
-    prompt: "mode=report"
-  - label: "MANDATORY - /artk.journey-implement: generate tests"
-    agent: artk.journey-implement
-    prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-validate: static validation gate"
-    agent: artk.journey-validate
-    prompt: "id=JRN-####"
-  - label: "MANDATORY - /artk.journey-verify: run tests and verify"
-    agent: artk.journey-verify
-    prompt: "id=JRN-####"
 ---
 
 # ARTK /artk.journey-define — User-defined Journeys (Phase 6)
