@@ -385,20 +385,25 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowTre
   }
 
   /**
-   * Check if init-playbook has been run by looking for playbook files
+   * Check if init-playbook has been run
+   *
+   * Bootstrap installs the ARTK structure, prompts, and LLKB directories.
+   * init-playbook additionally creates:
+   * - artk-e2e/docs/PLAYBOOK.md (the governance playbook)
+   * - .github/copilot-instructions.md with project-specific content
+   *
+   * We check for PLAYBOOK.md as the definitive marker since:
+   * - Bootstrap does NOT create it
+   * - init-playbook ALWAYS creates it
    */
   private checkInitPlaybookCompleted(): boolean {
     const workspaceInfo = this.contextManager.workspaceInfo;
-    if (!workspaceInfo?.projectRoot) return false;
+    if (!workspaceInfo?.artkRoot) return false;
 
-    // Check for .github/copilot-instructions.md (created by init-playbook)
-    const copilotInstructionsPath = path.join(
-      workspaceInfo.projectRoot,
-      '.github',
-      'copilot-instructions.md'
-    );
+    // Check for PLAYBOOK.md - this is specifically created by init-playbook
+    const playbookPath = path.join(workspaceInfo.artkRoot, 'docs', 'PLAYBOOK.md');
 
-    return fs.existsSync(copilotInstructionsPath);
+    return fs.existsSync(playbookPath);
   }
 
   refresh(): void {
