@@ -3,6 +3,16 @@
 
 set -e
 
+# Sync VS Code extension prompts
+echo "Syncing VS Code extension prompts..."
+./scripts/sync-vscode-prompts.sh
+
+if ! git diff --quiet -- packages/vscode-extension/assets/prompts; then
+  echo "ERROR: packages/vscode-extension/assets/prompts changed. Please commit the updated prompts before pushing."
+  exit 1
+fi
+
+# Sync CLI assets
 if [ ! -d "packages/cli/node_modules/ts-node" ]; then
   echo "Installing CLI dev dependencies..."
   npm --prefix packages/cli install --no-fund --no-audit
