@@ -33,8 +33,8 @@ fail() {
 # Test helper: Parse JSON with our repair functions
 parse_json() {
     local input="$1"
-    echo "$input" | VERBOSE_JSON=true node -e '
-const verboseJson = process.env.VERBOSE_JSON === "true";
+    echo "$input" | VERBOSE=true node -e '
+const verboseJson = process.env.VERBOSE === "true";
 const log = [];
 
 function logRepair(level, msg) {

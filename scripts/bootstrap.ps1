@@ -12,7 +12,7 @@
 #   -SkipValidation            Skip validation of generated code
 #   -Yes                       Skip confirmation prompts (auto-approve all)
 #   -DryRun                    Preview changes without applying them
-#   -VerboseJson               Show detailed JSON repair logging
+#   -V                         Enable verbose output (JSON repair + npm install)
 #
 # This is the ONLY script you need to run. It does everything:
 # 1. Creates artk-e2e/ directory structure
@@ -47,7 +47,7 @@ param(
     [switch]$DryRun,
 
     [Alias("v")]
-    [switch]$VerboseJson
+    [switch]$VerboseOutput
 )
 
 # Multi-variant support functions
@@ -1413,13 +1413,13 @@ $VscodeTemplate = Join-Path $ArtkRepo "templates\vscode\settings.json"
 
 New-Item -ItemType Directory -Force -Path $VscodeDir | Out-Null
 
-# JSON Repair Logging - set by -VerboseJson flag
+# JSON Repair Logging - set by -VerboseMode flag
 $script:JsonRepairLog = @()
 
 function Write-JsonRepairLog {
     param([string]$Message, [string]$Level = "INFO")
     $script:JsonRepairLog += @{ Time = Get-Date; Level = $Level; Message = $Message }
-    if ($VerboseJson) {
+    if ($VerboseOutput) {
         $color = switch ($Level) {
             "WARN" { "Yellow" }
             "ERROR" { "Red" }
@@ -2397,6 +2397,9 @@ Write-FileWithRetry -Path (Join-Path $ArtkE2e ".gitignore") -Content $GitIgnore 
 # Step 6: Run npm install
 if (-not $SkipNpm) {
     Write-Host "[6/7] Running npm install..." -ForegroundColor Yellow
+    if ($VerboseOutput) {
+        Write-Host "  (verbose mode enabled - showing npm output)" -ForegroundColor DarkGray
+    }
     Push-Location $ArtkE2e
     try {
         # Install npm deps without triggering Playwright browser download.
@@ -2407,6 +2410,13 @@ if (-not $SkipNpm) {
         $npmLogOut = Join-Path $logsDir "npm-install.out.log"
         $npmLogErr = Join-Path $logsDir "npm-install.err.log"
 
+        # Build npm arguments
+        $npmArgs = @("install", "--legacy-peer-deps")
+        if ($VerboseOutput) {
+            $npmArgs += "--loglevel"
+            $npmArgs += "verbose"
+        }
+
         $exitCode = 1
         try {
             # Detect if npm is a PowerShell script (e.g., nvm4w) vs executable/cmd
@@ -2414,13 +2424,25 @@ if (-not $SkipNpm) {
             if ($npmCmd -and $npmCmd.Path -match '\.ps1$') {
                 # npm is a PowerShell script (nvm4w), use direct invocation with output capture
                 Write-Host "  (detected nvm4w/PowerShell npm)" -ForegroundColor DarkGray
-                $output = & npm install --legacy-peer-deps 2>&1
+                if ($VerboseOutput) {
+                    # Stream output to console in verbose mode
+                    & npm @npmArgs 2>&1 | Tee-Object -FilePath $npmLogOut
+                } else {
+                    $output = & npm @npmArgs 2>&1
+                    $output | Out-File -FilePath $npmLogOut -Encoding utf8
+                }
                 $exitCode = $LASTEXITCODE
-                $output | Out-File -FilePath $npmLogOut -Encoding utf8
             } else {
-                # Standard npm.cmd or npm.exe, use Start-Process for proper output redirection
-                $proc = Start-Process -FilePath "npm" -ArgumentList @("install", "--legacy-peer-deps") -NoNewWindow -Wait -PassThru -RedirectStandardOutput $npmLogOut -RedirectStandardError $npmLogErr
-                $exitCode = $proc.ExitCode
+                # Standard npm.cmd or npm.exe
+                if ($VerboseOutput) {
+                    # In verbose mode, run directly so output streams to console
+                    & npm @npmArgs 2>&1 | Tee-Object -FilePath $npmLogOut
+                    $exitCode = $LASTEXITCODE
+                } else {
+                    # Silent mode - use Start-Process for proper output redirection
+                    $proc = Start-Process -FilePath "npm" -ArgumentList $npmArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $npmLogOut -RedirectStandardError $npmLogErr
+                    $exitCode = $proc.ExitCode
+                }
             }
         } catch {
             $exitCode = 1

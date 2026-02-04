@@ -13,7 +13,7 @@
 #   --skip-validation         Skip validation of generated code
 #   --yes                     Skip confirmation prompts (auto-approve all)
 #   --dry-run                 Preview changes without applying them
-#   --verbose-json            Show detailed JSON repair logging
+#   --verbose, -v             Enable verbose output (JSON repair + npm install)
 #   --template-variant=<v>    Legacy option (use --variant instead)
 #
 # This is the ONLY script you need to run. It does everything:
@@ -575,7 +575,7 @@ FORCE_DETECT=false
 SKIP_VALIDATION=false
 YES_MODE=false
 DRY_RUN=false
-VERBOSE_JSON=false
+VERBOSE=false
 TEMPLATE_VARIANT=""
 FORCED_VARIANT=""
 
@@ -605,8 +605,8 @@ for arg in "$@"; do
         --dry-run)
             DRY_RUN=true
             ;;
-        --verbose-json|-v)
-            VERBOSE_JSON=true
+        --verbose|-v)
+            VERBOSE=true
             ;;
         --variant=*)
             FORCED_VARIANT="${arg#*=}"
@@ -648,7 +648,7 @@ if [ -z "$TARGET" ]; then
     echo "  --skip-validation             Skip validation of generated code"
     echo "  --yes, -y                     Skip confirmation prompts (auto-approve all)"
     echo "  --dry-run                     Preview changes without applying them"
-    echo "  --verbose-json                Show detailed JSON repair logging"
+    echo "  --verbose, -v                 Enable verbose output (JSON repair + npm install)"
     echo ""
     echo "Available variants:"
     echo "  modern-esm   Node 18+, ESM, Playwright 1.57.x"
@@ -1290,9 +1290,9 @@ if [ -f "$VSCODE_TEMPLATE" ]; then
         # Existing settings found - preview changes and ask for confirmation
         if command -v node >/dev/null 2>&1; then
             # Preview what will be added (dry-run analysis)
-            PREVIEW_RESULT=$(VERBOSE_JSON="$VERBOSE_JSON" node -e '
+            PREVIEW_RESULT=$(VERBOSE="$VERBOSE" node -e '
 const fs = require("fs");
-const verboseJson = process.env.VERBOSE_JSON === "true";
+const verboseJson = process.env.VERBOSE === "true";
 const log = [];
 
 function logRepair(level, msg) {
@@ -2295,6 +2295,9 @@ GITIGNORE
 # Step 6: Run npm install
 if [ "$SKIP_NPM" = false ]; then
     echo -e "${YELLOW}[6/7] Running npm install...${NC}"
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${CYAN}  (verbose mode enabled - showing npm output)${NC}"
+    fi
 
     setup_rollback_trap() {
         trap 'rollback_on_error' ERR EXIT
@@ -2329,9 +2332,22 @@ if [ "$SKIP_NPM" = false ]; then
     mkdir -p "$LOGS_DIR"
     NPM_INSTALL_LOG="$LOGS_DIR/npm-install.log"
 
+    # Build npm arguments
+    NPM_ARGS="install --legacy-peer-deps"
+    if [ "$VERBOSE" = true ]; then
+        NPM_ARGS="$NPM_ARGS --loglevel verbose"
+    fi
+
     set +e
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --legacy-peer-deps >"$NPM_INSTALL_LOG" 2>&1
-    NPM_STATUS=$?
+    if [ "$VERBOSE" = true ]; then
+        # In verbose mode, stream to console AND log file
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm $NPM_ARGS 2>&1 | tee "$NPM_INSTALL_LOG"
+        NPM_STATUS=${PIPESTATUS[0]}
+    else
+        # Silent mode - log only
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm $NPM_ARGS >"$NPM_INSTALL_LOG" 2>&1
+        NPM_STATUS=$?
+    fi
     set -e
 
     if [ "$NPM_STATUS" -eq 0 ]; then
