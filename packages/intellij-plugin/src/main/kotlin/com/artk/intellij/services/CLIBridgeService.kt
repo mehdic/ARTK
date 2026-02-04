@@ -105,6 +105,62 @@ class CLIBridgeService(private val project: Project) {
     }
 
     /**
+     * Run artk-autogen llkb-patterns prune command
+     */
+    fun runLlkbPrune(minConfidence: Double = 0.3, onComplete: (ProcessUtils.ProcessResult) -> Unit) {
+        val workDir = getArtkE2eDir() ?: return
+        runCliCommand(
+            "Prune LLKB Patterns",
+            listOf("npx", "artk-autogen", "llkb-patterns", "prune", "--min-confidence", minConfidence.toString()),
+            workDir,
+            onComplete
+        )
+    }
+
+    /**
+     * Run artk-autogen llkb-patterns promote command
+     */
+    fun runLlkbPromote(apply: Boolean = false, onComplete: (ProcessUtils.ProcessResult) -> Unit) {
+        val workDir = getArtkE2eDir() ?: return
+        val command = buildList {
+            add("npx")
+            add("artk-autogen")
+            add("llkb-patterns")
+            add("promote")
+            if (apply) add("--apply")
+        }
+        runCliCommand("Promote LLKB Patterns", command, workDir, onComplete)
+    }
+
+    /**
+     * Run artk-autogen llkb-patterns clear command
+     */
+    fun runLlkbClear(force: Boolean = false, onComplete: (ProcessUtils.ProcessResult) -> Unit) {
+        val workDir = getArtkE2eDir() ?: return
+        val command = buildList {
+            add("npx")
+            add("artk-autogen")
+            add("llkb-patterns")
+            add("clear")
+            if (force) add("--force")
+        }
+        runCliCommand("Clear LLKB Patterns", command, workDir, onComplete)
+    }
+
+    /**
+     * Run artk-autogen llkb-patterns list command
+     */
+    fun runLlkbList(limit: Int = 20, onComplete: (ProcessUtils.ProcessResult) -> Unit) {
+        val workDir = getArtkE2eDir() ?: return
+        runCliCommand(
+            "List LLKB Patterns",
+            listOf("npx", "artk-autogen", "llkb-patterns", "list", "--limit", limit.toString()),
+            workDir,
+            onComplete
+        )
+    }
+
+    /**
      * Run artk-autogen generate command
      */
     fun runAutogenGenerate(

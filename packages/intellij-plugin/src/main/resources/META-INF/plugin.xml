@@ -112,15 +112,40 @@
                 <action id="ARTK.LLKB.Health"
                         class="com.artk.intellij.actions.llkb.HealthAction"
                         text="Check Health"
+                        description="Check LLKB health status"
                         icon="AllIcons.General.InspectionsOK"/>
                 <action id="ARTK.LLKB.Stats"
                         class="com.artk.intellij.actions.llkb.StatsAction"
                         text="View Statistics"
+                        description="View LLKB pattern statistics"
                         icon="AllIcons.Toolwindows.ToolWindowProblemsEmpty"/>
+                <action id="ARTK.LLKB.List"
+                        class="com.artk.intellij.actions.llkb.ListAction"
+                        text="List Patterns"
+                        description="List learned patterns"
+                        icon="AllIcons.Actions.ListFiles"/>
+                <separator/>
                 <action id="ARTK.LLKB.Export"
                         class="com.artk.intellij.actions.llkb.ExportAction"
                         text="Export Patterns"
+                        description="Export patterns for AutoGen"
                         icon="AllIcons.ToolbarDecorator.Export"/>
+                <action id="ARTK.LLKB.Promote"
+                        class="com.artk.intellij.actions.llkb.PromoteAction"
+                        text="Promote Patterns"
+                        description="Promote high-confidence patterns"
+                        icon="AllIcons.Actions.MoveUp"/>
+                <separator/>
+                <action id="ARTK.LLKB.Prune"
+                        class="com.artk.intellij.actions.llkb.PruneAction"
+                        text="Prune Patterns"
+                        description="Remove low-confidence patterns"
+                        icon="AllIcons.Actions.GC"/>
+                <action id="ARTK.LLKB.Clear"
+                        class="com.artk.intellij.actions.llkb.ClearAction"
+                        text="Clear All Patterns"
+                        description="Clear all learned patterns (destructive)"
+                        icon="AllIcons.Actions.Cancel"/>
             </group>
 
             <separator/>

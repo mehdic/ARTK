@@ -319,56 +319,78 @@ class DashboardPanel(private val project: Project) : JBPanel<DashboardPanel>(Bor
     }
 
     private fun handleJsCallback(action: String) {
-        when (action) {
-            "doctor" -> {
-                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
-                    com.artk.intellij.actions.DoctorAction().actionPerformed(
-                        com.intellij.openapi.actionSystem.AnActionEvent.createFromAnAction(
-                            com.artk.intellij.actions.DoctorAction(),
-                            null,
-                            com.intellij.openapi.actionSystem.ActionPlaces.TOOLWINDOW_CONTENT,
-                            { com.intellij.openapi.actionSystem.Presentation() }
-                        )
-                    )
+        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+            when (action) {
+                "doctor" -> {
+                    com.artk.intellij.services.CLIBridgeService.getInstance(project).runDoctor { result ->
+                        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                            if (result.success) {
+                                com.artk.intellij.util.NotificationUtils.info(
+                                    project,
+                                    "ARTK Doctor",
+                                    "Doctor completed successfully.\n\n${result.stdout}"
+                                )
+                            } else {
+                                com.artk.intellij.util.NotificationUtils.warning(
+                                    project,
+                                    "ARTK Doctor",
+                                    "Doctor found issues:\n\n${result.stdout}\n${result.stderr}"
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-            "check" -> {
-                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
-                    com.artk.intellij.actions.CheckAction().actionPerformed(
-                        com.intellij.openapi.actionSystem.AnActionEvent.createFromAnAction(
-                            com.artk.intellij.actions.CheckAction(),
-                            null,
-                            com.intellij.openapi.actionSystem.ActionPlaces.TOOLWINDOW_CONTENT,
-                            { com.intellij.openapi.actionSystem.Presentation() }
-                        )
-                    )
+                "check" -> {
+                    val result = com.artk.intellij.services.ARTKApplicationService.getInstance().checkPrerequisites()
+                    val message = buildString {
+                        appendLine("Prerequisites Check:")
+                        appendLine()
+                        appendLine("Node.js: ${result.nodeVersion ?: "Not found"}")
+                        appendLine("npm: ${result.npmVersion ?: "Not found"}")
+                        appendLine("ARTK CLI: ${result.artkCliVersion ?: "Not installed"}")
+                        if (result.issues.isNotEmpty()) {
+                            appendLine()
+                            appendLine("Issues:")
+                            result.issues.forEach { issue ->
+                                appendLine("  - $issue")
+                            }
+                        }
+                    }
+                    if (result.success) {
+                        com.artk.intellij.util.NotificationUtils.info(project, "Prerequisites OK", message)
+                    } else {
+                        com.artk.intellij.util.NotificationUtils.warning(project, "Prerequisites Issues", message)
+                    }
                 }
-            }
-            "config" -> {
-                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
-                    com.artk.intellij.actions.OpenConfigAction().actionPerformed(
-                        com.intellij.openapi.actionSystem.AnActionEvent.createFromAnAction(
-                            com.artk.intellij.actions.OpenConfigAction(),
-                            null,
-                            com.intellij.openapi.actionSystem.ActionPlaces.TOOLWINDOW_CONTENT,
-                            { com.intellij.openapi.actionSystem.Presentation() }
-                        )
-                    )
+                "config" -> {
+                    val configPath = projectService.configPath
+                    if (configPath != null) {
+                        val virtualFile = com.intellij.openapi.vfs.LocalFileSystem.getInstance()
+                            .findFileByPath(configPath.toString())
+                        if (virtualFile != null) {
+                            com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project)
+                                .openFile(virtualFile, true)
+                        } else {
+                            com.artk.intellij.util.NotificationUtils.warning(
+                                project,
+                                "Config Not Found",
+                                "artk.config.yml not found at: $configPath"
+                            )
+                        }
+                    }
                 }
-            }
-            "refresh" -> {
-                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                "refresh" -> {
                     projectService.refresh()
                     refresh()
                 }
-            }
-            "install" -> {
-                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                "install" -> {
                     InstallerService.getInstance(project).install(
                         options = InstallOptions(),
                         onComplete = { result: InstallResult ->
-                            if (result.success) {
-                                refresh()
+                            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                                if (result.success) {
+                                    refresh()
+                                }
                             }
                         }
                     )
