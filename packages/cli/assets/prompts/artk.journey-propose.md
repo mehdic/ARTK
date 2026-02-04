@@ -42,6 +42,7 @@ The objective is simple: propose the Journeys most likely to catch regressions *
 - **No secrets.** Never ask for credentials. If auth is needed, request a test account *process*, not secrets.
 - **Graceful degradation.** If git history or incident sources are unavailable, proceed with discovery-only signals and label uncertainty.
 - **Edit safety.** MUST read and follow `.github/prompts/common/GENERAL_RULES.md` before any file edits.
+- **🛑 Complete generation in one operation.** After questionnaire, IMMEDIATELY generate ALL journey files. Never stop after creating directories. Never narrate without invoking tools. This is a single continuous operation from questionnaire → files → checklist.
 
 > ⚠️ **CRITICAL ANTI-HALLUCINATION RULE**
 >
@@ -842,6 +843,48 @@ Standard +:
 - preferred change window (days vs commits) if repo is huge
 
 Provide one reply template.
+
+---
+
+# 🛑 CRITICAL: QUESTIONNAIRE → GENERATION TRANSITION
+
+**THIS IS NOT A STOPPING POINT. YOU MUST CONTINUE.**
+
+After receiving the user's answers to the questionnaire:
+
+## ⚠️ FORBIDDEN BEHAVIORS (BUG IF YOU DO THIS)
+
+1. **❌ FORBIDDEN:** Saying "Now I'll generate..." and then STOPPING your response
+2. **❌ FORBIDDEN:** Narrating your intent without invoking file creation tools
+3. **❌ FORBIDDEN:** Treating questionnaire completion as a natural stopping point
+4. **❌ FORBIDDEN:** Asking "Should I proceed with generation?"
+5. **❌ FORBIDDEN:** Creating only directories without creating files inside them
+6. **❌ FORBIDDEN:** Outputting text about what you "will do" without actually doing it
+
+## ✅ REQUIRED BEHAVIOR
+
+**IMMEDIATELY after user answers the questionnaire:**
+
+1. **Process answers** (no user confirmation needed)
+2. **Invoke file creation tools** for ALL journey files in ONE continuous operation
+3. **Create `journeys/proposed/` directory AND populate it with files** in the same response
+4. **Generate ALL 20-50 journey files** before stopping
+5. **Only stop AFTER all files are created** and the completion checklist is printed
+
+**SELF-CHECK:** If you are about to send a response that:
+- Contains "Creating journeys..." but no actual `create_file` tool calls
+- Contains "Proceeding with generation..." without tool invocations
+- Ends after creating a directory but before populating it
+
+**→ That is a BUG. Do not send that response. Continue with file generation.**
+
+**MINIMUM VALID STOPPING POINT:** After ALL of these are complete:
+- [ ] All journey files created in `journeys/proposed/`
+- [ ] `docs/JOURNEY_PROPOSALS.md` created/updated
+- [ ] Evidence JSONs written
+- [ ] Backlog/index regenerated
+- [ ] Completion checklist printed
+- [ ] Next Commands box displayed
 
 ---
 
