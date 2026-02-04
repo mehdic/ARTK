@@ -1409,16 +1409,176 @@ $VscodeTemplate = Join-Path $ArtkRepo "templates\vscode\settings.json"
 
 New-Item -ItemType Directory -Force -Path $VscodeDir | Out-Null
 
-# Helper to strip JSONC comments for parsing
+# Helper to strip JSONC comments for parsing (robust state-machine approach)
+# This handles comments inside strings correctly (e.g., URLs with //)
 function Remove-JsonComments {
     param([string]$JsonText)
-    # Remove single-line comments
-    $result = $JsonText -replace '//.*$', '' -replace '(?m)^\s*//.*$', ''
-    # Remove multi-line comments
-    $result = $result -replace '/\*[\s\S]*?\*/', ''
-    # Remove trailing commas before } or ]
-    $result = $result -replace ',(\s*[}\]])', '$1'
-    return $result
+
+    $result = New-Object System.Text.StringBuilder
+    $i = 0
+    $len = $JsonText.Length
+    $inString = $false
+    $escape = $false
+
+    while ($i -lt $len) {
+        $char = $JsonText[$i]
+
+        if ($escape) {
+            # Previous char was escape, add this char and continue
+            [void]$result.Append($char)
+            $escape = $false
+            $i++
+            continue
+        }
+
+        if ($char -eq '\' -and $inString) {
+            # Escape character inside string
+            [void]$result.Append($char)
+            $escape = $true
+            $i++
+            continue
+        }
+
+        if ($char -eq '"' -and -not $escape) {
+            # Toggle string state
+            $inString = -not $inString
+            [void]$result.Append($char)
+            $i++
+            continue
+        }
+
+        if (-not $inString) {
+            # Outside string - check for comments
+            if ($i + 1 -lt $len) {
+                $nextChar = $JsonText[$i + 1]
+                if ($char -eq '/' -and $nextChar -eq '/') {
+                    # Single-line comment - skip to end of line
+                    while ($i -lt $len -and $JsonText[$i] -ne "`n") {
+                        $i++
+                    }
+                    continue
+                }
+                if ($char -eq '/' -and $nextChar -eq '*') {
+                    # Multi-line comment - skip to */
+                    $i += 2
+                    while ($i + 1 -lt $len -and -not ($JsonText[$i] -eq '*' -and $JsonText[$i + 1] -eq '/')) {
+                        $i++
+                    }
+                    $i += 2  # Skip */
+                    continue
+                }
+            }
+        }
+
+        [void]$result.Append($char)
+        $i++
+    }
+
+    # Now remove trailing commas (safe since comments are already removed)
+    $cleaned = $result.ToString()
+    # Remove trailing commas before } or ] (with optional whitespace)
+    $cleaned = $cleaned -replace ',(\s*[}\]])', '$1'
+    # Remove multiple consecutive commas (malformed JSON recovery)
+    $cleaned = $cleaned -replace ',(\s*,)+', ','
+    # Remove empty lines to reduce noise
+    $cleaned = $cleaned -replace '(\r?\n){3,}', "`n`n"
+
+    return $cleaned
+}
+
+# Attempt to repair common JSON issues after comment stripping
+function Repair-JsonStructure {
+    param([string]$JsonText)
+
+    $text = $JsonText
+
+    # Fix common issues that break JSON parsing:
+
+    # 1. Remove BOM if present
+    $text = $text -replace '^\xEF\xBB\xBF', ''
+
+    # 2. Normalize line endings
+    $text = $text -replace '\r\n', "`n"
+    $text = $text -replace '\r', "`n"
+
+    # 3. Remove any remaining comment artifacts (lines that are just whitespace after comment removal)
+    $lines = $text -split "`n"
+    $cleanedLines = @()
+    $prevWasEmpty = $false
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ($trimmed -eq '') {
+            if (-not $prevWasEmpty) {
+                $cleanedLines += ''
+                $prevWasEmpty = $true
+            }
+        } else {
+            $cleanedLines += $line
+            $prevWasEmpty = $false
+        }
+    }
+    $text = $cleanedLines -join "`n"
+
+    # 4. Fix trailing commas more aggressively (handle multiple trailing commas)
+    $text = $text -replace ',(\s*,)+', ','
+    $text = $text -replace ',(\s*\])', '$1'
+    $text = $text -replace ',(\s*\})', '$1'
+
+    # 5. Fix missing commas between properties (common after comment removal)
+    # Pattern: "key": value\n"nextkey" -> "key": value,\n"nextkey"
+    $text = $text -replace '([\}\]\"\d])\s*\n(\s*")', '$1,' + "`n" + '$2'
+
+    # 6. Remove any text after the final closing brace (sometimes leftover from bad edits)
+    if ($text -match '\}[^}]*$') {
+        $lastBrace = $text.LastIndexOf('}')
+        if ($lastBrace -ge 0) {
+            $text = $text.Substring(0, $lastBrace + 1)
+        }
+    }
+
+    return $text.Trim()
+}
+
+# Parse JSON with automatic repair attempts
+function Parse-JsonWithRepair {
+    param([string]$JsonText)
+
+    # Step 1: Try parsing as-is
+    try {
+        return $JsonText | ConvertFrom-Json
+    } catch {
+        # Continue to repair
+    }
+
+    # Step 2: Strip comments
+    $cleaned = Remove-JsonComments $JsonText
+    try {
+        return $cleaned | ConvertFrom-Json
+    } catch {
+        # Continue to repair
+    }
+
+    # Step 3: Apply structural repairs
+    $repaired = Repair-JsonStructure $cleaned
+    try {
+        return $repaired | ConvertFrom-Json
+    } catch {
+        # Step 4: Last resort - try to extract just the root object
+        Write-Host "  Attempting aggressive JSON repair..." -ForegroundColor Yellow
+
+        # Find the first { and last }
+        $firstBrace = $repaired.IndexOf('{')
+        $lastBrace = $repaired.LastIndexOf('}')
+        if ($firstBrace -ge 0 -and $lastBrace -gt $firstBrace) {
+            $extracted = $repaired.Substring($firstBrace, $lastBrace - $firstBrace + 1)
+            try {
+                return $extracted | ConvertFrom-Json
+            } catch {
+                throw "JSON repair failed: $($_.Exception.Message)"
+            }
+        }
+        throw "Could not find valid JSON structure"
+    }
 }
 
 # Convert PSCustomObject to hashtable (PowerShell 5.1 compatibility)
@@ -1490,12 +1650,10 @@ if (Test-Path $VscodeTemplate) {
         try {
             # Try parsing existing settings (may have JSONC comments)
             $existingRaw = Get-Content $VscodeSettings -Raw
-            $existingClean = Remove-JsonComments $existingRaw
-            # Use ConvertTo-Hashtable for PS 5.1 compatibility
-            $existing = $existingClean | ConvertFrom-Json | ConvertTo-Hashtable
+            # Use Parse-JsonWithRepair for robust handling of malformed JSON
+            $existing = Parse-JsonWithRepair $existingRaw | ConvertTo-Hashtable
             $artkRaw = Get-Content $VscodeTemplate -Raw
-            $artkClean = Remove-JsonComments $artkRaw
-            $artk = $artkClean | ConvertFrom-Json | ConvertTo-Hashtable
+            $artk = Parse-JsonWithRepair $artkRaw | ConvertTo-Hashtable
 
             # Check if file has comments (will be lost)
             $hasComments = $existingRaw -match '//|/\*'

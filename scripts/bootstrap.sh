@@ -1287,12 +1287,64 @@ if [ -f "$VSCODE_TEMPLATE" ]; then
             PREVIEW_RESULT=$(node -e "
 const fs = require('fs');
 
-// Strip JSONC comments for parsing
+// Strip JSONC comments using state machine (handles // in URLs correctly)
 function stripComments(jsonc) {
-    return jsonc
-        .replace(/\/\/.*\$/gm, '')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/,(\s*[}\]])/g, '\$1');
+    let result = '';
+    let i = 0;
+    let inString = false;
+    let escape = false;
+
+    while (i < jsonc.length) {
+        const char = jsonc[i];
+
+        if (escape) {
+            result += char;
+            escape = false;
+            i++;
+            continue;
+        }
+
+        if (char === '\\\\\\\\' && inString) {
+            result += char;
+            escape = true;
+            i++;
+            continue;
+        }
+
+        if (char === '\"' && !escape) {
+            inString = !inString;
+            result += char;
+            i++;
+            continue;
+        }
+
+        if (!inString) {
+            if (i + 1 < jsonc.length) {
+                const next = jsonc[i + 1];
+                if (char === '/' && next === '/') {
+                    // Single-line comment - skip to end of line
+                    while (i < jsonc.length && jsonc[i] !== '\\n') i++;
+                    continue;
+                }
+                if (char === '/' && next === '*') {
+                    // Multi-line comment - skip to */
+                    i += 2;
+                    while (i + 1 < jsonc.length && !(jsonc[i] === '*' && jsonc[i + 1] === '/')) i++;
+                    i += 2;
+                    continue;
+                }
+            }
+        }
+
+        result += char;
+        i++;
+    }
+
+    // Remove trailing commas and cleanup
+    return result
+        .replace(/,(\\s*[}\\]])/g, '\$1')
+        .replace(/,(\\s*,)+/g, ',')
+        .replace(/(\\r?\\n){3,}/g, '\\n\\n');
 }
 
 // Deep merge with array union support
@@ -1318,10 +1370,42 @@ function deepMerge(target, source) {
     return result;
 }
 
+// Repair common JSON issues
+function repairJson(text) {
+    // Normalize line endings
+    text = text.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
+    // Remove multiple empty lines
+    text = text.replace(/(\\n\\s*){3,}/g, '\\n\\n');
+    // Fix trailing commas more aggressively
+    text = text.replace(/,(\\s*,)+/g, ',');
+    text = text.replace(/,(\\s*\\])/g, '\$1');
+    text = text.replace(/,(\\s*\\})/g, '\$1');
+    return text.trim();
+}
+
+// Parse JSON with automatic repair attempts
+function parseJsonWithRepair(text) {
+    // Try 1: Parse as-is
+    try { return JSON.parse(text); } catch (e) {}
+    // Try 2: Strip comments
+    const cleaned = stripComments(text);
+    try { return JSON.parse(cleaned); } catch (e) {}
+    // Try 3: Repair structure
+    const repaired = repairJson(cleaned);
+    try { return JSON.parse(repaired); } catch (e) {}
+    // Try 4: Extract root object
+    const first = repaired.indexOf('{');
+    const last = repaired.lastIndexOf('}');
+    if (first >= 0 && last > first) {
+        try { return JSON.parse(repaired.substring(first, last + 1)); } catch (e) {}
+    }
+    throw new Error('JSON repair failed');
+}
+
 try {
     const existingRaw = fs.readFileSync('$VSCODE_SETTINGS', 'utf8');
-    const existing = JSON.parse(stripComments(existingRaw));
-    const artk = JSON.parse(stripComments(fs.readFileSync('$VSCODE_TEMPLATE', 'utf8')));
+    const existing = parseJsonWithRepair(existingRaw);
+    const artk = parseJsonWithRepair(fs.readFileSync('$VSCODE_TEMPLATE', 'utf8'));
 
     let newKeys = [];
     let mergedKeys = [];
