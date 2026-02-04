@@ -305,7 +305,7 @@ class WorkflowTreeItem extends vscode.TreeItem {
     } else if (isCompleted && step.runOnce) {
       this.iconPath = new vscode.ThemeIcon('check', new vscode.ThemeColor('testing.iconPassed'));
     } else if (step.mandatory) {
-      this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.red'));
+      this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.blue'));
     } else {
       this.iconPath = new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.green'));
     }

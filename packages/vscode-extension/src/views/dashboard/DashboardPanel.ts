@@ -5,6 +5,8 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { getWorkspaceContextManager } from '../../workspace';
 import { llkbStatsJson, journeySummary, readSessionState } from '../../cli';
 import type { ArtkContext, ArtkConfig } from '../../types';
@@ -486,9 +488,19 @@ export class DashboardPanel {
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
 
-    function runCommand(command) {
-      vscode.postMessage({ command: command });
-    }
+    // Event delegation for all buttons with data-command attribute
+    document.addEventListener('click', function(e) {
+      const target = e.target.closest('[data-command]');
+      if (target) {
+        const command = target.getAttribute('data-command');
+        const journeyIds = target.getAttribute('data-journey-ids');
+        const message = { command: command };
+        if (journeyIds) {
+          message.journeyIds = JSON.parse(journeyIds);
+        }
+        vscode.postMessage(message);
+      }
+    });
   </script>
 </body>
 </html>`;
@@ -507,6 +519,18 @@ export class DashboardPanel {
   }
 
   /**
+   * Check if init-playbook has been run (PLAYBOOK.md exists)
+   */
+  private isInitialized(): boolean {
+    const contextManager = getWorkspaceContextManager();
+    const artkRoot = contextManager.workspaceInfo?.artkRoot;
+    if (!artkRoot) return false;
+
+    const playbookPath = path.join(artkRoot, 'docs', 'PLAYBOOK.md');
+    return fs.existsSync(playbookPath);
+  }
+
+  /**
    * Generate content for installed state
    * All user-controlled values are HTML-escaped to prevent XSS
    */
@@ -515,6 +539,10 @@ export class DashboardPanel {
     config: ArtkConfig | undefined,
     llkbEnabled: boolean
   ): string {
+    const initialized = this.isInitialized();
+    const envNames = config?.environments ? Object.keys(config.environments) : [];
+    const envDisplay = envNames.length > 0 ? envNames.join(', ') : 'None';
+
     return `
   <div class="grid" role="main" aria-label="ARTK Status Dashboard">
     <div class="card" role="region" aria-labelledby="installation-heading">
@@ -523,6 +551,12 @@ export class DashboardPanel {
         <div class="stat">
           <span class="stat-label">Status</span>
           <span class="stat-value status-ok" role="status">Installed</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Initialized</span>
+          <span class="stat-value ${initialized ? 'status-ok' : 'status-warning'}" role="status">
+            ${initialized ? 'Yes' : 'No (run init-playbook)'}
+          </span>
         </div>
         ${context ? `
         <div class="stat">
@@ -555,7 +589,7 @@ export class DashboardPanel {
         </div>
         <div class="stat">
           <span class="stat-label">Environments</span>
-          <span class="stat-value">${Object.keys(config.environments || {}).length}</span>
+          <span class="stat-value" title="${escapeHtml(envDisplay)}">${escapeHtml(envDisplay)}</span>
         </div>
         ${config.auth?.provider ? `
         <div class="stat">
@@ -571,7 +605,7 @@ export class DashboardPanel {
         ` : ''}
       </div>
       <div class="actions">
-        <button onclick="runCommand('openConfig')" aria-label="Open configuration file">Open Config</button>
+        <button data-command="openConfig" aria-label="Open configuration file">Open Config</button>
       </div>
     </div>
     ` : ''}
@@ -608,9 +642,9 @@ export class DashboardPanel {
       </div>
       ${llkbEnabled ? `
       <div class="actions">
-        <button onclick="runCommand('llkbHealth')" aria-label="Run LLKB health check">Health Check</button>
-        <button onclick="runCommand('llkbStats')" aria-label="View LLKB statistics">Statistics</button>
-        <button onclick="runCommand('llkbSeed')" aria-label="Seed LLKB with universal patterns">Seed Patterns</button>
+        <button data-command="llkbHealth" aria-label="Run LLKB health check">Health Check</button>
+        <button data-command="llkbStats" aria-label="View LLKB statistics">Statistics</button>
+        <button data-command="llkbSeed" aria-label="Seed LLKB with universal patterns">Seed Patterns</button>
       </div>
       ` : ''}
     </div>
@@ -622,9 +656,9 @@ export class DashboardPanel {
     <div class="card" role="region" aria-labelledby="actions-heading">
       <h2 id="actions-heading">Quick Actions</h2>
       <div class="actions">
-        <button onclick="runCommand('runDoctor')" aria-label="Run ARTK diagnostics">Run Doctor</button>
-        <button onclick="runCommand('checkPrerequisites')" aria-label="Check system prerequisites">Check Prerequisites</button>
-        <button onclick="runCommand('upgrade')" aria-label="Upgrade ARTK to latest version">Upgrade ARTK</button>
+        <button data-command="runDoctor" aria-label="Run ARTK diagnostics">Run Doctor</button>
+        <button data-command="checkPrerequisites" aria-label="Check system prerequisites">Check Prerequisites</button>
+        <button data-command="upgrade" aria-label="Upgrade ARTK to latest version">Upgrade ARTK</button>
       </div>
     </div>
   </div>`;
@@ -802,10 +836,10 @@ export class DashboardPanel {
         ` : ''}
       </div>
       <div class="actions">
-        <button onclick="runCommand('viewJourneys')" class="button-secondary" aria-label="View all journeys">View Journeys</button>
-        <button onclick="runCommand('journeyValidate')" class="button-secondary" aria-label="Validate journeys">Validate All</button>
+        <button data-command="viewJourneys" class="button-secondary" aria-label="View all journeys">View Journeys</button>
+        <button data-command="journeyValidate" class="button-secondary" aria-label="Validate journeys">Validate All</button>
         ${readyCount > 0 ? `
-        <button onclick="runCommand('journeyImplementReady')" class="button-primary" aria-label="Implement ${readyCount} ready journeys">Implement Ready (${readyCount})</button>
+        <button data-command="journeyImplementReady" class="button-primary" aria-label="Implement ${readyCount} ready journeys">Implement Ready (${readyCount})</button>
         ` : ''}
       </div>
     </div>`;
@@ -843,7 +877,7 @@ export class DashboardPanel {
   <div class="not-installed" role="main" aria-label="ARTK Installation">
     <h2>ARTK is not installed in this workspace</h2>
     <p>Click the button below to start the installation wizard.</p>
-    <button onclick="runCommand('init')" aria-label="Start ARTK installation wizard">Install ARTK</button>
+    <button data-command="init" aria-label="Start ARTK installation wizard">Install ARTK</button>
   </div>`;
   }
 
