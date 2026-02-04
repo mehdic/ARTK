@@ -2931,6 +2931,319 @@ jobs:
 
 ---
 
+---
+
+## 8. Critical Requirement: Dashboard Install Button
+
+### 8.1 Requirement Overview
+
+**CRITICAL:** The IntelliJ plugin dashboard MUST include an "Initialize ARTK" button that provides the **exact same installation process** as:
+- `scripts/bootstrap.sh` / `scripts/bootstrap.ps1`
+- VS Code extension's bundled installer (`packages/vscode-extension/src/installer/index.ts`)
+
+This ensures feature parity across all ARTK installation methods.
+
+### 8.2 Dashboard Install UI
+
+When ARTK is **not installed**, the dashboard should show:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      ARTK Dashboard                              │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                                                           │  │
+│  │              ⚠️ ARTK Not Installed                        │  │
+│  │                                                           │  │
+│  │   Initialize ARTK to start building automated tests       │  │
+│  │   with Playwright.                                        │  │
+│  │                                                           │  │
+│  │   ┌─────────────────────────────────────────────────┐    │  │
+│  │   │           [ Initialize ARTK ]                    │    │  │
+│  │   │                                                  │    │  │
+│  │   │   Options:                                       │    │  │
+│  │   │   ☐ Skip npm install                            │    │  │
+│  │   │   ☐ Skip browser detection                      │    │  │
+│  │   │   ☐ Skip LLKB initialization                    │    │  │
+│  │   │   Variant: [Auto-detect ▼]                      │    │  │
+│  │   └─────────────────────────────────────────────────┘    │  │
+│  │                                                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 8.3 Installation Feature Parity Checklist
+
+The dashboard install button MUST implement ALL of these features (matching bootstrap.sh and VS Code extension):
+
+| # | Feature | bootstrap.sh | VS Code | IntelliJ Dashboard |
+|---|---------|--------------|---------|-------------------|
+| 1 | **Variant Detection** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 2 | Node.js version detection (.nvmrc, package.json, PATH) | ✓ | ✓ | **MUST IMPLEMENT** |
+| 3 | Module system detection (ESM/CJS) | ✓ | ✓ | **MUST IMPLEMENT** |
+| 4 | **Browser Detection** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 5 | Edge detection (Windows, Mac, Linux paths) | ✓ | ✓ | **MUST IMPLEMENT** |
+| 6 | Chrome detection (Windows, Mac, Linux paths) | ✓ | ✓ | **MUST IMPLEMENT** |
+| 7 | Bundled Chromium fallback | ✓ | ✓ | **MUST IMPLEMENT** |
+| 8 | **Directory Structure Creation** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 9 | artk-e2e/ with all subdirectories | ✓ | ✓ | **MUST IMPLEMENT** |
+| 10 | vendor/artk-core/, vendor/artk-core-autogen/ | ✓ | ✓ | **MUST IMPLEMENT** |
+| 11 | .artk/llkb/ structure | ✓ | ✓ | **MUST IMPLEMENT** |
+| 12 | **Configuration Files** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 13 | artk.config.yml with full schema | ✓ | ✓ | **MUST IMPLEMENT** |
+| 14 | .artk/context.json with metadata | ✓ | ✓ | **MUST IMPLEMENT** |
+| 15 | package.json with correct dependencies | ✓ | ✓ | **MUST IMPLEMENT** |
+| 16 | tsconfig.json with path aliases | ✓ | ✓ | **MUST IMPLEMENT** |
+| 17 | playwright.config.ts | ✓ | ✓ | **MUST IMPLEMENT** |
+| 18 | **Foundation Module Stubs** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 19 | src/modules/foundation/{auth,navigation,selectors,data}/ | ✓ | ✓ | **MUST IMPLEMENT** |
+| 20 | src/modules/features/ | ✓ | ✓ | **MUST IMPLEMENT** |
+| 21 | **LLKB Initialization** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 22 | config.yml, lessons.json, components.json, analytics.json | ✓ | ✓ | **MUST IMPLEMENT** |
+| 23 | patterns/ directory with selector/timing/auth patterns | ✓ | ✓ | **MUST IMPLEMENT** |
+| 24 | **Prompts Installation** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 25 | .github/prompts/artk.*.prompt.md stubs | ✓ | ✓ | **MUST IMPLEMENT** |
+| 26 | .github/agents/artk.*.agent.md full content | ✓ | ✓ | **MUST IMPLEMENT** |
+| 27 | artk.variant-info.prompt.md generation | ✓ | ✓ | **MUST IMPLEMENT** |
+| 28 | **npm Install** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 29 | Skip browser download when using system browser | ✓ | ✓ | **MUST IMPLEMENT** |
+| 30 | 5-minute timeout | ✓ | ✓ | **MUST IMPLEMENT** |
+| 31 | **Browser Install with Fallback** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 32 | Use system browser if detected | ✓ | ✓ | **MUST IMPLEMENT** |
+| 33 | Install bundled chromium if no system browser | ✓ | ✓ | **MUST IMPLEMENT** |
+| 34 | **Force Reinstall** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 35 | Backup existing installation | ✓ | ✓ | **MUST IMPLEMENT** |
+| 36 | Preserve LLKB learned patterns | ✓ | ✓ | **MUST IMPLEMENT** |
+| 37 | **AI Protection Markers** | ✓ | ✓ | **MUST IMPLEMENT** |
+| 38 | vendor/artk-core/READONLY.md | ✓ | ✓ | **MUST IMPLEMENT** |
+| 39 | vendor/artk-core/.ai-ignore | ✓ | ✓ | **MUST IMPLEMENT** |
+| 40 | vendor/artk-core/variant-features.json | ✓ | ✓ | **MUST IMPLEMENT** |
+
+### 8.4 Dashboard Install Implementation
+
+```kotlin
+// dashboard/DashboardInstallHandler.kt
+class DashboardInstallHandler(
+    private val project: Project,
+    private val dashboardPanel: DashboardPanel
+) {
+
+    /**
+     * Handle install request from dashboard JS
+     *
+     * Request format:
+     * {
+     *   "action": "install",
+     *   "data": {
+     *     "skipNpm": false,
+     *     "skipBrowsers": false,
+     *     "skipLlkb": false,
+     *     "variant": "auto",
+     *     "force": false
+     *   }
+     * }
+     */
+    fun handleInstallRequest(request: JsonObject) {
+        val data = request.getAsJsonObject("data") ?: JsonObject()
+
+        val options = ARTKInstaller.InstallOptions(
+            targetPath = Paths.get(project.basePath!!),
+            variant = data.get("variant")?.asString ?: "auto",
+            skipNpm = data.get("skipNpm")?.asBoolean ?: false,
+            skipLlkb = data.get("skipLlkb")?.asBoolean ?: false,
+            skipBrowsers = data.get("skipBrowsers")?.asBoolean ?: false,
+            noPrompts = data.get("noPrompts")?.asBoolean ?: false,
+            force = data.get("force")?.asBoolean ?: false
+        )
+
+        // Run installation with progress
+        ProgressManager.getInstance().run(object : Task.Backgroundable(
+            project, "Installing ARTK", true
+        ) {
+            override fun run(indicator: ProgressIndicator) {
+                // Send progress updates to dashboard
+                val progressCallback = { step: String, fraction: Double ->
+                    dashboardPanel.sendToDashboard(
+                        "installProgress",
+                        mapOf("step" to step, "fraction" to fraction)
+                    )
+                }
+
+                val installer = ARTKInstaller(project)
+                val result = installer.install(options, indicator, progressCallback)
+
+                ApplicationManager.getApplication().invokeLater {
+                    if (result.success) {
+                        // Refresh services
+                        ARTKProjectService.getInstance(project).refresh()
+
+                        // Update dashboard to show installed state
+                        dashboardPanel.sendToDashboard("installComplete", mapOf(
+                            "success" to true,
+                            "artkE2ePath" to result.artkE2ePath?.toString()
+                        ))
+
+                        // Show notification
+                        Notifications.Bus.notify(
+                            Notification(
+                                "ARTK Notifications",
+                                "ARTK Installed Successfully",
+                                "ARTK has been initialized. Run /artk.init-playbook to continue.",
+                                NotificationType.INFORMATION
+                            ),
+                            project
+                        )
+                    } else {
+                        dashboardPanel.sendToDashboard("installComplete", mapOf(
+                            "success" to false,
+                            "error" to result.error
+                        ))
+                    }
+                }
+            }
+        })
+    }
+}
+```
+
+### 8.5 Dashboard HTML for Install UI
+
+```html
+<!-- In resources/dashboard/index.html -->
+
+<div id="not-installed-view" class="view" style="display: none;">
+    <div class="install-card">
+        <div class="install-icon">⚠️</div>
+        <h2>ARTK Not Installed</h2>
+        <p>Initialize ARTK to start building automated tests with Playwright.</p>
+
+        <div class="install-options">
+            <h3>Installation Options</h3>
+
+            <label class="checkbox-option">
+                <input type="checkbox" id="skip-npm"> Skip npm install
+                <span class="hint">Use if you want to run npm install manually</span>
+            </label>
+
+            <label class="checkbox-option">
+                <input type="checkbox" id="skip-browsers"> Skip browser detection
+                <span class="hint">Use bundled Chromium instead of system browsers</span>
+            </label>
+
+            <label class="checkbox-option">
+                <input type="checkbox" id="skip-llkb"> Skip LLKB initialization
+                <span class="hint">Don't initialize Lessons Learned Knowledge Base</span>
+            </label>
+
+            <div class="select-option">
+                <label for="variant">Variant:</label>
+                <select id="variant">
+                    <option value="auto" selected>Auto-detect</option>
+                    <option value="modern-esm">Modern ESM (Node 18+)</option>
+                    <option value="modern-cjs">Modern CJS (Node 18+)</option>
+                    <option value="legacy-16">Legacy Node 16</option>
+                    <option value="legacy-14">Legacy Node 14</option>
+                </select>
+            </div>
+        </div>
+
+        <button id="install-btn" class="primary-button" onclick="startInstall()">
+            Initialize ARTK
+        </button>
+
+        <div id="install-progress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <div class="progress-text" id="progress-text">Starting...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startInstall() {
+    const options = {
+        skipNpm: document.getElementById('skip-npm').checked,
+        skipBrowsers: document.getElementById('skip-browsers').checked,
+        skipLlkb: document.getElementById('skip-llkb').checked,
+        variant: document.getElementById('variant').value,
+        force: false
+    };
+
+    // Show progress UI
+    document.getElementById('install-btn').style.display = 'none';
+    document.getElementById('install-progress').style.display = 'block';
+
+    // Send install request to Kotlin
+    if (window.artkBridge) {
+        window.artkBridge.send('install', options);
+    }
+}
+
+// Called from Kotlin during installation
+function updateInstallProgress(step, fraction) {
+    document.getElementById('progress-fill').style.width = (fraction * 100) + '%';
+    document.getElementById('progress-text').textContent = step;
+}
+
+// Called from Kotlin when installation completes
+function onInstallComplete(success, error) {
+    if (success) {
+        // Reload dashboard to show installed state
+        location.reload();
+    } else {
+        document.getElementById('install-btn').style.display = 'block';
+        document.getElementById('install-progress').style.display = 'none';
+        alert('Installation failed: ' + error);
+    }
+}
+</script>
+```
+
+### 8.6 Progress Steps (Must Match VS Code)
+
+The installation progress should show these steps (matching VS Code extension exactly):
+
+| Step | Progress | Description |
+|------|----------|-------------|
+| 1/10 | 5% | Creating directory structure... |
+| 2/10 | 10% | Creating foundation modules... |
+| 3/10 | 15% | Creating package.json... |
+| 4/10 | 20% | Creating configuration files... |
+| 5/10 | 30% | Installing ARTK core libraries... |
+| 6/10 | 35% | Installing templates... |
+| 7/10 | 40% | Initializing LLKB... |
+| 8/10 | 45% | Installing AI prompts and agents... |
+| 9/10 | 55-85% | Installing npm dependencies... |
+| 10/10 | 85-100% | Setting up browsers... |
+
+### 8.7 Upgrade & Reinstall from Dashboard
+
+When ARTK **is installed**, the dashboard should also show:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Actions                                                        │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
+│  │   Refresh    │ │ Open Config  │ │ Run Doctor   │            │
+│  └──────────────┘ └──────────────┘ └──────────────┘            │
+│  ┌──────────────┐ ┌──────────────┐                              │
+│  │   Upgrade    │ │  Reinstall   │  ← Force reinstall          │
+│  └──────────────┘ └──────────────┘                              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Upgrade button:** Updates @artk/core while preserving:
+- User's tests
+- User's journeys
+- LLKB learned patterns
+- Browser configuration
+
+**Reinstall button:** Full reinstall with backup (same as `force: true`).
+
+---
+
 ## Summary
 
 ### Total Effort by Component
