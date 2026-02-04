@@ -18,6 +18,15 @@ if ! git diff --quiet -- packages/vscode-extension/assets/prompts; then
   exit 1
 fi
 
+# Sync VS Code extension journeys (Journey Core)
+echo "Syncing VS Code extension journeys..."
+./scripts/sync-vscode-journeys.sh
+
+if ! git diff --quiet -- packages/vscode-extension/assets/journeys; then
+  echo "ERROR: packages/vscode-extension/assets/journeys changed. Please commit the updated journeys before pushing."
+  exit 1
+fi
+
 # Sync CLI assets
 if [ ! -d "packages/cli/node_modules/ts-node" ]; then
   echo "Installing CLI dev dependencies..."
