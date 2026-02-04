@@ -2,7 +2,7 @@
   "name": "artk-vscode",
   "displayName": "ARTK - Automatic Regression Testing Kit",
   "description": "Visual tools for ARTK test automation with Playwright",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "publisher": "artk",
   "license": "MIT",
   "repository": {
