@@ -13,7 +13,7 @@
 #   --skip-validation         Skip validation of generated code
 #   --yes                     Skip confirmation prompts (auto-approve all)
 #   --dry-run                 Preview changes without applying them
-#   --verbose, -v             Enable verbose output (JSON repair + npm install)
+#   -V                        Enable verbose output (JSON repair + npm install)
 #   --template-variant=<v>    Legacy option (use --variant instead)
 #
 # This is the ONLY script you need to run. It does everything:
@@ -605,7 +605,7 @@ for arg in "$@"; do
         --dry-run)
             DRY_RUN=true
             ;;
-        --verbose|-v)
+        -V)
             VERBOSE=true
             ;;
         --variant=*)
@@ -648,7 +648,7 @@ if [ -z "$TARGET" ]; then
     echo "  --skip-validation             Skip validation of generated code"
     echo "  --yes, -y                     Skip confirmation prompts (auto-approve all)"
     echo "  --dry-run                     Preview changes without applying them"
-    echo "  --verbose, -v                 Enable verbose output (JSON repair + npm install)"
+    echo "  -V                            Enable verbose output (JSON repair + npm install)"
     echo ""
     echo "Available variants:"
     echo "  modern-esm   Node 18+, ESM, Playwright 1.57.x"
