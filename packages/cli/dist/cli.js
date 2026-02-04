@@ -2451,12 +2451,50 @@ function extractYamlValue(content, key) {
   const match = content.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?`, "m"));
   return match ? match[1].trim() : "";
 }
-function generateStubPrompt(name, description) {
-  return `---
+function extractHandoffs(content) {
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
+  const handoffsLines = [];
+  let inFrontmatter = false;
+  let inHandoffs = false;
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (/^---\s*$/.test(line)) {
+      if (inFrontmatter) break;
+      inFrontmatter = true;
+      continue;
+    }
+    if (inFrontmatter && /^[Hh]andoffs:/.test(line)) {
+      inHandoffs = true;
+      handoffsLines.push(line);
+      continue;
+    }
+    if (inHandoffs) {
+      if (/^[^\s]/.test(line)) break;
+      if (!/^\s*#\s/.test(line)) {
+        handoffsLines.push(line);
+      }
+    }
+  }
+  return handoffsLines.join("\n");
+}
+function escapeYamlString(str) {
+  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "");
+}
+function sanitizeHandoffs(handoffs) {
+  return handoffs.split("\n").filter((line) => !/^---\s*$/.test(line)).join("\n");
+}
+function generateStubPrompt(name, description, handoffs) {
+  const escapedDescription = escapeYamlString(description);
+  let frontmatter = `---
 name: ${name}
-description: "${description}"
-agent: ${name}
----
+description: "${escapedDescription}"
+agent: ${name}`;
+  if (handoffs) {
+    frontmatter += "\n" + sanitizeHandoffs(handoffs);
+  }
+  frontmatter += "\n---";
+  return `${frontmatter}
 # ARTK ${name}
 
 This prompt delegates to the \`@${name}\` agent for full functionality including suggested next actions (handoffs).
@@ -2506,11 +2544,12 @@ async function installPrompts(projectPath, logger2) {
         const content = await fs6.readFile(source, "utf8");
         const name = extractYamlValue(content, "name") || file.replace(/\.md$/, "");
         const description = extractYamlValue(content, "description") || "ARTK prompt";
+        const handoffs = extractHandoffs(content);
         const baseName = file.replace(/\.md$/, "");
         const agentTarget = path5.join(agentsTarget, `${baseName}.agent.md`);
         await fs6.copy(source, agentTarget, { overwrite: true });
         logger2.debug(`Installed agent: ${baseName}.agent.md`);
-        const stubContent = generateStubPrompt(name, description);
+        const stubContent = generateStubPrompt(name, description, handoffs);
         const promptTarget = path5.join(promptsTarget, `${baseName}.prompt.md`);
         await fs6.writeFile(promptTarget, stubContent, "utf8");
         logger2.debug(`Installed stub prompt: ${baseName}.prompt.md`);
