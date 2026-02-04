@@ -1257,7 +1257,8 @@ escape_yaml_string() {
 sanitize_handoffs() {
     local handoffs="$1"
     # Remove any YAML document separators that could cause injection
-    printf '%s' "$handoffs" | grep -v '^---[[:space:]]*$'
+    # Note: || true prevents exit code 1 when all lines are filtered (defensive)
+    printf '%s' "$handoffs" | grep -v '^---[[:space:]]*$' || true
 }
 
 # Helper function to generate stub prompt content
