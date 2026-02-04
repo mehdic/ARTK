@@ -384,16 +384,31 @@ class DashboardPanel(private val project: Project) : JBPanel<DashboardPanel>(Bor
                     refresh()
                 }
                 "install" -> {
-                    InstallerService.getInstance(project).install(
-                        options = InstallOptions(),
-                        onComplete = { result: InstallResult ->
-                            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
-                                if (result.success) {
-                                    refresh()
+                    // Show install options dialog
+                    val options = com.artk.intellij.dialogs.InstallOptionsDialog.showAndGet(project)
+                    if (options != null) {
+                        InstallerService.getInstance(project).install(
+                            options = options,
+                            onComplete = { result: InstallResult ->
+                                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                                    if (result.success) {
+                                        com.artk.intellij.util.NotificationUtils.info(
+                                            project,
+                                            "ARTK Installed",
+                                            "ARTK has been successfully installed to your project."
+                                        )
+                                        refresh()
+                                    } else {
+                                        com.artk.intellij.util.NotificationUtils.error(
+                                            project,
+                                            "Installation Failed",
+                                            result.message
+                                        )
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
