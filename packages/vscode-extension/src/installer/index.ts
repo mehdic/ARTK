@@ -1285,33 +1285,65 @@ async function installPrompts(
       const description = descMatch ? descMatch[1].trim() : 'ARTK prompt';
 
       // Extract handoffs section from frontmatter
+      // Fixes applied based on multi-AI review:
+      // - FIX CRLF: Normalize line endings (Windows compatibility)
+      // - FIX EXIT: Exit on ANY non-indented line, not just [a-zA-Z]
+      // - FIX WHITESPACE: Trim lines before delimiter check
+      // - FIX CASE: Accept both 'handoffs:' and 'Handoffs:'
       const extractHandoffs = (text: string): string => {
-        const lines = text.split('\n');
+        // Normalize line endings (CRLF -> LF)
+        const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const lines = normalized.split('\n');
         const handoffsLines: string[] = [];
         let inFrontmatter = false;
         let inHandoffs = false;
 
-        for (const line of lines) {
-          if (line === '---') {
+        for (const rawLine of lines) {
+          // Trim trailing whitespace
+          const line = rawLine.trimEnd();
+
+          // Match frontmatter delimiter (allow trailing whitespace)
+          if (/^---\s*$/.test(line)) {
             if (inFrontmatter) break;
             inFrontmatter = true;
             continue;
           }
-          if (inFrontmatter && line.startsWith('handoffs:')) {
+
+          // Detect handoffs key (case-insensitive)
+          if (inFrontmatter && /^[Hh]andoffs:/.test(line)) {
             inHandoffs = true;
             handoffsLines.push(line);
             continue;
           }
+
           if (inHandoffs) {
-            // Check if we've exited the handoffs array (new top-level key)
-            if (/^[a-zA-Z]/.test(line)) break;
-            handoffsLines.push(line);
+            // Exit on ANY non-whitespace at column 0 (new top-level key)
+            if (/^[^\s]/.test(line)) break;
+
+            // Skip pure comment lines but keep content
+            if (!/^\s*#\s/.test(line)) {
+              handoffsLines.push(line);
+            }
           }
         }
         return handoffsLines.join('\n');
       };
 
       const handoffs = extractHandoffs(content);
+
+      // Helper to escape YAML string (prevent injection)
+      const escapeYamlString = (str: string): string => {
+        return str
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '');
+      };
+
+      // Helper to sanitize handoffs (remove document separators)
+      const sanitizeHandoffs = (h: string): string => {
+        return h.split('\n').filter(line => !/^---\s*$/.test(line)).join('\n');
+      };
 
       // 1. Copy full content to agents staging
       await fs.promises.writeFile(
@@ -1320,13 +1352,14 @@ async function installPrompts(
       );
 
       // 2. Generate stub to prompts staging (with handoffs)
+      const escapedDescription = escapeYamlString(description);
       let stubFrontmatter = `---
 name: ${name}
-description: "${description}"
+description: "${escapedDescription}"
 agent: ${name}`;
 
       if (handoffs) {
-        stubFrontmatter += '\n' + handoffs;
+        stubFrontmatter += '\n' + sanitizeHandoffs(handoffs);
       }
 
       stubFrontmatter += '\n---';

@@ -1223,12 +1223,41 @@ extract_yaml_value() {
 extract_handoffs() {
     local file="$1"
     # Use awk to extract the handoffs array from YAML frontmatter
+    # Fixes applied based on multi-AI review:
+    # - FIX CRLF: Strip \r from line endings (Windows compatibility)
+    # - FIX EXIT: Exit on ANY non-indented line, not just [a-zA-Z]
+    # - FIX WHITESPACE: Trim lines before delimiter check
     awk '
-        /^---$/ { if (in_frontmatter) exit; in_frontmatter=1; next }
-        in_frontmatter && /^handoffs:/ { in_handoffs=1; print; next }
-        in_handoffs && /^[a-zA-Z]/ { exit }
-        in_handoffs { print }
+        # Strip CR from CRLF line endings (Windows compatibility)
+        { gsub(/\r$/, "") }
+
+        # Match frontmatter delimiter (allow trailing whitespace)
+        /^---[[:space:]]*$/ { if (in_frontmatter) exit; in_frontmatter=1; next }
+
+        # Detect handoffs key (case-insensitive)
+        in_frontmatter && /^[Hh]andoffs:/ { in_handoffs=1; print; next }
+
+        # Exit on ANY non-whitespace at column 0 (new top-level key)
+        in_handoffs && /^[^[:space:]]/ { exit }
+
+        # Capture indented content (skip pure comment lines)
+        in_handoffs && !/^[[:space:]]*#[[:space:]]/ { print }
     ' "$file" 2>/dev/null
+}
+
+# Helper function to escape YAML string (prevent injection)
+escape_yaml_string() {
+    local str="$1"
+    # Escape backslashes first, then double quotes, then remove CR/LF
+    # Note: Using separate sed expressions to avoid quote escaping issues
+    printf '%s' "$str" | sed -e 's/\\/\\\\/g' -e 's/\x22/\\\x22/g' | tr -d '\r\n'
+}
+
+# Helper function to sanitize handoffs (remove document separators)
+sanitize_handoffs() {
+    local handoffs="$1"
+    # Remove any YAML document separators that could cause injection
+    printf '%s' "$handoffs" | grep -v '^---[[:space:]]*$'
 }
 
 # Helper function to generate stub prompt content
@@ -1237,15 +1266,19 @@ generate_stub_prompt() {
     local description="$2"
     local handoffs="$3"
 
+    # Escape description to prevent YAML injection
+    local escaped_desc
+    escaped_desc=$(escape_yaml_string "$description")
+
     # Start with basic frontmatter
     echo "---"
     echo "name: ${name}"
-    echo "description: \"${description}\""
+    echo "description: \"${escaped_desc}\""
     echo "agent: ${name}"
 
-    # Include handoffs if present
+    # Include handoffs if present (sanitized)
     if [ -n "$handoffs" ]; then
-        echo "$handoffs"
+        sanitize_handoffs "$handoffs"
     fi
 
     echo "---"

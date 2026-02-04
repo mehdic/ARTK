@@ -1318,33 +1318,73 @@ function Get-YamlValue {
 }
 
 # Helper function to extract handoffs section from YAML frontmatter
+# Fixes applied based on multi-AI review:
+# - FIX CRLF: Normalize line endings (Windows compatibility)
+# - FIX EXIT: Exit on ANY non-indented line, not just [a-zA-Z]
+# - FIX WHITESPACE: Trim lines before delimiter check
+# - FIX CASE: Accept both 'handoffs:' and 'Handoffs:'
 function Get-Handoffs {
     param(
         [string]$FilePath
     )
-    $content = Get-Content $FilePath -ErrorAction SilentlyContinue
+
+    # Read file and normalize line endings
+    $rawContent = Get-Content $FilePath -Raw -ErrorAction SilentlyContinue
+    if (-not $rawContent) { return "" }
+
+    # Normalize CRLF to LF for consistent parsing
+    $normalizedContent = $rawContent -replace "`r`n", "`n" -replace "`r", "`n"
+    $lines = $normalizedContent -split "`n"
+
     $handoffs = @()
     $inFrontmatter = $false
     $inHandoffs = $false
 
-    foreach ($line in $content) {
-        if ($line -match "^---$") {
+    foreach ($rawLine in $lines) {
+        # Trim trailing whitespace (handles residual CR)
+        $line = $rawLine.TrimEnd()
+
+        # Match frontmatter delimiter (allow trailing whitespace)
+        if ($line -match "^---\s*$") {
             if ($inFrontmatter) { break }
             $inFrontmatter = $true
             continue
         }
-        if ($inFrontmatter -and $line -match "^handoffs:") {
+
+        # Detect handoffs key (case-insensitive)
+        if ($inFrontmatter -and $line -match "^[Hh]andoffs:") {
             $inHandoffs = $true
             $handoffs += $line
             continue
         }
+
         if ($inHandoffs) {
-            # Check if we've exited the handoffs array (new top-level key)
-            if ($line -match "^[a-zA-Z]") { break }
-            $handoffs += $line
+            # Exit on ANY non-whitespace at column 0 (new top-level key)
+            if ($line -match "^[^\s]") { break }
+
+            # Skip pure comment lines but keep content
+            if ($line -notmatch "^\s*#\s") {
+                $handoffs += $line
+            }
         }
     }
     return $handoffs -join "`n"
+}
+
+# Helper function to escape YAML string (prevent injection)
+function ConvertTo-EscapedYamlString {
+    param([string]$Value)
+    # Escape backslashes, quotes, and newlines
+    $escaped = $Value -replace '\\', '\\\\' -replace '"', '\"' -replace "`n", '\n' -replace "`r", ''
+    return $escaped
+}
+
+# Helper function to sanitize handoffs (remove document separators)
+function ConvertTo-SanitizedHandoffs {
+    param([string]$Handoffs)
+    # Remove any YAML document separators that could cause injection
+    $lines = $Handoffs -split "`n" | Where-Object { $_ -notmatch '^---\s*$' }
+    return $lines -join "`n"
 }
 
 # Helper function to generate stub prompt content
@@ -1354,16 +1394,21 @@ function New-StubPrompt {
         [string]$Description,
         [string]$Handoffs
     )
+
+    # Escape description to prevent YAML injection
+    $escapedDesc = ConvertTo-EscapedYamlString -Value $Description
+
     $frontmatter = @"
 ---
 name: $Name
-description: "$Description"
+description: "$escapedDesc"
 agent: $Name
 "@
 
-    # Add handoffs if present
+    # Add handoffs if present (sanitized)
     if ($Handoffs) {
-        $frontmatter += "`n$Handoffs"
+        $sanitizedHandoffs = ConvertTo-SanitizedHandoffs -Handoffs $Handoffs
+        $frontmatter += "`n$sanitizedHandoffs"
     }
 
     $frontmatter += "`n---"
