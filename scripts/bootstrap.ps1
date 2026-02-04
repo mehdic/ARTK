@@ -1082,14 +1082,21 @@ if (-not $CopyResult -or $CopyResult.Count -eq 0) {
 }
 
 # Use variant-specific package.json (package-cjs.json, package-legacy-16.json, etc.)
+# CRITICAL: Strip devDependencies and scripts to prevent npm from resolving them
+# This fixes the "idealTree hanging" issue where npm spends 200+ seconds resolving unused deps
 $CorePackageJsonName = Get-VariantPackageJson -VariantId $SelectedVariant
 $CorePackageJsonPath = Join-Path $ArtkCore $CorePackageJsonName
-if (Test-Path $CorePackageJsonPath) {
-    Copy-Item -Path $CorePackageJsonPath -Destination (Join-Path $VendorTarget "package.json") -Force
-} else {
+if (-not (Test-Path $CorePackageJsonPath)) {
     Write-Host "Warning: Variant package.json not found ($CorePackageJsonName), using default" -ForegroundColor Yellow
-    Copy-Item -Path (Join-Path $ArtkCore "package.json") -Destination $VendorTarget -Force
+    $CorePackageJsonPath = Join-Path $ArtkCore "package.json"
 }
+
+# Strip devDependencies/scripts from vendor package.json
+$CorePkg = Get-Content $CorePackageJsonPath -Raw | ConvertFrom-Json
+$CorePkg.PSObject.Properties.Remove('devDependencies')
+$CorePkg.PSObject.Properties.Remove('scripts')
+$CorePkg | Add-Member -NotePropertyName 'private' -NotePropertyValue $true -Force
+$CorePkg | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $VendorTarget "package.json") -Encoding utf8
 $VersionJson = Join-Path $ArtkCore "version.json"
 if (Test-Path $VersionJson) {
     Copy-Item -Path $VersionJson -Destination $VendorTarget -Force
@@ -1182,14 +1189,20 @@ if (-not (Test-Path $AutogenDistTarget)) {
 }
 
 # Use variant-specific package.json for autogen (package-cjs.json, package-legacy-16.json, etc.)
+# CRITICAL: Strip devDependencies and scripts to prevent npm from resolving them
 $AutogenPackageJsonName = Get-VariantPackageJson -VariantId $SelectedVariant
 $AutogenPackageJsonPath = Join-Path $ArtkAutogen $AutogenPackageJsonName
-if (Test-Path $AutogenPackageJsonPath) {
-    Copy-Item -Path $AutogenPackageJsonPath -Destination (Join-Path $AutogenVendorTarget "package.json") -Force
-} else {
+if (-not (Test-Path $AutogenPackageJsonPath)) {
     Write-Host "Warning: Autogen variant package.json not found ($AutogenPackageJsonName), using default" -ForegroundColor Yellow
-    Copy-Item -Path (Join-Path $ArtkAutogen "package.json") -Destination $AutogenVendorTarget -Force
+    $AutogenPackageJsonPath = Join-Path $ArtkAutogen "package.json"
 }
+
+# Strip devDependencies/scripts from vendor package.json
+$AutogenPkg = Get-Content $AutogenPackageJsonPath -Raw | ConvertFrom-Json
+$AutogenPkg.PSObject.Properties.Remove('devDependencies')
+$AutogenPkg.PSObject.Properties.Remove('scripts')
+$AutogenPkg | Add-Member -NotePropertyName 'private' -NotePropertyValue $true -Force
+$AutogenPkg | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $AutogenVendorTarget "package.json") -Encoding utf8
 $AutogenReadmePath = Join-Path $ArtkAutogen "README.md"
 if (Test-Path $AutogenReadmePath) {
     Copy-Item -Path $AutogenReadmePath -Destination $AutogenVendorTarget -Force

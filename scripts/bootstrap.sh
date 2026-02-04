@@ -986,12 +986,30 @@ if ! cp -r "$VARIANT_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core/dist/" 2>/dev/null
 fi
 
 # Use variant-specific package.json (package-cjs.json, package-legacy-16.json, etc.)
+# CRITICAL: Strip devDependencies and scripts to prevent npm from resolving them
+# This fixes the "idealTree hanging" issue where npm spends 200+ seconds resolving unused deps
 CORE_PACKAGE_JSON=$(get_variant_package_json "$SELECTED_VARIANT")
+CORE_PKG_SOURCE=""
 if [ -f "$ARTK_CORE/$CORE_PACKAGE_JSON" ]; then
-    cp "$ARTK_CORE/$CORE_PACKAGE_JSON" "$ARTK_E2E/vendor/artk-core/package.json"
+    CORE_PKG_SOURCE="$ARTK_CORE/$CORE_PACKAGE_JSON"
 else
     echo -e "${YELLOW}Warning: Variant package.json not found ($CORE_PACKAGE_JSON), using default${NC}"
-    cp "$ARTK_CORE/package.json" "$ARTK_E2E/vendor/artk-core/"
+    CORE_PKG_SOURCE="$ARTK_CORE/package.json"
+fi
+
+# Strip devDependencies/scripts using jq if available, otherwise node
+VENDOR_PKG_TARGET="$ARTK_E2E/vendor/artk-core/package.json"
+if command -v jq &> /dev/null; then
+    jq 'del(.devDependencies, .scripts) | .private = true' "$CORE_PKG_SOURCE" > "$VENDOR_PKG_TARGET"
+else
+    # Fallback to node one-liner
+    node -e "
+        const pkg = require('$CORE_PKG_SOURCE');
+        delete pkg.devDependencies;
+        delete pkg.scripts;
+        pkg.private = true;
+        console.log(JSON.stringify(pkg, null, 2));
+    " > "$VENDOR_PKG_TARGET"
 fi
 cp "$ARTK_CORE/version.json" "$ARTK_E2E/vendor/artk-core/" 2>/dev/null || true
 cp "$ARTK_CORE/README.md" "$ARTK_E2E/vendor/artk-core/" 2>/dev/null || true
@@ -1080,12 +1098,29 @@ if ! cp -r "$AUTOGEN_DIST_PATH"/* "$ARTK_E2E/vendor/artk-core-autogen/dist/" 2>/
 fi
 
 # Use variant-specific package.json for autogen (package-cjs.json, package-legacy-16.json, etc.)
+# CRITICAL: Strip devDependencies and scripts to prevent npm from resolving them
 AUTOGEN_PACKAGE_JSON=$(get_variant_package_json "$SELECTED_VARIANT")
+AUTOGEN_PKG_SOURCE=""
 if [ -f "$ARTK_CORE/autogen/$AUTOGEN_PACKAGE_JSON" ]; then
-    cp "$ARTK_CORE/autogen/$AUTOGEN_PACKAGE_JSON" "$ARTK_E2E/vendor/artk-core-autogen/package.json"
+    AUTOGEN_PKG_SOURCE="$ARTK_CORE/autogen/$AUTOGEN_PACKAGE_JSON"
 else
     echo -e "${YELLOW}Warning: Autogen variant package.json not found ($AUTOGEN_PACKAGE_JSON), using default${NC}"
-    cp "$ARTK_CORE/autogen/package.json" "$ARTK_E2E/vendor/artk-core-autogen/"
+    AUTOGEN_PKG_SOURCE="$ARTK_CORE/autogen/package.json"
+fi
+
+# Strip devDependencies/scripts using jq if available, otherwise node
+AUTOGEN_PKG_TARGET="$ARTK_E2E/vendor/artk-core-autogen/package.json"
+if command -v jq &> /dev/null; then
+    jq 'del(.devDependencies, .scripts) | .private = true' "$AUTOGEN_PKG_SOURCE" > "$AUTOGEN_PKG_TARGET"
+else
+    # Fallback to node one-liner
+    node -e "
+        const pkg = require('$AUTOGEN_PKG_SOURCE');
+        delete pkg.devDependencies;
+        delete pkg.scripts;
+        pkg.private = true;
+        console.log(JSON.stringify(pkg, null, 2));
+    " > "$AUTOGEN_PKG_TARGET"
 fi
 cp "$ARTK_CORE/autogen/README.md" "$ARTK_E2E/vendor/artk-core-autogen/" 2>/dev/null || true
 
