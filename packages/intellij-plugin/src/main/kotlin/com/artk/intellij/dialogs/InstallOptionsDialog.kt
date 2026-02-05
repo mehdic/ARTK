@@ -31,7 +31,6 @@ class InstallOptionsDialog(
 
     private val detectedVariant: VariantDetector.Variant?
     private val variants = VariantDetector.Variant.entries.toList()
-    private val browserPreferences = BrowserDetector.BrowserPreference.entries.toList()
 
     init {
         title = "Install ARTK"
@@ -41,7 +40,7 @@ class InstallOptionsDialog(
         // Detect variant based on project
         val basePath = project.basePath
         detectedVariant = if (basePath != null) {
-            VariantDetector.detect(File(basePath))
+            VariantDetector.detect(File(basePath)).variant  // Extract variant from DetectionResult
         } else {
             VariantDetector.Variant.MODERN_ESM
         }

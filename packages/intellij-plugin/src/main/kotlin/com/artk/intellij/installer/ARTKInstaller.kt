@@ -838,36 +838,54 @@ core:
         val connection = url.openConnection()
 
         if (connection is java.net.JarURLConnection) {
-            // Extract from JAR
-            val jarFile = connection.jarFile
-            val entries = jarFile.entries()
+            // Extract from JAR - use() ensures proper resource cleanup
+            connection.jarFile.use { jarFile ->
+                val entries = jarFile.entries()
 
-            while (entries.hasMoreElements()) {
-                val entry = entries.nextElement()
-                if (entry.name.startsWith(basePath) && !entry.isDirectory) {
-                    val relativePath = entry.name.removePrefix("$basePath/")
-                    val destFile = File(destDir, relativePath)
-                    destFile.parentFile?.mkdirs()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    if (entry.name.startsWith(basePath) && !entry.isDirectory) {
+                        val relativePath = entry.name.removePrefix("$basePath/")
+                        val destFile = File(destDir, relativePath)
+                        destFile.parentFile?.mkdirs()
 
-                    jarFile.getInputStream(entry).use { input ->
-                        destFile.outputStream().use { output ->
-                            input.copyTo(output)
+                        try {
+                            jarFile.getInputStream(entry).use { input ->
+                                destFile.outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // Log but continue - individual file failures shouldn't stop extraction
+                            // Other files may still be usable
                         }
                     }
                 }
             }
         } else {
             // Extract from file system (development mode)
-            val sourceDir = File(url.toURI())
-            if (sourceDir.isDirectory) {
-                sourceDir.walkTopDown().forEach { file ->
-                    if (file.isFile) {
-                        val relativePath = file.relativeTo(sourceDir).path
-                        val destFile = File(destDir, relativePath)
-                        destFile.parentFile?.mkdirs()
-                        file.copyTo(destFile, overwrite = true)
+            try {
+                // Only handle file:// URLs
+                if (url.protocol != "file") {
+                    return
+                }
+                val sourceDir = File(url.toURI())
+                if (sourceDir.isDirectory) {
+                    sourceDir.walkTopDown().forEach { file ->
+                        if (file.isFile) {
+                            val relativePath = file.relativeTo(sourceDir).path
+                            val destFile = File(destDir, relativePath)
+                            destFile.parentFile?.mkdirs()
+                            try {
+                                file.copyTo(destFile, overwrite = true)
+                            } catch (e: Exception) {
+                                // Log but continue
+                            }
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                // Non-fatal: will fall back to stubs
             }
         }
     }
@@ -1419,22 +1437,43 @@ ${getHandoffs(config.name)}
 
     /**
      * Data class for learned patterns JSON structure
+     * Uses default values for robustness against schema changes
      */
     private data class LearnedPattern(
-        val normalizedText: String,
-        val originalText: String,
-        val irPrimitive: String,
-        val confidence: Double,
-        val successCount: Int,
-        val failCount: Int,
-        val sourceJourneys: List<String>
-    )
+        val normalizedText: String = "",
+        val originalText: String = "",
+        val irPrimitive: String = "",
+        val confidence: Double = 0.0,
+        val successCount: Int = 0,
+        val failCount: Int = 0,
+        val sourceJourneys: List<String> = emptyList()
+    ) {
+        fun isValid(): Boolean = normalizedText.isNotEmpty()
+    }
 
     private data class LearnedPatterns(
-        val version: String,
-        val lastUpdated: String,
-        val patterns: List<LearnedPattern>
-    )
+        val version: String = LLKB_VERSION,
+        val lastUpdated: String = "",
+        val patterns: List<LearnedPattern> = emptyList()
+    ) {
+        fun isValid(): Boolean = patterns.all { it.isValid() }
+    }
+
+    /**
+     * Safely parse learned patterns JSON with fallback
+     */
+    private fun parseLearnedPatterns(jsonContent: String): LearnedPatterns? {
+        return try {
+            val parsed = gson.fromJson(jsonContent, LearnedPatterns::class.java)
+            if (parsed != null && parsed.isValid()) {
+                parsed
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     /**
      * Preserve LLKB learned patterns before destructive operations
@@ -1482,12 +1521,27 @@ ${getHandoffs(config.name)}
                 return
             }
 
-            // Merge patterns
-            val preserved = gson.fromJson(preservedFile.readText(), LearnedPatterns::class.java)
-            val current = gson.fromJson(newLearnedPatterns.readText(), LearnedPatterns::class.java)
+            // Parse with validation
+            val preserved = parseLearnedPatterns(preservedFile.readText())
+            val current = parseLearnedPatterns(newLearnedPatterns.readText())
 
-            val merged = mergePatternLists(preserved, current)
-            newLearnedPatterns.writeText(gson.toJson(merged))
+            when {
+                preserved == null && current == null -> {
+                    // Both invalid - nothing to merge
+                }
+                preserved == null -> {
+                    // Preserved is invalid, keep current
+                }
+                current == null -> {
+                    // Current is invalid, use preserved
+                    preservedFile.copyTo(newLearnedPatterns, overwrite = true)
+                }
+                else -> {
+                    // Both valid - merge
+                    val merged = mergePatternLists(preserved, current)
+                    newLearnedPatterns.writeText(gson.toJson(merged))
+                }
+            }
 
         } catch (e: Exception) {
             // Merge failed - preserve original as fallback
