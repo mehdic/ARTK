@@ -1415,7 +1415,8 @@ ${getHandoffs(config.name)}
             listOf("npm", "install")
         }
 
-        return ProcessUtils.execute(command, artkE2eDir, 300, env)
+        // H1 fix: Use NPM_INSTALL_TIMEOUT_SECONDS constant instead of hardcoded value
+        return ProcessUtils.execute(command, artkE2eDir, NPM_INSTALL_TIMEOUT_SECONDS, env)
     }
 
     /**

@@ -97,8 +97,25 @@ class InstallerService(private val project: Project) {
         // Refresh project service
         ARTKProjectService.getInstance(project).refresh()
 
-        val message = if (result.success) "Installation successful" else (result.error ?: "Unknown error")
-        onComplete(InstallResult(result.success, message))
+        // H2 fix: Build message including warnings
+        val baseMessage = if (result.success) "Installation successful" else (result.error ?: "Unknown error")
+        val message = if (result.success && result.warnings.isNotEmpty()) {
+            "$baseMessage\n\nWarnings:\n${result.warnings.joinToString("\n") { "• $it" }}"
+        } else {
+            baseMessage
+        }
+
+        onComplete(InstallResult(result.success, message, result.warnings))
+
+        // H2 fix: Show warnings in notification if present
+        if (result.success && result.warnings.isNotEmpty()) {
+            NotificationUtils.warning(
+                project,
+                "Installation Complete with Warnings",
+                result.warnings.joinToString("\n") { "• $it" }
+            )
+        }
+
         notifyInstallationCompleted(result.success, if (result.success) null else result.error)
     }
 
@@ -122,8 +139,25 @@ class InstallerService(private val project: Project) {
                 )
 
                 ARTKProjectService.getInstance(project).refresh()
-                val message = if (result.success) "Upgrade successful" else (result.error ?: "Unknown error")
-                onComplete(InstallResult(result.success, message))
+
+                // H2 fix: Build message including warnings
+                val baseMessage = if (result.success) "Upgrade successful" else (result.error ?: "Unknown error")
+                val message = if (result.success && result.warnings.isNotEmpty()) {
+                    "$baseMessage\n\nWarnings:\n${result.warnings.joinToString("\n") { "• $it" }}"
+                } else {
+                    baseMessage
+                }
+
+                onComplete(InstallResult(result.success, message, result.warnings))
+
+                // H2 fix: Show warnings in notification if present
+                if (result.success && result.warnings.isNotEmpty()) {
+                    NotificationUtils.warning(
+                        project,
+                        "Upgrade Complete with Warnings",
+                        result.warnings.joinToString("\n") { "• $it" }
+                    )
+                }
             }
 
             override fun onThrowable(error: Throwable) {
@@ -149,8 +183,16 @@ class InstallerService(private val project: Project) {
                 val result = installer.uninstall(Path.of(basePath))
 
                 ARTKProjectService.getInstance(project).refresh()
-                val message = if (result.success) "Uninstall successful" else (result.error ?: "Unknown error")
-                onComplete(InstallResult(result.success, message))
+
+                // H2 fix: Build message including warnings
+                val baseMessage = if (result.success) "Uninstall successful" else (result.error ?: "Unknown error")
+                val message = if (result.success && result.warnings.isNotEmpty()) {
+                    "$baseMessage\n\nWarnings:\n${result.warnings.joinToString("\n") { "• $it" }}"
+                } else {
+                    baseMessage
+                }
+
+                onComplete(InstallResult(result.success, message, result.warnings))
             }
 
             override fun onThrowable(error: Throwable) {
@@ -190,5 +232,6 @@ data class InstallOptions(
  */
 data class InstallResult(
     val success: Boolean,
-    val message: String
+    val message: String,
+    val warnings: List<String> = emptyList()  // H2 fix: Include warnings from installer
 )
