@@ -29,9 +29,22 @@ object ProcessUtils {
 
     /**
      * Check if running on Windows
+     * M1 fix: Centralized OS detection - use these properties everywhere
      */
     val isWindows: Boolean
         get() = SystemInfo.isWindows
+
+    /**
+     * Check if running on macOS
+     */
+    val isMac: Boolean
+        get() = SystemInfo.isMac
+
+    /**
+     * Check if running on Linux
+     */
+    val isLinux: Boolean
+        get() = SystemInfo.isLinux
 
     /**
      * Execute a command and wait for result
@@ -103,13 +116,14 @@ object ProcessUtils {
 
     /**
      * Execute npm/npx command
+     * M1 fix: Use consistent isWindows property
      */
     fun executeNpm(
         args: List<String>,
         workingDir: File,
         timeoutSeconds: Long = 120
     ): ProcessResult {
-        val npmCommand = if (System.getProperty("os.name").lowercase().contains("windows")) {
+        val npmCommand = if (isWindows) {
             listOf("cmd", "/c", "npm") + args
         } else {
             listOf("npm") + args
@@ -119,13 +133,14 @@ object ProcessUtils {
 
     /**
      * Execute npx command
+     * M1 fix: Use consistent isWindows property
      */
     fun executeNpx(
         args: List<String>,
         workingDir: File,
         timeoutSeconds: Long = 120
     ): ProcessResult {
-        val npxCommand = if (System.getProperty("os.name").lowercase().contains("windows")) {
+        val npxCommand = if (isWindows) {
             listOf("cmd", "/c", "npx") + args
         } else {
             listOf("npx") + args
@@ -135,9 +150,10 @@ object ProcessUtils {
 
     /**
      * Check if a command is available
+     * M1 fix: Use consistent isWindows property
      */
     fun isCommandAvailable(command: String): Boolean {
-        val checkCommand = if (System.getProperty("os.name").lowercase().contains("windows")) {
+        val checkCommand = if (isWindows) {
             listOf("cmd", "/c", "where", command)
         } else {
             listOf("which", command)

@@ -101,6 +101,13 @@ class ARTKInstaller(private val project: Project) {
             progressCallback?.invoke(step.message, step.progress / 100.0)
         }
 
+        // M2 fix: Helper to check for cancellation
+        fun checkCancellation() {
+            if (indicator?.isCanceled == true) {
+                throw InterruptedException("Installation cancelled by user")
+            }
+        }
+
         // N6: Accumulate warnings throughout installation
         val warnings = mutableListOf<String>()
 
@@ -187,6 +194,7 @@ class ARTKInstaller(private val project: Project) {
 
             // Step 5: Install ARTK core libraries (vendor copy)
             updateProgress(INSTALL_STEPS[4])
+            checkCancellation()  // M2 fix: Check before vendor lib extraction
             installVendorLibs(artkE2eDir, detectionResult.variant)
 
             // Step 6: Install templates
@@ -211,6 +219,7 @@ class ARTKInstaller(private val project: Project) {
 
             // Step 9: Install npm dependencies
             updateProgress(INSTALL_STEPS[8])
+            checkCancellation()  // M2 fix: Check before long npm install
             if (!options.skipNpm) {
                 val npmResult = runNpmInstall(artkE2eDir, browserInfo.isSystemBrowser)
                 if (!npmResult.success) {
@@ -223,6 +232,7 @@ class ARTKInstaller(private val project: Project) {
 
             // Step 10: Set up browsers
             updateProgress(INSTALL_STEPS[9])
+            checkCancellation()  // M2 fix: Check before browser install
             if (!options.skipBrowsers) {
                 installBrowsersWithFallback(artkE2eDir, browserInfo)
             }
@@ -257,6 +267,21 @@ class ARTKInstaller(private val project: Project) {
                 warnings = warnings  // N6: Include accumulated warnings
             )
 
+        } catch (e: InterruptedException) {
+            // M2 fix: Handle cancellation gracefully
+            // Clean up partial installation on cancellation
+            if (!existedBefore && artkE2eDir.exists()) {
+                try {
+                    artkE2eDir.deleteRecursively()
+                } catch (cleanupError: Exception) {
+                    // Cleanup failed - not critical for cancellation
+                }
+            }
+            return InstallResult(
+                success = false,
+                error = "Installation cancelled",
+                warnings = warnings
+            )
         } catch (e: Exception) {
             // M4: Clean up partial installation on failure
             if (!existedBefore && artkE2eDir.exists()) {
@@ -325,6 +350,20 @@ class ARTKInstaller(private val project: Project) {
                 )
             }
 
+            // M4 fix: Read browser preference from existing config
+            val configFile = File(artkE2eDir, "artk.config.yml")
+            val browserPreference = if (configFile.exists()) {
+                try {
+                    val content = configFile.readText()
+                    val prefMatch = Regex("""preference:\s*(\S+)""").find(content)
+                    BrowserDetector.BrowserPreference.fromString(prefMatch?.groupValues?.get(1))
+                } catch (e: Exception) {
+                    BrowserDetector.BrowserPreference.AUTO
+                }
+            } else {
+                BrowserDetector.BrowserPreference.AUTO
+            }
+
             // Upgrade vendor libs
             installVendorLibs(artkE2eDir, variant)
 
@@ -345,6 +384,10 @@ class ARTKInstaller(private val project: Project) {
                 contextFile.writeText(content)
             }
 
+            // M4 fix: Detect browser with preserved preference
+            val browserInfo = BrowserDetector.detect(browserPreference)
+            LOG.info("Upgrade preserving browser preference: $browserPreference -> ${browserInfo.channel}")
+
             indicator?.text = "Upgrade complete"
             indicator?.fraction = 1.0
 
@@ -352,7 +395,8 @@ class ARTKInstaller(private val project: Project) {
                 success = true,
                 artkE2ePath = artkE2eDir.absolutePath,
                 backupPath = backupPath,
-                variant = variant
+                variant = variant,
+                browserInfo = browserInfo  // M4 fix: Include browser info in result
             )
 
         } catch (e: Exception) {

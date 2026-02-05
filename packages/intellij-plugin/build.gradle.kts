@@ -42,7 +42,9 @@ tasks {
 
     patchPluginXml {
         sinceBuild.set("241")
-        untilBuild.set("251.*")
+        // M3 fix: Remove untilBuild to allow future IntelliJ versions
+        // Plugin will be tested with new versions and updated if API breaks
+        untilBuild.set("")  // Empty string removes the constraint
         changeNotes.set("""
             <h3>1.0.0</h3>
             <ul>

@@ -100,7 +100,8 @@ object NodeDetector {
         val majorVersion = parseMajorVersion(version) ?: return null
 
         // Try to get node path
-        val pathResult = if (isWindows()) {
+        // M1 fix: Use centralized OS detection from ProcessUtils
+        val pathResult = if (ProcessUtils.isWindows) {
             ProcessUtils.execute(listOf("cmd", "/c", "where", "node"), timeoutSeconds = 5)
         } else {
             ProcessUtils.execute(listOf("which", "node"), timeoutSeconds = 5)
@@ -118,6 +119,11 @@ object NodeDetector {
         )
     }
 
-    private fun isWindows(): Boolean =
-        System.getProperty("os.name").lowercase().contains("windows")
+    /**
+     * Parse Node.js version string to major version number
+     * Exposed for testing
+     */
+    fun parseNodeVersion(versionString: String): Int? {
+        return parseMajorVersion(versionString)
+    }
 }

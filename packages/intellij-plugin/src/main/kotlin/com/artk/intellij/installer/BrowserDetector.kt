@@ -45,9 +45,10 @@ object BrowserDetector {
             get() = channel == "msedge" || channel == "chrome"
     }
 
-    private val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-    private val isMac = System.getProperty("os.name").lowercase().contains("mac")
-    private val isLinux = !isWindows && !isMac
+    // M1 fix: Use centralized OS detection from ProcessUtils
+    private val isWindows get() = ProcessUtils.isWindows
+    private val isMac get() = ProcessUtils.isMac
+    private val isLinux get() = ProcessUtils.isLinux
 
     private val bundledChromium = BrowserInfo(
         channel = "chromium",
