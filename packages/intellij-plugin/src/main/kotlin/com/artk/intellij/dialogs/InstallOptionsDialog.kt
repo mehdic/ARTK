@@ -1,5 +1,6 @@
 package com.artk.intellij.dialogs
 
+import com.artk.intellij.installer.BrowserDetector
 import com.artk.intellij.installer.VariantDetector
 import com.artk.intellij.services.InstallOptions
 import com.intellij.openapi.project.Project
@@ -26,9 +27,11 @@ class InstallOptionsDialog(
     private var skipBrowsers = false
     private var force = false
     private var selectedVariant: String? = null
+    private var browserPreference: BrowserDetector.BrowserPreference = BrowserDetector.BrowserPreference.AUTO
 
     private val detectedVariant: VariantDetector.Variant?
     private val variants = VariantDetector.Variant.entries.toList()
+    private val browserPreferences = BrowserDetector.BrowserPreference.entries.toList()
 
     init {
         title = "Install ARTK"
@@ -68,6 +71,30 @@ class InstallOptionsDialog(
                                     null // Auto-detect
                                 } else {
                                     variants[selectedIndex - 1].id
+                                }
+                            }
+                        }
+                }
+
+                row("Browser:") {
+                    val browserItems = listOf(
+                        "Auto-detect (Edge > Chrome > Chromium)",
+                        "Prefer Edge",
+                        "Prefer Chrome",
+                        "Bundled Chromium"
+                    )
+
+                    comboBox(browserItems)
+                        .comment("Which browser to use for Playwright tests")
+                        .applyToComponent {
+                            selectedIndex = 0
+                            addActionListener {
+                                browserPreference = when (selectedIndex) {
+                                    0 -> BrowserDetector.BrowserPreference.AUTO
+                                    1 -> BrowserDetector.BrowserPreference.EDGE
+                                    2 -> BrowserDetector.BrowserPreference.CHROME
+                                    3 -> BrowserDetector.BrowserPreference.CHROMIUM
+                                    else -> BrowserDetector.BrowserPreference.AUTO
                                 }
                             }
                         }
@@ -143,7 +170,8 @@ class InstallOptionsDialog(
             skipLlkb = skipLlkb,
             skipBrowsers = skipBrowsers,
             force = force,
-            variant = selectedVariant
+            variant = selectedVariant,
+            browserPreference = browserPreference
         )
     }
 

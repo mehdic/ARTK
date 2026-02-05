@@ -75,6 +75,55 @@ tasks {
     test {
         useJUnitPlatform()
     }
+
+    // Bundle ARTK assets into plugin resources
+    register<Copy>("bundleArtkAssets") {
+        description = "Bundle ARTK core assets into plugin resources"
+        group = "build"
+
+        val assetsDir = file("src/main/resources/assets")
+
+        // Copy @artk/core
+        from("../../core/typescript/dist") {
+            into("artk-core/dist")
+        }
+        from("../../core/typescript/package.json") {
+            into("artk-core")
+        }
+
+        // Copy @artk/autogen
+        from("../../core/typescript/autogen/dist") {
+            into("artk-autogen/dist")
+        }
+        from("../../core/typescript/autogen/package.json") {
+            into("artk-autogen")
+        }
+
+        // Copy prompts
+        from("../../prompts") {
+            into("prompts")
+            include("**/*.prompt.md", "**/*.md")
+        }
+
+        // Copy bootstrap templates
+        from("../../templates") {
+            into("bootstrap-templates")
+            include("**/*.ts", "**/*.json", "**/*.yml")
+        }
+
+        into(assetsDir)
+
+        // Only copy if source directories exist
+        onlyIf {
+            file("../../core/typescript/dist").exists() ||
+            file("../../core/typescript/autogen/dist").exists()
+        }
+    }
+
+    // Make processResources depend on bundleArtkAssets when assets exist
+    named("processResources") {
+        dependsOn("bundleArtkAssets")
+    }
 }
 
 kotlin {

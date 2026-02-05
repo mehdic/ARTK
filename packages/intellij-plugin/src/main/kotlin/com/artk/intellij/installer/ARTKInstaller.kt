@@ -53,7 +53,17 @@ class ARTKInstaller(private val project: Project) {
         val forceLlkb: Boolean = false,
         val skipBrowsers: Boolean = false,
         val noPrompts: Boolean = false,
-        val force: Boolean = false
+        val force: Boolean = false,
+        val browserPreference: BrowserDetector.BrowserPreference = BrowserDetector.BrowserPreference.AUTO
+    )
+
+    /**
+     * Result of variant compatibility validation
+     */
+    data class ValidationResult(
+        val valid: Boolean,
+        val error: String? = null,
+        val warning: String? = null
     )
 
     data class InstallResult(
@@ -83,10 +93,16 @@ class ARTKInstaller(private val project: Project) {
         }
 
         try {
+            // Preserve LLKB patterns before any destructive operations
+            var preservedLlkb: File? = null
+
             // Check for existing installation
             var backupPath: String? = null
             if (artkE2eDir.exists()) {
                 if (options.force) {
+                    // Preserve LLKB patterns before backup
+                    preservedLlkb = preserveLlkbPatterns(artkE2eDir)
+
                     backupPath = createBackup(artkE2eDir)
                     // Delete existing (but preserve backup)
                     artkE2eDir.deleteRecursively()
@@ -102,13 +118,26 @@ class ARTKInstaller(private val project: Project) {
             val detectionResult = if (options.variant != null && options.variant != "auto") {
                 val variant = VariantDetector.parseVariant(options.variant)
                     ?: return InstallResult(false, "Invalid variant: ${options.variant}")
-                VariantDetector.DetectionResult(variant, 20, false, "override")
+
+                // Validate variant compatibility with installed Node.js
+                val validation = validateVariantCompatibility(variant, targetDir)
+                if (!validation.valid) {
+                    return InstallResult(false, validation.error)
+                }
+                // Show warning if present
+                validation.warning?.let {
+                    indicator?.text = "Warning: $it"
+                }
+
+                // Use actual detected Node version for accurate detection result
+                val nodeInfo = NodeDetector.detect(targetDir)
+                VariantDetector.DetectionResult(variant, nodeInfo?.majorVersion ?: 20, false, "override")
             } else {
                 VariantDetector.detect(targetDir)
             }
 
-            // Detect browser
-            val browserInfo = BrowserDetector.detect()
+            // Detect browser with user preference
+            val browserInfo = BrowserDetector.detect(options.browserPreference)
 
             // Step 1: Create directory structure
             updateProgress(INSTALL_STEPS[0])
@@ -168,6 +197,17 @@ class ARTKInstaller(private val project: Project) {
             updateProgress(INSTALL_STEPS[9])
             if (!options.skipBrowsers) {
                 installBrowsersWithFallback(artkE2eDir, browserInfo)
+            }
+
+            // Restore/merge LLKB patterns after install
+            if (preservedLlkb != null) {
+                mergeLlkbPatterns(artkE2eDir, preservedLlkb)
+                // Clean up preservation file after successful merge
+                try {
+                    preservedLlkb.delete()
+                } catch (e: Exception) {
+                    // Cleanup failed - not critical
+                }
             }
 
             // Final step
@@ -728,19 +768,125 @@ core:
 
     /**
      * Install vendor libraries (artk-core, autogen, journeys)
-     * In a full implementation, these would be bundled with the plugin
-     * For now, we create stub files with the correct structure
+     * Tries to extract from bundled resources first, falls back to stubs
      */
     private fun installVendorLibs(artkE2eDir: File, variant: VariantDetector.Variant) {
         val coreDest = File(artkE2eDir, "vendor/artk-core")
+        val autogenDest = File(artkE2eDir, "vendor/artk-core-autogen")
+        val journeysDest = File(artkE2eDir, "vendor/artk-core-journeys")
+
+        // Try to extract bundled assets first
+        val hasBundledCore = extractBundledAssets("assets/artk-core", coreDest)
+        val hasBundledAutogen = extractBundledAssets("assets/artk-autogen", autogenDest)
+
+        // Create AI protection markers (always)
+        createAiProtectionMarkers(coreDest, variant)
+        createAiProtectionMarkers(autogenDest, variant, isAutogen = true)
+
+        // If no bundled assets, create stubs
+        if (!hasBundledCore) {
+            createVendorStubs(coreDest, "@artk/core")
+        }
+        if (!hasBundledAutogen) {
+            createVendorStubs(autogenDest, "@artk/core-autogen")
+        }
+
+        // Journeys protection markers
+        journeysDest.mkdirs()
+        File(journeysDest, "READONLY.md").writeText(
+            "# ⚠️ DO NOT MODIFY THIS DIRECTORY\n\nThis directory contains artk-core-journeys.\n"
+        )
+        File(journeysDest, ".ai-ignore").writeText("# AI agents should not modify\n*\n")
+    }
+
+    /**
+     * Extract bundled assets from plugin resources
+     * @return true if assets were extracted, false if not available
+     */
+    private fun extractBundledAssets(resourcePath: String, destDir: File): Boolean {
+        val classLoader = this::class.java.classLoader
+        val resourceUrl = classLoader.getResource(resourcePath)
+
+        if (resourceUrl == null) {
+            // Bundled assets not available (development mode)
+            return false
+        }
+
+        try {
+            destDir.mkdirs()
+
+            // List and copy all resources
+            val resources = classLoader.getResources(resourcePath)
+            while (resources.hasMoreElements()) {
+                val url = resources.nextElement()
+                extractResourceRecursively(url, resourcePath, destDir)
+            }
+
+            // Verify extraction was successful
+            return File(destDir, "dist/index.js").exists() ||
+                   File(destDir, "package.json").exists()
+        } catch (e: Exception) {
+            // Extraction failed, will fall back to stubs
+            return false
+        }
+    }
+
+    /**
+     * Recursively extract resources from a URL
+     */
+    private fun extractResourceRecursively(url: java.net.URL, basePath: String, destDir: File) {
+        val connection = url.openConnection()
+
+        if (connection is java.net.JarURLConnection) {
+            // Extract from JAR
+            val jarFile = connection.jarFile
+            val entries = jarFile.entries()
+
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                if (entry.name.startsWith(basePath) && !entry.isDirectory) {
+                    val relativePath = entry.name.removePrefix("$basePath/")
+                    val destFile = File(destDir, relativePath)
+                    destFile.parentFile?.mkdirs()
+
+                    jarFile.getInputStream(entry).use { input ->
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+            }
+        } else {
+            // Extract from file system (development mode)
+            val sourceDir = File(url.toURI())
+            if (sourceDir.isDirectory) {
+                sourceDir.walkTopDown().forEach { file ->
+                    if (file.isFile) {
+                        val relativePath = file.relativeTo(sourceDir).path
+                        val destFile = File(destDir, relativePath)
+                        destFile.parentFile?.mkdirs()
+                        file.copyTo(destFile, overwrite = true)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Create AI protection markers for vendor directory
+     */
+    private fun createAiProtectionMarkers(destDir: File, variant: VariantDetector.Variant, isAutogen: Boolean = false) {
+        destDir.mkdirs()
 
         // Create READONLY.md
+        val packageName = if (isAutogen) "@artk/core-autogen" else "@artk/core"
         val readme = """# ⚠️ DO NOT MODIFY THIS DIRECTORY
 
 ## Variant Information
 
 | Property | Value |
 |----------|-------|
+| **Package** | $packageName |
 | **Variant** | ${variant.id} |
 | **Node.js Version** | ${variant.nodeRange} |
 | **Playwright Version** | ${variant.playwrightVersion} |
@@ -759,67 +905,60 @@ If you need different functionality:
 
 *Generated by ARTK IntelliJ Plugin v1.0.0*
 """
-        File(coreDest, "READONLY.md").writeText(readme)
+        File(destDir, "READONLY.md").writeText(readme)
 
         // Create .ai-ignore
-        File(coreDest, ".ai-ignore").writeText(
+        File(destDir, ".ai-ignore").writeText(
             "# AI agents should not modify files in this directory\n# This is vendored code managed by ARTK\n\n*\n"
         )
 
-        // Create variant-features.json
-        val features = VariantDetector.getVariantFeatures(variant)
-        val featuresJson = mapOf(
-            "variant" to variant.id,
-            "playwrightVersion" to variant.playwrightVersion.removePrefix("^"),
-            "moduleSystem" to variant.moduleSystem,
-            "generatedAt" to Instant.now().toString(),
-            "features" to features.mapValues { (_, info) ->
-                if (info.alternative != null) {
-                    mapOf("available" to info.available, "alternative" to info.alternative)
-                } else {
-                    mapOf("available" to info.available)
+        // Create variant-features.json (only for core, not autogen)
+        if (!isAutogen) {
+            val features = VariantDetector.getVariantFeatures(variant)
+            val featuresJson = mapOf(
+                "variant" to variant.id,
+                "playwrightVersion" to variant.playwrightVersion.removePrefix("^"),
+                "moduleSystem" to variant.moduleSystem,
+                "generatedAt" to Instant.now().toString(),
+                "features" to features.mapValues { (_, info) ->
+                    if (info.alternative != null) {
+                        mapOf("available" to info.available, "alternative" to info.alternative)
+                    } else {
+                        mapOf("available" to info.available)
+                    }
                 }
-            }
-        )
-        File(coreDest, "variant-features.json").writeText(gson.toJson(featuresJson))
+            )
+            File(destDir, "variant-features.json").writeText(gson.toJson(featuresJson))
+        }
+    }
 
-        // Create stub package.json for vendor libs
+    /**
+     * Create stub files when bundled assets are not available
+     */
+    private fun createVendorStubs(destDir: File, packageName: String) {
+        destDir.mkdirs()
+
+        // Create stub package.json
         val vendorPkg = mapOf(
-            "name" to "@artk/core",
+            "name" to packageName,
             "version" to ARTK_VERSION,
             "main" to "dist/index.js",
-            "types" to "dist/index.d.ts"
+            "types" to "dist/index.d.ts",
+            "_stub" to true,
+            "_note" to "This is a stub. Run 'npm install' in artk-e2e to get the full library."
         )
-        File(coreDest, "package.json").writeText(gson.toJson(vendorPkg))
+        File(destDir, "package.json").writeText(gson.toJson(vendorPkg))
 
         // Create dist/index.js stub
-        File(coreDest, "dist").mkdirs()
-        File(coreDest, "dist/index.js").writeText(
-            "// @artk/core stub - use npm install in artk-e2e to get full library\nmodule.exports = {};\n"
+        File(destDir, "dist").mkdirs()
+        File(destDir, "dist/index.js").writeText(
+            "// $packageName stub - run 'npm install' in artk-e2e to get full library\n" +
+            "// This stub was created because bundled assets were not available\n" +
+            "module.exports = {};\n"
         )
-        File(coreDest, "dist/index.d.ts").writeText(
-            "// @artk/core type definitions stub\nexport {};\n"
+        File(destDir, "dist/index.d.ts").writeText(
+            "// $packageName type definitions stub\nexport {};\n"
         )
-
-        // Same for autogen
-        val autogenDest = File(artkE2eDir, "vendor/artk-core-autogen")
-        val autogenPkg = mapOf(
-            "name" to "@artk/core-autogen",
-            "version" to ARTK_VERSION,
-            "main" to "dist/index.js",
-            "types" to "dist/index.d.ts"
-        )
-        File(autogenDest, "package.json").writeText(gson.toJson(autogenPkg))
-        File(autogenDest, "dist").mkdirs()
-        File(autogenDest, "dist/index.js").writeText("module.exports = {};\n")
-        File(autogenDest, "dist/index.d.ts").writeText("export {};\n")
-
-        // Journeys protection markers
-        val journeysDest = File(artkE2eDir, "vendor/artk-core-journeys")
-        File(journeysDest, "READONLY.md").writeText(
-            "# ⚠️ DO NOT MODIFY THIS DIRECTORY\n\nThis directory contains artk-core-journeys.\n"
-        )
-        File(journeysDest, ".ai-ignore").writeText("# AI agents should not modify\n*\n")
     }
 
     /**
@@ -1226,5 +1365,194 @@ ${getHandoffs(config.name)}
         }
 
         configFile.writeText(content)
+    }
+
+    // ========================================
+    // Node.js Version Validation
+    // ========================================
+
+    /**
+     * Validate that the selected variant is compatible with the installed Node.js version
+     */
+    private fun validateVariantCompatibility(
+        requestedVariant: VariantDetector.Variant,
+        targetPath: File
+    ): ValidationResult {
+        val nodeInfo = NodeDetector.detect(targetPath)
+        val actualNodeVersion = nodeInfo?.majorVersion
+
+        // If we can't detect Node, allow the install with a warning
+        if (actualNodeVersion == null) {
+            return ValidationResult(
+                valid = true,
+                warning = "Could not detect Node.js version. Please ensure Node.js ${getMinNodeVersion(requestedVariant)}+ is installed."
+            )
+        }
+
+        val minRequired = getMinNodeVersion(requestedVariant)
+
+        if (actualNodeVersion < minRequired) {
+            return ValidationResult(
+                valid = false,
+                error = "Node.js $actualNodeVersion is incompatible with variant '${requestedVariant.id}'. " +
+                        "Required: Node.js $minRequired+. " +
+                        "Options: 1) Upgrade Node.js, 2) Select a compatible variant (e.g., legacy-$actualNodeVersion)"
+            )
+        }
+
+        return ValidationResult(valid = true)
+    }
+
+    /**
+     * Get minimum Node.js version required for a variant
+     */
+    private fun getMinNodeVersion(variant: VariantDetector.Variant): Int = when (variant) {
+        VariantDetector.Variant.MODERN_ESM,
+        VariantDetector.Variant.MODERN_CJS -> 18
+        VariantDetector.Variant.LEGACY_16 -> 16
+        VariantDetector.Variant.LEGACY_14 -> 14
+    }
+
+    // ========================================
+    // LLKB Pattern Preservation
+    // ========================================
+
+    /**
+     * Data class for learned patterns JSON structure
+     */
+    private data class LearnedPattern(
+        val normalizedText: String,
+        val originalText: String,
+        val irPrimitive: String,
+        val confidence: Double,
+        val successCount: Int,
+        val failCount: Int,
+        val sourceJourneys: List<String>
+    )
+
+    private data class LearnedPatterns(
+        val version: String,
+        val lastUpdated: String,
+        val patterns: List<LearnedPattern>
+    )
+
+    /**
+     * Preserve LLKB learned patterns before destructive operations
+     * @return Path to preserved file, or null if nothing to preserve
+     */
+    private fun preserveLlkbPatterns(artkE2eDir: File): File? {
+        val llkbDir = File(artkE2eDir, ".artk/llkb")
+        val learnedPatterns = File(llkbDir, "learned-patterns.json")
+
+        if (!learnedPatterns.exists()) return null
+
+        try {
+            // Create dedicated preservation location (outside artk-e2e)
+            val preserveDir = File(artkE2eDir.parentFile, ".artk-preserved")
+            preserveDir.mkdirs()
+
+            // Clean up old preservation files (keep only last 7 days)
+            cleanupOldPreservations(preserveDir)
+
+            val timestamp = System.currentTimeMillis()
+            val preservedFile = File(preserveDir, "learned-patterns-$timestamp.json")
+
+            learnedPatterns.copyTo(preservedFile, overwrite = true)
+
+            return preservedFile
+        } catch (e: Exception) {
+            // Preservation failed - continue without it
+            return null
+        }
+    }
+
+    /**
+     * Merge preserved LLKB patterns after reinstall
+     */
+    private fun mergeLlkbPatterns(artkE2eDir: File, preservedFile: File?) {
+        if (preservedFile == null || !preservedFile.exists()) return
+
+        val newLlkbDir = File(artkE2eDir, ".artk/llkb")
+        val newLearnedPatterns = File(newLlkbDir, "learned-patterns.json")
+
+        try {
+            if (!newLearnedPatterns.exists()) {
+                // New install has no patterns - just copy preserved
+                preservedFile.copyTo(newLearnedPatterns, overwrite = true)
+                return
+            }
+
+            // Merge patterns
+            val preserved = gson.fromJson(preservedFile.readText(), LearnedPatterns::class.java)
+            val current = gson.fromJson(newLearnedPatterns.readText(), LearnedPatterns::class.java)
+
+            val merged = mergePatternLists(preserved, current)
+            newLearnedPatterns.writeText(gson.toJson(merged))
+
+        } catch (e: Exception) {
+            // Merge failed - preserve original as fallback
+            try {
+                preservedFile.copyTo(
+                    File(newLlkbDir, "learned-patterns-preserved.json"),
+                    overwrite = true
+                )
+            } catch (e2: Exception) {
+                // Fallback also failed - nothing we can do
+            }
+        }
+    }
+
+    /**
+     * Merge two pattern lists using weighted confidence averaging
+     */
+    private fun mergePatternLists(old: LearnedPatterns, new: LearnedPatterns): LearnedPatterns {
+        val mergedPatterns = mutableMapOf<String, LearnedPattern>()
+
+        // Add old patterns
+        for (pattern in old.patterns) {
+            mergedPatterns[pattern.normalizedText] = pattern
+        }
+
+        // Merge new patterns
+        for (pattern in new.patterns) {
+            val existing = mergedPatterns[pattern.normalizedText]
+            if (existing != null) {
+                // Update confidence using weighted average
+                val totalCount = existing.successCount + pattern.successCount
+                val mergedConfidence = if (totalCount > 0) {
+                    (existing.confidence * existing.successCount +
+                            pattern.confidence * pattern.successCount) / totalCount
+                } else {
+                    (existing.confidence + pattern.confidence) / 2
+                }
+
+                mergedPatterns[pattern.normalizedText] = pattern.copy(
+                    confidence = mergedConfidence,
+                    successCount = existing.successCount + pattern.successCount,
+                    failCount = existing.failCount + pattern.failCount,
+                    sourceJourneys = (existing.sourceJourneys + pattern.sourceJourneys).distinct()
+                )
+            } else {
+                mergedPatterns[pattern.normalizedText] = pattern
+            }
+        }
+
+        return LearnedPatterns(
+            version = new.version,
+            lastUpdated = Instant.now().toString(),
+            patterns = mergedPatterns.values.toList()
+        )
+    }
+
+    /**
+     * Clean up old preservation files (keep only last 7 days)
+     */
+    private fun cleanupOldPreservations(preserveDir: File) {
+        val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000)
+
+        preserveDir.listFiles()
+            ?.filter { it.name.startsWith("learned-patterns-") }
+            ?.filter { it.lastModified() < sevenDaysAgo }
+            ?.forEach { it.delete() }
     }
 }

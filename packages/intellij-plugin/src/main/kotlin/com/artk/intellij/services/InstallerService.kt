@@ -80,7 +80,8 @@ class InstallerService(private val project: Project) {
             forceLlkb = false,
             skipBrowsers = options.skipBrowsers,
             noPrompts = false, // Install prompts and agents by default
-            force = options.force
+            force = options.force,
+            browserPreference = options.browserPreference
         )
 
         // Run the bundled installer
@@ -179,7 +180,9 @@ data class InstallOptions(
     val skipLlkb: Boolean = false,
     val skipBrowsers: Boolean = false,
     val force: Boolean = false,
-    val variant: String? = null
+    val variant: String? = null,
+    val browserPreference: com.artk.intellij.installer.BrowserDetector.BrowserPreference =
+        com.artk.intellij.installer.BrowserDetector.BrowserPreference.AUTO
 )
 
 /**

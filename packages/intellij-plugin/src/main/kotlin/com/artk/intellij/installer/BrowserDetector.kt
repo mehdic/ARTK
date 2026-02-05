@@ -9,6 +9,25 @@ import java.io.File
  */
 object BrowserDetector {
 
+    /**
+     * Browser preference for installation
+     */
+    enum class BrowserPreference {
+        AUTO,       // Use detection priority (Edge > Chrome > Chromium)
+        EDGE,       // Prefer Edge if available
+        CHROME,     // Prefer Chrome if available
+        CHROMIUM;   // Always use bundled Chromium
+
+        companion object {
+            fun fromString(value: String?): BrowserPreference = when (value?.lowercase()) {
+                "edge", "msedge" -> EDGE
+                "chrome" -> CHROME
+                "chromium", "bundled" -> CHROMIUM
+                else -> AUTO
+            }
+        }
+    }
+
     data class BrowserInfo(
         val channel: String, // msedge, chrome, chromium
         val version: String?,
@@ -30,11 +49,30 @@ object BrowserDetector {
     private val isMac = System.getProperty("os.name").lowercase().contains("mac")
     private val isLinux = !isWindows && !isMac
 
+    private val bundledChromium = BrowserInfo(
+        channel = "chromium",
+        version = null,
+        path = null
+    )
+
     /**
-     * Detect available system browsers
-     * Priority: Edge > Chrome > Bundled Chromium
+     * Detect available system browsers with optional preference
+     * @param preference User's browser preference
+     * @return Detected browser info based on preference and availability
      */
-    fun detect(): BrowserInfo {
+    fun detect(preference: BrowserPreference = BrowserPreference.AUTO): BrowserInfo {
+        return when (preference) {
+            BrowserPreference.AUTO -> detectWithPriority()
+            BrowserPreference.EDGE -> detectEdge() ?: detectWithPriority()
+            BrowserPreference.CHROME -> detectChrome() ?: detectWithPriority()
+            BrowserPreference.CHROMIUM -> bundledChromium
+        }
+    }
+
+    /**
+     * Default detection priority: Edge > Chrome > Bundled Chromium
+     */
+    private fun detectWithPriority(): BrowserInfo {
         // Try Edge first
         detectEdge()?.let { return it }
 
@@ -42,11 +80,7 @@ object BrowserDetector {
         detectChrome()?.let { return it }
 
         // Fallback to bundled chromium
-        return BrowserInfo(
-            channel = "chromium",
-            version = null,
-            path = null
-        )
+        return bundledChromium
     }
 
     private fun detectEdge(): BrowserInfo? {
