@@ -3,9 +3,23 @@
 
 set -e
 
+# P0 FIX: Helper function for Windows detection with correct pattern matching
+# Uses case statement instead of [[ ]] for POSIX sh compatibility
+is_windows() {
+  if [ -n "$WINDIR" ]; then
+    return 0
+  fi
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
 # Sync VS Code extension prompts (cross-platform)
 echo "Syncing VS Code extension prompts..."
-if [ -n "$WINDIR" ] || [ "$(uname -s)" = "MINGW"* ] || [ "$(uname -s)" = "MSYS"* ]; then
+if is_windows; then
   # Windows: use PowerShell
   powershell.exe -ExecutionPolicy Bypass -File "./scripts/sync-vscode-prompts.ps1"
 else
@@ -18,9 +32,15 @@ if ! git diff --quiet -- packages/vscode-extension/assets/prompts; then
   exit 1
 fi
 
-# Sync VS Code extension journeys (Journey Core)
+# P0 FIX: Sync VS Code extension journeys (cross-platform)
 echo "Syncing VS Code extension journeys..."
-./scripts/sync-vscode-journeys.sh
+if is_windows; then
+  # Windows: use PowerShell
+  powershell.exe -ExecutionPolicy Bypass -File "./scripts/sync-vscode-journeys.ps1"
+else
+  # Unix/macOS: use bash
+  ./scripts/sync-vscode-journeys.sh
+fi
 
 if ! git diff --quiet -- packages/vscode-extension/assets/journeys; then
   echo "ERROR: packages/vscode-extension/assets/journeys changed. Please commit the updated journeys before pushing."

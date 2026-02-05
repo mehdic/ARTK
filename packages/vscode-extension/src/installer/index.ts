@@ -1485,6 +1485,18 @@ async function installVendorLibs(
   if (fs.existsSync(journeysSrc)) {
     await copyDir(journeysSrc, journeysDest);
 
+    // P1 FIX: Post-copy verification for critical journey files
+    const criticalJourneyFiles = [
+      'core.manifest.json',
+      'journeys/schema/journey.frontmatter.schema.json',
+    ];
+    for (const file of criticalJourneyFiles) {
+      const filePath = path.join(journeysDest, file);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Journey Core copy verification failed: ${file} not found at ${filePath}`);
+      }
+    }
+
     // Add journeys protection markers
     await fs.promises.writeFile(
       path.join(journeysDest, 'READONLY.md'),
@@ -1510,6 +1522,9 @@ If you need to customize Journey schemas:
       path.join(journeysDest, '.ai-ignore'),
       '# AI agents should not modify files in this directory\n# This is vendored code managed by ARTK bootstrap\n\n*\n'
     );
+  } else {
+    // P1 FIX: Warn if journeys source doesn't exist (should never happen with proper packaging)
+    console.warn('WARNING: Journey Core assets not found in extension package');
   }
 
   // Create AI protection markers
@@ -2069,6 +2084,9 @@ export async function installBundled(
       { path: path.join(artkE2ePath, 'artk.config.yml'), name: 'artk.config.yml' },
       { path: path.join(artkE2ePath, '.artk', 'context.json'), name: 'context.json' },
       { path: path.join(artkE2ePath, 'vendor', 'artk-core'), name: 'vendor/artk-core' },
+      // P1 FIX: Add journeys verification
+      { path: path.join(artkE2ePath, 'vendor', 'artk-core-journeys'), name: 'vendor/artk-core-journeys' },
+      { path: path.join(artkE2ePath, 'vendor', 'artk-core-journeys', 'core.manifest.json'), name: 'journeys manifest' },
     ];
 
     const missingItems: string[] = [];
