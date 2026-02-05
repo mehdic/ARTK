@@ -1483,12 +1483,26 @@ async function installVendorLibs(
   const journeysDest = path.join(artkE2ePath, 'vendor', 'artk-core-journeys');
 
   if (fs.existsSync(journeysSrc)) {
+    // FIX Issue 7: Security check - ensure destination is not a symlink
+    try {
+      const destStat = await fs.promises.lstat(journeysDest);
+      if (destStat.isSymbolicLink()) {
+        throw new Error(`Security: journeys destination is a symlink, refusing to overwrite: ${journeysDest}`);
+      }
+    } catch (e) {
+      // ENOENT is expected if directory doesn't exist yet
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw e;
+      }
+    }
+
     await copyDir(journeysSrc, journeysDest);
 
     // P1 FIX: Post-copy verification for critical journey files
     const criticalJourneyFiles = [
       'core.manifest.json',
       'journeys/schema/journey.frontmatter.schema.json',
+      'journeys/templates/journey.template.md',
     ];
     for (const file of criticalJourneyFiles) {
       const filePath = path.join(journeysDest, file);
@@ -2087,6 +2101,10 @@ export async function installBundled(
       // P1 FIX: Add journeys verification
       { path: path.join(artkE2ePath, 'vendor', 'artk-core-journeys'), name: 'vendor/artk-core-journeys' },
       { path: path.join(artkE2ePath, 'vendor', 'artk-core-journeys', 'core.manifest.json'), name: 'journeys manifest' },
+      // FIX Issue 10: More comprehensive journeys verification
+      { path: path.join(artkE2ePath, 'vendor', 'artk-core-journeys', 'journeys', 'schema'), name: 'journeys schema directory' },
+      { path: path.join(artkE2ePath, 'vendor', 'artk-core-journeys', 'journeys', 'schema', 'journey.frontmatter.schema.json'), name: 'journey frontmatter schema' },
+      { path: path.join(artkE2ePath, 'vendor', 'artk-core-journeys', 'journeys', 'templates'), name: 'journeys templates directory' },
     ];
 
     const missingItems: string[] = [];
