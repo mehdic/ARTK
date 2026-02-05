@@ -3,6 +3,7 @@ package com.artk.intellij.installer
 import com.artk.intellij.util.ProcessUtils
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import java.io.File
@@ -24,9 +25,16 @@ import java.time.Instant
 class ARTKInstaller(private val project: Project) {
 
     companion object {
-        private val LLKB_VERSION = "1.0.0"
-        private val ARTK_VERSION = "1.0.0"
+        private val LOG = Logger.getInstance(ARTKInstaller::class.java)
+        private const val LLKB_VERSION = "1.0.0"
+        private const val ARTK_VERSION = "1.0.0"
         private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
+
+        // Retention periods (N3: Extract magic numbers)
+        private const val PRESERVATION_RETENTION_DAYS = 7
+        private const val PRESERVATION_RETENTION_MS = PRESERVATION_RETENTION_DAYS * 24 * 60 * 60 * 1000L
+        private const val NPM_INSTALL_TIMEOUT_SECONDS = 300L
+        private const val BROWSER_INSTALL_TIMEOUT_SECONDS = 300L
 
         // Installation steps with progress percentages
         val INSTALL_STEPS = listOf(
@@ -72,7 +80,8 @@ class ARTKInstaller(private val project: Project) {
         val artkE2ePath: String? = null,
         val backupPath: String? = null,
         val variant: VariantDetector.Variant? = null,
-        val browserInfo: BrowserDetector.BrowserInfo? = null
+        val browserInfo: BrowserDetector.BrowserInfo? = null,
+        val warnings: List<String> = emptyList()  // N6: Accumulate warnings
     )
 
     /**
@@ -91,6 +100,12 @@ class ARTKInstaller(private val project: Project) {
             indicator?.fraction = step.progress / 100.0
             progressCallback?.invoke(step.message, step.progress / 100.0)
         }
+
+        // N6: Accumulate warnings throughout installation
+        val warnings = mutableListOf<String>()
+
+        // M4: Track if we created the directory (for cleanup on failure)
+        val existedBefore = artkE2eDir.exists()
 
         try {
             // Preserve LLKB patterns before any destructive operations
@@ -126,6 +141,7 @@ class ARTKInstaller(private val project: Project) {
                 }
                 // Show warning if present
                 validation.warning?.let {
+                    warnings.add(it)
                     indicator?.text = "Warning: $it"
                 }
 
@@ -133,7 +149,15 @@ class ARTKInstaller(private val project: Project) {
                 val nodeInfo = NodeDetector.detect(targetDir)
                 VariantDetector.DetectionResult(variant, nodeInfo?.majorVersion ?: 20, false, "override")
             } else {
-                VariantDetector.detect(targetDir)
+                // M2: Validate auto-detected variant too
+                val detected = VariantDetector.detect(targetDir)
+                val validation = validateVariantCompatibility(detected.variant, targetDir)
+                if (!validation.valid) {
+                    // For auto-detect, log warning but don't block
+                    warnings.add("Auto-detected variant may not match Node.js version: ${validation.error}")
+                }
+                validation.warning?.let { warnings.add(it) }
+                detected
             }
 
             // Detect browser with user preference
@@ -155,8 +179,10 @@ class ARTKInstaller(private val project: Project) {
             updateProgress(INSTALL_STEPS[3])
             createTsConfig(artkE2eDir)
             createGitignore(artkE2eDir)
+            // M1: Pass browser preference for persistence
             createConfig(artkE2eDir, targetDir.name, browserInfo.channel,
-                if (browserInfo.isSystemBrowser) "system" else "bundled")
+                if (browserInfo.isSystemBrowser) "system" else "bundled",
+                options.browserPreference)
             createContext(artkE2eDir, detectionResult, browserInfo, backupPath)
 
             // Step 5: Install ARTK core libraries (vendor copy)
@@ -188,8 +214,10 @@ class ARTKInstaller(private val project: Project) {
             if (!options.skipNpm) {
                 val npmResult = runNpmInstall(artkE2eDir, browserInfo.isSystemBrowser)
                 if (!npmResult.success) {
-                    // Warning only, not fatal
-                    indicator?.text = "npm install had issues: ${npmResult.error}"
+                    // N6: Accumulate warning instead of just showing in indicator
+                    val npmWarning = "npm install failed: ${npmResult.stderr.take(200)}"
+                    warnings.add(npmWarning)
+                    indicator?.text = npmWarning
                 }
             }
 
@@ -205,6 +233,11 @@ class ARTKInstaller(private val project: Project) {
                 // Clean up preservation file after successful merge
                 try {
                     preservedLlkb.delete()
+                    // N4: Clean up preservation directory if empty
+                    val preserveDir = preservedLlkb.parentFile
+                    if (preserveDir?.listFiles()?.isEmpty() == true) {
+                        preserveDir.delete()
+                    }
                 } catch (e: Exception) {
                     // Cleanup failed - not critical
                 }
@@ -212,7 +245,7 @@ class ARTKInstaller(private val project: Project) {
 
             // Final step
             indicator?.fraction = 1.0
-            indicator?.text = "Installation complete"
+            indicator?.text = if (warnings.isEmpty()) "Installation complete" else "Installation complete with warnings"
             progressCallback?.invoke("Installation complete", 1.0)
 
             return InstallResult(
@@ -220,13 +253,23 @@ class ARTKInstaller(private val project: Project) {
                 artkE2ePath = artkE2eDir.absolutePath,
                 backupPath = backupPath,
                 variant = detectionResult.variant,
-                browserInfo = browserInfo
+                browserInfo = browserInfo,
+                warnings = warnings  // N6: Include accumulated warnings
             )
 
         } catch (e: Exception) {
+            // M4: Clean up partial installation on failure
+            if (!existedBefore && artkE2eDir.exists()) {
+                try {
+                    artkE2eDir.deleteRecursively()
+                } catch (cleanupError: Exception) {
+                    // Cleanup failed - add to error message
+                }
+            }
             return InstallResult(
                 success = false,
-                error = "Installation failed: ${e.message}"
+                error = "Installation failed: ${e.message}",
+                warnings = warnings
             )
         }
     }
@@ -271,6 +314,15 @@ class ARTKInstaller(private val project: Project) {
                 }
             } else {
                 VariantDetector.Variant.MODERN_ESM
+            }
+
+            // M5: Validate variant still compatible with current Node.js
+            val validation = validateVariantCompatibility(variant, targetDir)
+            if (!validation.valid) {
+                return InstallResult(
+                    success = false,
+                    error = "Upgrade blocked: ${validation.error}. Consider reinstalling with --force to select a compatible variant."
+                )
             }
 
             // Upgrade vendor libs
@@ -666,9 +718,17 @@ Thumbs.db
         artkE2eDir: File,
         projectName: String,
         browserChannel: String,
-        browserStrategy: String
+        browserStrategy: String,
+        browserPreference: BrowserDetector.BrowserPreference = BrowserDetector.BrowserPreference.AUTO  // M1: Persist preference
     ) {
         val timestamp = Instant.now().toString()
+        // M1: Convert preference to config string
+        val preferenceString = when (browserPreference) {
+            BrowserDetector.BrowserPreference.AUTO -> "auto"
+            BrowserDetector.BrowserPreference.EDGE -> "prefer-edge"
+            BrowserDetector.BrowserPreference.CHROME -> "prefer-chrome"
+            BrowserDetector.BrowserPreference.CHROMIUM -> "bundled-only"
+        }
         val config = """# ARTK Configuration
 # Generated by ARTK IntelliJ Plugin on $timestamp
 
@@ -701,6 +761,7 @@ browsers:
     - chromium
   channel: $browserChannel
   strategy: $browserStrategy
+  preference: $preferenceString  # M1: User's browser preference for reinstalls
   viewport:
     width: 1280
     height: 720
@@ -809,10 +870,12 @@ core:
 
         if (resourceUrl == null) {
             // Bundled assets not available (development mode)
+            LOG.info("Bundled assets not available for $resourcePath (development mode)")
             return false
         }
 
         try {
+            LOG.info("Extracting bundled assets from $resourcePath to ${destDir.absolutePath}")
             destDir.mkdirs()
 
             // List and copy all resources
@@ -823,10 +886,18 @@ core:
             }
 
             // Verify extraction was successful
-            return File(destDir, "dist/index.js").exists() ||
+            val success = File(destDir, "dist/index.js").exists() ||
                    File(destDir, "package.json").exists()
+
+            if (success) {
+                LOG.info("Successfully extracted bundled assets to ${destDir.absolutePath}")
+            } else {
+                LOG.warn("Bundled assets extracted but verification failed for ${destDir.absolutePath}")
+            }
+            return success
         } catch (e: Exception) {
             // Extraction failed, will fall back to stubs
+            LOG.warn("Failed to extract bundled assets from $resourcePath", e)
             return false
         }
     }
@@ -839,8 +910,10 @@ core:
 
         if (connection is java.net.JarURLConnection) {
             // Extract from JAR - use() ensures proper resource cleanup
+            LOG.debug("Extracting from JAR: ${url.path}")
             connection.jarFile.use { jarFile ->
                 val entries = jarFile.entries()
+                var extractedCount = 0
 
                 while (entries.hasMoreElements()) {
                     val entry = entries.nextElement()
@@ -855,22 +928,27 @@ core:
                                     input.copyTo(output)
                                 }
                             }
+                            extractedCount++
                         } catch (e: Exception) {
                             // Log but continue - individual file failures shouldn't stop extraction
-                            // Other files may still be usable
+                            LOG.warn("Failed to extract JAR entry ${entry.name}: ${e.message}")
                         }
                     }
                 }
+                LOG.debug("Extracted $extractedCount files from JAR")
             }
         } else {
             // Extract from file system (development mode)
             try {
                 // Only handle file:// URLs
                 if (url.protocol != "file") {
+                    LOG.debug("Skipping non-file URL protocol: ${url.protocol}")
                     return
                 }
                 val sourceDir = File(url.toURI())
                 if (sourceDir.isDirectory) {
+                    LOG.debug("Extracting from file system: ${sourceDir.absolutePath}")
+                    var extractedCount = 0
                     sourceDir.walkTopDown().forEach { file ->
                         if (file.isFile) {
                             val relativePath = file.relativeTo(sourceDir).path
@@ -878,14 +956,17 @@ core:
                             destFile.parentFile?.mkdirs()
                             try {
                                 file.copyTo(destFile, overwrite = true)
+                                extractedCount++
                             } catch (e: Exception) {
-                                // Log but continue
+                                LOG.warn("Failed to copy file ${file.absolutePath}: ${e.message}")
                             }
                         }
                     }
+                    LOG.debug("Extracted $extractedCount files from file system")
                 }
             } catch (e: Exception) {
                 // Non-fatal: will fall back to stubs
+                LOG.warn("Failed to extract from file system: ${e.message}")
             }
         }
     }
@@ -1483,7 +1564,10 @@ ${getHandoffs(config.name)}
         val llkbDir = File(artkE2eDir, ".artk/llkb")
         val learnedPatterns = File(llkbDir, "learned-patterns.json")
 
-        if (!learnedPatterns.exists()) return null
+        if (!learnedPatterns.exists()) {
+            LOG.info("No LLKB patterns to preserve (learned-patterns.json not found)")
+            return null
+        }
 
         try {
             // Create dedicated preservation location (outside artk-e2e)
@@ -1497,10 +1581,12 @@ ${getHandoffs(config.name)}
             val preservedFile = File(preserveDir, "learned-patterns-$timestamp.json")
 
             learnedPatterns.copyTo(preservedFile, overwrite = true)
+            LOG.info("Preserved LLKB patterns to ${preservedFile.absolutePath}")
 
             return preservedFile
         } catch (e: Exception) {
             // Preservation failed - continue without it
+            LOG.warn("Failed to preserve LLKB patterns: ${e.message}")
             return null
         }
     }
@@ -1509,7 +1595,10 @@ ${getHandoffs(config.name)}
      * Merge preserved LLKB patterns after reinstall
      */
     private fun mergeLlkbPatterns(artkE2eDir: File, preservedFile: File?) {
-        if (preservedFile == null || !preservedFile.exists()) return
+        if (preservedFile == null || !preservedFile.exists()) {
+            LOG.debug("No preserved LLKB patterns to merge")
+            return
+        }
 
         val newLlkbDir = File(artkE2eDir, ".artk/llkb")
         val newLearnedPatterns = File(newLlkbDir, "learned-patterns.json")
@@ -1518,6 +1607,7 @@ ${getHandoffs(config.name)}
             if (!newLearnedPatterns.exists()) {
                 // New install has no patterns - just copy preserved
                 preservedFile.copyTo(newLearnedPatterns, overwrite = true)
+                LOG.info("Restored preserved LLKB patterns to ${newLearnedPatterns.absolutePath}")
                 return
             }
 
@@ -1528,23 +1618,28 @@ ${getHandoffs(config.name)}
             when {
                 preserved == null && current == null -> {
                     // Both invalid - nothing to merge
+                    LOG.warn("Both preserved and current LLKB patterns are invalid - skipping merge")
                 }
                 preserved == null -> {
                     // Preserved is invalid, keep current
+                    LOG.warn("Preserved LLKB patterns are invalid - keeping current patterns")
                 }
                 current == null -> {
                     // Current is invalid, use preserved
                     preservedFile.copyTo(newLearnedPatterns, overwrite = true)
+                    LOG.info("Current LLKB patterns invalid - restored from preserved")
                 }
                 else -> {
                     // Both valid - merge
                     val merged = mergePatternLists(preserved, current)
                     newLearnedPatterns.writeText(gson.toJson(merged))
+                    LOG.info("Merged LLKB patterns: ${preserved.patterns.size} preserved + ${current.patterns.size} current = ${merged.patterns.size} total")
                 }
             }
 
         } catch (e: Exception) {
             // Merge failed - preserve original as fallback
+            LOG.warn("LLKB merge failed: ${e.message} - saving preserved patterns as fallback")
             try {
                 preservedFile.copyTo(
                     File(newLlkbDir, "learned-patterns-preserved.json"),
@@ -1552,6 +1647,7 @@ ${getHandoffs(config.name)}
                 )
             } catch (e2: Exception) {
                 // Fallback also failed - nothing we can do
+                LOG.error("Failed to save fallback LLKB patterns: ${e2.message}")
             }
         }
     }
@@ -1599,14 +1695,25 @@ ${getHandoffs(config.name)}
     }
 
     /**
-     * Clean up old preservation files (keep only last 7 days)
+     * Clean up old preservation files (keep only last N days)
      */
     private fun cleanupOldPreservations(preserveDir: File) {
-        val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000)
+        val cutoffTime = System.currentTimeMillis() - PRESERVATION_RETENTION_MS
 
-        preserveDir.listFiles()
+        val oldFiles = preserveDir.listFiles()
             ?.filter { it.name.startsWith("learned-patterns-") }
-            ?.filter { it.lastModified() < sevenDaysAgo }
-            ?.forEach { it.delete() }
+            ?.filter { it.lastModified() < cutoffTime }
+            ?: emptyList()
+
+        if (oldFiles.isNotEmpty()) {
+            LOG.info("Cleaning up ${oldFiles.size} old LLKB preservation files (older than $PRESERVATION_RETENTION_DAYS days)")
+            oldFiles.forEach {
+                try {
+                    it.delete()
+                } catch (e: Exception) {
+                    LOG.warn("Failed to delete old preservation file ${it.name}: ${e.message}")
+                }
+            }
+        }
     }
 }
