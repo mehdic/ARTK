@@ -107,6 +107,18 @@ object VariantDetector {
     }
 
     /**
+     * Select variant based on Node.js major version and module system
+     * Useful for testing and programmatic variant selection
+     */
+    fun selectVariant(nodeMajorVersion: Int, isEsm: Boolean): Variant {
+        return when {
+            nodeMajorVersion >= 18 -> if (isEsm) Variant.MODERN_ESM else Variant.MODERN_CJS
+            nodeMajorVersion >= 16 -> Variant.LEGACY_16
+            else -> Variant.LEGACY_14
+        }
+    }
+
+    /**
      * Parse variant from string (for user override)
      */
     fun parseVariant(value: String?): Variant? {

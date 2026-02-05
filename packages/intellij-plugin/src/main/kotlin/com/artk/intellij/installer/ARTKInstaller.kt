@@ -1432,10 +1432,11 @@ ${getHandoffs(config.name)}
         }
 
         // Try installing bundled chromium
+        // C3 fix: Use BROWSER_INSTALL_TIMEOUT_SECONDS constant instead of hardcoded value
         val result = ProcessUtils.executeNpx(
             listOf("playwright", "install", "chromium"),
             artkE2eDir,
-            300
+            BROWSER_INSTALL_TIMEOUT_SECONDS
         )
 
         if (!result.success) {

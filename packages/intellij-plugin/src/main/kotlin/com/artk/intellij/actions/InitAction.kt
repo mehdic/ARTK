@@ -1,5 +1,6 @@
 package com.artk.intellij.actions
 
+import com.artk.intellij.dialogs.InstallOptionsDialog
 import com.artk.intellij.services.ARTKProjectService
 import com.artk.intellij.services.InstallOptions
 import com.artk.intellij.services.InstallerService
@@ -49,19 +50,8 @@ class InitAction : AnAction() {
     }
 
     private fun showOptionsDialog(project: com.intellij.openapi.project.Project): InstallOptions? {
-        // For now, use defaults. A full dialog can be implemented later.
-        val result = Messages.showYesNoDialog(
-            project,
-            "Initialize ARTK in this project?\n\nThis will create the artk-e2e directory structure and install dependencies.",
-            "Initialize ARTK",
-            "Initialize",
-            "Cancel",
-            Messages.getQuestionIcon()
-        )
-
-        return if (result == Messages.YES) {
-            InstallOptions()
-        } else null
+        // C2 fix: Use the full InstallOptionsDialog instead of basic Yes/No dialog
+        return InstallOptionsDialog.showAndGet(project)
     }
 
     override fun update(e: AnActionEvent) {
