@@ -115,10 +115,21 @@ tasks {
 
         into(assetsDir)
 
-        // Only copy if source directories exist
+        // L2 fix: Use AND logic to ensure all required assets exist
+        // L3 fix: Also validate templates directory
+        // Only copy if ALL required source directories exist
         onlyIf {
-            file("../../core/typescript/dist").exists() ||
-            file("../../core/typescript/autogen/dist").exists()
+            val coreExists = file("../../core/typescript/dist").exists()
+            val autogenExists = file("../../core/typescript/autogen/dist").exists()
+            val templatesExist = file("../../templates").exists()
+
+            // Log which assets are available for debugging
+            if (!coreExists) logger.warn("ARTK core dist not found - skipping asset bundling")
+            if (!autogenExists) logger.warn("ARTK autogen dist not found - skipping asset bundling")
+            if (!templatesExist) logger.warn("ARTK templates not found - skipping asset bundling")
+
+            // Require core AND autogen (templates are optional but logged)
+            coreExists && autogenExists
         }
     }
 

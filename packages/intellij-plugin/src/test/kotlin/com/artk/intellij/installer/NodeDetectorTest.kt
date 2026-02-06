@@ -86,16 +86,24 @@ class NodeDetectorTest {
     }
 
     @Test
-    fun `detect returns null when no indicators`() {
+    fun `detect returns path source or null when no file indicators`() {
+        // L1 fix: Make test environment-independent
+        // When no .nvmrc or package.json exists, detect() either:
+        // 1. Returns NodeInfo with source="path" if node is in PATH
+        // 2. Returns null if node is not in PATH
+        // Both outcomes are valid - we just verify consistency
         val projectDir = tempDir.toFile()
-        // Empty directory
+        // Empty directory - no .nvmrc, no package.json
 
         val result = NodeDetector.detect(projectDir)
 
-        // May return PATH version or null depending on environment
+        // Either null (no node in PATH) or source must be "path"
         if (result != null) {
-            assertEquals("path", result.source)
+            assertEquals("path", result.source, "When no file indicators exist, source must be 'path'")
+            assertTrue(result.majorVersion > 0, "Major version must be positive")
+            assertNotNull(result.version, "Version string must not be null")
         }
+        // If result is null, that's also valid (node not in PATH)
     }
 
     @Test
