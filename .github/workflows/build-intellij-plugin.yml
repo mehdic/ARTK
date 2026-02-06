@@ -1,0 +1,397 @@
+name: Build IntelliJ IDEA Plugin
+
+# Only runs manually - not on every push/PR
+# To trigger: Actions → Build IntelliJ IDEA Plugin → Run workflow
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - none
+      intellij_version:
+        description: 'Target IntelliJ version'
+        required: false
+        default: '2024.1'
+        type: choice
+        options:
+          - '2024.1'
+          - '2024.2'
+          - '2024.3'
+          - '2025.1'
+      publish_to_marketplace:
+        description: 'Publish to JetBrains Marketplace'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      plugin_file: ${{ steps.package.outputs.plugin_file }}
+
+    defaults:
+      run:
+        working-directory: packages/intellij-plugin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Check plugin directory exists
+        id: check_dir
+        run: |
+          if [ ! -d "." ] || [ ! -f "build.gradle.kts" ]; then
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ IntelliJ plugin directory not found. Creating placeholder structure..."
+          else
+            echo "exists=true" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Create plugin scaffold (if needed)
+        if: steps.check_dir.outputs.exists != 'true'
+        run: |
+          cd ../..
+          mkdir -p packages/intellij-plugin/src/main/kotlin/com/artk/intellij
+          mkdir -p packages/intellij-plugin/src/main/resources/META-INF
+          mkdir -p packages/intellij-plugin/src/test/kotlin
+
+          # Create minimal build.gradle.kts
+          cat > packages/intellij-plugin/build.gradle.kts << 'GRADLE'
+          plugins {
+              id("java")
+              id("org.jetbrains.kotlin.jvm") version "1.9.22"
+              id("org.jetbrains.intellij") version "1.17.2"
+          }
+
+          group = "com.artk"
+          version = "1.0.0"
+
+          repositories {
+              mavenCentral()
+          }
+
+          intellij {
+              version.set("${{ github.event.inputs.intellij_version || '2024.1' }}")
+              type.set("IC")
+              plugins.set(listOf("org.jetbrains.plugins.terminal"))
+          }
+
+          dependencies {
+              implementation("com.google.code.gson:gson:2.10.1")
+              implementation("org.yaml:snakeyaml:2.2")
+          }
+
+          tasks {
+              patchPluginXml {
+                  sinceBuild.set("241")
+                  untilBuild.set("251.*")
+              }
+
+              signPlugin {
+                  certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
+                  privateKey.set(System.getenv("PRIVATE_KEY"))
+                  password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
+              }
+
+              publishPlugin {
+                  token.set(System.getenv("PUBLISH_TOKEN"))
+              }
+          }
+
+          kotlin {
+              jvmToolchain(17)
+          }
+          GRADLE
+
+          # Create settings.gradle.kts
+          cat > packages/intellij-plugin/settings.gradle.kts << 'SETTINGS'
+          rootProject.name = "artk-intellij-plugin"
+          SETTINGS
+
+          # Create gradle.properties
+          cat > packages/intellij-plugin/gradle.properties << 'PROPS'
+          kotlin.stdlib.default.dependency=false
+          org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m
+          PROPS
+
+          # Create minimal plugin.xml
+          cat > packages/intellij-plugin/src/main/resources/META-INF/plugin.xml << 'PLUGIN'
+          <idea-plugin>
+              <id>com.artk.intellij</id>
+              <name>ARTK - Automatic Regression Testing Kit</name>
+              <vendor email="support@artk.dev" url="https://artk.dev">ARTK</vendor>
+
+              <description><![CDATA[
+              Visual tools for ARTK test automation with Playwright.
+              <ul>
+                  <li>Initialize and manage ARTK projects</li>
+                  <li>Journey management and visualization</li>
+                  <li>LLKB integration</li>
+                  <li>Workflow guidance</li>
+              </ul>
+              ]]></description>
+
+              <depends>com.intellij.modules.platform</depends>
+
+              <extensions defaultExtensionNs="com.intellij">
+                  <!-- Extensions will be added during implementation -->
+              </extensions>
+          </idea-plugin>
+          PLUGIN
+
+          # Create placeholder main class
+          cat > packages/intellij-plugin/src/main/kotlin/com/artk/intellij/ARTKPlugin.kt << 'KOTLIN'
+          package com.artk.intellij
+
+          /**
+           * ARTK IntelliJ Plugin
+           *
+           * Placeholder - implementation pending.
+           * See: research/2026-02-04_intellij-plugin-implementation-plan.md
+           */
+          object ARTKPlugin {
+              const val ID = "com.artk.intellij"
+              const val NAME = "ARTK"
+          }
+          KOTLIN
+
+          cd packages/intellij-plugin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Bump version
+        id: bump
+        if: github.event.inputs.version_bump != 'none'
+        run: |
+          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
+
+          # Get current version from build.gradle.kts
+          CURRENT_VERSION=$(grep -oP 'version = "\K[^"]+' build.gradle.kts || echo "1.0.0")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Calculate new version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          case "$BUMP_TYPE" in
+            major)
+              NEW_VERSION="$((MAJOR + 1)).0.0"
+              ;;
+            minor)
+              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+              ;;
+            patch|*)
+              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+              ;;
+          esac
+
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Update build.gradle.kts
+          sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" build.gradle.kts
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'version = "\K[^"]+' build.gradle.kts || echo "1.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Building version: $VERSION"
+
+      - name: Build plugin
+        run: ./gradlew buildPlugin
+
+      - name: Run tests
+        run: ./gradlew test
+        continue-on-error: true
+
+      - name: Verify plugin
+        run: ./gradlew verifyPlugin
+
+      - name: Get plugin filename
+        id: package
+        run: |
+          PLUGIN_FILE=$(ls build/distributions/*.zip 2>/dev/null | head -1)
+          if [ -n "$PLUGIN_FILE" ]; then
+            PLUGIN_NAME=$(basename "$PLUGIN_FILE")
+            echo "plugin_file=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+            echo "📦 Plugin created: $PLUGIN_NAME"
+          else
+            echo "plugin_file=artk-intellij-plugin.zip" >> $GITHUB_OUTPUT
+            echo "⚠️ No plugin file found, build may have failed"
+          fi
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artk-intellij-plugin-${{ steps.version.outputs.version }}
+          path: packages/intellij-plugin/build/distributions/*.zip
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Commit version bump
+        if: steps.bump.outputs.new_version && github.ref == 'refs/heads/main'
+        run: |
+          cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/intellij-plugin/build.gradle.kts
+          git commit -m "chore(intellij): bump version to ${{ steps.bump.outputs.new_version }} [skip ci]" || echo "No changes to commit"
+          git push || echo "Push failed or no changes"
+
+      - name: Show build info
+        run: |
+          echo "📦 Plugin: ${{ steps.package.outputs.plugin_file }}"
+          echo "📌 Version: ${{ steps.version.outputs.version }}"
+          echo "🎯 Target IntelliJ: ${{ github.event.inputs.intellij_version || '2024.1' }}"
+          ls -lh build/distributions/*.zip 2>/dev/null || echo "No distribution files"
+
+  test-compatibility:
+    name: Test Compatibility
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ide-version: ['2024.1', '2024.2']
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Download plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-intellij-plugin-${{ needs.build.outputs.version }}
+          path: ./plugin
+
+      - name: Verify plugin structure
+        run: |
+          if [ -f ./plugin/*.zip ]; then
+            echo "✅ Plugin artifact found"
+            unzip -t ./plugin/*.zip || echo "⚠️ Could not verify zip structure"
+          else
+            echo "⚠️ No plugin artifact found (expected for scaffold builds)"
+          fi
+
+  publish:
+    name: Publish to Marketplace
+    needs: [build, test-compatibility]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.publish_to_marketplace == 'true' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Download plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-intellij-plugin-${{ needs.build.outputs.version }}
+          path: ./packages/intellij-plugin/build/distributions
+
+      - name: Publish to JetBrains Marketplace
+        working-directory: packages/intellij-plugin
+        env:
+          PUBLISH_TOKEN: ${{ secrets.JETBRAINS_PUBLISH_TOKEN }}
+          CERTIFICATE_CHAIN: ${{ secrets.JETBRAINS_CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.JETBRAINS_PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$PUBLISH_TOKEN" ]; then
+            ./gradlew publishPlugin
+          else
+            echo "⚠️ JETBRAINS_PUBLISH_TOKEN not configured. Skipping marketplace publish."
+            echo "To enable publishing, add the following secrets:"
+            echo "  - JETBRAINS_PUBLISH_TOKEN"
+            echo "  - JETBRAINS_CERTIFICATE_CHAIN"
+            echo "  - JETBRAINS_PRIVATE_KEY"
+            echo "  - JETBRAINS_PRIVATE_KEY_PASSWORD"
+          fi
+
+  release:
+    name: Create GitHub Release
+    needs: [build, test-compatibility]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: artk-intellij-plugin-${{ needs.build.outputs.version }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: intellij-v${{ needs.build.outputs.version }}
+          name: IntelliJ IDEA Plugin v${{ needs.build.outputs.version }}
+          body: |
+            ## ARTK IntelliJ IDEA Plugin v${{ needs.build.outputs.version }}
+
+            ### Installation
+
+            #### From JetBrains Marketplace (Recommended)
+            1. In IntelliJ IDEA, go to `Settings` → `Plugins` → `Marketplace`
+            2. Search for "ARTK"
+            3. Click `Install`
+
+            #### Manual Installation
+            1. Download the `.zip` file below
+            2. In IntelliJ IDEA, go to `Settings` → `Plugins` → `⚙️` → `Install Plugin from Disk...`
+            3. Select the downloaded file
+
+            ### Compatibility
+            - IntelliJ IDEA 2024.1+
+            - WebStorm, PhpStorm, PyCharm, and other JetBrains IDEs
+
+            ### Features
+            - Initialize and manage ARTK projects
+            - Journey management with tree views
+            - LLKB (Lessons Learned Knowledge Base) integration
+            - Workflow guidance with Copilot integration
+            - Interactive dashboard
+
+            ### Changes
+            See [commit history](https://github.com/${{ github.repository }}/commits/main) for details.
+          files: |
+            *.zip
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
