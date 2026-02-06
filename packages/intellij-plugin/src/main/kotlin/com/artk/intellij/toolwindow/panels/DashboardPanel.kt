@@ -8,6 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
@@ -68,8 +69,8 @@ class DashboardPanel(private val project: Project) : JBPanel<DashboardPanel>(Bor
     }
 
     private fun createDashboardView(): JComponent {
-        // Check if JCEF is supported
-        if (!JBCefBrowser.isCefBrowserCreationSupported()) {
+        // Check if JCEF is supported (JBCefApp.isSupported() works in IntelliJ 2024.1+)
+        if (!JBCefApp.isSupported()) {
             return createFallbackView()
         }
 
