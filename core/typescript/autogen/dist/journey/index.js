@@ -236,6 +236,44 @@ var init_paths = __esm({
   }
 });
 
+// src/mapping/patternDistance.ts
+function levenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          // substitution
+          matrix[i][j - 1] + 1,
+          // insertion
+          matrix[i - 1][j] + 1
+          // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+function calculateSimilarity(a, b) {
+  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1;
+  return 1 - distance / maxLength;
+}
+var init_patternDistance = __esm({
+  "src/mapping/patternDistance.ts"() {
+  }
+});
+
 // src/llkb/patternExtension.ts
 var patternExtension_exports = {};
 __export(patternExtension_exports, {
@@ -360,16 +398,40 @@ function recordPatternFailure(originalText, _journeyId, options = {}) {
 function matchLlkbPattern(text, options = {}) {
   const patterns = loadLearnedPatterns(options);
   const normalizedText = normalizeStepText(text);
-  const minConfidence = options.minConfidence ?? 0.7;
-  const match = patterns.find(
+  const minConfidence = options.minConfidence ?? 0.5;
+  const minSimilarity = options.minSimilarity ?? 0.7;
+  const useFuzzyMatch = options.useFuzzyMatch ?? true;
+  const exactMatch = patterns.find(
     (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
   );
-  if (match) {
+  if (exactMatch) {
     return {
-      patternId: match.id,
-      primitive: match.mappedPrimitive,
-      confidence: match.confidence
+      patternId: exactMatch.id,
+      primitive: exactMatch.mappedPrimitive,
+      confidence: exactMatch.confidence
     };
+  }
+  if (useFuzzyMatch) {
+    let bestMatch = null;
+    let bestSimilarity = 0;
+    for (const pattern of patterns) {
+      if (pattern.promotedToCore || pattern.confidence < minConfidence) {
+        continue;
+      }
+      const similarity = calculateSimilarity(normalizedText, pattern.normalizedText);
+      if (similarity >= minSimilarity && similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestMatch = pattern;
+      }
+    }
+    if (bestMatch) {
+      const adjustedConfidence = bestMatch.confidence * bestSimilarity;
+      return {
+        patternId: bestMatch.id,
+        primitive: bestMatch.mappedPrimitive,
+        confidence: adjustedConfidence
+      };
+    }
   }
   return null;
 }
@@ -485,6 +547,7 @@ var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
     init_glossary();
     init_paths();
+    init_patternDistance();
     PATTERNS_FILE = "learned-patterns.json";
     patternCache = null;
     CACHE_TTL_MS = 5e3;

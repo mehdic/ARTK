@@ -384,6 +384,156 @@ overrides:
 }
 
 // ============================================================================
+// SEED PATTERNS INSTALLATION
+// ============================================================================
+function installSeedPatterns(llkbRoot, verbose) {
+  const log = (msg) => { if (verbose) console.log(msg); };
+
+  const seedPatternsPath = path.join(llkbRoot, 'learned-patterns.json');
+
+  // Don't overwrite if already exists
+  if (fs.existsSync(seedPatternsPath)) {
+    log('  Seed patterns already exist, skipping');
+    return { installed: false, reason: 'already_exists' };
+  }
+
+  // Try to find seed patterns in ARTK source
+  // Look in several possible locations
+  const possibleSeedLocations = [
+    // Direct path from ARTK repo
+    path.join(__dirname, '..', '..', '.artk', 'llkb', 'learned-patterns.json'),
+    // Relative to script
+    path.join(__dirname, 'seed-patterns.json'),
+    // In node_modules (when installed as package)
+    path.join(__dirname, '..', '..', 'node_modules', '@artk', 'core', '.artk', 'llkb', 'learned-patterns.json'),
+  ];
+
+  let seedSource = null;
+  for (const loc of possibleSeedLocations) {
+    if (fs.existsSync(loc)) {
+      seedSource = loc;
+      break;
+    }
+  }
+
+  if (!seedSource) {
+    log('  No seed patterns found in ARTK source');
+    // Create empty learned-patterns.json as fallback
+    const emptyPatterns = {
+      version: '1.0.0',
+      lastUpdated: new Date().toISOString(),
+      description: 'LLKB learned patterns - will be populated during generation',
+      patterns: []
+    };
+    try {
+      fs.writeFileSync(seedPatternsPath, JSON.stringify(emptyPatterns, null, 2), 'utf-8');
+      log('  Created empty learned-patterns.json');
+      return { installed: true, count: 0, source: 'empty' };
+    } catch (err) {
+      return { installed: false, reason: err.message };
+    }
+  }
+
+  // Copy seed patterns
+  try {
+    const seedContent = fs.readFileSync(seedSource, 'utf-8');
+    const seedData = JSON.parse(seedContent);
+    const patternCount = seedData.patterns ? seedData.patterns.length : 0;
+
+    // Update metadata
+    seedData.lastUpdated = new Date().toISOString();
+    seedData.description = 'LLKB seed patterns - copied from ARTK core, will be augmented during generation';
+    seedData.seedSource = 'artk-core';
+
+    fs.writeFileSync(seedPatternsPath, JSON.stringify(seedData, null, 2), 'utf-8');
+    log(`  Installed ${patternCount} seed patterns from ${seedSource}`);
+    return { installed: true, count: patternCount, source: seedSource };
+  } catch (err) {
+    log(`  Warning: Failed to copy seed patterns: ${err.message}`);
+    return { installed: false, reason: err.message };
+  }
+}
+
+// ============================================================================
+// LOAD DISCOVERED PATTERNS (F12 integration)
+// ============================================================================
+/**
+ * Load discovered-patterns.json if it exists and merge into learned-patterns.json.
+ * This enables bootstrap to pick up patterns from a previous discover-foundation run.
+ * Non-destructive: never overwrites existing patterns, only adds new ones.
+ */
+function loadDiscoveredPatterns(llkbRoot, verbose) {
+  const log = (msg) => { if (verbose) console.log(msg); };
+
+  const discoveredPath = path.join(llkbRoot, 'discovered-patterns.json');
+  const learnedPath = path.join(llkbRoot, 'learned-patterns.json');
+
+  // Only proceed if discovered-patterns.json exists
+  if (!fs.existsSync(discoveredPath)) {
+    log('  No discovered-patterns.json found (run discover-foundation to generate)');
+    return { merged: false, reason: 'no_discovered_patterns' };
+  }
+
+  try {
+    const discoveredContent = fs.readFileSync(discoveredPath, 'utf-8');
+    const discoveredData = JSON.parse(discoveredContent);
+    const discoveredPatterns = discoveredData.patterns || [];
+
+    if (discoveredPatterns.length === 0) {
+      log('  discovered-patterns.json is empty');
+      return { merged: false, reason: 'empty', count: 0 };
+    }
+
+    // Load existing learned patterns
+    let learnedData = { version: '1.0.0', lastUpdated: new Date().toISOString(), patterns: [] };
+    if (fs.existsSync(learnedPath)) {
+      try {
+        learnedData = JSON.parse(fs.readFileSync(learnedPath, 'utf-8'));
+      } catch {
+        // If learned-patterns is corrupted, start fresh
+        log('  Warning: learned-patterns.json was corrupted, starting fresh');
+      }
+    }
+
+    const existingPatterns = learnedData.patterns || [];
+
+    // Build set of existing normalized texts for deduplication
+    const existingTexts = new Set(
+      existingPatterns.map(p => `${(p.normalizedText || '').toLowerCase()}::${p.mappedPrimitive || p.primitive || ''}`)
+    );
+
+    // Merge: add discovered patterns that don't already exist
+    let addedCount = 0;
+    for (const dp of discoveredPatterns) {
+      const key = `${(dp.normalizedText || '').toLowerCase()}::${dp.mappedPrimitive || dp.primitive || ''}`;
+      if (!existingTexts.has(key)) {
+        existingPatterns.push(dp);
+        existingTexts.add(key);
+        addedCount++;
+      }
+    }
+
+    if (addedCount === 0) {
+      log(`  All ${discoveredPatterns.length} discovered patterns already exist in learned-patterns.json`);
+      return { merged: false, reason: 'all_duplicates', count: 0 };
+    }
+
+    // Save merged patterns
+    learnedData.patterns = existingPatterns;
+    learnedData.lastUpdated = new Date().toISOString();
+    learnedData.discoveredPatternsSource = discoveredPath;
+    learnedData.discoveredPatternsCount = addedCount;
+
+    fs.writeFileSync(learnedPath, JSON.stringify(learnedData, null, 2), 'utf-8');
+    log(`  Merged ${addedCount} discovered patterns (${discoveredPatterns.length - addedCount} duplicates skipped)`);
+    return { merged: true, count: addedCount, total: existingPatterns.length };
+  } catch (err) {
+    log(`  Warning: Failed to load discovered patterns: ${err.message}`);
+    return { merged: false, reason: err.message };
+  }
+}
+
+// ============================================================================
 // LLKB VERIFICATION
 // ============================================================================
 function verifyLLKB(llkbRoot) {
@@ -584,11 +734,34 @@ function main() {
       process.exit(1);
     }
 
+    // Install seed patterns (for better out-of-box experience)
+    console.log('');
+    console.log('Installing seed patterns...');
+    const seedResult = installSeedPatterns(llkbRoot, args.verbose);
+    if (seedResult.installed) {
+      if (seedResult.count > 0) {
+        console.log(`  Installed ${seedResult.count} seed patterns`);
+      } else {
+        console.log('  Created empty patterns file (will be populated during generation)');
+      }
+    } else if (seedResult.reason !== 'already_exists') {
+      console.log(`  Warning: Could not install seed patterns: ${seedResult.reason}`);
+    }
+
+    // Load discovered patterns (from F12 discover-foundation, if available)
+    const discoveredResult = loadDiscoveredPatterns(llkbRoot, args.verbose);
+    if (discoveredResult.merged) {
+      console.log(`  Merged ${discoveredResult.count} discovered patterns (total: ${discoveredResult.total})`);
+    }
+
     // Success
     console.log('');
     console.log('LLKB initialized successfully');
     console.log(`  Created: ${results.created.length} files/directories`);
     console.log(`  Skipped: ${results.skipped.length} (already existed)`);
+    if (seedResult.installed && seedResult.count > 0) {
+      console.log(`  Seed patterns: ${seedResult.count} patterns for better out-of-box generation`);
+    }
     releaseLock(lock.lockPath);
     process.exit(0);
   } catch (err) {

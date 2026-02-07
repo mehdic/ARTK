@@ -1,8 +1,1317 @@
+import { randomUUID } from 'crypto';
+import * as fsp3 from 'fs/promises';
+import * as path13 from 'path';
+import { join } from 'path';
 import * as fs from 'fs';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
-import * as path9 from 'path';
-import { join } from 'path';
 import { stringify } from 'yaml';
+
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// llkb/pluralization.ts
+function createSafeDict(entries) {
+  return Object.freeze(Object.assign(/* @__PURE__ */ Object.create(null), entries));
+}
+function applyCasePattern(original, result) {
+  if (original.length === 0) return result;
+  if (original === original.toUpperCase() && /[A-Z]/.test(original)) {
+    return result.toUpperCase();
+  }
+  if (original[0] === original[0].toUpperCase() && original.slice(1) === original.slice(1).toLowerCase()) {
+    return result.charAt(0).toUpperCase() + result.slice(1);
+  }
+  return result;
+}
+function pluralize(word, options = {}) {
+  if (typeof word !== "string") {
+    return String(word);
+  }
+  if (word.length === 0) {
+    return "";
+  }
+  if (word.length > MAX_WORD_LENGTH) {
+    return word;
+  }
+  const lower = word.toLowerCase();
+  if (UNCOUNTABLE_NOUNS.has(lower)) {
+    return options.preserveCase ? word : lower;
+  }
+  if (lower in IRREGULAR_PLURALS) {
+    const result2 = IRREGULAR_PLURALS[lower];
+    return options.preserveCase ? applyCasePattern(word, result2) : result2;
+  }
+  if (lower in IRREGULAR_SINGULARS) {
+    return options.preserveCase ? word : lower;
+  }
+  if (lower.endsWith("s") && !lower.endsWith("ss") && // 'class' needs -es
+  !(lower in IRREGULAR_PLURALS)) {
+    return options.preserveCase ? word : lower;
+  }
+  let result;
+  if (lower.endsWith("y") && lower.length > 1) {
+    const beforeY = lower[lower.length - 2];
+    if (!"aeiou".includes(beforeY)) {
+      result = lower.slice(0, -1) + "ies";
+      return options.preserveCase ? applyCasePattern(word, result) : result;
+    }
+  }
+  if (lower.endsWith("s") || lower.endsWith("x") || lower.endsWith("z") || lower.endsWith("ch") || lower.endsWith("sh")) {
+    result = lower + "es";
+    return options.preserveCase ? applyCasePattern(word, result) : result;
+  }
+  if (lower.endsWith("f") && !lower.endsWith("ff") && !lower.endsWith("ief") && !lower.endsWith("oof") && !lower.endsWith("eef")) {
+    result = lower.slice(0, -1) + "ves";
+    return options.preserveCase ? applyCasePattern(word, result) : result;
+  }
+  if (lower.endsWith("fe")) {
+    result = lower.slice(0, -2) + "ves";
+    return options.preserveCase ? applyCasePattern(word, result) : result;
+  }
+  if (lower.endsWith("o") && lower.length > 1) {
+    const beforeO = lower[lower.length - 2];
+    if (!"aeiou".includes(beforeO)) {
+      result = lower + "es";
+      return options.preserveCase ? applyCasePattern(word, result) : result;
+    }
+  }
+  result = lower + "s";
+  return options.preserveCase ? applyCasePattern(word, result) : result;
+}
+function singularize(word, options = {}) {
+  if (typeof word !== "string") {
+    return String(word);
+  }
+  if (word.length === 0) {
+    return "";
+  }
+  if (word.length > MAX_WORD_LENGTH) {
+    return word;
+  }
+  const lower = word.toLowerCase();
+  if (UNCOUNTABLE_NOUNS.has(lower)) {
+    return options.preserveCase ? word : lower;
+  }
+  if (lower in IRREGULAR_SINGULARS) {
+    const result2 = IRREGULAR_SINGULARS[lower];
+    return options.preserveCase ? applyCasePattern(word, result2) : result2;
+  }
+  let result;
+  if (lower.endsWith("ies") && lower.length > 3) {
+    result = lower.slice(0, -3) + "y";
+    return options.preserveCase ? applyCasePattern(word, result) : result;
+  }
+  if (lower.endsWith("ves")) {
+    const stem = lower.slice(0, -3);
+    if (stem.endsWith("l") || stem.endsWith("r") || stem.endsWith("n") || stem.endsWith("a") || stem.endsWith("o")) {
+      result = stem + "f";
+    } else {
+      result = stem + "fe";
+    }
+    return options.preserveCase ? applyCasePattern(word, result) : result;
+  }
+  if (lower.endsWith("zzes")) {
+    result = lower.slice(0, -2);
+    return options.preserveCase ? applyCasePattern(word, result) : result;
+  }
+  if (lower.endsWith("es")) {
+    const stem = lower.slice(0, -2);
+    if (stem.endsWith("ss") || // class -> classes
+    stem.endsWith("x") || // box -> boxes
+    stem.endsWith("z") || // quiz -> quizzes (but handled above for -zz)
+    stem.endsWith("ch") || // watch -> watches
+    stem.endsWith("sh") || // wish -> wishes
+    stem.endsWith("o")) {
+      return options.preserveCase ? applyCasePattern(word, stem) : stem;
+    }
+    if (stem.endsWith("s") && !stem.endsWith("ss")) {
+      return options.preserveCase ? applyCasePattern(word, stem) : stem;
+    }
+  }
+  if (lower.endsWith("s") && lower.length > 1 && !lower.endsWith("ss")) {
+    result = lower.slice(0, -1);
+    return options.preserveCase ? applyCasePattern(word, result) : result;
+  }
+  return options.preserveCase ? word : lower;
+}
+function getSingularPlural(word) {
+  if (typeof word !== "string" || word.length === 0) {
+    return { singular: "", plural: "" };
+  }
+  const lower = word.toLowerCase();
+  if (UNCOUNTABLE_NOUNS.has(lower)) {
+    return { singular: lower, plural: lower };
+  }
+  if (lower in IRREGULAR_SINGULARS) {
+    return {
+      singular: IRREGULAR_SINGULARS[lower],
+      plural: lower
+    };
+  }
+  if (lower in IRREGULAR_PLURALS) {
+    return {
+      singular: lower,
+      plural: IRREGULAR_PLURALS[lower]
+    };
+  }
+  const singular = singularize(lower);
+  const plural = pluralize(singular);
+  return { singular, plural };
+}
+function isUncountable(word) {
+  if (typeof word !== "string") return false;
+  return UNCOUNTABLE_NOUNS.has(word.toLowerCase());
+}
+var MAX_WORD_LENGTH, UNCOUNTABLE_NOUNS, IRREGULAR_PLURALS, IRREGULAR_SINGULARS;
+var init_pluralization = __esm({
+  "llkb/pluralization.ts"() {
+    MAX_WORD_LENGTH = 100;
+    UNCOUNTABLE_NOUNS = Object.freeze(
+      /* @__PURE__ */ new Set([
+        // Abstract concepts
+        "advice",
+        "information",
+        "knowledge",
+        "wisdom",
+        "intelligence",
+        "evidence",
+        "research",
+        "progress",
+        "happiness",
+        "sadness",
+        "luck",
+        "fun",
+        // Materials and substances
+        "water",
+        "air",
+        "oil",
+        // Note: 'gas' removed - it has a plural form 'gases' (e.g., "noble gases")
+        "milk",
+        "rice",
+        "bread",
+        "sugar",
+        "salt",
+        "flour",
+        "gold",
+        "silver",
+        "iron",
+        "wood",
+        "paper",
+        "glass",
+        "plastic",
+        "cotton",
+        "wool",
+        // Tech/software terms
+        "software",
+        "hardware",
+        "firmware",
+        "malware",
+        "freeware",
+        "shareware",
+        "middleware",
+        // Note: 'data' is in IRREGULAR_PLURALS (datum/data), not here
+        // Note: 'metadata' follows 'data' pattern
+        "feedback",
+        "bandwidth",
+        "traffic",
+        "spam",
+        "code",
+        // Usually uncountable in tech context
+        // Other uncountables
+        "equipment",
+        "furniture",
+        "luggage",
+        "baggage",
+        "clothing",
+        "weather",
+        "news",
+        "homework",
+        "housework",
+        "money",
+        "cash",
+        "music",
+        "art",
+        "poetry",
+        "literature",
+        "electricity",
+        "heat",
+        "light",
+        "darkness",
+        "space",
+        "time",
+        "work",
+        "travel",
+        "accommodation",
+        "scenery",
+        "machinery",
+        "jewelry",
+        "rubbish",
+        "garbage",
+        "trash",
+        "stuff",
+        // Words same in singular and plural
+        "sheep",
+        "fish",
+        "deer",
+        "moose",
+        "swine",
+        "buffalo",
+        "shrimp",
+        "trout",
+        "salmon",
+        "squid",
+        "aircraft",
+        "spacecraft",
+        "hovercraft",
+        "series",
+        "species",
+        "means",
+        "offspring",
+        "chassis",
+        "corps",
+        "swiss"
+      ])
+    );
+    IRREGULAR_PLURALS = createSafeDict({
+      // People
+      person: "people",
+      child: "children",
+      man: "men",
+      woman: "women",
+      // Body parts
+      tooth: "teeth",
+      foot: "feet",
+      // Animals
+      mouse: "mice",
+      goose: "geese",
+      ox: "oxen",
+      // -f/-fe to -ves
+      leaf: "leaves",
+      life: "lives",
+      knife: "knives",
+      wife: "wives",
+      half: "halves",
+      shelf: "shelves",
+      self: "selves",
+      // From template-generators.ts
+      calf: "calves",
+      loaf: "loaves",
+      // -o to -oes
+      potato: "potatoes",
+      tomato: "tomatoes",
+      hero: "heroes",
+      echo: "echoes",
+      embargo: "embargoes",
+      // From mining.ts
+      veto: "vetoes",
+      // From mining.ts
+      cargo: "cargoes",
+      // From template-generators.ts
+      // Latin/Greek (-is to -es)
+      analysis: "analyses",
+      basis: "bases",
+      crisis: "crises",
+      diagnosis: "diagnoses",
+      // From mining.ts
+      hypothesis: "hypotheses",
+      // From mining.ts
+      oasis: "oases",
+      // From mining.ts
+      parenthesis: "parentheses",
+      // From mining.ts
+      synopsis: "synopses",
+      // From mining.ts
+      thesis: "theses",
+      // Latin/Greek (-on/-um to -a)
+      criterion: "criteria",
+      phenomenon: "phenomena",
+      datum: "data",
+      medium: "media",
+      curriculum: "curricula",
+      // From mining.ts
+      memorandum: "memoranda",
+      // From mining.ts
+      // Latin (-us to -i)
+      stimulus: "stimuli",
+      // From mining.ts
+      syllabus: "syllabi",
+      // From mining.ts
+      focus: "foci",
+      // From mining.ts
+      fungus: "fungi",
+      // From mining.ts
+      cactus: "cacti",
+      // From mining.ts
+      // Latin (-ix/-ex to -ices)
+      appendix: "appendices",
+      index: "indices",
+      matrix: "matrices",
+      vertex: "vertices",
+      // From template-generators.ts
+      // Special cases
+      status: "statuses",
+      // From template-generators.ts
+      quiz: "quizzes",
+      // From template-generators.ts
+      // Singular nouns ending in 's' that need -es (would be caught by "already plural" check)
+      bus: "buses",
+      gas: "gases",
+      lens: "lenses",
+      atlas: "atlases",
+      iris: "irises",
+      plus: "pluses",
+      minus: "minuses",
+      bonus: "bonuses",
+      campus: "campuses",
+      caucus: "caucuses",
+      census: "censuses",
+      citrus: "citruses",
+      circus: "circuses",
+      corpus: "corpora",
+      // Latin plural
+      genus: "genera",
+      // Latin plural
+      radius: "radii",
+      // Latin plural
+      nexus: "nexuses",
+      sinus: "sinuses",
+      surplus: "surpluses",
+      virus: "viruses"
+    });
+    IRREGULAR_SINGULARS = createSafeDict(
+      Object.fromEntries(
+        Object.entries(IRREGULAR_PLURALS).map(([singular, plural]) => [plural, singular])
+      )
+    );
+  }
+});
+
+// llkb/template-generators.ts
+var template_generators_exports = {};
+__export(template_generators_exports, {
+  CRUD_TEMPLATES: () => CRUD_TEMPLATES,
+  EXTENDED_NAVIGATION_TEMPLATES: () => EXTENDED_NAVIGATION_TEMPLATES,
+  FORM_TEMPLATES: () => FORM_TEMPLATES,
+  MODAL_TEMPLATES: () => MODAL_TEMPLATES,
+  NOTIFICATION_TEMPLATES: () => NOTIFICATION_TEMPLATES,
+  TABLE_TEMPLATES: () => TABLE_TEMPLATES,
+  createEntity: () => createEntity,
+  createForm: () => createForm,
+  createModal: () => createModal,
+  createRoute: () => createRoute,
+  createTable: () => createTable,
+  generateAllPatterns: () => generateAllPatterns,
+  generateCrudPatterns: () => generateCrudPatterns,
+  generateFormPatterns: () => generateFormPatterns,
+  generateModalPatterns: () => generateModalPatterns,
+  generateNavigationPatterns: () => generateNavigationPatterns2,
+  generateNotificationPatterns: () => generateNotificationPatterns,
+  generateTablePatterns: () => generateTablePatterns
+});
+function generatePatternId2() {
+  return `DP-${randomUUID().slice(0, 8)}`;
+}
+function expandEntityTemplate(template, entity, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  if (template.placeholders.includes("entity")) {
+    const text = template.text.replace("{entity}", entity.singular);
+    patterns.push(createPattern(template, text, entity.singular, confidence));
+  }
+  if (template.placeholders.includes("entities")) {
+    const text = template.text.replace("{entities}", entity.plural);
+    patterns.push(createPattern(template, text, entity.plural, confidence));
+  }
+  return patterns;
+}
+function expandFormTemplate(template, form, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  if (template.placeholders.includes("form") && !template.placeholders.includes("field")) {
+    const text = template.text.replace("{form}", form.name);
+    const selectorHints = [];
+    if (form.submitSelector && template.text.includes("submit")) {
+      selectorHints.push({
+        strategy: "css",
+        value: form.submitSelector,
+        confidence: confidence + SELECTOR_CONFIDENCE_BOOST
+      });
+    }
+    patterns.push(createPattern(template, text, form.name, confidence, selectorHints));
+  }
+  if (template.placeholders.includes("field")) {
+    for (const field of form.fields) {
+      let text = template.text.replace("{field}", field.label || field.name);
+      if (template.placeholders.includes("form")) {
+        text = text.replace("{form}", form.name);
+      }
+      const selectorHints = [];
+      if (field.selector) {
+        selectorHints.push({
+          strategy: "css",
+          value: field.selector,
+          confidence: confidence + SELECTOR_CONFIDENCE_BOOST
+        });
+      }
+      patterns.push(createPattern(template, text, field.name, confidence, selectorHints));
+    }
+  }
+  return patterns;
+}
+function expandTableTemplate(template, table, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  if (template.placeholders.includes("table") && !template.placeholders.includes("column")) {
+    const text = template.text.replace("{table}", table.name);
+    const selectorHints = [];
+    if (table.selectors?.table) {
+      selectorHints.push({
+        strategy: "css",
+        value: table.selectors.table,
+        confidence: confidence + SELECTOR_CONFIDENCE_BOOST
+      });
+    }
+    patterns.push(createPattern(template, text, table.name, confidence, selectorHints));
+  }
+  if (template.placeholders.includes("column")) {
+    for (const column of table.columns) {
+      let text = template.text.replace("{column}", column);
+      if (template.placeholders.includes("table")) {
+        text = text.replace("{table}", table.name);
+      }
+      const selectorHints = [];
+      if (table.selectors?.header) {
+        selectorHints.push({
+          strategy: "css",
+          value: `${table.selectors.header}:has-text("${column}")`,
+          confidence: confidence + SELECTOR_CONFIDENCE_BOOST * 0.5
+        });
+      }
+      patterns.push(createPattern(template, text, column, confidence, selectorHints));
+    }
+  }
+  return patterns;
+}
+function expandModalTemplate(template, modal, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  if (template.placeholders.includes("modal")) {
+    const text = template.text.replace("{modal}", modal.name);
+    const selectorHints = [];
+    if (template.text.includes("open") && modal.triggerSelector) {
+      selectorHints.push({
+        strategy: "css",
+        value: modal.triggerSelector,
+        confidence: confidence + SELECTOR_CONFIDENCE_BOOST
+      });
+    } else if (template.text.includes("close") && modal.closeSelector) {
+      selectorHints.push({
+        strategy: "css",
+        value: modal.closeSelector,
+        confidence: confidence + SELECTOR_CONFIDENCE_BOOST
+      });
+    } else if ((template.text.includes("confirm") || template.text.includes("OK") || template.text.includes("Yes")) && modal.confirmSelector) {
+      selectorHints.push({
+        strategy: "css",
+        value: modal.confirmSelector,
+        confidence: confidence + SELECTOR_CONFIDENCE_BOOST
+      });
+    }
+    patterns.push(createPattern(template, text, modal.name, confidence, selectorHints));
+  }
+  return patterns;
+}
+function expandRouteTemplate(template, route, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  if (template.placeholders.includes("route")) {
+    const text = template.text.replace("{route}", route.name);
+    const selectorHints = [];
+    if (template.primitive === "navigate") {
+      selectorHints.push({
+        strategy: "text",
+        value: route.name,
+        confidence
+      });
+    }
+    patterns.push(createPattern(template, text, route.name, confidence, selectorHints));
+  }
+  return patterns;
+}
+function createPattern(template, text, entityName, confidence, selectorHints = []) {
+  return {
+    id: generatePatternId2(),
+    normalizedText: text.toLowerCase(),
+    originalText: text,
+    mappedPrimitive: template.primitive,
+    selectorHints,
+    confidence: Math.min(confidence, MAX_CONFIDENCE2),
+    layer: "app-specific",
+    category: template.category,
+    sourceJourneys: [],
+    successCount: 0,
+    failCount: 0,
+    templateSource: template.templateSource,
+    entityName: entityName || void 0
+  };
+}
+function generateCrudPatterns(entities, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  for (const entity of entities) {
+    for (const template of CRUD_TEMPLATES) {
+      patterns.push(...expandEntityTemplate(template, entity, confidence));
+    }
+  }
+  return patterns;
+}
+function generateFormPatterns(forms, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  for (const form of forms) {
+    for (const template of FORM_TEMPLATES) {
+      patterns.push(...expandFormTemplate(template, form, confidence));
+    }
+  }
+  return patterns;
+}
+function generateTablePatterns(tables, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  for (const table of tables) {
+    for (const template of TABLE_TEMPLATES) {
+      patterns.push(...expandTableTemplate(template, table, confidence));
+    }
+  }
+  return patterns;
+}
+function generateModalPatterns(modals, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  for (const modal of modals) {
+    for (const template of MODAL_TEMPLATES) {
+      patterns.push(...expandModalTemplate(template, modal, confidence));
+    }
+  }
+  return patterns;
+}
+function generateNavigationPatterns2(routes, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const patterns = [];
+  const addedGenericPatterns = /* @__PURE__ */ new Set();
+  for (const route of routes) {
+    for (const template of EXTENDED_NAVIGATION_TEMPLATES) {
+      if (template.placeholders.length === 0) {
+        if (!addedGenericPatterns.has(template.text)) {
+          patterns.push(createPattern(template, template.text, "", confidence, []));
+          addedGenericPatterns.add(template.text);
+        }
+      } else {
+        patterns.push(...expandRouteTemplate(template, route, confidence));
+      }
+    }
+  }
+  return patterns;
+}
+function generateNotificationPatterns(confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  return NOTIFICATION_TEMPLATES.map((template) => createPattern(
+    template,
+    template.text,
+    "",
+    confidence,
+    []
+  ));
+}
+function generateAllPatterns(elements, confidence = DEFAULT_GENERATED_CONFIDENCE) {
+  const crudPatterns = generateCrudPatterns(elements.entities, confidence);
+  const formPatterns = generateFormPatterns(elements.forms, confidence);
+  const tablePatterns = generateTablePatterns(elements.tables, confidence);
+  const modalPatterns = generateModalPatterns(elements.modals, confidence);
+  const navigationPatterns = generateNavigationPatterns2(elements.routes, confidence);
+  const notificationPatterns = generateNotificationPatterns(confidence);
+  let allPatterns = [
+    ...crudPatterns,
+    ...formPatterns,
+    ...tablePatterns,
+    ...modalPatterns,
+    ...navigationPatterns,
+    ...notificationPatterns
+  ];
+  if (allPatterns.length > MAX_GENERATED_PATTERNS) {
+    allPatterns.sort((a, b) => b.confidence - a.confidence);
+    allPatterns = allPatterns.slice(0, MAX_GENERATED_PATTERNS);
+  }
+  return {
+    patterns: allPatterns,
+    stats: {
+      crudPatterns: crudPatterns.length,
+      formPatterns: formPatterns.length,
+      tablePatterns: tablePatterns.length,
+      modalPatterns: modalPatterns.length,
+      navigationPatterns: navigationPatterns.length,
+      notificationPatterns: notificationPatterns.length,
+      totalPatterns: allPatterns.length
+    }
+  };
+}
+function createEntity(name) {
+  const lower = name.toLowerCase();
+  const likelySingular = singularize(lower);
+  const likelyPlural = pluralize(likelySingular);
+  const singular = likelySingular;
+  const plural = likelyPlural;
+  return {
+    name,
+    singular,
+    plural
+  };
+}
+function createForm(name, fields = []) {
+  return {
+    id: `form-${name.toLowerCase().replace(/\s+/g, "-")}`,
+    name,
+    fields: fields.map((f) => ({
+      name: f.toLowerCase().replace(/\s+/g, "_"),
+      type: "text",
+      label: f
+    }))
+  };
+}
+function createTable(name, columns = []) {
+  return {
+    id: `table-${name.toLowerCase().replace(/\s+/g, "-")}`,
+    name,
+    columns
+  };
+}
+function createModal(name) {
+  return {
+    id: `modal-${name.toLowerCase().replace(/\s+/g, "-")}`,
+    name
+  };
+}
+function createRoute(path17, name) {
+  const routeName = name || path17.split("/").filter(Boolean).pop() || "home";
+  return {
+    path: path17,
+    name: routeName.charAt(0).toUpperCase() + routeName.slice(1)
+  };
+}
+var DEFAULT_GENERATED_CONFIDENCE, SELECTOR_CONFIDENCE_BOOST, MAX_CONFIDENCE2, MAX_GENERATED_PATTERNS, CRUD_TEMPLATES, FORM_TEMPLATES, TABLE_TEMPLATES, MODAL_TEMPLATES, EXTENDED_NAVIGATION_TEMPLATES, NOTIFICATION_TEMPLATES;
+var init_template_generators = __esm({
+  "llkb/template-generators.ts"() {
+    init_pluralization();
+    DEFAULT_GENERATED_CONFIDENCE = 0.7;
+    SELECTOR_CONFIDENCE_BOOST = 0.15;
+    MAX_CONFIDENCE2 = 0.95;
+    MAX_GENERATED_PATTERNS = 2e3;
+    CRUD_TEMPLATES = [
+      // Create operations
+      { text: "create new {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "add {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "click add {entity} button", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "click create {entity} button", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "open new {entity} form", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      // Read operations
+      { text: "view {entity} details", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "open {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "click on {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "select {entity} from list", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "view {entity} list", primitive: "navigate", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      // Update operations
+      { text: "edit {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "update {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "modify {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "click edit {entity} button", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "save {entity} changes", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      // Delete operations
+      { text: "delete {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "remove {entity}", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "click delete {entity} button", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "confirm {entity} deletion", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "cancel {entity} deletion", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      // Search/filter operations
+      { text: "search for {entity}", primitive: "fill", placeholders: ["entity"], category: "data", templateSource: "crud" },
+      { text: "filter {entities}", primitive: "fill", placeholders: ["entities"], category: "data", templateSource: "crud" },
+      { text: "clear {entity} filter", primitive: "click", placeholders: ["entity"], category: "data", templateSource: "crud" }
+    ];
+    FORM_TEMPLATES = [
+      // Form interactions
+      { text: "fill {form} form", primitive: "fill", placeholders: ["form"], category: "data", templateSource: "form" },
+      { text: "submit {form} form", primitive: "click", placeholders: ["form"], category: "data", templateSource: "form" },
+      { text: "cancel {form} form", primitive: "click", placeholders: ["form"], category: "data", templateSource: "form" },
+      { text: "reset {form} form", primitive: "click", placeholders: ["form"], category: "data", templateSource: "form" },
+      { text: "clear {form} form", primitive: "click", placeholders: ["form"], category: "data", templateSource: "form" },
+      // Field operations
+      { text: "enter {field} in {form}", primitive: "fill", placeholders: ["field", "form"], category: "data", templateSource: "form" },
+      { text: "fill in {field}", primitive: "fill", placeholders: ["field"], category: "data", templateSource: "form" },
+      { text: "select {field} option", primitive: "click", placeholders: ["field"], category: "data", templateSource: "form" },
+      { text: "check {field} checkbox", primitive: "check", placeholders: ["field"], category: "data", templateSource: "form" },
+      { text: "uncheck {field} checkbox", primitive: "uncheck", placeholders: ["field"], category: "data", templateSource: "form" },
+      { text: "toggle {field}", primitive: "click", placeholders: ["field"], category: "data", templateSource: "form" },
+      { text: "upload file to {field}", primitive: "upload", placeholders: ["field"], category: "data", templateSource: "form" },
+      { text: "clear {field} field", primitive: "clear", placeholders: ["field"], category: "data", templateSource: "form" },
+      // Validation
+      { text: "verify {field} error message", primitive: "assert", placeholders: ["field"], category: "assertion", templateSource: "form" },
+      { text: "verify {form} validation error", primitive: "assert", placeholders: ["form"], category: "assertion", templateSource: "form" },
+      { text: "verify {field} is required", primitive: "assert", placeholders: ["field"], category: "assertion", templateSource: "form" },
+      { text: "verify {form} submitted successfully", primitive: "assert", placeholders: ["form"], category: "assertion", templateSource: "form" }
+    ];
+    TABLE_TEMPLATES = [
+      // Row operations
+      { text: "click row in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "select row in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "double-click row in {table}", primitive: "dblclick", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "expand row in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "collapse row in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "hover over row in {table}", primitive: "hover", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      // Column operations
+      { text: "sort {column} column in {table}", primitive: "click", placeholders: ["column", "table"], category: "ui-interaction", templateSource: "table" },
+      { text: "sort {table} by {column}", primitive: "click", placeholders: ["table", "column"], category: "ui-interaction", templateSource: "table" },
+      { text: "filter {column} in {table}", primitive: "fill", placeholders: ["column", "table"], category: "ui-interaction", templateSource: "table" },
+      { text: "resize {column} column", primitive: "drag", placeholders: ["column"], category: "ui-interaction", templateSource: "table" },
+      { text: "hide {column} column", primitive: "click", placeholders: ["column"], category: "ui-interaction", templateSource: "table" },
+      { text: "show {column} column", primitive: "click", placeholders: ["column"], category: "ui-interaction", templateSource: "table" },
+      // Pagination
+      { text: "go to next page in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "go to previous page in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "go to page {page} in {table}", primitive: "click", placeholders: ["page", "table"], category: "ui-interaction", templateSource: "table" },
+      { text: "change page size in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      // Cell operations
+      { text: "edit cell in {table}", primitive: "dblclick", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "click cell in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      // Selection
+      { text: "select all rows in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      { text: "deselect all rows in {table}", primitive: "click", placeholders: ["table"], category: "ui-interaction", templateSource: "table" },
+      // Assertions
+      { text: "verify {table} has {count} rows", primitive: "assert", placeholders: ["table", "count"], category: "assertion", templateSource: "table" },
+      { text: "verify {table} contains {text}", primitive: "assert", placeholders: ["table", "text"], category: "assertion", templateSource: "table" },
+      { text: "verify {table} is empty", primitive: "assert", placeholders: ["table"], category: "assertion", templateSource: "table" },
+      { text: "verify {column} is sorted", primitive: "assert", placeholders: ["column"], category: "assertion", templateSource: "table" }
+    ];
+    MODAL_TEMPLATES = [
+      // Open/close
+      { text: "open {modal} modal", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "open {modal} dialog", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "close {modal} modal", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "close {modal} dialog", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "dismiss {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      // Actions
+      { text: "confirm {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "cancel {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "click OK in {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "click Cancel in {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "click Yes in {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "click No in {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "submit {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      // Close methods
+      { text: "press Escape to close {modal}", primitive: "keyboard", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "click outside {modal} to close", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      { text: "click backdrop to close {modal}", primitive: "click", placeholders: ["modal"], category: "ui-interaction", templateSource: "modal" },
+      // Assertions
+      { text: "verify {modal} is open", primitive: "assert", placeholders: ["modal"], category: "assertion", templateSource: "modal" },
+      { text: "verify {modal} is closed", primitive: "assert", placeholders: ["modal"], category: "assertion", templateSource: "modal" },
+      { text: "verify {modal} contains {text}", primitive: "assert", placeholders: ["modal", "text"], category: "assertion", templateSource: "modal" },
+      { text: "verify {modal} title is {title}", primitive: "assert", placeholders: ["modal", "title"], category: "assertion", templateSource: "modal" }
+    ];
+    EXTENDED_NAVIGATION_TEMPLATES = [
+      // Direct navigation
+      { text: "navigate to {route}", primitive: "navigate", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "go to {route}", primitive: "navigate", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "open {route} page", primitive: "navigate", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "visit {route}", primitive: "navigate", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      // Menu/sidebar navigation
+      { text: "click {route} in navigation", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "click {route} in sidebar", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "click {route} in menu", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "select {route} from menu", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "expand {route} menu", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "collapse {route} menu", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      // Breadcrumb navigation
+      { text: "click {route} in breadcrumb", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "navigate via breadcrumb to {route}", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      // Tab navigation
+      { text: "click {route} tab", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "switch to {route} tab", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      // Header/footer navigation
+      { text: "click {route} in header", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      { text: "click {route} in footer", primitive: "click", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      // Back/forward
+      { text: "go back", primitive: "navigate", placeholders: [], category: "navigation", templateSource: "navigation" },
+      { text: "go forward", primitive: "navigate", placeholders: [], category: "navigation", templateSource: "navigation" },
+      { text: "return to {route}", primitive: "navigate", placeholders: ["route"], category: "navigation", templateSource: "navigation" },
+      // Assertions
+      { text: "verify on {route} page", primitive: "assert", placeholders: ["route"], category: "assertion", templateSource: "navigation" },
+      { text: "verify URL contains {route}", primitive: "assert", placeholders: ["route"], category: "assertion", templateSource: "navigation" },
+      { text: "verify {route} is active in navigation", primitive: "assert", placeholders: ["route"], category: "assertion", templateSource: "navigation" }
+    ];
+    NOTIFICATION_TEMPLATES = [
+      // Toast/notification appearance
+      { text: "a success notification appears", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" },
+      { text: "an error notification appears", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" },
+      { text: "a warning notification appears", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" },
+      { text: "an info notification appears", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" },
+      { text: "a toast message appears", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" },
+      { text: "a notification with text {text} appears", primitive: "assert", placeholders: ["text"], category: "assertion", templateSource: "static" },
+      // Toast/notification content
+      { text: "verify success message is displayed", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" },
+      { text: "verify error message is displayed", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" },
+      { text: "verify notification contains {text}", primitive: "assert", placeholders: ["text"], category: "assertion", templateSource: "static" },
+      { text: "verify toast shows {text}", primitive: "assert", placeholders: ["text"], category: "assertion", templateSource: "static" },
+      // Dismiss/close
+      { text: "dismiss notification", primitive: "click", placeholders: [], category: "ui-interaction", templateSource: "static" },
+      { text: "close toast", primitive: "click", placeholders: [], category: "ui-interaction", templateSource: "static" },
+      { text: "dismiss all notifications", primitive: "click", placeholders: [], category: "ui-interaction", templateSource: "static" },
+      // Wait for
+      { text: "wait for notification to appear", primitive: "waitForVisible", placeholders: [], category: "timing", templateSource: "static" },
+      { text: "wait for toast to disappear", primitive: "waitForVisible", placeholders: [], category: "timing", templateSource: "static" },
+      { text: "wait for notification to close", primitive: "waitForVisible", placeholders: [], category: "timing", templateSource: "static" },
+      // Alert dialogs
+      { text: "verify alert message contains {text}", primitive: "assert", placeholders: ["text"], category: "assertion", templateSource: "static" },
+      { text: "accept alert dialog", primitive: "click", placeholders: [], category: "ui-interaction", templateSource: "static" },
+      { text: "dismiss alert dialog", primitive: "click", placeholders: [], category: "ui-interaction", templateSource: "static" },
+      { text: "verify alert is shown", primitive: "assert", placeholders: [], category: "assertion", templateSource: "static" }
+    ];
+  }
+});
+
+// llkb/mining-cache.ts
+var mining_cache_exports = {};
+__export(mining_cache_exports, {
+  MiningCache: () => MiningCache,
+  SOURCE_DIRECTORIES: () => SOURCE_DIRECTORIES,
+  createCacheFromFiles: () => createCacheFromFiles,
+  scanAllSourceDirectories: () => scanAllSourceDirectories,
+  scanDirectory: () => scanDirectory
+});
+async function scanDirectory(dir, cache, options = {}) {
+  const maxDepth = options.maxDepth ?? 15;
+  const maxFiles = options.maxFiles ?? 3e3;
+  const extensions = options.extensions ?? DEFAULT_EXTENSIONS2;
+  const files = [];
+  async function scanRecursive(currentDir, depth) {
+    if (depth > maxDepth || files.length >= maxFiles) return;
+    let entries;
+    try {
+      entries = await fsp3.readdir(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (files.length >= maxFiles) break;
+      const fullPath = path13.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && entry.name !== "coverage" && entry.name !== "__pycache__" && entry.name !== ".git" && entry.name !== ".svn" && !entry.isSymbolicLink()) {
+          await scanRecursive(fullPath, depth + 1);
+        }
+      } else if (entry.isFile() && extensions.some((ext) => entry.name.endsWith(ext))) {
+        if (entry.isSymbolicLink()) continue;
+        const content = await cache.getContent(fullPath);
+        if (content !== null) {
+          files.push({ path: fullPath, content });
+        }
+      }
+    }
+  }
+  await scanRecursive(dir, 0);
+  return files;
+}
+async function scanAllSourceDirectories(projectRoot, cache, options = {}) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const allFiles = [];
+  const seenPaths = /* @__PURE__ */ new Set();
+  for (const dir of SOURCE_DIRECTORIES) {
+    const fullPath = path13.join(resolvedRoot, dir);
+    const resolvedPath = path13.resolve(fullPath);
+    if (!resolvedPath.startsWith(resolvedRoot + path13.sep) && resolvedPath !== resolvedRoot) {
+      continue;
+    }
+    try {
+      const stat = await fsp3.lstat(fullPath);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    const files = await scanDirectory(fullPath, cache, options);
+    for (const file of files) {
+      if (!seenPaths.has(file.path)) {
+        seenPaths.add(file.path);
+        allFiles.push(file);
+      }
+    }
+  }
+  return allFiles;
+}
+async function createCacheFromFiles(files) {
+  const cache = new MiningCache({ validateMtime: false });
+  await cache.warmUp(
+    files.map((f) => ({
+      path: f.path,
+      content: f.content
+    }))
+  );
+  return cache;
+}
+var MAX_CACHE_FILE_SIZE, MAX_CACHED_FILES, MAX_CACHE_MEMORY, EVICTION_BATCH_PERCENT, V8_STRING_BYTES_PER_CHAR, SOURCE_DIRECTORIES, MiningCache, DEFAULT_EXTENSIONS2;
+var init_mining_cache = __esm({
+  "llkb/mining-cache.ts"() {
+    MAX_CACHE_FILE_SIZE = 5 * 1024 * 1024;
+    MAX_CACHED_FILES = 5e3;
+    MAX_CACHE_MEMORY = 100 * 1024 * 1024;
+    EVICTION_BATCH_PERCENT = 0.1;
+    V8_STRING_BYTES_PER_CHAR = 2;
+    SOURCE_DIRECTORIES = [
+      // Core directories (always present in most projects)
+      "src",
+      "app",
+      // Component directories
+      "components",
+      "lib",
+      // Page/View directories
+      "pages",
+      "views",
+      // Model/Type directories
+      "models",
+      "entities",
+      "types",
+      // Route directories
+      "routes",
+      // Form directories
+      "forms",
+      "schemas",
+      "validation",
+      // Table directories
+      "tables",
+      "grids",
+      // Modal directories
+      "modals",
+      "dialogs",
+      // Additional common directories (expanded coverage)
+      "features",
+      // Feature-sliced design
+      "modules",
+      // NestJS, Angular
+      "services",
+      // Common for service layers
+      "utils",
+      // Utility functions
+      "helpers",
+      // Helper functions
+      "api",
+      // API routes
+      "stores",
+      // Pinia, Vuex, Redux stores
+      "hooks",
+      // React hooks
+      "contexts",
+      // React contexts
+      "providers",
+      // Context providers
+      "layouts",
+      // Layout components
+      "shared",
+      // Shared code
+      "common"
+      // Common utilities
+    ];
+    MiningCache = class {
+      cache = /* @__PURE__ */ new Map();
+      currentMemoryUsage = 0;
+      stats = {
+        hits: 0,
+        misses: 0,
+        skipped: 0,
+        invalidations: 0,
+        evictions: 0,
+        cacheSize: 0,
+        memoryUsage: 0,
+        totalBytesRead: 0
+      };
+      /** Optional: Skip mtime validation for performance (use with caution) */
+      validateMtime;
+      // LRU doubly-linked list: head is most recently used, tail is least recently used
+      lruHead = null;
+      lruTail = null;
+      /**
+       * Create a new MiningCache.
+       *
+       * @param options - Cache configuration options
+       */
+      constructor(options = {}) {
+        this.validateMtime = options.validateMtime !== false;
+      }
+      /**
+       * Get file content, using cache if available.
+       * Validates mtime to ensure content freshness.
+       *
+       * @param filePath - Absolute path to the file
+       * @returns File content or null if unreadable/too large
+       */
+      async getContent(filePath) {
+        const normalizedPath = path13.resolve(filePath);
+        const cached = this.cache.get(normalizedPath);
+        if (cached) {
+          if (this.validateMtime) {
+            try {
+              const currentStat = await fsp3.lstat(normalizedPath);
+              if (currentStat.isSymbolicLink()) {
+                this.removeEntry(normalizedPath);
+                return null;
+              }
+              if (currentStat.mtimeMs !== cached.mtime) {
+                this.removeEntry(normalizedPath);
+                this.stats.invalidations++;
+              } else {
+                cached.lastAccessed = Date.now();
+                this.moveToHead(cached.node);
+                this.stats.hits++;
+                return cached.content;
+              }
+            } catch {
+              this.removeEntry(normalizedPath);
+              return null;
+            }
+          } else {
+            cached.lastAccessed = Date.now();
+            this.moveToHead(cached.node);
+            this.stats.hits++;
+            return cached.content;
+          }
+        }
+        let stat;
+        try {
+          stat = await fsp3.lstat(normalizedPath);
+        } catch {
+          return null;
+        }
+        if (stat.isSymbolicLink()) {
+          return null;
+        }
+        if (stat.size > MAX_CACHE_FILE_SIZE) {
+          this.stats.skipped++;
+          return null;
+        }
+        let content;
+        try {
+          content = await fsp3.readFile(normalizedPath, "utf-8");
+        } catch {
+          return null;
+        }
+        const memorySize = content.length * V8_STRING_BYTES_PER_CHAR;
+        this.stats.totalBytesRead += stat.size;
+        this.stats.misses++;
+        if (this.canCache(memorySize)) {
+          this.ensureCapacity(memorySize);
+          const node = { key: normalizedPath, prev: null, next: null };
+          this.addEntry(normalizedPath, {
+            content,
+            size: memorySize,
+            mtime: stat.mtimeMs,
+            lastAccessed: Date.now(),
+            node
+          });
+        }
+        return content;
+      }
+      /**
+       * Check if a file has been cached.
+       *
+       * @param filePath - Absolute path to the file
+       * @returns True if the file is in cache
+       */
+      has(filePath) {
+        return this.cache.has(path13.resolve(filePath));
+      }
+      /**
+       * Manually invalidate a cached file.
+       *
+       * @param filePath - Absolute path to the file
+       * @returns True if the file was in cache and removed
+       */
+      invalidate(filePath) {
+        const normalizedPath = path13.resolve(filePath);
+        if (this.cache.has(normalizedPath)) {
+          this.removeEntry(normalizedPath);
+          this.stats.invalidations++;
+          return true;
+        }
+        return false;
+      }
+      /**
+       * Warm up the cache with pre-read files.
+       * Useful for testing or when files are already in memory.
+       *
+       * @param files - Array of files with path, content, and optional mtime
+       */
+      async warmUp(files) {
+        for (const file of files) {
+          const normalizedPath = path13.resolve(file.path);
+          const size = file.size ?? file.content.length * V8_STRING_BYTES_PER_CHAR;
+          if (size > MAX_CACHE_FILE_SIZE) continue;
+          if (!this.canCache(size)) break;
+          let mtime = file.mtime;
+          if (mtime === void 0) {
+            try {
+              const stat = await fsp3.lstat(normalizedPath);
+              if (stat.isSymbolicLink()) continue;
+              mtime = stat.mtimeMs;
+            } catch {
+              mtime = Date.now();
+            }
+          }
+          const node = { key: normalizedPath, prev: null, next: null };
+          this.addEntry(normalizedPath, {
+            content: file.content,
+            size,
+            mtime,
+            lastAccessed: Date.now(),
+            node
+          });
+        }
+      }
+      /**
+       * Get cache statistics.
+       *
+       * @returns Cache hit/miss statistics
+       */
+      getStats() {
+        return { ...this.stats };
+      }
+      /**
+       * Get the hit rate as a percentage.
+       *
+       * @returns Hit rate between 0 and 100
+       */
+      getHitRate() {
+        const total = this.stats.hits + this.stats.misses;
+        if (total === 0) return 0;
+        return Math.round(this.stats.hits / total * 100);
+      }
+      /**
+       * Clear the cache and reset statistics.
+       * Call this after mining to free memory.
+       */
+      clear() {
+        this.cache.clear();
+        this.currentMemoryUsage = 0;
+        this.lruHead = null;
+        this.lruTail = null;
+        this.stats = {
+          hits: 0,
+          misses: 0,
+          skipped: 0,
+          invalidations: 0,
+          evictions: 0,
+          cacheSize: 0,
+          memoryUsage: 0,
+          totalBytesRead: 0
+        };
+      }
+      /**
+       * Get the number of cached files.
+       *
+       * @returns Number of files in cache
+       */
+      get size() {
+        return this.cache.size;
+      }
+      /**
+       * Get current memory usage in bytes.
+       *
+       * @returns Memory usage in bytes
+       */
+      get memoryUsage() {
+        return this.currentMemoryUsage;
+      }
+      // =========================================================================
+      // Private methods
+      // =========================================================================
+      /**
+       * Check if we can cache a file of the given size.
+       */
+      canCache(size) {
+        return this.currentMemoryUsage + size <= MAX_CACHE_MEMORY;
+      }
+      /**
+       * Ensure capacity for a new entry by evicting if necessary.
+       */
+      ensureCapacity(requiredSize) {
+        if (this.cache.size >= MAX_CACHED_FILES) {
+          const evictCount = Math.ceil(MAX_CACHED_FILES * EVICTION_BATCH_PERCENT);
+          this.evictLRU(evictCount);
+        }
+        while (!this.canCache(requiredSize) && this.cache.size > 0) {
+          this.evictLRU(1);
+        }
+      }
+      /**
+       * Evict least-recently-used entries from the tail of the LRU list.
+       * O(1) per eviction using doubly-linked list.
+       */
+      evictLRU(count) {
+        for (let i = 0; i < count && this.lruTail; i++) {
+          const keyToRemove = this.lruTail.key;
+          this.removeEntry(keyToRemove);
+          this.stats.evictions++;
+        }
+      }
+      /**
+       * Move a node to the head of the LRU list (most recently used).
+       * O(1) operation.
+       */
+      moveToHead(node) {
+        if (node === this.lruHead) return;
+        this.unlinkNode(node);
+        node.prev = null;
+        node.next = this.lruHead;
+        if (this.lruHead) {
+          this.lruHead.prev = node;
+        }
+        this.lruHead = node;
+        if (!this.lruTail) {
+          this.lruTail = node;
+        }
+      }
+      /**
+       * Remove a node from the LRU list without deleting it.
+       * O(1) operation.
+       */
+      unlinkNode(node) {
+        if (node.prev) {
+          node.prev.next = node.next;
+        } else {
+          this.lruHead = node.next;
+        }
+        if (node.next) {
+          node.next.prev = node.prev;
+        } else {
+          this.lruTail = node.prev;
+        }
+      }
+      /**
+       * Add an entry to the cache and the head of the LRU list.
+       */
+      addEntry(key, entry) {
+        this.cache.set(key, entry);
+        this.currentMemoryUsage += entry.size;
+        this.moveToHead(entry.node);
+        this.stats.cacheSize = this.cache.size;
+        this.stats.memoryUsage = this.currentMemoryUsage;
+      }
+      /**
+       * Remove an entry from the cache and the LRU list.
+       */
+      removeEntry(key) {
+        const entry = this.cache.get(key);
+        if (entry) {
+          this.unlinkNode(entry.node);
+          this.currentMemoryUsage -= entry.size;
+          this.cache.delete(key);
+          this.stats.cacheSize = this.cache.size;
+          this.stats.memoryUsage = this.currentMemoryUsage;
+        }
+      }
+    };
+    DEFAULT_EXTENSIONS2 = [".ts", ".tsx", ".js", ".jsx", ".vue", ".svelte"];
+  }
+});
 
 // llkb/normalize.ts
 function normalizeCode(code) {
@@ -35,6 +1344,9 @@ function countLines(code) {
   }
   return code.split("\n").length;
 }
+
+// llkb/index.ts
+init_pluralization();
 
 // llkb/similarity.ts
 function calculateSimilarity(codeA, codeB) {
@@ -374,7 +1686,7 @@ function generateRandomId() {
 async function saveJSONAtomic(filePath, data) {
   const tempPath = `${filePath}.tmp.${generateRandomId()}`;
   try {
-    const dir = path9.dirname(filePath);
+    const dir = path13.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -398,7 +1710,7 @@ async function saveJSONAtomic(filePath, data) {
 function saveJSONAtomicSync(filePath, data) {
   const tempPath = `${filePath}.tmp.${generateRandomId()}`;
   try {
-    const dir = path9.dirname(filePath);
+    const dir = path13.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -540,15 +1852,15 @@ function ensureDir(dirPath) {
   }
 }
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve6) => setTimeout(resolve6, ms));
 }
 var DEFAULT_LLKB_ROOT = ".artk/llkb";
 function getHistoryDir(llkbRoot = DEFAULT_LLKB_ROOT) {
-  return path9.join(llkbRoot, "history");
+  return path13.join(llkbRoot, "history");
 }
 function getHistoryFilePath(date = /* @__PURE__ */ new Date(), llkbRoot = DEFAULT_LLKB_ROOT) {
   const dateStr = formatDate(date);
-  return path9.join(getHistoryDir(llkbRoot), `${dateStr}.jsonl`);
+  return path13.join(getHistoryDir(llkbRoot), `${dateStr}.jsonl`);
 }
 function formatDate(date) {
   const year = date.getFullYear();
@@ -626,7 +1938,7 @@ function getHistoryFilesInRange(startDate, endDate, llkbRoot = DEFAULT_LLKB_ROOT
     if (match?.[1]) {
       const fileDate = new Date(match[1]);
       if (fileDate >= startDate && fileDate <= endDate) {
-        results.push(path9.join(historyDir, file));
+        results.push(path13.join(historyDir, file));
       }
     }
   }
@@ -647,7 +1959,7 @@ function cleanupOldHistoryFiles(retentionDays = 365, llkbRoot = DEFAULT_LLKB_ROO
     if (match?.[1]) {
       const fileDate = new Date(match[1]);
       if (fileDate < cutoffDate) {
-        const filePath = path9.join(historyDir, file);
+        const filePath = path13.join(historyDir, file);
         fs.unlinkSync(filePath);
         deleted.push(filePath);
       }
@@ -685,9 +1997,9 @@ var ALL_SCOPES = [
 ];
 function updateAnalytics(llkbRoot = DEFAULT_LLKB_ROOT2) {
   try {
-    const lessonsPath = path9.join(llkbRoot, "lessons.json");
-    const componentsPath = path9.join(llkbRoot, "components.json");
-    const analyticsPath = path9.join(llkbRoot, "analytics.json");
+    const lessonsPath = path13.join(llkbRoot, "lessons.json");
+    const componentsPath = path13.join(llkbRoot, "components.json");
+    const analyticsPath = path13.join(llkbRoot, "analytics.json");
     const lessons = loadJSON(lessonsPath);
     const components = loadJSON(componentsPath);
     let analytics = loadJSON(analyticsPath);
@@ -872,7 +2184,7 @@ function calculateNeedsReview(lessons, components) {
   };
 }
 function getAnalyticsSummary(llkbRoot = DEFAULT_LLKB_ROOT2) {
-  const analyticsPath = path9.join(llkbRoot, "analytics.json");
+  const analyticsPath = path13.join(llkbRoot, "analytics.json");
   const analytics = loadJSON(analyticsPath);
   if (!analytics) {
     return "Analytics not available";
@@ -892,6 +2204,418 @@ function getAnalyticsSummary(llkbRoot = DEFAULT_LLKB_ROOT2) {
     `Items Needing Review: ${analytics.needsReview.lowConfidenceLessons.length + analytics.needsReview.lowUsageComponents.length + analytics.needsReview.decliningSuccessRate.length}`
   ].join("\n");
 }
+
+// llkb/quality-controls.ts
+var DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
+var DEFAULT_MAX_AGE_DAYS = 90;
+var CROSS_SOURCE_BOOST = 0.1;
+var MAX_CONFIDENCE = 0.95;
+var MS_PER_DAY = 24 * 60 * 60 * 1e3;
+var SIGNAL_CONFIDENCES = {
+  strong: 0.85,
+  medium: 0.75,
+  weak: 0.6
+};
+function deduplicatePatterns(patterns) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const pattern of patterns) {
+    const key = `${pattern.normalizedText.toLowerCase()}::${pattern.mappedPrimitive}`;
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, {
+        ...pattern
+        // Store original templateSource and entityName in a way that cross-source can detect
+        // We'll keep the first one's values, but cross-source boosting will look at all patterns
+      });
+    } else {
+      const merged = {
+        ...existing,
+        confidence: Math.max(existing.confidence, pattern.confidence),
+        successCount: existing.successCount + pattern.successCount,
+        failCount: existing.failCount + pattern.failCount,
+        sourceJourneys: Array.from(/* @__PURE__ */ new Set([...existing.sourceJourneys, ...pattern.sourceJourneys])),
+        selectorHints: mergeSelectors(existing.selectorHints, pattern.selectorHints)
+        // Keep existing templateSource and entityName (first wins)
+        // Cross-source boosting happens AFTER dedup, so it won't see these merged patterns as cross-source
+      };
+      seen.set(key, merged);
+    }
+  }
+  return Array.from(seen.values());
+}
+function mergeSelectors(hints1, hints2) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const hint of [...hints1, ...hints2]) {
+    const key = `${hint.strategy}:${hint.value}`;
+    const existing = seen.get(key);
+    if (!existing || hint.confidence && (!existing.confidence || hint.confidence > existing.confidence)) {
+      seen.set(key, hint);
+    }
+  }
+  return Array.from(seen.values());
+}
+function applyConfidenceThreshold(patterns, threshold = DEFAULT_CONFIDENCE_THRESHOLD) {
+  return patterns.filter((p) => p.confidence >= threshold);
+}
+function boostCrossSourcePatterns(patterns) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const pattern of patterns) {
+    const key = pattern.normalizedText;
+    const group = groups.get(key) || [];
+    group.push(pattern);
+    groups.set(key, group);
+  }
+  const boosted = [];
+  const groupsArray = Array.from(groups.values());
+  for (const group of groupsArray) {
+    if (group.length === 1) {
+      boosted.push({ ...group[0] });
+      continue;
+    }
+    const templateSources = new Set(group.map((p) => p.templateSource).filter(Boolean));
+    const entityNames = new Set(group.map((p) => p.entityName).filter(Boolean));
+    const sourceJourneys = new Set(group.flatMap((p) => p.sourceJourneys));
+    const uniqueSources = Math.max(templateSources.size, entityNames.size, sourceJourneys.size);
+    if (uniqueSources >= 2) {
+      for (const pattern of group) {
+        const newConfidence = Math.min(pattern.confidence + CROSS_SOURCE_BOOST, MAX_CONFIDENCE);
+        boosted.push({ ...pattern, confidence: newConfidence });
+      }
+    } else {
+      for (const pattern of group) {
+        boosted.push({ ...pattern });
+      }
+    }
+  }
+  return boosted;
+}
+function pruneUnusedPatterns(patterns, usageStats, maxAgeDays = DEFAULT_MAX_AGE_DAYS) {
+  const now = Date.now();
+  const maxAgeMs = maxAgeDays * MS_PER_DAY;
+  return patterns.filter((pattern) => {
+    const totalAttempts = pattern.successCount + pattern.failCount;
+    if (totalAttempts === 0) {
+      return true;
+    }
+    const usage = usageStats.patternUsage.get(pattern.id);
+    if (!usage) {
+      return true;
+    }
+    const age = now - usage.lastUsed;
+    const isStale = age > maxAgeMs;
+    return !isStale;
+  });
+}
+function applySignalWeighting(patterns, signalStrengths) {
+  return patterns.map((pattern) => {
+    const strength = signalStrengths.get(pattern.id);
+    if (!strength) {
+      return { ...pattern };
+    }
+    const baseConfidence = SIGNAL_CONFIDENCES[strength];
+    return {
+      ...pattern,
+      confidence: Math.min(Math.max(pattern.confidence, baseConfidence), MAX_CONFIDENCE)
+    };
+  });
+}
+function applyAllQualityControls(patterns, options) {
+  const inputCount = patterns.length;
+  const preboostConfidence = /* @__PURE__ */ new Map();
+  for (const p of patterns) {
+    preboostConfidence.set(p.id, p.confidence);
+  }
+  const afterBoost = boostCrossSourcePatterns(patterns);
+  const crossSourceBoosted = afterBoost.filter((p) => {
+    const before = preboostConfidence.get(p.id);
+    return before !== void 0 && p.confidence > before;
+  }).length;
+  const afterDedup = deduplicatePatterns(afterBoost);
+  const deduplicated = afterBoost.length - afterDedup.length;
+  const afterThreshold = applyConfidenceThreshold(afterDedup, options?.threshold);
+  const thresholdFiltered = afterDedup.length - afterThreshold.length;
+  let afterPrune = afterThreshold;
+  let pruned = 0;
+  if (options?.usageStats) {
+    afterPrune = pruneUnusedPatterns(afterThreshold, options.usageStats, options?.maxAgeDays);
+    pruned = afterThreshold.length - afterPrune.length;
+  }
+  const outputCount = afterPrune.length;
+  return {
+    patterns: afterPrune,
+    result: {
+      inputCount,
+      outputCount,
+      deduplicated,
+      thresholdFiltered,
+      crossSourceBoosted,
+      pruned
+    }
+  };
+}
+
+// llkb/pattern-generation.ts
+var HIGH_CONFIDENCE_AUTH = 0.85;
+var MEDIUM_CONFIDENCE_AUTH = 0.7;
+var FRAMEWORK_PATTERN_CONFIDENCE = 0.6;
+var MAX_UI_PATTERN_CONFIDENCE = 0.75;
+var PERCENTAGE_DIVISOR = 100;
+var AUTH_PATTERN_TEMPLATES = [
+  { text: "click login button", primitive: "click", selectorKey: "submitButton" },
+  { text: "click sign in button", primitive: "click", selectorKey: "submitButton" },
+  { text: "enter username", primitive: "fill", selectorKey: "usernameField" },
+  { text: "enter email", primitive: "fill", selectorKey: "usernameField" },
+  { text: "enter password", primitive: "fill", selectorKey: "passwordField" },
+  { text: "submit login form", primitive: "click", selectorKey: "submitButton" },
+  { text: "click logout button", primitive: "click" },
+  { text: "click sign out button", primitive: "click" },
+  { text: "verify logged in", primitive: "assert" },
+  { text: "verify logged out", primitive: "assert" }
+];
+var NAVIGATION_PATTERN_TEMPLATES = [
+  { text: "navigate to {route}", primitive: "navigate" },
+  { text: "go to {route}", primitive: "navigate" },
+  { text: "open {route} page", primitive: "navigate" },
+  { text: "click {item} in navigation", primitive: "click" },
+  { text: "click {item} in sidebar", primitive: "click" },
+  { text: "click {item} in menu", primitive: "click" },
+  { text: "return to home", primitive: "navigate" },
+  { text: "go back", primitive: "navigate" }
+];
+var UI_LIBRARY_PATTERNS = {
+  mui: [
+    { text: "click MUI button", primitive: "click", component: "Button" },
+    { text: "open MUI dialog", primitive: "click", component: "Dialog" },
+    { text: "close MUI dialog", primitive: "click", component: "Dialog" },
+    { text: "select MUI option", primitive: "click", component: "Select" },
+    { text: "fill MUI text field", primitive: "fill", component: "TextField" },
+    { text: "open MUI menu", primitive: "click", component: "Menu" },
+    { text: "click MUI tab", primitive: "click", component: "Tabs" },
+    { text: "toggle MUI switch", primitive: "click", component: "Switch" },
+    { text: "check MUI checkbox", primitive: "check", component: "Checkbox" },
+    { text: "dismiss MUI snackbar", primitive: "click", component: "Snackbar" }
+  ],
+  antd: [
+    { text: "click Ant button", primitive: "click", component: "Button" },
+    { text: "open Ant modal", primitive: "click", component: "Modal" },
+    { text: "close Ant modal", primitive: "click", component: "Modal" },
+    { text: "select Ant option", primitive: "click", component: "Select" },
+    { text: "fill Ant input", primitive: "fill", component: "Input" },
+    { text: "click Ant table row", primitive: "click", component: "Table" },
+    { text: "sort Ant table column", primitive: "click", component: "Table" },
+    { text: "dismiss Ant message", primitive: "click", component: "Message" }
+  ],
+  chakra: [
+    { text: "click Chakra button", primitive: "click", component: "Button" },
+    { text: "open Chakra modal", primitive: "click", component: "Modal" },
+    { text: "close Chakra modal", primitive: "click", component: "Modal" },
+    { text: "fill Chakra input", primitive: "fill", component: "Input" },
+    { text: "dismiss Chakra toast", primitive: "click", component: "Toast" }
+  ],
+  "ag-grid": [
+    { text: "click AG Grid row", primitive: "click", component: "agGrid" },
+    { text: "select AG Grid row", primitive: "click", component: "agGrid" },
+    { text: "sort AG Grid column", primitive: "click", component: "agGrid" },
+    { text: "filter AG Grid column", primitive: "fill", component: "agGrid" },
+    { text: "expand AG Grid row", primitive: "click", component: "agGrid" },
+    { text: "collapse AG Grid row", primitive: "click", component: "agGrid" },
+    { text: "edit AG Grid cell", primitive: "fill", component: "agGrid" },
+    { text: "clear AG Grid filter", primitive: "click", component: "agGrid" }
+  ]
+};
+function generatePatternId() {
+  return `DP-${randomUUID().slice(0, 8)}`;
+}
+function resetPatternIdCounter() {
+}
+function generatePatterns(profile, signals) {
+  const patterns = [];
+  if (profile.auth.detected) {
+    patterns.push(...generateAuthPatterns(profile.auth, signals));
+  }
+  patterns.push(...generateNavigationPatterns());
+  for (const uiLib of profile.uiLibraries) {
+    const libPatterns = UI_LIBRARY_PATTERNS[uiLib.name];
+    if (libPatterns) {
+      patterns.push(...generateUiLibraryPatterns(uiLib.name, libPatterns, signals, uiLib.confidence));
+    }
+  }
+  return patterns;
+}
+function generateAuthPatterns(auth, signals) {
+  const patterns = [];
+  for (const template of AUTH_PATTERN_TEMPLATES) {
+    const selectorHints = [];
+    const selectorKey = template.selectorKey;
+    const selectorValue = selectorKey ? auth.selectors?.[selectorKey] : void 0;
+    if (selectorKey && selectorValue) {
+      selectorHints.push({
+        strategy: signals.primaryAttribute,
+        value: selectorValue,
+        confidence: HIGH_CONFIDENCE_AUTH
+      });
+    }
+    patterns.push({
+      id: generatePatternId(),
+      normalizedText: template.text.toLowerCase(),
+      originalText: template.text,
+      mappedPrimitive: template.primitive,
+      selectorHints,
+      confidence: auth.selectors?.[template.selectorKey || ""] ? HIGH_CONFIDENCE_AUTH : MEDIUM_CONFIDENCE_AUTH,
+      layer: "app-specific",
+      category: "auth",
+      sourceJourneys: [],
+      successCount: 0,
+      failCount: 0,
+      templateSource: "auth"
+    });
+  }
+  return patterns;
+}
+function generateNavigationPatterns(_signals) {
+  const patterns = [];
+  for (const template of NAVIGATION_PATTERN_TEMPLATES) {
+    patterns.push({
+      id: generatePatternId(),
+      normalizedText: template.text.toLowerCase(),
+      originalText: template.text,
+      mappedPrimitive: template.primitive,
+      selectorHints: [],
+      confidence: 0.7,
+      layer: "app-specific",
+      category: "navigation",
+      sourceJourneys: [],
+      successCount: 0,
+      failCount: 0,
+      templateSource: "navigation"
+    });
+  }
+  return patterns;
+}
+function generateUiLibraryPatterns(_libraryName, templates, signals, libraryConfidence) {
+  const patterns = [];
+  for (const template of templates) {
+    const selectorHints = [];
+    if (template.component) {
+      const componentKebab = template.component.replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^-/, "");
+      selectorHints.push({
+        strategy: signals.primaryAttribute,
+        value: componentKebab,
+        confidence: FRAMEWORK_PATTERN_CONFIDENCE
+      });
+    }
+    patterns.push({
+      id: generatePatternId(),
+      normalizedText: template.text.toLowerCase(),
+      originalText: template.text,
+      mappedPrimitive: template.primitive,
+      selectorHints,
+      confidence: Math.min(libraryConfidence, MAX_UI_PATTERN_CONFIDENCE),
+      layer: "framework",
+      category: "ui-interaction",
+      sourceJourneys: [],
+      successCount: 0,
+      failCount: 0
+    });
+  }
+  return patterns;
+}
+function mergeDiscoveredPatterns(existing, discovered) {
+  const existingTextsMap = /* @__PURE__ */ new Map();
+  for (const p of existing) {
+    existingTextsMap.set(`${p.normalizedText.toLowerCase()}:${p.irPrimitive}`, true);
+  }
+  const merged = [...existing];
+  for (const pattern of discovered) {
+    const key = `${pattern.normalizedText.toLowerCase()}:${pattern.mappedPrimitive}`;
+    if (existingTextsMap.has(key)) {
+      const existingIdx = merged.findIndex(
+        (p) => `${p.normalizedText.toLowerCase()}:${p.irPrimitive}` === key
+      );
+      if (existingIdx >= 0 && pattern.confidence > merged[existingIdx].confidence) {
+        merged[existingIdx] = {
+          normalizedText: pattern.normalizedText,
+          originalText: pattern.originalText,
+          irPrimitive: pattern.mappedPrimitive,
+          confidence: pattern.confidence,
+          successCount: pattern.successCount,
+          failCount: pattern.failCount,
+          sourceJourneys: pattern.sourceJourneys,
+          lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+      continue;
+    }
+    merged.push({
+      normalizedText: pattern.normalizedText,
+      originalText: pattern.originalText,
+      irPrimitive: pattern.mappedPrimitive,
+      confidence: pattern.confidence,
+      successCount: pattern.successCount,
+      failCount: pattern.failCount,
+      sourceJourneys: pattern.sourceJourneys,
+      lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    existingTextsMap.set(key, true);
+  }
+  return merged;
+}
+function createDiscoveredPatternsFile(patterns, profile, durationMs) {
+  const byCategory = {};
+  const byTemplate = {};
+  for (const pattern of patterns) {
+    if (pattern.category) {
+      byCategory[pattern.category] = (byCategory[pattern.category] || 0) + 1;
+    }
+    if (pattern.templateSource) {
+      byTemplate[pattern.templateSource] = (byTemplate[pattern.templateSource] || 0) + 1;
+    }
+  }
+  const avgConfidence = patterns.length > 0 ? patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length : 0;
+  return {
+    version: "1.0",
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    source: "discover-foundation:F12",
+    patterns,
+    metadata: {
+      frameworks: profile.frameworks.map((f) => f.name),
+      uiLibraries: profile.uiLibraries.map((l) => l.name),
+      totalPatterns: patterns.length,
+      byCategory,
+      byTemplate,
+      averageConfidence: Math.round(avgConfidence * PERCENTAGE_DIVISOR) / PERCENTAGE_DIVISOR,
+      discoveryDuration: durationMs
+    }
+  };
+}
+function deduplicatePatterns2(patterns) {
+  return deduplicatePatterns(patterns);
+}
+function saveDiscoveredPatterns(patternsFile, outputDir) {
+  const outputPath = path13.join(outputDir, "discovered-patterns.json");
+  fs.mkdirSync(outputDir, { recursive: true });
+  saveJSONAtomicSync(outputPath, patternsFile);
+}
+function loadDiscoveredPatterns(llkbDir) {
+  const patternsPath = path13.join(llkbDir, "discovered-patterns.json");
+  if (!fs.existsSync(patternsPath)) {
+    return null;
+  }
+  try {
+    const content = fs.readFileSync(patternsPath, "utf-8");
+    const data = JSON.parse(content);
+    if (typeof data !== "object" || data === null || !Array.isArray(data.patterns) || typeof data.version !== "string") {
+      console.warn(`[LLKB] Invalid discovered patterns shape in ${patternsPath}`);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.warn(`[LLKB] Failed to load discovered patterns from ${patternsPath}: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// llkb/loaders.ts
 var DEFAULT_LLKB_CONFIG = {
   version: "1.0.0",
   enabled: true,
@@ -1129,7 +2853,8 @@ function loadLLKBData(llkbRoot = ".artk/llkb") {
     appProfile: loadAppProfile(llkbRoot),
     lessons: loadLessonsFile(llkbRoot),
     components: loadComponentsFile(llkbRoot),
-    patterns: loadPatterns(llkbRoot)
+    patterns: loadPatterns(llkbRoot),
+    discoveredPatterns: loadDiscoveredPatterns(llkbRoot)
   };
 }
 function llkbExists(llkbRoot = ".artk/llkb") {
@@ -1693,7 +3418,7 @@ function findMatchingLesson(lessons, selectorValue, stepText) {
 }
 function recordPatternLearned(input) {
   const llkbRoot = input.llkbRoot ?? DEFAULT_LLKB_ROOT;
-  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  const lessonsPath = path13.join(llkbRoot, "lessons.json");
   try {
     let matchedLessonId;
     let updatedMetrics;
@@ -1762,7 +3487,7 @@ function recordPatternLearned(input) {
 }
 function recordComponentUsed(input) {
   const llkbRoot = input.llkbRoot ?? DEFAULT_LLKB_ROOT;
-  const componentsPath = path9.join(llkbRoot, "components.json");
+  const componentsPath = path13.join(llkbRoot, "components.json");
   try {
     let foundComponent = false;
     let updatedMetrics;
@@ -1822,7 +3547,7 @@ function recordComponentUsed(input) {
 }
 function recordLessonApplied(input) {
   const llkbRoot = input.llkbRoot ?? DEFAULT_LLKB_ROOT;
-  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  const lessonsPath = path13.join(llkbRoot, "lessons.json");
   try {
     let foundLesson = false;
     let updatedMetrics;
@@ -1971,8 +3696,8 @@ function formatLearningResult(result) {
 }
 function recordBatch(events, llkbRoot) {
   const root = llkbRoot ?? DEFAULT_LLKB_ROOT;
-  const lessonsPath = path9.join(root, "lessons.json");
-  const componentsPath = path9.join(root, "components.json");
+  const lessonsPath = path13.join(root, "lessons.json");
+  const componentsPath = path13.join(root, "components.json");
   const result = {
     processed: 0,
     failed: 0,
@@ -2143,7 +3868,7 @@ function updateTestLlkbVersion(testContent, newVersion, entryCount) {
   return result;
 }
 function getCurrentLlkbVersion(llkbRoot = DEFAULT_LLKB_ROOT4) {
-  const analyticsPath = path9.join(llkbRoot, "analytics.json");
+  const analyticsPath = path13.join(llkbRoot, "analytics.json");
   try {
     const analytics = loadJSON(analyticsPath);
     if (analytics?.lastUpdated) {
@@ -2159,7 +3884,7 @@ function countNewEntriesSince(sinceTimestamp, type, llkbRoot = DEFAULT_LLKB_ROOT
   }
   const sinceDate = new Date(sinceTimestamp);
   if (type === "lessons") {
-    const lessonsPath = path9.join(llkbRoot, "lessons.json");
+    const lessonsPath = path13.join(llkbRoot, "lessons.json");
     try {
       const lessons = loadJSON(lessonsPath);
       if (!lessons?.lessons) {
@@ -2176,7 +3901,7 @@ function countNewEntriesSince(sinceTimestamp, type, llkbRoot = DEFAULT_LLKB_ROOT
       return 0;
     }
   } else {
-    const componentsPath = path9.join(llkbRoot, "components.json");
+    const componentsPath = path13.join(llkbRoot, "components.json");
     try {
       const components = loadJSON(componentsPath);
       if (!components?.components) {
@@ -2271,7 +3996,7 @@ function findTestFiles(dir, pattern) {
   function walkDir(currentDir) {
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
     for (const entry of entries) {
-      const fullPath = path9.join(currentDir, entry.name);
+      const fullPath = path13.join(currentDir, entry.name);
       if (entry.isDirectory()) {
         if (!entry.name.startsWith(".") && entry.name !== "node_modules") {
           walkDir(fullPath);
@@ -2292,7 +4017,7 @@ function formatVersionComparison(testFile, comparison) {
   const status = comparison.isOutdated ? "!" : "\u2713";
   const llkbVer = comparison.testLlkbVersion ? comparison.testLlkbVersion.split("T")[0] : "none";
   const currentVer = comparison.currentLlkbVersion.split("T")[0];
-  let info = `${status} ${path9.basename(testFile)}`;
+  let info = `${status} ${path13.basename(testFile)}`;
   info += ` (LLKB: ${llkbVer}, current: ${currentVer}`;
   if (comparison.newPatternsAvailable > 0 || comparison.newComponentsAvailable > 0) {
     const parts = [];
@@ -2329,7 +4054,7 @@ function formatUpdateCheckResult(result) {
   if (result.errors.length > 0) {
     lines.push("Errors:");
     for (const { testFile, error } of result.errors) {
-      lines.push(`  \u2717 ${path9.basename(testFile)}: ${error}`);
+      lines.push(`  \u2717 ${path13.basename(testFile)}: ${error}`);
     }
     lines.push("");
   }
@@ -2504,7 +4229,7 @@ function runHealthCheck(llkbRoot = DEFAULT_LLKB_ROOT5) {
     });
     hasError = true;
   }
-  const configPath = path9.join(llkbRoot, "config.yml");
+  const configPath = path13.join(llkbRoot, "config.yml");
   if (fs.existsSync(configPath)) {
     checks.push({
       name: "Config file",
@@ -2519,7 +4244,7 @@ function runHealthCheck(llkbRoot = DEFAULT_LLKB_ROOT5) {
     });
     hasWarning = true;
   }
-  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  const lessonsPath = path13.join(llkbRoot, "lessons.json");
   const lessonsCheck = checkJSONFile(lessonsPath, "lessons.json");
   checks.push(lessonsCheck);
   if (lessonsCheck.status === "fail") {
@@ -2528,7 +4253,7 @@ function runHealthCheck(llkbRoot = DEFAULT_LLKB_ROOT5) {
   if (lessonsCheck.status === "warn") {
     hasWarning = true;
   }
-  const componentsPath = path9.join(llkbRoot, "components.json");
+  const componentsPath = path13.join(llkbRoot, "components.json");
   const componentsCheck = checkJSONFile(componentsPath, "components.json");
   checks.push(componentsCheck);
   if (componentsCheck.status === "fail") {
@@ -2537,7 +4262,7 @@ function runHealthCheck(llkbRoot = DEFAULT_LLKB_ROOT5) {
   if (componentsCheck.status === "warn") {
     hasWarning = true;
   }
-  const analyticsPath = path9.join(llkbRoot, "analytics.json");
+  const analyticsPath = path13.join(llkbRoot, "analytics.json");
   const analyticsCheck = checkJSONFile(analyticsPath, "analytics.json");
   checks.push(analyticsCheck);
   if (analyticsCheck.status === "fail") {
@@ -2634,8 +4359,8 @@ function checkJSONFile(filePath, fileName) {
   }
 }
 function getStats(llkbRoot = DEFAULT_LLKB_ROOT5) {
-  const lessonsPath = path9.join(llkbRoot, "lessons.json");
-  const componentsPath = path9.join(llkbRoot, "components.json");
+  const lessonsPath = path13.join(llkbRoot, "lessons.json");
+  const componentsPath = path13.join(llkbRoot, "components.json");
   const historyDir = getHistoryDir(llkbRoot);
   const lessons = loadJSON(lessonsPath);
   const activeLessons = lessons?.lessons.filter((l) => !l.archived) ?? [];
@@ -2727,7 +4452,7 @@ function prune(options = {}) {
   if (archiveInactiveLessons) {
     try {
       const archivedCount = archiveInactiveItems(
-        path9.join(llkbRoot, "lessons.json"),
+        path13.join(llkbRoot, "lessons.json"),
         "lessons",
         inactiveDays
       );
@@ -2741,7 +4466,7 @@ function prune(options = {}) {
   if (archiveInactiveComponents) {
     try {
       const archivedCount = archiveInactiveItems(
-        path9.join(llkbRoot, "components.json"),
+        path13.join(llkbRoot, "components.json"),
         "components",
         inactiveDays
       );
@@ -2941,7 +4666,7 @@ function runUpdateTest(options) {
 }
 function formatUpdateTestResult(result) {
   const lines = [];
-  const filename = path9.basename(result.testPath);
+  const filename = path13.basename(result.testPath);
   if (!result.success) {
     lines.push(`\u2717 ${filename}: ${result.error}`);
     return lines.join("\n");
@@ -3032,7 +4757,7 @@ function formatUpdateTestsResult(result) {
   if (result.failed.length > 0) {
     lines.push("Failed:");
     for (const { testPath, error } of result.failed) {
-      lines.push(`  \u2717 ${path9.basename(testPath)}: ${error}`);
+      lines.push(`  \u2717 ${path13.basename(testPath)}: ${error}`);
     }
     lines.push("");
   }
@@ -3329,8 +5054,8 @@ function formatContextForPrompt(context, journey) {
       if (!byPath[importPath]) byPath[importPath] = [];
       byPath[importPath].push(comp.name);
     }
-    for (const [path10, names] of Object.entries(byPath)) {
-      lines.push(`import { ${names.join(", ")} } from './${path10}';`);
+    for (const [path17, names] of Object.entries(byPath)) {
+      lines.push(`import { ${names.join(", ")} } from './${path17}';`);
     }
     lines.push("```");
     lines.push("");
@@ -3693,7 +5418,7 @@ var DEFAULT_EXCLUDE_DIRS = ["node_modules", "dist", "build", ".git", "coverage"]
 var TEST_STEP_REGEX = /(?:await\s+)?test\.step\s*\(\s*(['"`])(.+?)\1\s*,\s*async\s*\([^)]*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/g;
 var JOURNEY_ID_REGEX = /(?:JRN|jrn)[-_]?(\d+)/i;
 function extractJourneyId(filePath, content) {
-  const fileMatch = path9.basename(filePath).match(JOURNEY_ID_REGEX);
+  const fileMatch = path13.basename(filePath).match(JOURNEY_ID_REGEX);
   if (fileMatch && fileMatch[1]) {
     return `JRN-${fileMatch[1].padStart(4, "0")}`;
   }
@@ -3701,8 +5426,8 @@ function extractJourneyId(filePath, content) {
   if (contentMatch && contentMatch[1]) {
     return `JRN-${contentMatch[1].padStart(4, "0")}`;
   }
-  const basename5 = path9.basename(filePath, path9.extname(filePath));
-  return `JRN-${basename5.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 20)}`;
+  const basename7 = path13.basename(filePath, path13.extname(filePath));
+  return `JRN-${basename7.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 20)}`;
 }
 function parseTestSteps(filePath, content) {
   const steps = [];
@@ -3738,13 +5463,13 @@ function findTestFiles2(dir, extensions, excludeDirs) {
   }
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    const fullPath = path9.join(dir, entry.name);
+    const fullPath = path13.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!excludeDirs.includes(entry.name)) {
         files.push(...findTestFiles2(fullPath, extensions, excludeDirs));
       }
     } else if (entry.isFile()) {
-      const ext = path9.extname(entry.name);
+      const ext = path13.extname(entry.name);
       if (extensions.includes(ext)) {
         if (entry.name.includes(".spec.") || entry.name.includes(".test.") || entry.name.includes(".e2e.")) {
           files.push(fullPath);
@@ -3986,7 +5711,7 @@ function findUnusedComponentOpportunities(testDir, components, options = {}) {
 var REGISTRY_FILENAME = "registry.json";
 var DEFAULT_MODULES_DIR = "src/modules";
 function getRegistryPath(harnessRoot) {
-  return path9.join(harnessRoot, DEFAULT_MODULES_DIR, REGISTRY_FILENAME);
+  return path13.join(harnessRoot, DEFAULT_MODULES_DIR, REGISTRY_FILENAME);
 }
 function createEmptyRegistry() {
   return {
@@ -4009,7 +5734,7 @@ function loadRegistry(harnessRoot) {
 async function saveRegistry(harnessRoot, registry) {
   const registryPath = getRegistryPath(harnessRoot);
   registry.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
-  const dir = path9.dirname(registryPath);
+  const dir = path13.dirname(registryPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -4316,11 +6041,11 @@ migrations.set("0.x->1.0.0", async (data, _llkbRoot) => {
 function getMigrationPath(fromVersion, toVersion) {
   const from = parseVersion(fromVersion);
   const to = parseVersion(toVersion);
-  const path10 = [];
+  const path17 = [];
   if (from.major === 0 && to.major >= 1) {
-    path10.push("0.x->1.0.0");
+    path17.push("0.x->1.0.0");
   }
-  return path10;
+  return path17;
 }
 async function applyMigration(data, migrationKey, llkbRoot) {
   const migrationFn = migrations.get(migrationKey);
@@ -4381,11 +6106,11 @@ async function migrateLLKB(llkbRoot) {
     toVersion: CURRENT_VERSION
   };
   const files = [
-    path9.join(llkbRoot, "lessons.json"),
-    path9.join(llkbRoot, "components.json"),
-    path9.join(llkbRoot, "analytics.json")
+    path13.join(llkbRoot, "lessons.json"),
+    path13.join(llkbRoot, "components.json"),
+    path13.join(llkbRoot, "analytics.json")
   ];
-  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  const lessonsPath = path13.join(llkbRoot, "lessons.json");
   if (fs.existsSync(lessonsPath)) {
     const lessonsData = loadJSON(lessonsPath);
     result.fromVersion = lessonsData?.version || "0.0.0";
@@ -4404,12 +6129,12 @@ async function migrateLLKB(llkbRoot) {
         result.errors.push(`${file}: ${migrationResult.error}`);
       }
     }
-    result.warnings.push(...migrationResult.warnings.map((w) => `${path9.basename(file)}: ${w}`));
+    result.warnings.push(...migrationResult.warnings.map((w) => `${path13.basename(file)}: ${w}`));
   }
   return result;
 }
 function checkMigrationNeeded(llkbRoot) {
-  const lessonsPath = path9.join(llkbRoot, "lessons.json");
+  const lessonsPath = path13.join(llkbRoot, "lessons.json");
   if (!fs.existsSync(lessonsPath)) {
     return {
       needsMigration: false,
@@ -4430,9 +6155,9 @@ function checkMigrationNeeded(llkbRoot) {
 async function initializeLLKB(llkbRoot) {
   try {
     ensureDir(llkbRoot);
-    ensureDir(path9.join(llkbRoot, "patterns"));
-    ensureDir(path9.join(llkbRoot, "history"));
-    const configPath = path9.join(llkbRoot, "config.yml");
+    ensureDir(path13.join(llkbRoot, "patterns"));
+    ensureDir(path13.join(llkbRoot, "history"));
+    const configPath = path13.join(llkbRoot, "config.yml");
     if (!fs.existsSync(configPath)) {
       const defaultConfig = `# LLKB Configuration
 version: "1.0.0"
@@ -4470,7 +6195,7 @@ overrides:
 `;
       fs.writeFileSync(configPath, defaultConfig, "utf-8");
     }
-    const lessonsPath = path9.join(llkbRoot, "lessons.json");
+    const lessonsPath = path13.join(llkbRoot, "lessons.json");
     if (!fs.existsSync(lessonsPath)) {
       const defaultLessons = {
         version: CURRENT_VERSION,
@@ -4482,7 +6207,7 @@ overrides:
       };
       await saveJSONAtomic(lessonsPath, defaultLessons);
     }
-    const componentsPath = path9.join(llkbRoot, "components.json");
+    const componentsPath = path13.join(llkbRoot, "components.json");
     if (!fs.existsSync(componentsPath)) {
       const defaultComponents = {
         version: CURRENT_VERSION,
@@ -4508,14 +6233,14 @@ overrides:
       };
       await saveJSONAtomic(componentsPath, defaultComponents);
     }
-    const analyticsPath = path9.join(llkbRoot, "analytics.json");
+    const analyticsPath = path13.join(llkbRoot, "analytics.json");
     if (!fs.existsSync(analyticsPath)) {
       const defaultAnalytics = createEmptyAnalytics();
       await saveJSONAtomic(analyticsPath, defaultAnalytics);
     }
     const patternFiles = ["selectors.json", "timing.json", "assertions.json", "auth.json", "data.json"];
     for (const patternFile of patternFiles) {
-      const patternPath = path9.join(llkbRoot, "patterns", patternFile);
+      const patternPath = path13.join(llkbRoot, "patterns", patternFile);
       if (!fs.existsSync(patternPath)) {
         await saveJSONAtomic(patternPath, {
           version: CURRENT_VERSION,
@@ -4545,7 +6270,7 @@ function validateLLKBInstallation(llkbRoot) {
     "analytics.json"
   ];
   for (const file of requiredFiles) {
-    const filePath = path9.join(llkbRoot, file);
+    const filePath = path13.join(llkbRoot, file);
     if (!fs.existsSync(filePath)) {
       result.missingFiles.push(file);
       result.valid = false;
@@ -4564,7 +6289,7 @@ function validateLLKBInstallation(llkbRoot) {
       }
     }
   }
-  const patternsDir = path9.join(llkbRoot, "patterns");
+  const patternsDir = path13.join(llkbRoot, "patterns");
   if (!fs.existsSync(patternsDir)) {
     result.missingFiles.push("patterns/");
     result.valid = false;
@@ -5052,7 +6777,2861 @@ function isOk(result) {
 function isFail(result) {
   return !result.success && result.error !== void 0;
 }
+var PACKAGE_CONFIDENCE_BOOST = 0.3;
+var FILE_CONFIDENCE_BOOST = 0.2;
+var UI_PACKAGE_CONFIDENCE_BOOST = 0.25;
+var UI_ENTERPRISE_BOOST = 0.15;
+var MAX_SAMPLE_SELECTORS = 50;
+var FRAMEWORK_PATTERNS = {
+  react: {
+    packages: ["react", "react-dom"],
+    files: ["src/App.tsx", "src/App.jsx", "src/index.tsx", "src/index.jsx"],
+    baseConfidence: 0.95
+  },
+  angular: {
+    packages: ["@angular/core", "@angular/common"],
+    files: ["angular.json", "src/app/app.module.ts", "src/app/app.component.ts"],
+    baseConfidence: 0.95
+  },
+  vue: {
+    packages: ["vue"],
+    files: ["src/App.vue", "src/main.ts", "vue.config.js", "vite.config.ts"],
+    baseConfidence: 0.9
+  },
+  nextjs: {
+    packages: ["next"],
+    files: ["next.config.js", "next.config.mjs", "next.config.ts", "src/app/page.tsx", "pages/_app.tsx"],
+    baseConfidence: 0.95
+  },
+  svelte: {
+    packages: ["svelte"],
+    files: ["svelte.config.js", "src/App.svelte"],
+    baseConfidence: 0.9
+  }
+};
+var UI_LIBRARY_PATTERNS2 = {
+  mui: {
+    packages: ["@mui/material", "@mui/core", "@emotion/react", "@emotion/styled"],
+    enterprisePackages: ["@mui/x-data-grid-pro", "@mui/x-data-grid-premium"],
+    baseConfidence: 0.85
+  },
+  antd: {
+    packages: ["antd", "@ant-design/icons"],
+    enterprisePackages: ["@ant-design/pro-components", "@ant-design/pro-layout"],
+    baseConfidence: 0.85
+  },
+  chakra: {
+    packages: ["@chakra-ui/react", "@chakra-ui/core"],
+    baseConfidence: 0.85
+  },
+  "ag-grid": {
+    packages: ["ag-grid-community", "ag-grid-react", "ag-grid-angular", "ag-grid-vue"],
+    enterprisePackages: ["ag-grid-enterprise", "@ag-grid-enterprise/core"],
+    baseConfidence: 0.9
+  },
+  tailwind: {
+    packages: ["tailwindcss"],
+    baseConfidence: 0.8
+  },
+  bootstrap: {
+    packages: ["bootstrap", "react-bootstrap", "ng-bootstrap", "bootstrap-vue"],
+    baseConfidence: 0.8
+  }
+};
+var SELECTOR_PATTERN_SOURCES = {
+  "data-testid": `data-testid=['"]([^'"]+)['"]`,
+  "data-cy": `data-cy=['"]([^'"]+)['"]`,
+  "data-test": `data-test=['"]([^'"]+)['"]`,
+  "data-test-id": `data-test-id=['"]([^'"]+)['"]`,
+  "aria-label": `aria-label=['"]([^'"]+)['"]`,
+  "role": `role=['"]([^'"]+)['"]`
+};
+function createSelectorPatterns() {
+  const patterns = {};
+  for (const [key, source] of Object.entries(SELECTOR_PATTERN_SOURCES)) {
+    patterns[key] = new RegExp(source, "g");
+  }
+  return patterns;
+}
+var SELECTOR_PATTERNS = createSelectorPatterns();
+function detectFrameworks(projectRoot) {
+  const signals = [];
+  const packageJsonPath = path13.join(projectRoot, "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    return signals;
+  }
+  let packageJson;
+  try {
+    const content = fs.readFileSync(packageJsonPath, "utf-8");
+    const parsed = JSON.parse(content);
+    if (typeof parsed !== "object" || parsed === null) {
+      return signals;
+    }
+    packageJson = parsed;
+  } catch {
+    return signals;
+  }
+  const allDeps = {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies
+  };
+  for (const [framework, patterns] of Object.entries(FRAMEWORK_PATTERNS)) {
+    const evidence = [];
+    let confidence = 0;
+    for (const pkg of patterns.packages) {
+      if (allDeps[pkg]) {
+        evidence.push(`package.json:${pkg}@${allDeps[pkg]}`);
+        confidence += PACKAGE_CONFIDENCE_BOOST;
+      }
+    }
+    for (const file of patterns.files) {
+      const filePath = path13.join(projectRoot, file);
+      if (fs.existsSync(filePath)) {
+        evidence.push(`file:${file}`);
+        confidence += FILE_CONFIDENCE_BOOST;
+      }
+    }
+    if (evidence.length > 0) {
+      confidence = Math.min(confidence, patterns.baseConfidence);
+      const primaryPkg = patterns.packages[0] ?? "";
+      const version = primaryPkg ? allDeps[primaryPkg]?.replace(/[\^~>=<]/, "") : void 0;
+      signals.push({
+        name: framework,
+        version,
+        confidence,
+        evidence
+      });
+    }
+  }
+  return signals.sort((a, b) => b.confidence - a.confidence);
+}
+function detectUiLibraries(projectRoot) {
+  const signals = [];
+  const packageJsonPath = path13.join(projectRoot, "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    return signals;
+  }
+  let packageJson;
+  try {
+    const content = fs.readFileSync(packageJsonPath, "utf-8");
+    const parsed = JSON.parse(content);
+    if (typeof parsed !== "object" || parsed === null) {
+      return signals;
+    }
+    packageJson = parsed;
+  } catch {
+    return signals;
+  }
+  const allDeps = {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies
+  };
+  for (const [library, patterns] of Object.entries(UI_LIBRARY_PATTERNS2)) {
+    const evidence = [];
+    let confidence = 0;
+    let hasEnterprise = false;
+    for (const pkg of patterns.packages) {
+      if (allDeps[pkg]) {
+        evidence.push(`package.json:${pkg}`);
+        confidence += UI_PACKAGE_CONFIDENCE_BOOST;
+      }
+    }
+    if (patterns.enterprisePackages) {
+      for (const pkg of patterns.enterprisePackages) {
+        if (allDeps[pkg]) {
+          evidence.push(`package.json:${pkg} (enterprise)`);
+          hasEnterprise = true;
+          confidence += UI_ENTERPRISE_BOOST;
+        }
+      }
+    }
+    if (evidence.length > 0) {
+      confidence = Math.min(confidence, patterns.baseConfidence);
+      signals.push({
+        name: library,
+        confidence,
+        evidence,
+        hasEnterprise: hasEnterprise || void 0
+      });
+    }
+  }
+  return signals.sort((a, b) => b.confidence - a.confidence);
+}
+async function analyzeSelectorSignals(projectRoot) {
+  const coverage = {};
+  const selectorCounts = {};
+  const sampleSelectors = [];
+  let totalFiles = 0;
+  for (const attr of Object.keys(SELECTOR_PATTERNS)) {
+    selectorCounts[attr] = 0;
+  }
+  const srcDir = path13.join(projectRoot, "src");
+  if (fs.existsSync(srcDir)) {
+    await scanDirectoryForSelectors(srcDir, selectorCounts, sampleSelectors);
+    totalFiles = await countSourceFiles(srcDir);
+  }
+  const totalSelectors = Object.values(selectorCounts).reduce((sum, count) => sum + count, 0);
+  for (const [attr, count] of Object.entries(selectorCounts)) {
+    coverage[attr] = totalSelectors > 0 ? count / totalSelectors : 0;
+  }
+  const primaryAttribute = Object.entries(selectorCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || "data-testid";
+  const namingConvention = detectNamingConvention(sampleSelectors);
+  return {
+    primaryAttribute,
+    namingConvention,
+    coverage,
+    totalComponentsAnalyzed: totalFiles,
+    sampleSelectors: sampleSelectors.slice(0, 10)
+    // Keep top 10 samples
+  };
+}
+async function extractAuthHints(projectRoot) {
+  const hints = {
+    detected: false
+  };
+  const artkDiscoveryPath = path13.join(projectRoot, ".artk", "discovery.json");
+  if (fs.existsSync(artkDiscoveryPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(artkDiscoveryPath, "utf-8"));
+      if (typeof parsed !== "object" || parsed === null) {
+        throw new Error("Invalid discovery.json shape");
+      }
+      const discovery = parsed;
+      if (discovery.auth) {
+        hints.detected = true;
+        hints.type = discovery.auth.type;
+        hints.loginRoute = discovery.auth.loginRoute;
+        hints.selectors = discovery.auth.selectors;
+        hints.bypassAvailable = discovery.auth.bypassAvailable;
+        hints.bypassMethod = discovery.auth.bypassMethod;
+        return hints;
+      }
+    } catch {
+    }
+  }
+  const srcDir = path13.join(projectRoot, "src");
+  if (!fs.existsSync(srcDir)) {
+    return hints;
+  }
+  const authPatterns = await scanForAuthPatterns(srcDir);
+  if (authPatterns.hasAuth) {
+    hints.detected = true;
+    hints.type = authPatterns.type;
+    hints.loginRoute = authPatterns.loginRoute;
+    hints.selectors = authPatterns.selectors;
+  }
+  return hints;
+}
+async function runDiscovery(projectRoot) {
+  const errors = [];
+  const warnings = [];
+  if (!fs.existsSync(projectRoot)) {
+    return {
+      success: false,
+      profile: null,
+      errors: [`Project root does not exist: ${projectRoot}`],
+      warnings: []
+    };
+  }
+  let frameworks = [];
+  let uiLibraries = [];
+  let selectorSignals;
+  let auth;
+  try {
+    frameworks = detectFrameworks(projectRoot);
+    if (frameworks.length === 0) {
+      warnings.push("No frameworks detected");
+    }
+  } catch (e) {
+    errors.push(`Framework detection failed: ${String(e)}`);
+  }
+  try {
+    uiLibraries = detectUiLibraries(projectRoot);
+  } catch (e) {
+    warnings.push(`UI library detection failed: ${String(e)}`);
+  }
+  try {
+    selectorSignals = await analyzeSelectorSignals(projectRoot);
+  } catch (e) {
+    warnings.push(`Selector analysis failed: ${String(e)}`);
+    selectorSignals = {
+      primaryAttribute: "data-testid",
+      namingConvention: "kebab-case",
+      coverage: {},
+      totalComponentsAnalyzed: 0,
+      sampleSelectors: []
+    };
+  }
+  try {
+    auth = await extractAuthHints(projectRoot);
+  } catch (e) {
+    warnings.push(`Auth hint extraction failed: ${String(e)}`);
+    auth = { detected: false };
+  }
+  const profile = {
+    version: "1.0",
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    projectRoot,
+    frameworks,
+    uiLibraries,
+    selectorSignals,
+    auth,
+    runtime: {
+      validated: false,
+      scanUrl: null,
+      domSampleCount: 0
+    }
+  };
+  return {
+    success: errors.length === 0,
+    profile,
+    errors,
+    warnings
+  };
+}
+function saveDiscoveredProfile(profile, outputDir) {
+  const outputPath = path13.join(outputDir, "discovered-profile.json");
+  fs.mkdirSync(outputDir, { recursive: true });
+  const redactedAuth = profile.auth.selectors ? { ...profile.auth, selectors: Object.fromEntries(
+    Object.keys(profile.auth.selectors).map((k) => [k, "[REDACTED]"])
+  ) } : profile.auth;
+  const redacted = {
+    ...profile,
+    projectRoot: path13.basename(profile.projectRoot),
+    auth: redactedAuth
+  };
+  saveJSONAtomicSync(outputPath, redacted);
+}
+function loadDiscoveredProfile(llkbDir) {
+  const filePath = path13.join(llkbDir, "discovered-profile.json");
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    const parsed = JSON.parse(content);
+    if (typeof parsed !== "object" || parsed === null) {
+      return null;
+    }
+    if (!parsed.version || !Array.isArray(parsed.frameworks)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+var saveAppProfile = saveDiscoveredProfile;
+var MAX_SCAN_DEPTH = 20;
+var MAX_FILES_TO_SCAN = 5e3;
+async function scanDirectoryForSelectors(dir, selectorCounts, sampleSelectors, depth = 0, fileCount = { count: 0 }) {
+  if (depth > MAX_SCAN_DEPTH || fileCount.count > MAX_FILES_TO_SCAN) {
+    return;
+  }
+  const extensions = [".tsx", ".jsx", ".vue", ".html", ".ts", ".js"];
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (fileCount.count > MAX_FILES_TO_SCAN) break;
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== "node_modules" && !entry.name.startsWith(".") && !entry.isSymbolicLink()) {
+        await scanDirectoryForSelectors(fullPath, selectorCounts, sampleSelectors, depth + 1, fileCount);
+      }
+    } else if (entry.isFile() && extensions.some((ext) => entry.name.endsWith(ext))) {
+      fileCount.count++;
+      try {
+        const content = await fsp3.readFile(fullPath, "utf-8");
+        const freshPatterns = createSelectorPatterns();
+        for (const [attr, pattern] of Object.entries(freshPatterns)) {
+          let match;
+          while ((match = pattern.exec(content)) !== null) {
+            selectorCounts[attr]++;
+            if (sampleSelectors.length < MAX_SAMPLE_SELECTORS && match[1]) {
+              sampleSelectors.push(match[1]);
+            }
+          }
+        }
+      } catch {
+      }
+    }
+  }
+}
+async function countSourceFiles(dir, depth = 0) {
+  if (depth > MAX_SCAN_DEPTH) return 0;
+  const extensions = [".tsx", ".jsx", ".vue", ".ts", ".js"];
+  let count = 0;
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory() && entry.name !== "node_modules" && !entry.name.startsWith(".") && !entry.isSymbolicLink()) {
+      count += await countSourceFiles(fullPath, depth + 1);
+    } else if (entry.isFile() && extensions.some((ext) => entry.name.endsWith(ext))) {
+      count++;
+    }
+  }
+  return count;
+}
+function detectNamingConvention(samples) {
+  if (samples.length === 0) return "kebab-case";
+  let kebabCount = 0;
+  let camelCount = 0;
+  let snakeCount = 0;
+  for (const sample of samples) {
+    if (sample.includes("-")) kebabCount++;
+    if (/[a-z][A-Z]/.test(sample)) camelCount++;
+    if (sample.includes("_")) snakeCount++;
+  }
+  const maxCount = Math.max(kebabCount, camelCount, snakeCount);
+  if (maxCount === 0) return "kebab-case";
+  if (kebabCount === maxCount && camelCount < maxCount && snakeCount < maxCount) return "kebab-case";
+  if (camelCount === maxCount && kebabCount < maxCount && snakeCount < maxCount) return "camelCase";
+  if (snakeCount === maxCount && kebabCount < maxCount && camelCount < maxCount) return "snake_case";
+  return "mixed";
+}
+async function scanForAuthPatterns(srcDir, depth = 0) {
+  if (depth > MAX_SCAN_DEPTH) {
+    return { hasAuth: false };
+  }
+  const result = {
+    hasAuth: false
+  };
+  const authFilePatterns = [
+    /auth/i,
+    /login/i,
+    /signin/i,
+    /oauth/i,
+    /sso/i
+  ];
+  const authCodePatterns = {
+    oidc: [/oidc/i, /openid/i, /id_token/i, /authorization_code/i],
+    oauth: [/oauth/i, /access_token/i, /refresh_token/i],
+    form: [/login.*form/i, /username.*password/i, /signin/i],
+    sso: [/sso/i, /saml/i, /federation/i]
+  };
+  let entries;
+  try {
+    entries = await fsp3.readdir(srcDir, { withFileTypes: true });
+  } catch {
+    return result;
+  }
+  for (const entry of entries) {
+    const fullPath = path13.join(srcDir, entry.name);
+    if (entry.isFile() && authFilePatterns.some((p) => p.test(entry.name))) {
+      result.hasAuth = true;
+      try {
+        const content = await fsp3.readFile(fullPath, "utf-8");
+        for (const [type, patterns] of Object.entries(authCodePatterns)) {
+          if (patterns.some((p) => p.test(content))) {
+            result.type = type;
+            break;
+          }
+        }
+        const routeMatch = content.match(/['"](\/login|\/signin|\/auth)['"]/i);
+        if (routeMatch) {
+          result.loginRoute = routeMatch[1];
+        }
+      } catch {
+      }
+    } else if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
+      const subResult = await scanForAuthPatterns(fullPath, depth + 1);
+      if (subResult.hasAuth) {
+        result.hasAuth = true;
+        result.type = result.type || subResult.type;
+        result.loginRoute = result.loginRoute || subResult.loginRoute;
+      }
+    }
+  }
+  return result;
+}
 
-export { CONFIDENCE_HISTORY_RETENTION_DAYS, CURRENT_VERSION, DEFAULT_LLKB_ROOT, LOCK_MAX_WAIT_MS, LOCK_RETRY_INTERVAL_MS, MAX_CONFIDENCE_HISTORY_ENTRIES, MIN_SUPPORTED_VERSION, STALE_LOCK_THRESHOLD_MS, addComponentToRegistry, appendToHistory, calculateConfidence, calculateSimilarity, checkMigrationNeeded, checkUpdates, cleanupOldHistoryFiles, combineResults, compareVersions as compareTestVersion, compareVersions as compareTestVersions, compareVersions2 as compareVersions, componentNameToTrigger, componentToGlossaryEntries, componentToModule, countJourneyExtractionsToday, countLines, countNewEntriesSince, countPredictiveExtractionsToday, countTodayEvents, createEmptyAnalytics, createEmptyRegistry, daysBetween, detectDecliningConfidence, detectDuplicatesAcrossFiles, detectDuplicatesInFile, ensureDir, exportForAutogen, exportLLKB, exportToFile, extractKeywords, extractLlkbEntriesFromTest, extractLlkbVersionFromTest, extractStepKeywords, extractLlkbVersionFromTest as extractVersionFromTest, fail, findComponents, findExtractionCandidates, findLessonsByPattern, findModulesByCategory, findNearDuplicates, findSimilarPatterns, findUnusedComponentOpportunities, formatCheckUpdatesResult, formatVersionComparison as formatComparison, formatContextForPrompt, formatDate, formatExportResult, formatExportResultForConsole, formatHealthCheck, formatLearnResult, formatLearningResult, formatPruneResult, formatStats, formatUpdateCheckResult, formatUpdateTestResult, formatUpdateTestsResult, formatVersionComparison, generateNameVariations, generateReport, getAllCategories, getAnalyticsSummary, getComponentCategories, getComponentsForJourney, getConfidenceTrend, getCurrentLlkbVersion, getHistoryDir, getHistoryFilePath, getHistoryFilesInRange, getImportPath, getLessonsForJourney, getCurrentLlkbVersion as getLlkbVersion, getModuleForComponent, getRelevantContext, getRelevantScopes, getStats, hashCode, inferCategory, inferCategoryWithConfidence, initializeLLKB, isComponentCategory, isDailyRateLimitReached, isFail, isJourneyRateLimitReached, isLLKBEnabled, isNearDuplicate, isOk, isVersionSupported, jaccardSimilarity, lessonToGlossaryEntries, lessonToPattern, lessonToSelectorOverride, lessonToTimingHint, lineCountSimilarity, listModules, llkbExists, loadAppProfile, loadComponents, loadJSON, loadLLKBConfig, loadLLKBData, loadLessons, loadPatterns, loadRegistry, mapResult, matchStepsToComponents, migrateLLKB, needsConfidenceReview, needsMigration, normalizeCode, ok, parseAdapterArgs, parseVersion, prune, readHistoryFile, readTodayHistory, recordBatch, recordComponentUsed, recordLearning, recordLessonApplied, recordPatternLearned, removeComponentFromRegistry, runAdapterCLI, runCheckUpdates, runExportForAutogen, runHealthCheck, runLearnCommand, runUpdateTest, runUpdateTests, saveJSONAtomic, saveJSONAtomicSync, saveRegistry, search, shouldExtractAsComponent, syncRegistryWithComponents, tokenize, triggerToRegex, tryCatch, updateAnalytics, updateAnalyticsWithData, updateComponentInRegistry, updateConfidenceHistory, updateJSONWithLock, updateJSONWithLockSync, updateTestLlkbVersion, updateTestSafe, updateTestLlkbVersion as updateVersionInTest, validateLLKBInstallation, validateRegistryConsistency };
+// llkb/index.ts
+init_template_generators();
+
+// llkb/mining.ts
+init_pluralization();
+init_mining_cache();
+var MAX_SCAN_DEPTH2 = 15;
+var MAX_FILES_TO_SCAN2 = 3e3;
+var MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+var MAX_REGEX_ITERATIONS = 1e4;
+var SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".vue", ".svelte"];
+function validatePathWithinRoot(projectRoot, targetPath) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const resolvedTarget = path13.resolve(targetPath);
+  return resolvedTarget.startsWith(resolvedRoot + path13.sep) || resolvedTarget === resolvedRoot;
+}
+async function isFileSizeWithinLimit(filePath) {
+  try {
+    const stats = await fsp3.lstat(filePath);
+    if (stats.isSymbolicLink()) return false;
+    return stats.size <= MAX_FILE_SIZE_BYTES;
+  } catch {
+    return false;
+  }
+}
+var ENTITY_PATTERNS = {
+  // TypeScript/JavaScript types and interfaces (including exported)
+  // BUG-002 FIX: Added optional export prefix to catch exported interfaces/types
+  typeInterface: /(?:export\s+)?(?:interface|type)\s+(\w+)(?:\s+extends|\s*[={<])/g,
+  // Class names (often entities in ORM) - also handle exported classes
+  className: /(?:export\s+)?class\s+(\w+)(?:\s+extends|\s+implements|\s*\{)/g,
+  // Prisma model
+  prismaModel: /model\s+(\w+)\s*\{/g,
+  // TypeORM Entity
+  typeormEntity: /@Entity\s*\(\s*['"]?(\w+)?['"]?\s*\)/g,
+  // API fetch patterns
+  apiFetch: /(?:fetch|axios\.(?:get|post|put|delete|patch))\s*\(\s*[`'"]\/?(?:api\/)?(\w+)/gi,
+  // REST resource patterns
+  restResource: /\/api\/(\w+)(?:\/|['"`])/gi,
+  // GraphQL types
+  graphqlType: /type\s+(\w+)\s*(?:@|\{|implements)/g,
+  // Mongoose/MongoDB schema
+  mongooseSchema: /new\s+(?:mongoose\.)?Schema\s*<?\s*(\w+)?/g,
+  mongooseModel: /mongoose\.model\s*[<(]\s*['"]?(\w+)/g,
+  // Sequelize model
+  sequelizeModel: /sequelize\.define\s*\(\s*['"](\w+)/g,
+  // MikroORM entity
+  mikroEntity: /@Entity\s*\(\s*\{\s*(?:tableName|collection)\s*:\s*['"](\w+)/g
+};
+var ENTITY_EXCLUSIONS = /* @__PURE__ */ new Set([
+  // Common utility types
+  "props",
+  "state",
+  "context",
+  "config",
+  "options",
+  "params",
+  "args",
+  "request",
+  "response",
+  "result",
+  "error",
+  "data",
+  "payload",
+  // React types
+  "component",
+  "element",
+  "node",
+  "children",
+  "ref",
+  "handler",
+  "event",
+  "callback",
+  "dispatch",
+  "action",
+  "reducer",
+  "store",
+  // Common suffixes that aren't entities
+  "service",
+  "controller",
+  "repository",
+  "factory",
+  "builder",
+  "helper",
+  "util",
+  "utils",
+  "hook",
+  "provider",
+  "consumer",
+  // Generic types
+  "string",
+  "number",
+  "boolean",
+  "object",
+  "array",
+  "function",
+  "any",
+  "unknown",
+  "void",
+  "null",
+  "undefined",
+  "never",
+  "partial",
+  "required",
+  "readonly",
+  "pick",
+  "omit",
+  "record",
+  "promise",
+  "async",
+  "await",
+  "import",
+  "export",
+  "default"
+]);
+async function mineEntities(projectRoot, options = {}) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const maxDepth = options.maxDepth ?? MAX_SCAN_DEPTH2;
+  const maxFiles = options.maxFiles ?? MAX_FILES_TO_SCAN2;
+  const entityMap = /* @__PURE__ */ new Map();
+  const fileCount = { count: 0 };
+  const srcDirs = ["src", "app", "lib", "pages", "components", "models", "entities", "types"];
+  for (const dir of srcDirs) {
+    const fullPath = path13.join(resolvedRoot, dir);
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (fs.existsSync(fullPath)) {
+      await scanForEntities(fullPath, entityMap, fileCount, 0, maxDepth, maxFiles);
+    }
+  }
+  const prismaPath = path13.join(projectRoot, "prisma", "schema.prisma");
+  if (fs.existsSync(prismaPath)) {
+    await extractPrismaEntities(prismaPath, entityMap);
+  }
+  return Array.from(entityMap.values()).map(({ name, sources, endpoints }) => {
+    const singular = singularize(name);
+    const plural = pluralize(singular);
+    return {
+      name,
+      singular,
+      plural,
+      source: sources[0],
+      endpoint: endpoints[0]
+    };
+  });
+}
+async function scanForEntities(dir, entityMap, fileCount, depth, maxDepth, maxFiles) {
+  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (fileCount.count > maxFiles) break;
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
+        await scanForEntities(fullPath, entityMap, fileCount, depth + 1, maxDepth, maxFiles);
+      }
+    } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      fileCount.count++;
+      try {
+        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        const content = await fsp3.readFile(fullPath, "utf-8");
+        extractEntitiesFromContent(content, fullPath, entityMap);
+      } catch {
+      }
+    }
+  }
+}
+function extractEntitiesFromContent(content, source, entityMap) {
+  for (const [patternName, pattern] of Object.entries(ENTITY_PATTERNS)) {
+    pattern.lastIndex = 0;
+    let match;
+    const isApiPattern = patternName.includes("api") || patternName.includes("rest") || patternName.includes("fetch");
+    let iterations = 0;
+    while ((match = pattern.exec(content)) !== null) {
+      if (++iterations > MAX_REGEX_ITERATIONS) break;
+      const rawName = match[1];
+      if (!rawName) continue;
+      let name = rawName.replace(/(?:Model|Entity|Schema|Type|Interface|DTO|Input|Output)$/i, "");
+      let normalized = name.toLowerCase();
+      if (isApiPattern) {
+        normalized = singularize(normalized);
+      }
+      if (ENTITY_EXCLUSIONS.has(normalized) || normalized.length < 3) continue;
+      if (/(?:Props|State|Context|Config|Options|Params|Args|Handler|Callback|Service|Controller|Repository)$/i.test(rawName)) {
+        continue;
+      }
+      const existing = entityMap.get(normalized);
+      if (existing) {
+        if (!existing.sources.includes(source)) {
+          existing.sources.push(source);
+        }
+      } else {
+        entityMap.set(normalized, {
+          name: normalized,
+          sources: [source],
+          endpoints: []
+        });
+      }
+      if (isApiPattern) {
+        const entry = entityMap.get(normalized);
+        const pluralForm = pluralize(normalized);
+        if (entry && !entry.endpoints.includes(`/api/${pluralForm}`)) {
+          entry.endpoints.push(`/api/${pluralForm}`);
+        }
+      }
+    }
+  }
+}
+async function extractPrismaEntities(prismaPath, entityMap) {
+  try {
+    const content = await fsp3.readFile(prismaPath, "utf-8");
+    const modelPattern = /model\s+(\w+)\s*\{/g;
+    let match;
+    let iterations = 0;
+    while ((match = modelPattern.exec(content)) !== null) {
+      if (++iterations > MAX_REGEX_ITERATIONS) break;
+      const name = match[1].toLowerCase();
+      if (!ENTITY_EXCLUSIONS.has(name) && name.length >= 3) {
+        const existing = entityMap.get(name);
+        if (existing) {
+          if (!existing.sources.includes(prismaPath)) {
+            existing.sources.push(prismaPath);
+          }
+        } else {
+          entityMap.set(name, {
+            name,
+            sources: [prismaPath],
+            endpoints: [`/api/${name}`]
+          });
+        }
+      }
+    }
+  } catch {
+  }
+}
+var ROUTE_PATTERNS = {
+  // React Router v6 - BUG-004 FIX: Handle JSX expressions and variable references
+  reactRouterPath: /<Route\s+[^>]*path\s*=\s*[{'"]([\w/:.-]+)['"}\s]/gi,
+  reactRouterElement: /path:\s*['"]([^'"]+)['"]/g,
+  // Route config arrays: { path: '/users', element: <Users /> }
+  routeConfigPath: /\{\s*path:\s*['"]([^'"]+)['"][^}]*(?:element|component)/g,
+  // React Router useRoutes
+  useRoutesPath: /\{\s*path:\s*['"]([^'"]+)['"]/g,
+  // Route constants (ROUTES.USERS = '/users')
+  routeConstants: /(?:ROUTES|PATHS|routes|paths)\s*[.:=]\s*\{[^}]*(\w+)\s*:\s*['"]([^'"]+)['"]/gi,
+  // Next.js pages directory (from file names)
+  nextPage: /pages\/(.+?)(?:\/index)?\.(?:tsx?|jsx?)/,
+  // Next.js app directory
+  nextAppRoute: /app\/(.+?)\/page\.(?:tsx?|jsx?)/,
+  // Angular router
+  angularPath: /path:\s*['"]([^'"]+)['"],?\s*(?:component|loadComponent|children)/g,
+  // Vue Router
+  vueRouterPath: /path:\s*['"]([^'"]+)['"],?\s*(?:name|component|components)/g,
+  // Express/Fastify routes
+  expressRoute: /(?:app|router)\.(?:get|post|put|delete|patch|all)\s*\(\s*['"]([^'"]+)['"]/gi,
+  // NestJS routes
+  nestRoute: /@(?:Get|Post|Put|Delete|Patch|All)\s*\(\s*['"]?([^'")\s]*)/gi
+};
+async function mineRoutes(projectRoot, options = {}) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const maxDepth = options.maxDepth ?? MAX_SCAN_DEPTH2;
+  const maxFiles = options.maxFiles ?? MAX_FILES_TO_SCAN2;
+  const routeMap = /* @__PURE__ */ new Map();
+  const fileCount = { count: 0 };
+  const srcDirs = ["src", "app", "pages", "routes", "views"];
+  for (const dir of srcDirs) {
+    const fullPath = path13.join(resolvedRoot, dir);
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (fs.existsSync(fullPath)) {
+      await scanForRoutes(fullPath, routeMap, fileCount, 0, maxDepth, maxFiles);
+    }
+  }
+  const pagesDir = path13.join(resolvedRoot, "pages");
+  if (validatePathWithinRoot(resolvedRoot, pagesDir) && fs.existsSync(pagesDir)) {
+    await extractNextJsPages(pagesDir, routeMap, "");
+  }
+  const appDir = path13.join(resolvedRoot, "app");
+  if (validatePathWithinRoot(resolvedRoot, appDir) && fs.existsSync(appDir)) {
+    await extractNextJsAppRoutes(appDir, routeMap, "");
+  }
+  return Array.from(routeMap.values());
+}
+async function scanForRoutes(dir, routeMap, fileCount, depth, maxDepth, maxFiles) {
+  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (fileCount.count > maxFiles) break;
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
+        await scanForRoutes(fullPath, routeMap, fileCount, depth + 1, maxDepth, maxFiles);
+      }
+    } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      fileCount.count++;
+      try {
+        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        const content = await fsp3.readFile(fullPath, "utf-8");
+        extractRoutesFromContent(content, fullPath, routeMap);
+      } catch {
+      }
+    }
+  }
+}
+function extractRoutesFromContent(content, source, routeMap) {
+  for (const pattern of Object.values(ROUTE_PATTERNS)) {
+    if (typeof pattern === "function") continue;
+    pattern.lastIndex = 0;
+    let match;
+    let iterations = 0;
+    while ((match = pattern.exec(content)) !== null) {
+      if (++iterations > MAX_REGEX_ITERATIONS) break;
+      const routePath = match[1];
+      if (!routePath || routePath === "*" || routePath === "**") continue;
+      const normalizedPath = routePath.startsWith("/") ? routePath : `/${routePath}`;
+      if (normalizedPath.startsWith("/api/")) continue;
+      const name = pathToName(normalizedPath);
+      const params = extractRouteParams(normalizedPath);
+      if (!routeMap.has(normalizedPath)) {
+        routeMap.set(normalizedPath, {
+          path: normalizedPath,
+          name,
+          params: params.length > 0 ? params : void 0,
+          component: source
+        });
+      }
+    }
+  }
+}
+async function extractNextJsPages(dir, routeMap, basePath) {
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith("_") && !entry.name.startsWith(".")) {
+        const segment = entry.name.startsWith("[") && entry.name.endsWith("]") ? `:${entry.name.slice(1, -1)}` : entry.name;
+        await extractNextJsPages(fullPath, routeMap, `${basePath}/${segment}`);
+      }
+    } else if (entry.isFile()) {
+      const ext = path13.extname(entry.name);
+      const base = path13.basename(entry.name, ext);
+      if ([".tsx", ".ts", ".jsx", ".js"].includes(ext) && !base.startsWith("_")) {
+        let routePath;
+        if (base === "index") {
+          routePath = basePath || "/";
+        } else if (base.startsWith("[") && base.endsWith("]")) {
+          routePath = `${basePath}/:${base.slice(1, -1)}`;
+        } else {
+          routePath = `${basePath}/${base}`;
+        }
+        const name = pathToName(routePath);
+        const params = extractRouteParams(routePath);
+        routeMap.set(routePath, {
+          path: routePath,
+          name,
+          params: params.length > 0 ? params : void 0,
+          component: fullPath
+        });
+      }
+    }
+  }
+}
+async function extractNextJsAppRoutes(dir, routeMap, basePath) {
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith("_") && !entry.name.startsWith(".")) {
+        let segment;
+        if (entry.name.startsWith("(") && entry.name.endsWith(")")) {
+          segment = "";
+        } else if (entry.name.startsWith("[") && entry.name.endsWith("]")) {
+          segment = `:${entry.name.slice(1, -1)}`;
+        } else {
+          segment = entry.name;
+        }
+        const newPath = segment ? `${basePath}/${segment}` : basePath;
+        await extractNextJsAppRoutes(fullPath, routeMap, newPath);
+      }
+    } else if (entry.name === "page.tsx" || entry.name === "page.ts" || entry.name === "page.jsx" || entry.name === "page.js") {
+      const routePath = basePath || "/";
+      const name = pathToName(routePath);
+      const params = extractRouteParams(routePath);
+      routeMap.set(routePath, {
+        path: routePath,
+        name,
+        params: params.length > 0 ? params : void 0,
+        component: fullPath
+      });
+    }
+  }
+}
+function pathToName(routePath) {
+  if (routePath === "/") return "Home";
+  const segments = routePath.split("/").filter((s) => s && !s.startsWith(":"));
+  if (segments.length === 0) return "Home";
+  const lastSegment = segments[segments.length - 1];
+  return lastSegment.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+function extractRouteParams(routePath) {
+  const params = [];
+  const paramPattern = /:(\w+)/g;
+  let match;
+  let iterations = 0;
+  while ((match = paramPattern.exec(routePath)) !== null) {
+    if (++iterations > MAX_REGEX_ITERATIONS) break;
+    params.push(match[1]);
+  }
+  return params;
+}
+var FORM_PATTERNS = {
+  // Zod schema - SEC-F01 FIX: Bounded match (max 2000 chars) to prevent ReDoS.
+  // Uses [\s\S]{0,2000}? lazy quantifier with length cap (supports nested braces).
+  zodSchema: /z\.object\s*\(\s*\{([\s\S]{0,2000}?)\}\s*\)/g,
+  // BUG-003 FIX: Handle chained methods like z.string().email().min(1)
+  // SEC-F01 FIX: Limit chained methods to max 5 to prevent backtracking
+  zodField: /(\w+)\s*:\s*z\.(\w+)(?:\([^)]*\))?(?:\.\w+(?:\([^)]*\))?){0,5}/g,
+  // Yup schema - same SEC-F01 fixes applied (bounded lazy match, supports nested braces)
+  yupSchema: /(?:yup|Yup)\.object\s*\(\s*\{([\s\S]{0,2000}?)\}\s*\)/g,
+  yupField: /(\w+)\s*:\s*(?:yup|Yup)\.(\w+)(?:\([^)]*\))?(?:\.\w+(?:\([^)]*\))?){0,5}/g,
+  // React Hook Form
+  rhfRegister: /register\s*\(\s*['"](\w+)['"]/g,
+  // HTML form elements - BUG-005 FIX: Handle attributes in any order
+  // Pattern 1: name before type
+  htmlInputNameFirst: /<input[^>]+name\s*=\s*['"](\w+)['"][^>]*(?:type\s*=\s*['"](\w+)['"])?/gi,
+  // Pattern 2: type before name
+  htmlInputTypeFirst: /<input[^>]+type\s*=\s*['"](\w+)['"][^>]+name\s*=\s*['"](\w+)['"]/gi};
+async function mineForms(projectRoot, options = {}) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const maxDepth = options.maxDepth ?? MAX_SCAN_DEPTH2;
+  const maxFiles = options.maxFiles ?? MAX_FILES_TO_SCAN2;
+  const formMap = /* @__PURE__ */ new Map();
+  const fileCount = { count: 0 };
+  const srcDirs = ["src", "app", "components", "forms", "schemas", "validation"];
+  for (const dir of srcDirs) {
+    const fullPath = path13.join(resolvedRoot, dir);
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (fs.existsSync(fullPath)) {
+      await scanForForms(fullPath, formMap, fileCount, 0, maxDepth, maxFiles);
+    }
+  }
+  return Array.from(formMap.values());
+}
+async function scanForForms(dir, formMap, fileCount, depth, maxDepth, maxFiles) {
+  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (fileCount.count > maxFiles) break;
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
+        await scanForForms(fullPath, formMap, fileCount, depth + 1, maxDepth, maxFiles);
+      }
+    } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      fileCount.count++;
+      try {
+        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        const content = await fsp3.readFile(fullPath, "utf-8");
+        extractFormsFromContent(content, fullPath, formMap);
+      } catch {
+      }
+    }
+  }
+}
+function extractFormsFromContent(content, source, formMap) {
+  const fileName = path13.basename(source, path13.extname(source));
+  const formNameFromFile = fileName.replace(/(?:Form|Schema|Validation)$/i, "");
+  const fields = [];
+  const zodMatch = FORM_PATTERNS.zodSchema.exec(content);
+  if (zodMatch) {
+    FORM_PATTERNS.zodField.lastIndex = 0;
+    let fieldMatch;
+    let fieldIter = 0;
+    while ((fieldMatch = FORM_PATTERNS.zodField.exec(zodMatch[1])) !== null) {
+      if (++fieldIter > MAX_REGEX_ITERATIONS) break;
+      fields.push({
+        name: fieldMatch[1],
+        type: zodTypeToHtmlType(fieldMatch[2]),
+        label: fieldNameToLabel(fieldMatch[1])
+      });
+    }
+    FORM_PATTERNS.zodSchema.lastIndex = 0;
+  }
+  const yupMatch = FORM_PATTERNS.yupSchema.exec(content);
+  if (yupMatch) {
+    FORM_PATTERNS.yupField.lastIndex = 0;
+    let fieldMatch;
+    let yupIter = 0;
+    while ((fieldMatch = FORM_PATTERNS.yupField.exec(yupMatch[1])) !== null) {
+      if (++yupIter > MAX_REGEX_ITERATIONS) break;
+      const existingField = fields.find((f) => f.name === fieldMatch[1]);
+      if (!existingField) {
+        fields.push({
+          name: fieldMatch[1],
+          type: yupTypeToHtmlType(fieldMatch[2]),
+          label: fieldNameToLabel(fieldMatch[1])
+        });
+      }
+    }
+    FORM_PATTERNS.yupSchema.lastIndex = 0;
+  }
+  FORM_PATTERNS.rhfRegister.lastIndex = 0;
+  let rhfMatch;
+  let rhfIter = 0;
+  while ((rhfMatch = FORM_PATTERNS.rhfRegister.exec(content)) !== null) {
+    if (++rhfIter > MAX_REGEX_ITERATIONS) break;
+    const existingField = fields.find((f) => f.name === rhfMatch[1]);
+    if (!existingField) {
+      fields.push({
+        name: rhfMatch[1],
+        type: "text",
+        label: fieldNameToLabel(rhfMatch[1])
+      });
+    }
+  }
+  FORM_PATTERNS.htmlInputNameFirst.lastIndex = 0;
+  let htmlMatch;
+  let htmlIter = 0;
+  while ((htmlMatch = FORM_PATTERNS.htmlInputNameFirst.exec(content)) !== null) {
+    if (++htmlIter > MAX_REGEX_ITERATIONS) break;
+    const existingField = fields.find((f) => f.name === htmlMatch[1]);
+    if (!existingField) {
+      fields.push({
+        name: htmlMatch[1],
+        type: htmlMatch[2] || "text",
+        label: fieldNameToLabel(htmlMatch[1])
+      });
+    }
+  }
+  FORM_PATTERNS.htmlInputTypeFirst.lastIndex = 0;
+  let htmlIter2 = 0;
+  while ((htmlMatch = FORM_PATTERNS.htmlInputTypeFirst.exec(content)) !== null) {
+    if (++htmlIter2 > MAX_REGEX_ITERATIONS) break;
+    const existingField = fields.find((f) => f.name === htmlMatch[2]);
+    if (!existingField) {
+      fields.push({
+        name: htmlMatch[2],
+        type: htmlMatch[1] || "text",
+        label: fieldNameToLabel(htmlMatch[2])
+      });
+    }
+  }
+  if (fields.length > 0) {
+    const formId = formNameFromFile.toLowerCase();
+    const formName = fieldNameToLabel(formNameFromFile);
+    if (!formMap.has(formId)) {
+      formMap.set(formId, {
+        id: formId,
+        name: formName,
+        fields,
+        schema: source
+      });
+    }
+  }
+}
+function zodTypeToHtmlType(zodType) {
+  const typeMap = {
+    string: "text",
+    email: "email",
+    number: "number",
+    boolean: "checkbox",
+    date: "date",
+    enum: "select",
+    password: "password"
+  };
+  return typeMap[zodType.toLowerCase()] || "text";
+}
+function yupTypeToHtmlType(yupType) {
+  const typeMap = {
+    string: "text",
+    email: "email",
+    number: "number",
+    boolean: "checkbox",
+    date: "date",
+    mixed: "text"
+  };
+  return typeMap[yupType.toLowerCase()] || "text";
+}
+function fieldNameToLabel(fieldName) {
+  return fieldName.replace(/([A-Z])/g, " $1").replace(/[_-]/g, " ").trim().split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+var TABLE_PATTERNS = {
+  // AG Grid
+  agGridColumns: /columnDefs\s*[:=]\s*\[([^\]]+)\]/gs,
+  agGridField: /field:\s*['"](\w+)['"]/g,
+  // TanStack Table / React Table
+  tanstackColumn: /accessorKey:\s*['"](\w+)['"]/g,
+  // MUI DataGrid
+  muiColumns: /columns\s*[:=]\s*\[([^\]]+)\]/gs,
+  muiField: /field:\s*['"](\w+)['"]/g,
+  // HTML table
+  htmlTh: /<th[^>]*>([^<]+)<\/th>/gi,
+  // Ant Design Table
+  antdDataIndex: /dataIndex:\s*['"](\w+)['"]/g};
+async function mineTables(projectRoot, options = {}) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const maxDepth = options.maxDepth ?? MAX_SCAN_DEPTH2;
+  const maxFiles = options.maxFiles ?? MAX_FILES_TO_SCAN2;
+  const tableMap = /* @__PURE__ */ new Map();
+  const fileCount = { count: 0 };
+  const srcDirs = ["src", "app", "components", "tables", "grids", "views"];
+  for (const dir of srcDirs) {
+    const fullPath = path13.join(resolvedRoot, dir);
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (fs.existsSync(fullPath)) {
+      await scanForTables(fullPath, tableMap, fileCount, 0, maxDepth, maxFiles);
+    }
+  }
+  return Array.from(tableMap.values());
+}
+async function scanForTables(dir, tableMap, fileCount, depth, maxDepth, maxFiles) {
+  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (fileCount.count > maxFiles) break;
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
+        await scanForTables(fullPath, tableMap, fileCount, depth + 1, maxDepth, maxFiles);
+      }
+    } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      fileCount.count++;
+      try {
+        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        const content = await fsp3.readFile(fullPath, "utf-8");
+        extractTablesFromContent(content, fullPath, tableMap);
+      } catch {
+      }
+    }
+  }
+}
+function extractTablesFromContent(content, source, tableMap) {
+  const fileName = path13.basename(source, path13.extname(source));
+  const tableNameFromFile = fileName.replace(/(?:Table|Grid|List|DataGrid)$/i, "");
+  const columns = [];
+  const hasTableImport = /(?:AgGridReact|DataGrid|useReactTable|Table)/i.test(content);
+  if (!hasTableImport && !/<table/i.test(content)) {
+    return;
+  }
+  const columnDefsMatch = TABLE_PATTERNS.agGridColumns.exec(content) || TABLE_PATTERNS.muiColumns.exec(content);
+  if (columnDefsMatch) {
+    TABLE_PATTERNS.agGridField.lastIndex = 0;
+    TABLE_PATTERNS.muiField.lastIndex = 0;
+    let fieldMatch;
+    let colIter = 0;
+    while ((fieldMatch = TABLE_PATTERNS.agGridField.exec(columnDefsMatch[1])) !== null) {
+      if (++colIter > MAX_REGEX_ITERATIONS) break;
+      if (!columns.includes(fieldMatch[1])) {
+        columns.push(fieldMatch[1]);
+      }
+    }
+    colIter = 0;
+    while ((fieldMatch = TABLE_PATTERNS.muiField.exec(columnDefsMatch[1])) !== null) {
+      if (++colIter > MAX_REGEX_ITERATIONS) break;
+      if (!columns.includes(fieldMatch[1])) {
+        columns.push(fieldMatch[1]);
+      }
+    }
+    TABLE_PATTERNS.agGridColumns.lastIndex = 0;
+    TABLE_PATTERNS.muiColumns.lastIndex = 0;
+  }
+  TABLE_PATTERNS.tanstackColumn.lastIndex = 0;
+  let tanstackMatch;
+  let tanstackIter = 0;
+  while ((tanstackMatch = TABLE_PATTERNS.tanstackColumn.exec(content)) !== null) {
+    if (++tanstackIter > MAX_REGEX_ITERATIONS) break;
+    if (!columns.includes(tanstackMatch[1])) {
+      columns.push(tanstackMatch[1]);
+    }
+  }
+  TABLE_PATTERNS.antdDataIndex.lastIndex = 0;
+  let antdMatch;
+  let antdIter = 0;
+  while ((antdMatch = TABLE_PATTERNS.antdDataIndex.exec(content)) !== null) {
+    if (++antdIter > MAX_REGEX_ITERATIONS) break;
+    if (!columns.includes(antdMatch[1])) {
+      columns.push(antdMatch[1]);
+    }
+  }
+  TABLE_PATTERNS.htmlTh.lastIndex = 0;
+  let thMatch;
+  let thIter = 0;
+  while ((thMatch = TABLE_PATTERNS.htmlTh.exec(content)) !== null) {
+    if (++thIter > MAX_REGEX_ITERATIONS) break;
+    const header = thMatch[1].trim();
+    if (header && !columns.includes(header)) {
+      columns.push(header);
+    }
+  }
+  if (columns.length > 0) {
+    const tableId = tableNameFromFile.toLowerCase();
+    const tableName = fieldNameToLabel(tableNameFromFile);
+    if (!tableMap.has(tableId)) {
+      tableMap.set(tableId, {
+        id: tableId,
+        name: tableName || "Data Table",
+        columns
+      });
+    }
+  }
+}
+var MODAL_PATTERNS = {
+  // MUI Dialog
+  muiDialog: /<Dialog[^>]*(?:open|onClose)[^>]*>/gi,
+  muiDialogTitle: /<DialogTitle[^>]*>([^<]+)<\/DialogTitle>/gi,
+  // Radix Dialog
+  radixDialog: /<Dialog\.Root/gi,
+  radixDialogTitle: /<Dialog\.Title[^>]*>([^<]+)<\/Dialog\.Title>/gi,
+  // React Modal
+  reactModal: /<Modal[^>]*(?:isOpen|onRequestClose)[^>]*>/gi,
+  // Chakra Modal
+  chakraModal: /<Modal[^>]*(?:isOpen|onClose)[^>]*>/gi,
+  chakraModalHeader: /<ModalHeader[^>]*>([^<]+)<\/ModalHeader>/gi,
+  // Ant Design Modal
+  antdModal: /<Modal[^>]*(?:open|visible|onCancel)[^>]*>/gi,
+  antdModalTitle: /title\s*=\s*[{'"]([\w\s]+)['"}]/gi,
+  // Generic modal patterns
+  modalComponent: /(?:Modal|Dialog|Popup|Overlay)\s*(?:name|id|title)\s*=\s*['"](\w+)['"]/gi,
+  openModal: /(?:open|show|toggle)(?:Modal|Dialog)\s*\(\s*['"]?(\w+)/gi
+};
+async function mineModals(projectRoot, options = {}) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const maxDepth = options.maxDepth ?? MAX_SCAN_DEPTH2;
+  const maxFiles = options.maxFiles ?? MAX_FILES_TO_SCAN2;
+  const modalMap = /* @__PURE__ */ new Map();
+  const fileCount = { count: 0 };
+  const srcDirs = ["src", "app", "components", "modals", "dialogs"];
+  for (const dir of srcDirs) {
+    const fullPath = path13.join(resolvedRoot, dir);
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (fs.existsSync(fullPath)) {
+      await scanForModals(fullPath, modalMap, fileCount, 0, maxDepth, maxFiles);
+    }
+  }
+  return Array.from(modalMap.values());
+}
+async function scanForModals(dir, modalMap, fileCount, depth, maxDepth, maxFiles) {
+  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  let entries;
+  try {
+    entries = await fsp3.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (fileCount.count > maxFiles) break;
+    const fullPath = path13.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
+        await scanForModals(fullPath, modalMap, fileCount, depth + 1, maxDepth, maxFiles);
+      }
+    } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      fileCount.count++;
+      try {
+        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        const content = await fsp3.readFile(fullPath, "utf-8");
+        extractModalsFromContent(content, fullPath, modalMap);
+      } catch {
+      }
+    }
+  }
+}
+function extractModalsFromContent(content, source, modalMap) {
+  const fileName = path13.basename(source, path13.extname(source));
+  const modalNameFromFile = fileName.replace(/(?:Modal|Dialog|Popup)$/i, "");
+  const hasModal = Object.values(MODAL_PATTERNS).some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(content);
+  });
+  if (!hasModal) return;
+  let modalTitle;
+  MODAL_PATTERNS.muiDialogTitle.lastIndex = 0;
+  const muiTitleMatch = MODAL_PATTERNS.muiDialogTitle.exec(content);
+  if (muiTitleMatch) {
+    modalTitle = muiTitleMatch[1].trim();
+  }
+  if (!modalTitle) {
+    MODAL_PATTERNS.chakraModalHeader.lastIndex = 0;
+    const chakraTitleMatch = MODAL_PATTERNS.chakraModalHeader.exec(content);
+    if (chakraTitleMatch) {
+      modalTitle = chakraTitleMatch[1].trim();
+    }
+  }
+  if (!modalTitle) {
+    MODAL_PATTERNS.antdModalTitle.lastIndex = 0;
+    const antdTitleMatch = MODAL_PATTERNS.antdModalTitle.exec(content);
+    if (antdTitleMatch) {
+      modalTitle = antdTitleMatch[1].trim();
+    }
+  }
+  const modalId = modalNameFromFile.toLowerCase();
+  const modalName = modalTitle || fieldNameToLabel(modalNameFromFile) || "Modal";
+  if (!modalMap.has(modalId) && modalId) {
+    modalMap.set(modalId, {
+      id: modalId,
+      name: modalName
+    });
+  }
+}
+function extractEntitiesFromFiles(files, entityMap) {
+  for (const file of files) {
+    extractEntitiesFromContent(file.content, file.path, entityMap);
+  }
+}
+function extractRoutesFromFiles(files, routeMap) {
+  for (const file of files) {
+    extractRoutesFromContent(file.content, file.path, routeMap);
+  }
+}
+function extractFormsFromFiles(files, formMap) {
+  for (const file of files) {
+    extractFormsFromContent(file.content, file.path, formMap);
+  }
+}
+function extractTablesFromFiles(files, tableMap) {
+  for (const file of files) {
+    extractTablesFromContent(file.content, file.path, tableMap);
+  }
+}
+function extractModalsFromFiles(files, modalMap) {
+  for (const file of files) {
+    extractModalsFromContent(file.content, file.path, modalMap);
+  }
+}
+async function mineElements(projectRoot, options = {}) {
+  const startTime = Date.now();
+  const resolvedRoot = path13.resolve(projectRoot);
+  const cache = new MiningCache();
+  try {
+    const files = await scanAllSourceDirectories(resolvedRoot, cache, {
+      maxDepth: options.maxDepth ?? MAX_SCAN_DEPTH2,
+      maxFiles: options.maxFiles ?? MAX_FILES_TO_SCAN2
+    });
+    const entityMap = /* @__PURE__ */ new Map();
+    const routeMap = /* @__PURE__ */ new Map();
+    const formMap = /* @__PURE__ */ new Map();
+    const tableMap = /* @__PURE__ */ new Map();
+    const modalMap = /* @__PURE__ */ new Map();
+    extractEntitiesFromFiles(files, entityMap);
+    extractRoutesFromFiles(files, routeMap);
+    extractFormsFromFiles(files, formMap);
+    extractTablesFromFiles(files, tableMap);
+    extractModalsFromFiles(files, modalMap);
+    const prismaPath = path13.join(resolvedRoot, "prisma", "schema.prisma");
+    if (fs.existsSync(prismaPath)) {
+      await extractPrismaEntities(prismaPath, entityMap);
+    }
+    const pagesDir = path13.join(resolvedRoot, "pages");
+    if (validatePathWithinRoot(resolvedRoot, pagesDir) && fs.existsSync(pagesDir)) {
+      await extractNextJsPages(pagesDir, routeMap, "");
+    }
+    const appDir = path13.join(resolvedRoot, "app");
+    if (validatePathWithinRoot(resolvedRoot, appDir) && fs.existsSync(appDir)) {
+      await extractNextJsAppRoutes(appDir, routeMap, "");
+    }
+    const entities = Array.from(entityMap.values()).map(({ name, sources, endpoints }) => {
+      const singular = singularize(name);
+      const plural = pluralize(singular);
+      return {
+        name,
+        singular,
+        plural,
+        source: sources[0],
+        endpoint: endpoints[0]
+      };
+    });
+    const routes = Array.from(routeMap.values());
+    const forms = Array.from(formMap.values());
+    const tables = Array.from(tableMap.values());
+    const modals = Array.from(modalMap.values());
+    const elements = {
+      entities,
+      routes,
+      forms,
+      tables,
+      modals
+    };
+    const cacheStats = cache.getStats();
+    const duration = Date.now() - startTime;
+    return {
+      elements,
+      stats: {
+        entitiesFound: entities.length,
+        routesFound: routes.length,
+        formsFound: forms.length,
+        tablesFound: tables.length,
+        modalsFound: modals.length,
+        totalElements: entities.length + routes.length + forms.length + tables.length + modals.length,
+        filesScanned: files.length,
+        // ARCH-002: Include cache statistics
+        cacheHits: cacheStats.hits,
+        cacheMisses: cacheStats.misses,
+        cacheHitRate: cache.getHitRate()
+      },
+      duration
+    };
+  } finally {
+    cache.clear();
+  }
+}
+async function runMiningPipeline(projectRoot, options = {}) {
+  const { generateAllPatterns: generateAllPatterns2 } = await Promise.resolve().then(() => (init_template_generators(), template_generators_exports));
+  const mining = await mineElements(projectRoot, options);
+  const patterns = generateAllPatterns2(mining.elements, options.confidence);
+  return {
+    mining,
+    patterns
+  };
+}
+
+// llkb/index.ts
+init_mining_cache();
+
+// llkb/packs/react.ts
+var REACT_PATTERNS = [
+  // Hooks
+  { text: "wait for useEffect to complete", primitive: "wait", category: "timing" },
+  { text: "verify useState update", primitive: "assert", category: "assertion" },
+  { text: "trigger useCallback", primitive: "click", category: "ui-interaction" },
+  { text: "wait for useMemo recalculation", primitive: "wait", category: "timing" },
+  { text: "verify useReducer state", primitive: "assert", category: "assertion" },
+  { text: "trigger useRef focus", primitive: "click", category: "ui-interaction" },
+  { text: "wait for custom hook", primitive: "wait", category: "timing" },
+  { text: "verify hook dependency update", primitive: "assert", category: "assertion" },
+  // Context
+  { text: "verify context value", primitive: "assert", category: "assertion" },
+  { text: "switch context provider", primitive: "click", category: "ui-interaction" },
+  { text: "verify context consumer updates", primitive: "assert", category: "assertion" },
+  { text: "wait for context propagation", primitive: "wait", category: "timing" },
+  // Portal
+  { text: "interact with portal content", primitive: "click", category: "ui-interaction" },
+  { text: "verify portal renders", primitive: "assert", category: "assertion" },
+  { text: "close portal", primitive: "click", category: "ui-interaction" },
+  { text: "wait for portal mount", primitive: "wait", category: "timing" },
+  // Suspense
+  { text: "wait for lazy component to load", primitive: "wait", category: "timing" },
+  { text: "verify suspense fallback", primitive: "assert", category: "assertion" },
+  { text: "wait for suspense boundary", primitive: "wait", category: "timing" },
+  { text: "verify lazy component rendered", primitive: "assert", category: "assertion" },
+  // Event handling
+  { text: "trigger onChange event", primitive: "fill", category: "ui-interaction" },
+  { text: "trigger onSubmit event", primitive: "click", category: "ui-interaction" },
+  { text: "trigger onClick event", primitive: "click", category: "ui-interaction" },
+  { text: "trigger onBlur event", primitive: "click", category: "ui-interaction" },
+  { text: "trigger onFocus event", primitive: "click", category: "ui-interaction" },
+  { text: "trigger onKeyDown event", primitive: "fill", category: "ui-interaction" },
+  { text: "trigger onMouseEnter event", primitive: "hover", category: "ui-interaction" },
+  // Refs
+  { text: "verify ref is attached", primitive: "assert", category: "assertion" },
+  { text: "focus ref element", primitive: "click", category: "ui-interaction" },
+  { text: "scroll to ref element", primitive: "scroll", category: "ui-interaction" },
+  { text: "verify ref value updates", primitive: "assert", category: "assertion" },
+  // Error boundaries
+  { text: "verify error boundary catches error", primitive: "assert", category: "assertion" },
+  { text: "trigger error boundary fallback", primitive: "click", category: "ui-interaction" }
+];
+function getReactPack() {
+  return {
+    name: "react",
+    framework: "react",
+    version: "1.0.0",
+    description: "React-specific patterns for hooks, context, portals, suspense, and event handling",
+    patterns: REACT_PATTERNS
+  };
+}
+
+// llkb/packs/angular.ts
+var ANGULAR_PATTERNS = [
+  // Directives
+  { text: "verify ngIf shows element", primitive: "assert", category: "assertion" },
+  { text: "verify ngIf hides element", primitive: "assert", category: "assertion" },
+  { text: "verify ngFor items", primitive: "assert", category: "assertion" },
+  { text: "interact with ngSwitch", primitive: "click", category: "ui-interaction" },
+  { text: "verify ngClass applied", primitive: "assert", category: "assertion" },
+  { text: "verify ngStyle applied", primitive: "assert", category: "assertion" },
+  { text: "trigger ngModel update", primitive: "fill", category: "ui-interaction" },
+  // Pipes
+  { text: "verify async pipe output", primitive: "assert", category: "assertion" },
+  { text: "verify date pipe format", primitive: "assert", category: "assertion" },
+  { text: "verify currency pipe", primitive: "assert", category: "assertion" },
+  { text: "verify decimal pipe", primitive: "assert", category: "assertion" },
+  { text: "verify percent pipe", primitive: "assert", category: "assertion" },
+  { text: "verify custom pipe output", primitive: "assert", category: "assertion" },
+  // Services
+  { text: "wait for service response", primitive: "wait", category: "timing" },
+  { text: "verify service call", primitive: "assert", category: "assertion" },
+  { text: "trigger service method", primitive: "click", category: "ui-interaction" },
+  { text: "verify dependency injection", primitive: "assert", category: "assertion" },
+  // Router
+  { text: "navigate to angular route", primitive: "navigate", category: "navigation" },
+  { text: "verify router outlet", primitive: "assert", category: "assertion" },
+  { text: "verify activated route", primitive: "assert", category: "assertion" },
+  { text: "verify route params", primitive: "assert", category: "assertion" },
+  { text: "verify route guards", primitive: "assert", category: "assertion" },
+  { text: "trigger route navigation", primitive: "click", category: "navigation" },
+  // Forms - Reactive
+  { text: "verify reactive form valid", primitive: "assert", category: "assertion" },
+  { text: "verify reactive form invalid", primitive: "assert", category: "assertion" },
+  { text: "fill reactive form control", primitive: "fill", category: "ui-interaction" },
+  { text: "verify form control errors", primitive: "assert", category: "assertion" },
+  { text: "submit reactive form", primitive: "click", category: "ui-interaction" },
+  // Forms - Template-driven
+  { text: "verify template-driven form", primitive: "assert", category: "assertion" },
+  { text: "fill template form field", primitive: "fill", category: "ui-interaction" },
+  { text: "submit template form", primitive: "click", category: "ui-interaction" },
+  // Change Detection
+  { text: "trigger change detection", primitive: "click", category: "ui-interaction" },
+  { text: "wait for zone stable", primitive: "wait", category: "timing" },
+  { text: "verify change detection ran", primitive: "assert", category: "assertion" },
+  { text: "wait for async operation", primitive: "wait", category: "timing" }
+];
+function getAngularPack() {
+  return {
+    name: "angular",
+    framework: "angular",
+    version: "1.0.0",
+    description: "Angular-specific patterns for directives, pipes, services, router, forms, and change detection",
+    patterns: ANGULAR_PATTERNS
+  };
+}
+
+// llkb/packs/mui.ts
+var MUI_PATTERNS = [
+  // DataGrid
+  {
+    text: "sort MUI DataGrid column",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiDataGrid-columnHeader" }]
+  },
+  {
+    text: "filter MUI DataGrid",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiDataGrid-filterForm" }]
+  },
+  {
+    text: "select DataGrid row",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiDataGrid-row" }]
+  },
+  {
+    text: "paginate DataGrid",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiTablePagination-actions button" }]
+  },
+  {
+    text: "expand DataGrid row",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiDataGrid-detailPanelToggle" }]
+  },
+  {
+    text: "edit DataGrid cell",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiDataGrid-cell--editable" }]
+  },
+  // Dialog
+  {
+    text: "open MUI dialog",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '[aria-haspopup="dialog"]' }]
+  },
+  {
+    text: "close MUI dialog",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '.MuiDialog-root [aria-label="close"]' }]
+  },
+  {
+    text: "confirm MUI dialog",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiDialogActions-root button:last-child" }]
+  },
+  {
+    text: "verify MUI dialog open",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "role", value: "dialog" }]
+  },
+  // Snackbar
+  {
+    text: "verify MUI snackbar message",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: ".MuiSnackbar-root" }]
+  },
+  {
+    text: "dismiss MUI snackbar",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '.MuiSnackbar-root [aria-label="close"]' }]
+  },
+  // Autocomplete
+  {
+    text: "type in MUI autocomplete",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiAutocomplete-input" }]
+  },
+  {
+    text: "select MUI autocomplete option",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiAutocomplete-option" }]
+  },
+  {
+    text: "clear MUI autocomplete",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiAutocomplete-clearIndicator" }]
+  },
+  // DatePicker
+  {
+    text: "open MUI date picker",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiPickersPopper-root" }]
+  },
+  {
+    text: "select date in picker",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiPickersDay-root" }]
+  },
+  {
+    text: "navigate picker month",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiPickersCalendarHeader-switchViewButton" }]
+  },
+  // Select
+  {
+    text: "open MUI select",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiSelect-select" }]
+  },
+  {
+    text: "select MUI option",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiMenuItem-root" }]
+  },
+  // TextField
+  {
+    text: "fill MUI text field",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".MuiTextField-root input" }]
+  },
+  {
+    text: "verify MUI text field error",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: ".MuiFormHelperText-root.Mui-error" }]
+  },
+  // Menu
+  {
+    text: "open MUI menu",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "role", value: "button", name: "menu" }]
+  },
+  {
+    text: "select MUI menu item",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "role", value: "menuitem" }]
+  },
+  // Tabs
+  {
+    text: "click MUI tab",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "role", value: "tab" }]
+  },
+  {
+    text: "verify MUI tab selected",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: '.MuiTab-root[aria-selected="true"]' }]
+  }
+];
+function getMuiPack() {
+  return {
+    name: "mui",
+    framework: "mui",
+    version: "1.0.0",
+    description: "Material-UI specific patterns for DataGrid, Dialog, Snackbar, Autocomplete, DatePicker, and more",
+    patterns: MUI_PATTERNS
+  };
+}
+
+// llkb/packs/antd.ts
+var ANTD_PATTERNS = [
+  // Table
+  {
+    text: "sort Ant table column",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-table-column-sorters" }]
+  },
+  {
+    text: "filter Ant table",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-table-filter-trigger" }]
+  },
+  {
+    text: "expand Ant table row",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-table-row-expand-icon" }]
+  },
+  {
+    text: "select Ant table row",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-table-row" }]
+  },
+  {
+    text: "paginate Ant table",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-pagination-item" }]
+  },
+  {
+    text: "search Ant table",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-table-filter-dropdown input" }]
+  },
+  // Modal
+  {
+    text: "open Ant modal",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: "[data-trigger-modal]" }]
+  },
+  {
+    text: "close Ant modal",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-modal-close" }]
+  },
+  {
+    text: "confirm Ant modal",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-modal-footer .ant-btn-primary" }]
+  },
+  {
+    text: "cancel Ant modal",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-modal-footer .ant-btn-default" }]
+  },
+  // Message & Notification
+  {
+    text: "verify Ant message",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: ".ant-message" }]
+  },
+  {
+    text: "verify Ant notification",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: ".ant-notification" }]
+  },
+  {
+    text: "close Ant notification",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-notification-close-icon" }]
+  },
+  // Select
+  {
+    text: "open Ant select dropdown",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-select-selector" }]
+  },
+  {
+    text: "search Ant select",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-select-selection-search-input" }]
+  },
+  {
+    text: "select Ant option",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-select-item-option" }]
+  },
+  {
+    text: "clear Ant select",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-select-clear" }]
+  },
+  // Form
+  {
+    text: "submit Ant form",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '.ant-form button[type="submit"]' }]
+  },
+  {
+    text: "verify Ant form validation",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: ".ant-form-item-explain-error" }]
+  },
+  {
+    text: "fill Ant input",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-input" }]
+  },
+  {
+    text: "reset Ant form",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '.ant-form button[type="reset"]' }]
+  },
+  // DatePicker
+  {
+    text: "open Ant date picker",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-picker" }]
+  },
+  {
+    text: "select Ant date",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-picker-cell" }]
+  },
+  // Drawer
+  {
+    text: "open Ant drawer",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: "[data-trigger-drawer]" }]
+  },
+  {
+    text: "close Ant drawer",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: ".ant-drawer-close" }]
+  }
+];
+function getAntdPack() {
+  return {
+    name: "antd",
+    framework: "antd",
+    version: "1.0.0",
+    description: "Ant Design specific patterns for Table, Modal, Message, Select, Form, and more",
+    patterns: ANTD_PATTERNS
+  };
+}
+
+// llkb/packs/chakra.ts
+var CHAKRA_PATTERNS = [
+  // Modal
+  {
+    text: "open Chakra modal",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: "[data-chakra-modal-trigger]" }]
+  },
+  {
+    text: "close Chakra modal",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '[aria-label="Close"]' }]
+  },
+  {
+    text: "verify Chakra modal open",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "role", value: "dialog" }]
+  },
+  {
+    text: "confirm Chakra modal",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '[role="dialog"] footer button:last-child' }]
+  },
+  // Toast
+  {
+    text: "verify Chakra toast",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "role", value: "status" }]
+  },
+  {
+    text: "dismiss Chakra toast",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '[role="status"] button[aria-label="Close"]' }]
+  },
+  {
+    text: "verify Chakra toast message",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: '[role="status"]' }]
+  },
+  // Menu
+  {
+    text: "open Chakra menu",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "role", value: "button", name: "menu" }]
+  },
+  {
+    text: "select Chakra menu item",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "role", value: "menuitem" }]
+  },
+  {
+    text: "close Chakra menu",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: "body" }]
+  },
+  // Drawer
+  {
+    text: "open Chakra drawer",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: "[data-chakra-drawer-trigger]" }]
+  },
+  {
+    text: "close Chakra drawer",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '[role="dialog"] [aria-label="Close"]' }]
+  },
+  {
+    text: "verify Chakra drawer open",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "role", value: "dialog" }]
+  },
+  // Tabs
+  {
+    text: "switch Chakra tab",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "role", value: "tab" }]
+  },
+  {
+    text: "verify Chakra tab content",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "role", value: "tabpanel" }]
+  },
+  {
+    text: "verify Chakra tab selected",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: '[role="tab"][aria-selected="true"]' }]
+  },
+  // Form
+  {
+    text: "fill Chakra input",
+    primitive: "fill",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: "input" }]
+  },
+  {
+    text: "verify Chakra form error",
+    primitive: "assert",
+    category: "assertion",
+    selectorHints: [{ strategy: "css", value: '[role="alert"]' }]
+  },
+  {
+    text: "submit Chakra form",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: 'button[type="submit"]' }]
+  },
+  // Popover
+  {
+    text: "open Chakra popover",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: "[data-chakra-popover-trigger]" }]
+  },
+  {
+    text: "close Chakra popover",
+    primitive: "click",
+    category: "ui-interaction",
+    selectorHints: [{ strategy: "css", value: '[role="tooltip"] [aria-label="Close"]' }]
+  }
+];
+function getChakraPack() {
+  return {
+    name: "chakra",
+    framework: "chakra",
+    version: "1.0.0",
+    description: "Chakra UI specific patterns for Modal, Toast, Menu, Drawer, Tabs, and more",
+    patterns: CHAKRA_PATTERNS
+  };
+}
+var DEFAULT_PACK_CONFIDENCE = 0.65;
+var PACK_REGISTRY = [
+  {
+    name: "react",
+    frameworks: ["react", "nextjs"],
+    loader: getReactPack
+  },
+  {
+    name: "angular",
+    frameworks: ["angular"],
+    loader: getAngularPack
+  },
+  {
+    name: "mui",
+    frameworks: ["mui"],
+    loader: getMuiPack
+  },
+  {
+    name: "antd",
+    frameworks: ["antd"],
+    loader: getAntdPack
+  },
+  {
+    name: "chakra",
+    frameworks: ["chakra"],
+    loader: getChakraPack
+  }
+];
+function getPackRegistry() {
+  return PACK_REGISTRY;
+}
+function loadPacksForFrameworks(frameworks) {
+  const packs = [];
+  const loadedPackNames = /* @__PURE__ */ new Set();
+  const normalizedFrameworks = frameworks.map((f) => f.toLowerCase());
+  for (const entry of PACK_REGISTRY) {
+    const shouldLoad = entry.frameworks.some(
+      (f) => normalizedFrameworks.includes(f.toLowerCase())
+    );
+    if (shouldLoad && !loadedPackNames.has(entry.name)) {
+      const pack = entry.loader();
+      packs.push(pack);
+      loadedPackNames.add(entry.name);
+    }
+  }
+  return packs;
+}
+function packPatternToDiscovered(packPattern, packName) {
+  return {
+    id: `DP-${randomUUID().slice(0, 8)}`,
+    normalizedText: packPattern.text.toLowerCase(),
+    originalText: packPattern.text,
+    mappedPrimitive: packPattern.primitive,
+    selectorHints: packPattern.selectorHints || [],
+    confidence: packPattern.confidence || DEFAULT_PACK_CONFIDENCE,
+    layer: "framework",
+    category: packPattern.category,
+    sourceJourneys: [],
+    successCount: 0,
+    failCount: 0,
+    templateSource: "static",
+    entityName: packName
+  };
+}
+function packPatternsToDiscovered(pack) {
+  return pack.patterns.map((pattern) => packPatternToDiscovered(pattern, pack.name));
+}
+function loadDiscoveredPatternsForFrameworks(frameworks) {
+  const packs = loadPacksForFrameworks(frameworks);
+  const patterns = [];
+  for (const pack of packs) {
+    patterns.push(...packPatternsToDiscovered(pack));
+  }
+  return patterns;
+}
+
+// llkb/mining/i18n-mining.ts
+init_mining_cache();
+var MAX_REGEX_ITERATIONS2 = 1e4;
+var I18N_PATTERN_CONFIDENCE = 0.75;
+var I18N_LIBRARY_PATTERNS = {
+  "react-i18next": /(?:import|from)\s+['"]react-i18next['"]|useTranslation\(/g,
+  "angular-translate": /\$translate\.get\(|translate\s+filter|\|\s*translate/g,
+  "vue-i18n": /(?:import|from)\s+['"]vue-i18n['"]|createI18n\(|\$t\(/g,
+  "next-intl": /(?:import|from)\s+['"]next-intl['"]|useTranslations\(/g
+};
+var I18N_KEY_PATTERNS = {
+  // react-i18next: t('key'), t('namespace:key'), t('key', { defaultValue: '...' })
+  reactI18next: /\bt\s*\(\s*['"`]([^'"`]+)['"`]\s*(?:,\s*\{[^}]*defaultValue\s*:\s*['"`]([^'"`]+)['"`][^}]*\})?\)/g,
+  // Trans component: <Trans i18nKey="key">...</Trans>
+  transComponent: /<Trans\s+i18nKey\s*=\s*['"`]([^'"`]+)['"`]/g,
+  // angular-translate: {{ 'key' | translate }}, $translate.get('key')
+  angularTranslate: /(?:\{\{\s*['"`]([^'"`]+)['"`]\s*\|\s*translate\s*\}\}|\$translate\.get\s*\(\s*['"`]([^'"`]+)['"`]\))/g,
+  // vue-i18n: $t('key'), t('key') in setup
+  vueI18n: /\$t\s*\(\s*['"`]([^'"`]+)['"`]\)|(?:^|[^\w])t\s*\(\s*['"`]([^'"`]+)['"`]\)/g,
+  // next-intl: t('key')
+  nextIntl: /\bt\s*\(\s*['"`]([^'"`]+)['"`]\)/g
+};
+async function mineI18nKeys(projectRoot, cache) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const miningCache = cache ?? new (await Promise.resolve().then(() => (init_mining_cache(), mining_cache_exports))).MiningCache();
+  const shouldCleanup = !cache;
+  try {
+    const files = await scanAllSourceDirectories(resolvedRoot, miningCache);
+    const library = detectI18nLibrary(files);
+    const keys = extractI18nKeys(files, library);
+    const localeFiles = await findLocaleFiles(resolvedRoot);
+    return {
+      library,
+      keys,
+      localeFiles
+    };
+  } finally {
+    if (shouldCleanup) {
+      miningCache.clear();
+    }
+  }
+}
+function detectI18nLibrary(files) {
+  const detectionScores = {
+    "react-i18next": 0,
+    "angular-translate": 0,
+    "vue-i18n": 0,
+    "next-intl": 0
+  };
+  for (const file of files) {
+    for (const [library, pattern] of Object.entries(I18N_LIBRARY_PATTERNS)) {
+      pattern.lastIndex = 0;
+      if (pattern.test(file.content)) {
+        detectionScores[library]++;
+      }
+    }
+  }
+  let maxScore = 0;
+  let detectedLibrary = "unknown";
+  for (const [library, score] of Object.entries(detectionScores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      detectedLibrary = library;
+    }
+  }
+  return detectedLibrary;
+}
+function extractI18nKeys(files, library) {
+  const keys = [];
+  const seenKeys = /* @__PURE__ */ new Set();
+  for (const file of files) {
+    for (const [patternName, pattern] of Object.entries(I18N_KEY_PATTERNS)) {
+      pattern.lastIndex = 0;
+      let match;
+      let iterations = 0;
+      while ((match = pattern.exec(file.content)) !== null) {
+        if (++iterations > MAX_REGEX_ITERATIONS2) break;
+        const key = match[1] || match[2];
+        if (!key) continue;
+        const keyId = `${key}:${file.path}`;
+        if (seenKeys.has(keyId)) continue;
+        seenKeys.add(keyId);
+        let namespace;
+        let cleanKey = key;
+        if (key.includes(":")) {
+          const parts = key.split(":");
+          if (parts.length === 2) {
+            namespace = parts[0];
+            cleanKey = parts[1];
+          }
+        } else if (key.includes(".")) {
+          const parts = key.split(".");
+          cleanKey = parts[parts.length - 1];
+        }
+        const defaultValue = match[2] && patternName === "reactI18next" ? match[2] : void 0;
+        keys.push({
+          key: cleanKey,
+          namespace,
+          defaultValue,
+          source: file.path
+        });
+      }
+    }
+  }
+  return keys;
+}
+async function findLocaleFiles(projectRoot) {
+  const localeFiles = [];
+  const localeDirs = ["locales", "i18n", "translations", "lang", "public/locales"];
+  for (const dir of localeDirs) {
+    const fullPath = path13.join(projectRoot, dir);
+    try {
+      const stat = await fsp3.lstat(fullPath);
+      if (stat.isSymbolicLink()) continue;
+      if (!stat.isDirectory()) continue;
+      const files = await findJsonFilesRecursive(fullPath);
+      localeFiles.push(...files);
+    } catch {
+      continue;
+    }
+  }
+  return localeFiles;
+}
+async function findJsonFilesRecursive(dir, depth = 0, maxDepth = 5) {
+  if (depth > maxDepth) return [];
+  const files = [];
+  try {
+    const entries = await fsp3.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
+      const fullPath = path13.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        const subFiles = await findJsonFilesRecursive(fullPath, depth + 1, maxDepth);
+        files.push(...subFiles);
+      } else if (entry.isFile() && entry.name.endsWith(".json")) {
+        files.push(fullPath);
+      }
+    }
+  } catch {
+  }
+  return files;
+}
+function generateI18nPatterns(result) {
+  const patterns = [];
+  const seenPatterns = /* @__PURE__ */ new Set();
+  for (const i18nKey of result.keys) {
+    const label = keyToLabel(i18nKey.key);
+    const verifyTextPattern = `verify ${label} text`;
+    const verifyTextKey = `${verifyTextPattern}:assert`;
+    if (!seenPatterns.has(verifyTextKey)) {
+      seenPatterns.add(verifyTextKey);
+      patterns.push({
+        id: `DP-${randomUUID().slice(0, 8)}`,
+        normalizedText: verifyTextPattern.toLowerCase(),
+        originalText: verifyTextPattern,
+        mappedPrimitive: "assert",
+        selectorHints: [
+          {
+            strategy: "text",
+            value: i18nKey.defaultValue || i18nKey.key,
+            confidence: I18N_PATTERN_CONFIDENCE
+          }
+        ],
+        confidence: I18N_PATTERN_CONFIDENCE,
+        layer: "app-specific",
+        category: "assertion",
+        sourceJourneys: [],
+        successCount: 0,
+        failCount: 0,
+        templateSource: "static"
+      });
+    }
+    const verifyVisiblePattern = `verify ${label} is visible`;
+    const verifyVisibleKey = `${verifyVisiblePattern}:assert`;
+    if (!seenPatterns.has(verifyVisibleKey)) {
+      seenPatterns.add(verifyVisibleKey);
+      patterns.push({
+        id: `DP-${randomUUID().slice(0, 8)}`,
+        normalizedText: verifyVisiblePattern.toLowerCase(),
+        originalText: verifyVisiblePattern,
+        mappedPrimitive: "assert",
+        selectorHints: [
+          {
+            strategy: "text",
+            value: i18nKey.defaultValue || i18nKey.key,
+            confidence: I18N_PATTERN_CONFIDENCE
+          }
+        ],
+        confidence: I18N_PATTERN_CONFIDENCE,
+        layer: "app-specific",
+        category: "assertion",
+        sourceJourneys: [],
+        successCount: 0,
+        failCount: 0,
+        templateSource: "static"
+      });
+    }
+  }
+  return patterns;
+}
+function keyToLabel(key) {
+  return key.replace(/[_-]/g, " ").replace(/([A-Z])/g, " $1").trim().split(/\s+/).map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+
+// llkb/mining/analytics-mining.ts
+init_mining_cache();
+var MAX_REGEX_ITERATIONS3 = 1e4;
+var ANALYTICS_PATTERN_CONFIDENCE = 0.7;
+var ANALYTICS_PROVIDER_PATTERNS = {
+  ga4: /gtag\s*\(\s*['"]event['"]|ReactGA\.event\(|window\.gtag\(/g,
+  mixpanel: /mixpanel\.track\(|import.*mixpanel|from\s+['"]mixpanel['"]/g,
+  segment: /analytics\.track\(|window\.analytics\.track\(|import.*@segment/g,
+  amplitude: /amplitude\.logEvent\(|import.*@amplitude|Amplitude\.getInstance\(\)/g
+};
+var ANALYTICS_EVENT_PATTERNS = {
+  // GA4/gtag: gtag('event', 'eventName', {...})
+  ga4Gtag: /gtag\s*\(\s*['"]event['"]\s*,\s*['"]([^'"]+)['"]/g,
+  // React GA: ReactGA.event({ category: '...', action: '...' })
+  reactGa: /ReactGA\.event\s*\(\s*\{[^}]*action\s*:\s*['"]([^'"]+)['"]/g,
+  // Mixpanel: mixpanel.track('eventName', {...})
+  mixpanel: /mixpanel\.track\s*\(\s*['"]([^'"]+)['"]/g,
+  // Segment: analytics.track('eventName', {...})
+  segment: /analytics\.track\s*\(\s*['"]([^'"]+)['"]/g,
+  // Amplitude: amplitude.logEvent('eventName', {...})
+  amplitude: /amplitude\.logEvent\s*\(\s*['"]([^'"]+)['"]/g,
+  // Custom analytics: trackEvent('eventName'), logEvent('eventName')
+  custom: /(?:trackEvent|logEvent|sendEvent)\s*\(\s*['"]([^'"]+)['"]/g
+};
+var EVENT_PROPERTIES_PATTERN = /\{\s*([^}]+)\s*\}/g;
+async function mineAnalyticsEvents(projectRoot, cache) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const miningCache = cache ?? new (await Promise.resolve().then(() => (init_mining_cache(), mining_cache_exports))).MiningCache();
+  const shouldCleanup = !cache;
+  try {
+    const files = await scanAllSourceDirectories(resolvedRoot, miningCache);
+    const provider = detectAnalyticsProvider(files);
+    const events = extractAnalyticsEvents(files, provider);
+    return {
+      provider,
+      events
+    };
+  } finally {
+    if (shouldCleanup) {
+      miningCache.clear();
+    }
+  }
+}
+function detectAnalyticsProvider(files) {
+  const detectionScores = {
+    ga4: 0,
+    mixpanel: 0,
+    segment: 0,
+    amplitude: 0,
+    custom: 0
+  };
+  for (const file of files) {
+    for (const [provider, pattern] of Object.entries(ANALYTICS_PROVIDER_PATTERNS)) {
+      pattern.lastIndex = 0;
+      if (pattern.test(file.content)) {
+        detectionScores[provider]++;
+      }
+    }
+    const customPattern = /(?:trackEvent|logEvent|sendEvent)\s*\(/g;
+    customPattern.lastIndex = 0;
+    if (customPattern.test(file.content)) {
+      detectionScores.custom++;
+    }
+  }
+  let maxScore = 0;
+  let detectedProvider = "unknown";
+  for (const [provider, score] of Object.entries(detectionScores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      detectedProvider = provider;
+    }
+  }
+  return detectedProvider;
+}
+function extractAnalyticsEvents(files, provider) {
+  const events = [];
+  const seenEvents = /* @__PURE__ */ new Set();
+  for (const file of files) {
+    for (const [patternName, pattern] of Object.entries(ANALYTICS_EVENT_PATTERNS)) {
+      pattern.lastIndex = 0;
+      let match;
+      let iterations = 0;
+      while ((match = pattern.exec(file.content)) !== null) {
+        if (++iterations > MAX_REGEX_ITERATIONS3) break;
+        const eventName = match[1];
+        if (!eventName) continue;
+        const eventId = `${eventName}:${file.path}`;
+        if (seenEvents.has(eventId)) continue;
+        seenEvents.add(eventId);
+        const properties = extractEventProperties(file.content, match.index);
+        let eventProvider = provider;
+        if (patternName.includes("ga4") || patternName.includes("reactGa")) {
+          eventProvider = "ga4";
+        } else if (patternName.includes("mixpanel")) {
+          eventProvider = "mixpanel";
+        } else if (patternName.includes("segment")) {
+          eventProvider = "segment";
+        } else if (patternName.includes("amplitude")) {
+          eventProvider = "amplitude";
+        } else if (patternName.includes("custom")) {
+          eventProvider = "custom";
+        }
+        events.push({
+          name: eventName,
+          provider: eventProvider,
+          properties,
+          source: file.path
+        });
+      }
+    }
+  }
+  return events;
+}
+function extractEventProperties(content, matchIndex) {
+  const searchEnd = Math.min(matchIndex + 200, content.length);
+  const snippet = content.slice(matchIndex, searchEnd);
+  EVENT_PROPERTIES_PATTERN.lastIndex = 0;
+  const propsMatch = EVENT_PROPERTIES_PATTERN.exec(snippet);
+  if (!propsMatch) return void 0;
+  const propsText = propsMatch[1];
+  const propertyPattern = /(\w+)\s*:/g;
+  const properties = [];
+  let propMatch;
+  let iterations = 0;
+  while ((propMatch = propertyPattern.exec(propsText)) !== null) {
+    if (++iterations > MAX_REGEX_ITERATIONS3) break;
+    properties.push(propMatch[1]);
+  }
+  return properties.length > 0 ? properties : void 0;
+}
+function generateAnalyticsPatterns(result) {
+  const patterns = [];
+  const seenPatterns = /* @__PURE__ */ new Set();
+  for (const event of result.events) {
+    const label = eventNameToLabel(event.name);
+    const verifyTrackedPattern = `verify ${label} tracked`;
+    const verifyTrackedKey = `${verifyTrackedPattern}:assert`;
+    if (!seenPatterns.has(verifyTrackedKey)) {
+      seenPatterns.add(verifyTrackedKey);
+      patterns.push({
+        id: `DP-${randomUUID().slice(0, 8)}`,
+        normalizedText: verifyTrackedPattern.toLowerCase(),
+        originalText: verifyTrackedPattern,
+        mappedPrimitive: "assert",
+        selectorHints: [],
+        confidence: ANALYTICS_PATTERN_CONFIDENCE,
+        layer: "app-specific",
+        category: "assertion",
+        sourceJourneys: [],
+        successCount: 0,
+        failCount: 0,
+        templateSource: "static"
+      });
+    }
+    const triggerEventPattern = `trigger ${label} event`;
+    const triggerEventKey = `${triggerEventPattern}:click`;
+    if (!seenPatterns.has(triggerEventKey)) {
+      seenPatterns.add(triggerEventKey);
+      patterns.push({
+        id: `DP-${randomUUID().slice(0, 8)}`,
+        normalizedText: triggerEventPattern.toLowerCase(),
+        originalText: triggerEventPattern,
+        mappedPrimitive: "click",
+        selectorHints: [],
+        confidence: ANALYTICS_PATTERN_CONFIDENCE,
+        layer: "app-specific",
+        category: "ui-interaction",
+        sourceJourneys: [],
+        successCount: 0,
+        failCount: 0,
+        templateSource: "static"
+      });
+    }
+  }
+  return patterns;
+}
+function eventNameToLabel(eventName) {
+  return eventName.replace(/[_-]/g, " ").replace(/([A-Z])/g, " $1").trim().split(/\s+/).map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+
+// llkb/mining/feature-flag-mining.ts
+init_mining_cache();
+var MAX_REGEX_ITERATIONS4 = 1e4;
+var FEATURE_FLAG_PATTERN_CONFIDENCE = 0.7;
+var FEATURE_FLAG_PROVIDER_PATTERNS = {
+  launchdarkly: /useFlags\s*\(|ldClient\.variation\(|useLDClient\(|import.*launchdarkly|from\s+['"]launchdarkly['"]/g,
+  split: /splitClient\.getTreatment\(|import.*@splitsoftware|from\s+['"]@splitsoftware['"]/g,
+  flagsmith: /flagsmith\.hasFeature\(|flagsmith\.getValue\(|import.*flagsmith|from\s+['"]flagsmith['"]/g,
+  unleash: /useFlag\s*\(|unleash\.isEnabled\(|import.*unleash-proxy|from\s+['"]unleash-proxy['"]/g
+};
+var FEATURE_FLAG_PATTERNS = {
+  // LaunchDarkly: useFlags(), ldClient.variation('flagName', defaultValue)
+  launchDarklyVariation: /ldClient\?\.variation\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*(true|false))?\)/g,
+  launchDarklyUseFlags: /flags\[['"]([^'"]+)['"]\]/g,
+  // Split.io: splitClient.getTreatment('flagName')
+  split: /getTreatment\s*\(\s*['"]([^'"]+)['"]/g,
+  // Flagsmith: flagsmith.hasFeature('flagName'), flagsmith.getValue('flagName')
+  flagsmith: /(?:hasFeature|getValue)\s*\(\s*['"]([^'"]+)['"]/g,
+  // Unleash: useFlag('flagName'), unleash.isEnabled('flagName')
+  unleash: /(?:useFlag|isEnabled)\s*\(\s*['"]([^'"]+)['"]/g,
+  // Custom: featureFlags.isEnabled('flagName'), isFeatureEnabled('flagName')
+  custom: /(?:featureFlags|features)\.(?:isEnabled|enabled|has)\s*\(\s*['"]([^'"]+)['"]/g,
+  customFunction: /isFeatureEnabled\s*\(\s*['"]([^'"]+)['"]/g,
+  // Environment variables: process.env.FEATURE_FLAG_NAME, import.meta.env.FEATURE_FLAG_NAME
+  envVar: /(?:process\.env|import\.meta\.env)\.FEATURE_(\w+)/g
+};
+async function mineFeatureFlags(projectRoot, cache) {
+  const resolvedRoot = path13.resolve(projectRoot);
+  const miningCache = cache ?? new (await Promise.resolve().then(() => (init_mining_cache(), mining_cache_exports))).MiningCache();
+  const shouldCleanup = !cache;
+  try {
+    const files = await scanAllSourceDirectories(resolvedRoot, miningCache);
+    const provider = detectFeatureFlagProvider(files);
+    const flags = extractFeatureFlags(files, provider);
+    return {
+      provider,
+      flags
+    };
+  } finally {
+    if (shouldCleanup) {
+      miningCache.clear();
+    }
+  }
+}
+function detectFeatureFlagProvider(files) {
+  const detectionScores = {
+    launchdarkly: 0,
+    split: 0,
+    flagsmith: 0,
+    unleash: 0,
+    custom: 0
+  };
+  for (const file of files) {
+    for (const [provider, pattern] of Object.entries(FEATURE_FLAG_PROVIDER_PATTERNS)) {
+      pattern.lastIndex = 0;
+      if (pattern.test(file.content)) {
+        detectionScores[provider]++;
+      }
+    }
+    const customPattern = /(?:featureFlags|isFeatureEnabled)\s*[.(]/g;
+    customPattern.lastIndex = 0;
+    if (customPattern.test(file.content)) {
+      detectionScores.custom++;
+    }
+  }
+  let maxScore = 0;
+  let detectedProvider = "unknown";
+  for (const [provider, score] of Object.entries(detectionScores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      detectedProvider = provider;
+    }
+  }
+  return detectedProvider;
+}
+function extractFeatureFlags(files, provider) {
+  const flags = [];
+  const seenFlags = /* @__PURE__ */ new Set();
+  for (const file of files) {
+    for (const [patternName, pattern] of Object.entries(FEATURE_FLAG_PATTERNS)) {
+      pattern.lastIndex = 0;
+      let match;
+      let iterations = 0;
+      while ((match = pattern.exec(file.content)) !== null) {
+        if (++iterations > MAX_REGEX_ITERATIONS4) break;
+        const flagName = match[1];
+        if (!flagName) continue;
+        const flagId = `${flagName}:${file.path}`;
+        if (seenFlags.has(flagId)) continue;
+        seenFlags.add(flagId);
+        let defaultValue;
+        if (match[2] !== void 0 && patternName === "launchDarklyVariation") {
+          defaultValue = match[2] === "true";
+        }
+        let flagProvider = provider;
+        if (patternName.includes("launchDarkly")) {
+          flagProvider = "launchdarkly";
+        } else if (patternName.includes("split")) {
+          flagProvider = "split";
+        } else if (patternName.includes("flagsmith")) {
+          flagProvider = "flagsmith";
+        } else if (patternName.includes("unleash")) {
+          flagProvider = "unleash";
+        } else {
+          flagProvider = "custom";
+        }
+        flags.push({
+          name: flagName,
+          provider: flagProvider,
+          defaultValue,
+          source: file.path
+        });
+      }
+    }
+  }
+  return flags;
+}
+function generateFeatureFlagPatterns(result) {
+  const patterns = [];
+  const seenPatterns = /* @__PURE__ */ new Set();
+  for (const flag of result.flags) {
+    const label = flagNameToLabel(flag.name);
+    const ensureVisiblePattern = `ensure ${label} visible`;
+    const ensureVisibleKey = `${ensureVisiblePattern}:assert`;
+    if (!seenPatterns.has(ensureVisibleKey)) {
+      seenPatterns.add(ensureVisibleKey);
+      patterns.push({
+        id: `DP-${randomUUID().slice(0, 8)}`,
+        normalizedText: ensureVisiblePattern.toLowerCase(),
+        originalText: ensureVisiblePattern,
+        mappedPrimitive: "assert",
+        selectorHints: [],
+        confidence: FEATURE_FLAG_PATTERN_CONFIDENCE,
+        layer: "app-specific",
+        category: "assertion",
+        sourceJourneys: [],
+        successCount: 0,
+        failCount: 0,
+        templateSource: "static"
+      });
+    }
+    const verifyEnabledPattern = `verify ${label} enabled`;
+    const verifyEnabledKey = `${verifyEnabledPattern}:assert`;
+    if (!seenPatterns.has(verifyEnabledKey)) {
+      seenPatterns.add(verifyEnabledKey);
+      patterns.push({
+        id: `DP-${randomUUID().slice(0, 8)}`,
+        normalizedText: verifyEnabledPattern.toLowerCase(),
+        originalText: verifyEnabledPattern,
+        mappedPrimitive: "assert",
+        selectorHints: [],
+        confidence: FEATURE_FLAG_PATTERN_CONFIDENCE,
+        layer: "app-specific",
+        category: "assertion",
+        sourceJourneys: [],
+        successCount: 0,
+        failCount: 0,
+        templateSource: "static"
+      });
+    }
+    const testDisabledPattern = `test with ${label} disabled`;
+    const testDisabledKey = `${testDisabledPattern}:navigate`;
+    if (!seenPatterns.has(testDisabledKey)) {
+      seenPatterns.add(testDisabledKey);
+      patterns.push({
+        id: `DP-${randomUUID().slice(0, 8)}`,
+        normalizedText: testDisabledPattern.toLowerCase(),
+        originalText: testDisabledPattern,
+        mappedPrimitive: "navigate",
+        selectorHints: [],
+        confidence: FEATURE_FLAG_PATTERN_CONFIDENCE,
+        layer: "app-specific",
+        category: "navigation",
+        sourceJourneys: [],
+        successCount: 0,
+        failCount: 0,
+        templateSource: "static"
+      });
+    }
+  }
+  return patterns;
+}
+function flagNameToLabel(flagName) {
+  return flagName.replace(/[_-]/g, " ").replace(/([A-Z])/g, " $1").trim().split(/\s+/).map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+
+// llkb/pipeline.ts
+init_template_generators();
+init_mining_cache();
+var SPEC_CONFIDENCE_THRESHOLD = 0.7;
+var MAX_PIPELINE_PATTERNS = 2e3;
+var SPEC_PATTERN_TARGET = 360;
+async function runFullDiscoveryPipeline(projectRoot, llkbDir, options = {}) {
+  const startTime = Date.now();
+  const warnings = [];
+  const errors = [];
+  const threshold = options.confidenceThreshold ?? SPEC_CONFIDENCE_THRESHOLD;
+  const maxPatterns = options.maxPatterns ?? MAX_PIPELINE_PATTERNS;
+  const allPatterns = [];
+  const patternSources = {
+    discovery: 0,
+    templates: 0,
+    frameworkPacks: 0,
+    i18n: 0,
+    analytics: 0,
+    featureFlags: 0
+  };
+  const strongIds = [];
+  const mediumIds = [];
+  const weakIds = [];
+  let profile = null;
+  let miningStats = null;
+  let discoveryResult;
+  try {
+    discoveryResult = await runDiscovery(projectRoot);
+    profile = discoveryResult.profile;
+    warnings.push(...discoveryResult.warnings);
+    if (!discoveryResult.success) {
+      errors.push(...discoveryResult.errors);
+    }
+  } catch (e) {
+    errors.push(`Discovery failed: ${String(e)}`);
+    discoveryResult = { success: false, profile: null, errors: [], warnings: [] };
+  }
+  if (profile) {
+    try {
+      const discoveryPatterns = generatePatterns(profile, profile.selectorSignals);
+      allPatterns.push(...discoveryPatterns);
+      patternSources.discovery = discoveryPatterns.length;
+      strongIds.push(...discoveryPatterns.map((p) => p.id));
+    } catch (e) {
+      warnings.push(`Discovery pattern generation failed: ${String(e)}`);
+    }
+  }
+  try {
+    const miningResult = await mineElements(projectRoot, {
+      maxDepth: options.maxDepth,
+      maxFiles: options.maxFiles
+    });
+    miningStats = {
+      entitiesFound: miningResult.stats.entitiesFound,
+      routesFound: miningResult.stats.routesFound,
+      formsFound: miningResult.stats.formsFound,
+      tablesFound: miningResult.stats.tablesFound,
+      modalsFound: miningResult.stats.modalsFound,
+      filesScanned: miningResult.stats.filesScanned
+    };
+    const templateResult = generateAllPatterns(miningResult.elements);
+    allPatterns.push(...templateResult.patterns);
+    patternSources.templates = templateResult.patterns.length;
+    mediumIds.push(...templateResult.patterns.map((p) => p.id));
+  } catch (e) {
+    warnings.push(`Mining/template generation failed: ${String(e)}`);
+  }
+  if (!options.skipPacks && profile) {
+    try {
+      const frameworkNames = [
+        ...profile.frameworks.map((f) => f.name),
+        ...profile.uiLibraries.map((l) => l.name)
+      ];
+      if (frameworkNames.length > 0) {
+        const packPatterns = loadDiscoveredPatternsForFrameworks(frameworkNames);
+        allPatterns.push(...packPatterns);
+        patternSources.frameworkPacks = packPatterns.length;
+        mediumIds.push(...packPatterns.map((p) => p.id));
+      }
+    } catch (e) {
+      warnings.push(`Framework pack loading failed: ${String(e)}`);
+    }
+  }
+  if (!options.skipMiningModules) {
+    const cache = options.cache ?? new MiningCache();
+    const ownsCache = !options.cache;
+    try {
+      try {
+        const i18nResult = await mineI18nKeys(projectRoot, cache);
+        if (i18nResult.keys.length > 0) {
+          const i18nPatterns = generateI18nPatterns(i18nResult);
+          allPatterns.push(...i18nPatterns);
+          patternSources.i18n = i18nPatterns.length;
+          mediumIds.push(...i18nPatterns.map((p) => p.id));
+        }
+      } catch (e) {
+        warnings.push(`i18n mining failed: ${String(e)}`);
+      }
+      try {
+        const analyticsResult = await mineAnalyticsEvents(projectRoot, cache);
+        if (analyticsResult.events.length > 0) {
+          const analyticsPatterns = generateAnalyticsPatterns(analyticsResult);
+          allPatterns.push(...analyticsPatterns);
+          patternSources.analytics = analyticsPatterns.length;
+          weakIds.push(...analyticsPatterns.map((p) => p.id));
+        }
+      } catch (e) {
+        warnings.push(`Analytics mining failed: ${String(e)}`);
+      }
+      try {
+        const ffResult = await mineFeatureFlags(projectRoot, cache);
+        if (ffResult.flags.length > 0) {
+          const ffPatterns = generateFeatureFlagPatterns(ffResult);
+          allPatterns.push(...ffPatterns);
+          patternSources.featureFlags = ffPatterns.length;
+          weakIds.push(...ffPatterns.map((p) => p.id));
+        }
+      } catch (e) {
+        warnings.push(`Feature flag mining failed: ${String(e)}`);
+      }
+    } finally {
+      if (ownsCache) {
+        cache.clear();
+      }
+    }
+  }
+  const signalStrengths = /* @__PURE__ */ new Map();
+  for (const id of strongIds) signalStrengths.set(id, "strong");
+  for (const id of mediumIds) signalStrengths.set(id, "medium");
+  for (const id of weakIds) signalStrengths.set(id, "weak");
+  const weightedPatterns = signalStrengths.size > 0 ? applySignalWeighting(allPatterns, signalStrengths) : allPatterns;
+  const totalBeforeQC = weightedPatterns.length;
+  let finalPatterns;
+  let qcResult = null;
+  try {
+    const { patterns: validated, result } = applyAllQualityControls(weightedPatterns, {
+      threshold
+    });
+    finalPatterns = validated;
+    qcResult = result;
+  } catch (e) {
+    warnings.push(`Quality controls failed, using unvalidated patterns: ${String(e)}`);
+    finalPatterns = weightedPatterns;
+  }
+  if (finalPatterns.length < SPEC_PATTERN_TARGET) {
+    warnings.push(
+      `Pattern count (${finalPatterns.length}) is below spec target (${SPEC_PATTERN_TARGET}). Consider adding framework packs or mining modules to increase coverage.`
+    );
+  }
+  warnings.push(
+    "Runtime validation of generated patterns against a live app is not yet implemented. Patterns are validated structurally only."
+  );
+  if (finalPatterns.length > maxPatterns) {
+    finalPatterns.sort((a, b) => b.confidence - a.confidence);
+    finalPatterns = finalPatterns.slice(0, maxPatterns);
+    warnings.push(
+      `Pattern count (${totalBeforeQC}) exceeded cap (${maxPatterns}), truncated to top ${maxPatterns} by confidence`
+    );
+  }
+  const outputDir = options.outputDir ?? llkbDir;
+  let patternsFile = null;
+  if (profile) {
+    try {
+      const durationMs2 = Date.now() - startTime;
+      patternsFile = createDiscoveredPatternsFile(finalPatterns, profile, durationMs2);
+      saveDiscoveredPatterns(patternsFile, outputDir);
+      saveDiscoveredProfile(profile, outputDir);
+    } catch (e) {
+      errors.push(`Persistence failed: ${String(e)}`);
+    }
+  }
+  const durationMs = Date.now() - startTime;
+  return {
+    success: errors.length === 0,
+    profile,
+    patternsFile,
+    stats: {
+      durationMs,
+      patternSources,
+      totalBeforeQC,
+      totalAfterQC: finalPatterns.length,
+      qualityControls: qcResult,
+      mining: miningStats
+    },
+    warnings,
+    errors
+  };
+}
+
+export { AUTH_PATTERN_TEMPLATES, CONFIDENCE_HISTORY_RETENTION_DAYS, CRUD_TEMPLATES, CURRENT_VERSION, DEFAULT_LLKB_ROOT, UI_LIBRARY_PATTERNS2 as DISCOVERY_UI_LIBRARY_PATTERNS, EXTENDED_NAVIGATION_TEMPLATES, FORM_TEMPLATES, FRAMEWORK_PATTERNS, IRREGULAR_PLURALS, IRREGULAR_SINGULARS, LOCK_MAX_WAIT_MS, LOCK_RETRY_INTERVAL_MS, MAX_CONFIDENCE_HISTORY_ENTRIES, MIN_SUPPORTED_VERSION, MODAL_TEMPLATES, MiningCache, NAVIGATION_PATTERN_TEMPLATES, NOTIFICATION_TEMPLATES, UI_LIBRARY_PATTERNS as PATTERN_UI_LIBRARY_PATTERNS, SELECTOR_PATTERNS, SOURCE_DIRECTORIES, STALE_LOCK_THRESHOLD_MS, TABLE_TEMPLATES, UNCOUNTABLE_NOUNS, addComponentToRegistry, analyzeSelectorSignals, appendToHistory, applyAllQualityControls, applyConfidenceThreshold, applySignalWeighting, boostCrossSourcePatterns, calculateConfidence, calculateSimilarity, checkMigrationNeeded, checkUpdates, cleanupOldHistoryFiles, combineResults, compareVersions as compareTestVersion, compareVersions as compareTestVersions, compareVersions2 as compareVersions, componentNameToTrigger, componentToGlossaryEntries, componentToModule, countJourneyExtractionsToday, countLines, countNewEntriesSince, countPredictiveExtractionsToday, countTodayEvents, createCacheFromFiles, createDiscoveredPatternsFile, createEmptyAnalytics, createEmptyRegistry, createEntity, createForm, createModal, createRoute, createTable, daysBetween, deduplicatePatterns2 as deduplicatePatterns, deduplicatePatterns as deduplicatePatternsQC, detectDecliningConfidence, detectDuplicatesAcrossFiles, detectDuplicatesInFile, detectFrameworks, detectUiLibraries, ensureDir, exportForAutogen, exportLLKB, exportToFile, extractAuthHints, extractKeywords, extractLlkbEntriesFromTest, extractLlkbVersionFromTest, extractStepKeywords, extractLlkbVersionFromTest as extractVersionFromTest, fail, findComponents, findExtractionCandidates, findLessonsByPattern, findModulesByCategory, findNearDuplicates, findSimilarPatterns, findUnusedComponentOpportunities, formatCheckUpdatesResult, formatVersionComparison as formatComparison, formatContextForPrompt, formatDate, formatExportResult, formatExportResultForConsole, formatHealthCheck, formatLearnResult, formatLearningResult, formatPruneResult, formatStats, formatUpdateCheckResult, formatUpdateTestResult, formatUpdateTestsResult, formatVersionComparison, generateAllPatterns, generateAnalyticsPatterns, generateCrudPatterns, generateNavigationPatterns2 as generateExtendedNavigationPatterns, generateFeatureFlagPatterns, generateFormPatterns, generateI18nPatterns, generateModalPatterns, generateNameVariations, generateNotificationPatterns, generatePatterns, generateReport, generateTablePatterns, getAllCategories, getAnalyticsSummary, getComponentCategories, getComponentsForJourney, getConfidenceTrend, getCurrentLlkbVersion, getHistoryDir, getHistoryFilePath, getHistoryFilesInRange, getImportPath, getLessonsForJourney, getCurrentLlkbVersion as getLlkbVersion, getModuleForComponent, getPackRegistry, getRelevantContext, getRelevantScopes, getSingularPlural, getStats, hashCode, inferCategory, inferCategoryWithConfidence, initializeLLKB, isComponentCategory, isDailyRateLimitReached, isFail, isJourneyRateLimitReached, isLLKBEnabled, isNearDuplicate, isOk, isUncountable, isVersionSupported, jaccardSimilarity, lessonToGlossaryEntries, lessonToPattern, lessonToSelectorOverride, lessonToTimingHint, lineCountSimilarity, listModules, llkbExists, loadAppProfile, loadComponents, loadDiscoveredPatterns, loadDiscoveredPatternsForFrameworks, loadDiscoveredProfile, loadJSON, loadLLKBConfig, loadLLKBData, loadLessons, loadPacksForFrameworks, loadPatterns, loadRegistry, mapResult, matchStepsToComponents, mergeDiscoveredPatterns, migrateLLKB, mineAnalyticsEvents, mineElements, mineEntities, mineFeatureFlags, mineForms, mineI18nKeys, mineModals, mineRoutes, mineTables, needsConfidenceReview, needsMigration, normalizeCode, ok, packPatternsToDiscovered, parseAdapterArgs, parseVersion, pluralize, prune, pruneUnusedPatterns, readHistoryFile, readTodayHistory, recordBatch, recordComponentUsed, recordLearning, recordLessonApplied, recordPatternLearned, removeComponentFromRegistry, resetPatternIdCounter, runAdapterCLI, runCheckUpdates, runDiscovery, runExportForAutogen, runFullDiscoveryPipeline, runHealthCheck, runLearnCommand, runMiningPipeline, runUpdateTest, runUpdateTests, saveAppProfile, saveDiscoveredPatterns, saveDiscoveredProfile, saveJSONAtomic, saveJSONAtomicSync, saveRegistry, scanAllSourceDirectories, scanDirectory, search, shouldExtractAsComponent, singularize, syncRegistryWithComponents, tokenize, triggerToRegex, tryCatch, updateAnalytics, updateAnalyticsWithData, updateComponentInRegistry, updateConfidenceHistory, updateJSONWithLock, updateJSONWithLockSync, updateTestLlkbVersion, updateTestSafe, updateTestLlkbVersion as updateVersionInTest, validateLLKBInstallation, validateRegistryConsistency };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
