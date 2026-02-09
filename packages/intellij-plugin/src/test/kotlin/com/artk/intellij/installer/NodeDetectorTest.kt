@@ -1,33 +1,58 @@
 package com.artk.intellij.installer
 
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.nio.file.Path
 
 /**
- * Tests for NodeDetector using IntelliJ Platform test fixtures.
- * Platform fixtures properly initialize SystemInfo and process APIs.
+ * Tests for NodeDetector.
+ * Tests file-based detection and pure parsing functions.
+ * Note: Tests that require ProcessUtils (PATH detection) are skipped in CI.
  */
-class NodeDetectorTest : BasePlatformTestCase() {
+class NodeDetectorTest {
 
-    private lateinit var testDir: File
+    @TempDir
+    lateinit var tempDir: Path
 
-    override fun setUp() {
-        super.setUp()
-        testDir = createTempDir("node-detector-test")
+    private lateinit var projectDir: File
+
+    @BeforeEach
+    fun setUp() {
+        projectDir = tempDir.toFile()
     }
 
-    override fun tearDown() {
-        try {
-            testDir.deleteRecursively()
-        } finally {
-            super.tearDown()
-        }
+    @Test
+    fun `parseNodeVersion handles standard version format`() {
+        assertEquals(20, NodeDetector.parseNodeVersion("20.11.0"))
+        assertEquals(20, NodeDetector.parseNodeVersion("v20.11.0"))
+        assertEquals(18, NodeDetector.parseNodeVersion("18"))
+        assertEquals(16, NodeDetector.parseNodeVersion("16.20.2"))
     }
 
-    fun testDetectFromNvmrcReturnsCorrectVersion() {
-        File(testDir, ".nvmrc").writeText("20.11.0")
+    @Test
+    fun `parseNodeVersion handles semver ranges`() {
+        assertEquals(14, NodeDetector.parseNodeVersion(">=14.0.0"))
+        assertEquals(18, NodeDetector.parseNodeVersion("^18.0.0"))
+        assertEquals(20, NodeDetector.parseNodeVersion(">=20"))
+    }
 
-        val result = NodeDetector.detect(testDir)
+    @Test
+    fun `parseNodeVersion returns null for invalid input`() {
+        assertNull(NodeDetector.parseNodeVersion(""))
+        assertNull(NodeDetector.parseNodeVersion("lts/*"))
+        assertNull(NodeDetector.parseNodeVersion("latest"))
+        assertNull(NodeDetector.parseNodeVersion("node"))
+    }
+
+    @Test
+    fun `detect from nvmrc returns correct version`() {
+        File(projectDir, ".nvmrc").writeText("20.11.0")
+
+        val result = NodeDetector.detect(projectDir)
 
         assertNotNull(result)
         assertEquals("20.11.0", result?.version)
@@ -35,32 +60,46 @@ class NodeDetectorTest : BasePlatformTestCase() {
         assertEquals("nvmrc", result?.source)
     }
 
-    fun testDetectFromNvmrcHandlesVersionWithoutPatch() {
-        File(testDir, ".nvmrc").writeText("20")
+    @Test
+    fun `detect from nvmrc handles version without patch`() {
+        File(projectDir, ".nvmrc").writeText("20")
 
-        val result = NodeDetector.detect(testDir)
+        val result = NodeDetector.detect(projectDir)
 
         assertNotNull(result)
         assertEquals("20", result?.version)
         assertEquals(20, result?.majorVersion)
+        assertEquals("nvmrc", result?.source)
     }
 
-    fun testDetectFromNvmrcHandlesLtsAlias() {
-        File(testDir, ".nvmrc").writeText("lts/*")
+    @Test
+    fun `detect from nvmrc handles v prefix`() {
+        File(projectDir, ".nvmrc").writeText("v18.17.0")
 
-        val result = NodeDetector.detect(testDir)
+        val result = NodeDetector.detect(projectDir)
 
-        // Should return null for aliases (can't determine version from lts/*)
-        // Or it may fall back to PATH detection
-        if (result != null && result.source == "nvmrc") {
-            // If parsed from nvmrc, major version should be null or invalid
-            fail("lts/* should not be parseable as a version from nvmrc")
+        assertNotNull(result)
+        assertEquals("v18.17.0", result?.version)
+        assertEquals(18, result?.majorVersion)
+        assertEquals("nvmrc", result?.source)
+    }
+
+    @Test
+    fun `detect from nvmrc returns null for lts alias`() {
+        File(projectDir, ".nvmrc").writeText("lts/*")
+
+        val result = NodeDetector.detect(projectDir)
+
+        // lts/* can't be parsed to a version number, falls through to other methods
+        // Result depends on whether node is in PATH (may be null or from PATH)
+        if (result != null) {
+            assertNotEquals("nvmrc", result.source)
         }
-        // Otherwise it fell back to PATH or returned null - both valid
     }
 
-    fun testDetectFromPackageJsonEngines() {
-        File(testDir, "package.json").writeText("""
+    @Test
+    fun `detect from package json engines`() {
+        File(projectDir, "package.json").writeText("""
             {
                 "name": "test-project",
                 "engines": {
@@ -69,55 +108,86 @@ class NodeDetectorTest : BasePlatformTestCase() {
             }
         """.trimIndent())
 
-        val result = NodeDetector.detect(testDir)
+        val result = NodeDetector.detect(projectDir)
 
         assertNotNull(result)
         assertEquals(18, result?.majorVersion)
         assertEquals("package.json", result?.source)
     }
 
-    fun testDetectPrefersNvmrcOverPackageJson() {
-        File(testDir, ".nvmrc").writeText("20.10.0")
-        File(testDir, "package.json").writeText("""
+    @Test
+    fun `detect from package json with caret range`() {
+        File(projectDir, "package.json").writeText("""
+            {
+                "engines": { "node": "^20.0.0" }
+            }
+        """.trimIndent())
+
+        val result = NodeDetector.detect(projectDir)
+
+        assertNotNull(result)
+        assertEquals(20, result?.majorVersion)
+        assertEquals("package.json", result?.source)
+    }
+
+    @Test
+    fun `detect prefers nvmrc over package json`() {
+        File(projectDir, ".nvmrc").writeText("20.10.0")
+        File(projectDir, "package.json").writeText("""
             {
                 "engines": { "node": ">=18.0.0" }
             }
         """.trimIndent())
 
-        val result = NodeDetector.detect(testDir)
+        val result = NodeDetector.detect(projectDir)
 
         assertNotNull(result)
         assertEquals(20, result?.majorVersion)
         assertEquals("nvmrc", result?.source)
     }
 
-    fun testDetectReturnsPathSourceOrNullWhenNoFileIndicators() {
+    @Test
+    fun `detect returns null or path when no file indicators`() {
         // Empty directory - no .nvmrc, no package.json
-        // detect() will try PATH detection
+        // Will fall through to PATH detection
 
-        val result = NodeDetector.detect(testDir)
+        val result = NodeDetector.detect(projectDir)
 
         // Either null (no node in PATH) or source must be "path"
         if (result != null) {
             assertEquals("path", result.source)
             assertTrue(result.majorVersion > 0)
-            assertNotNull(result.version)
         }
         // If result is null, that's also valid (node not in PATH)
     }
 
-    fun testParseNodeVersionHandlesVariousFormats() {
-        assertEquals(20, NodeDetector.parseNodeVersion("20.11.0"))
-        assertEquals(20, NodeDetector.parseNodeVersion("v20.11.0"))
-        assertEquals(18, NodeDetector.parseNodeVersion("18"))
-        assertEquals(16, NodeDetector.parseNodeVersion("16.20.2"))
-        assertEquals(14, NodeDetector.parseNodeVersion(">=14.0.0"))
-        assertEquals(18, NodeDetector.parseNodeVersion("^18.0.0"))
+    @Test
+    fun `NodeInfo data class works correctly`() {
+        val info = NodeDetector.NodeInfo(
+            version = "20.10.0",
+            majorVersion = 20,
+            path = "/usr/bin/node",
+            source = "path"
+        )
+
+        assertEquals("20.10.0", info.version)
+        assertEquals(20, info.majorVersion)
+        assertEquals("/usr/bin/node", info.path)
+        assertEquals("path", info.source)
     }
 
-    fun testParseNodeVersionReturnsNullForInvalidInput() {
-        assertNull(NodeDetector.parseNodeVersion(""))
-        assertNull(NodeDetector.parseNodeVersion("lts/*"))
-        assertNull(NodeDetector.parseNodeVersion("latest"))
+    @Test
+    fun `NodeInfo with null path`() {
+        val info = NodeDetector.NodeInfo(
+            version = "18",
+            majorVersion = 18,
+            path = null,
+            source = "nvmrc"
+        )
+
+        assertEquals("18", info.version)
+        assertEquals(18, info.majorVersion)
+        assertNull(info.path)
+        assertEquals("nvmrc", info.source)
     }
 }

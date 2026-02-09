@@ -133,11 +133,8 @@ jobs:
       - name: Build plugin
         run: ./gradlew buildPlugin --no-daemon
 
-      # Tests skipped: Platform test fixtures require additional setup
-      # TODO: Fix BasePlatformTestCase tests to work in CI
-      # - name: Run tests
-      #   run: ./gradlew test --no-daemon
-      #   continue-on-error: true
+      - name: Run tests
+        run: ./gradlew test --no-daemon
 
       - name: Verify plugin
         run: ./gradlew verifyPlugin --no-daemon
