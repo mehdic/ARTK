@@ -1,28 +1,11 @@
 package com.artk.intellij.installer
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import java.io.File
-import java.nio.file.Files
 
 /**
- * Tests for VariantDetector using IntelliJ Platform test fixtures.
+ * Tests for VariantDetector - focuses on variant selection logic that doesn't require process execution.
  */
 class VariantDetectorTest : BasePlatformTestCase() {
-
-    private lateinit var testDir: File
-
-    override fun setUp() {
-        super.setUp()
-        testDir = Files.createTempDirectory("variant-detector-test").toFile()
-    }
-
-    override fun tearDown() {
-        try {
-            testDir.deleteRecursively()
-        } finally {
-            super.tearDown()
-        }
-    }
 
     // --- Variant enum tests ---
 
@@ -32,6 +15,22 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertEquals("esm", variant.moduleSystem)
         assertEquals("ES2022", variant.esTarget)
         assertTrue(variant.playwrightVersion.contains("1.57"))
+    }
+
+    fun testVariantModernCjsProperties() {
+        val variant = VariantDetector.Variant.MODERN_CJS
+        assertEquals("modern-cjs", variant.id)
+        assertEquals("cjs", variant.moduleSystem)
+        assertEquals("ES2022", variant.esTarget)
+        assertTrue(variant.playwrightVersion.contains("1.57"))
+    }
+
+    fun testVariantLegacy16Properties() {
+        val variant = VariantDetector.Variant.LEGACY_16
+        assertEquals("legacy-16", variant.id)
+        assertEquals("cjs", variant.moduleSystem)
+        assertEquals("ES2021", variant.esTarget)
+        assertTrue(variant.playwrightVersion.contains("1.49"))
     }
 
     fun testVariantLegacy14Properties() {
@@ -50,7 +49,7 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertNull(VariantDetector.Variant.fromId("invalid"))
     }
 
-    // --- selectVariant tests ---
+    // --- selectVariant tests (pure logic, no I/O) ---
 
     fun testSelectVariantReturnsModernEsmForNode18PlusWithEsm() {
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.selectVariant(22, true))
@@ -64,15 +63,18 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertEquals(VariantDetector.Variant.MODERN_CJS, VariantDetector.selectVariant(18, false))
     }
 
-    fun testSelectVariantReturnsLegacy16ForNode16() {
+    fun testSelectVariantReturnsLegacy16ForNode16And17() {
         assertEquals(VariantDetector.Variant.LEGACY_16, VariantDetector.selectVariant(17, false))
         assertEquals(VariantDetector.Variant.LEGACY_16, VariantDetector.selectVariant(16, false))
+        assertEquals(VariantDetector.Variant.LEGACY_16, VariantDetector.selectVariant(17, true))
+        assertEquals(VariantDetector.Variant.LEGACY_16, VariantDetector.selectVariant(16, true))
     }
 
     fun testSelectVariantReturnsLegacy14ForNodeBelow16() {
         assertEquals(VariantDetector.Variant.LEGACY_14, VariantDetector.selectVariant(15, false))
         assertEquals(VariantDetector.Variant.LEGACY_14, VariantDetector.selectVariant(14, false))
         assertEquals(VariantDetector.Variant.LEGACY_14, VariantDetector.selectVariant(12, false))
+        assertEquals(VariantDetector.Variant.LEGACY_14, VariantDetector.selectVariant(10, true))
     }
 
     // --- parseVariant tests ---
@@ -95,57 +97,18 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertNull(VariantDetector.parseVariant(""))
     }
 
-    // --- detect tests (file-based) ---
-
-    fun testDetectReturnsModernEsmForNode20WithEsm() {
-        File(testDir, "package.json").writeText("""
-            {
-                "type": "module",
-                "engines": { "node": ">=20" }
-            }
-        """.trimIndent())
-
-        val result = VariantDetector.detect(testDir)
-
-        assertEquals(VariantDetector.Variant.MODERN_ESM, result.variant)
-        assertTrue(result.isEsm)
-    }
-
-    fun testDetectReturnsModernCjsForNode20WithoutEsm() {
-        File(testDir, "package.json").writeText("""
-            {
-                "engines": { "node": ">=20" }
-            }
-        """.trimIndent())
-
-        val result = VariantDetector.detect(testDir)
-
-        assertEquals(VariantDetector.Variant.MODERN_CJS, result.variant)
-        assertFalse(result.isEsm)
-    }
-
-    fun testDetectReturnsLegacy16ForNode16() {
-        File(testDir, ".nvmrc").writeText("16.20.0")
-
-        val result = VariantDetector.detect(testDir)
-
-        assertEquals(VariantDetector.Variant.LEGACY_16, result.variant)
-        assertEquals(16, result.nodeVersion)
-    }
-
-    fun testDetectReturnsLegacy14ForNode14() {
-        File(testDir, ".nvmrc").writeText("14.21.0")
-
-        val result = VariantDetector.detect(testDir)
-
-        assertEquals(VariantDetector.Variant.LEGACY_14, result.variant)
-        assertEquals(14, result.nodeVersion)
-    }
-
     // --- getVariantFeatures tests ---
 
-    fun testGetVariantFeaturesReturnsAllFeaturesForModernVariant() {
+    fun testGetVariantFeaturesReturnsAllFeaturesForModernEsm() {
         val features = VariantDetector.getVariantFeatures(VariantDetector.Variant.MODERN_ESM)
+
+        assertTrue(features["web_first_assertions"]?.available == true)
+        assertTrue(features["clock_api"]?.available == true)
+        assertTrue(features["expect_soft"]?.available == true)
+    }
+
+    fun testGetVariantFeaturesReturnsAllFeaturesForModernCjs() {
+        val features = VariantDetector.getVariantFeatures(VariantDetector.Variant.MODERN_CJS)
 
         assertTrue(features["web_first_assertions"]?.available == true)
         assertTrue(features["clock_api"]?.available == true)

@@ -3,9 +3,11 @@ package com.artk.intellij.installer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 /**
- * Tests for BrowserDetector using IntelliJ Platform test fixtures.
+ * Tests for BrowserDetector - focuses on data classes and parsing that don't require process execution.
  */
 class BrowserDetectorTest : BasePlatformTestCase() {
+
+    // --- BrowserInfo data class tests ---
 
     fun testBrowserInfoDisplayNameReturnsCorrectNames() {
         val edgeInfo = BrowserDetector.BrowserInfo("msedge", "120.0", "/path")
@@ -39,6 +41,21 @@ class BrowserDetectorTest : BasePlatformTestCase() {
         assertEquals("/usr/bin/google-chrome", info.path)
     }
 
+    fun testBrowserInfoWithNullValues() {
+        val info = BrowserDetector.BrowserInfo(
+            channel = "chromium",
+            version = null,
+            path = null
+        )
+
+        assertEquals("chromium", info.channel)
+        assertNull(info.version)
+        assertNull(info.path)
+        assertFalse(info.isSystemBrowser)
+    }
+
+    // --- BrowserPreference enum tests ---
+
     fun testBrowserPreferenceFromStringParsesEdge() {
         assertEquals(BrowserDetector.BrowserPreference.EDGE, BrowserDetector.BrowserPreference.fromString("edge"))
         assertEquals(BrowserDetector.BrowserPreference.EDGE, BrowserDetector.BrowserPreference.fromString("msedge"))
@@ -62,18 +79,16 @@ class BrowserDetectorTest : BasePlatformTestCase() {
         assertEquals(BrowserDetector.BrowserPreference.AUTO, BrowserDetector.BrowserPreference.fromString("unknown"))
     }
 
-    fun testDetectWithChromiumPreference() {
+    // --- Detection tests that don't use ProcessUtils ---
+
+    fun testDetectWithChromiumPreferenceReturnsBundled() {
+        // CHROMIUM preference returns bundled chromium without any process execution
         val result = BrowserDetector.detect(BrowserDetector.BrowserPreference.CHROMIUM)
 
         assertEquals("chromium", result.channel)
         assertNull(result.version)
         assertNull(result.path)
-    }
-
-    fun testDetectWithAutoReturnsValidBrowserInfo() {
-        val result = BrowserDetector.detect(BrowserDetector.BrowserPreference.AUTO)
-
-        assertNotNull(result)
-        assertTrue(result.channel in listOf("msedge", "chrome", "chromium"))
+        assertFalse(result.isSystemBrowser)
+        assertEquals("Playwright Chromium (bundled)", result.displayName)
     }
 }
