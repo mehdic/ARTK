@@ -400,6 +400,48 @@ Test Files  38 passed (38)
 - Missing Playwright browsers → Run `npx playwright install chromium` in `core/typescript/`
 - Missing dependencies → Run `npm install` in repo root and `core/typescript/`
 
+### IntelliJ Plugin Tests
+
+**IMPORTANT:** IntelliJ plugin tests (`packages/intellij-plugin/src/test/`) MUST always use the IntelliJ Platform test framework. Never use JUnit 5 or other test frameworks.
+
+**Requirements:**
+- Tests extend `BasePlatformTestCase` (JUnit 3 style)
+- Test methods use `testXxx` naming convention (not backticks or `@Test`)
+- Use `java.nio.file.Files.createTempDirectory()` for temp directories
+- The `gradle-intellij-plugin` automatically configures the test environment
+- Do NOT add JUnit 5 dependencies or `useJUnitPlatform()` configuration
+
+**Example test structure:**
+```kotlin
+class MyDetectorTest : BasePlatformTestCase() {
+    private lateinit var testDir: File
+
+    override fun setUp() {
+        super.setUp()
+        testDir = Files.createTempDirectory("my-test").toFile()
+    }
+
+    override fun tearDown() {
+        try {
+            testDir.deleteRecursively()
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    fun testSomething() {
+        // Test code using platform APIs
+        assertEquals(expected, actual)
+    }
+}
+```
+
+**Running tests:**
+```bash
+cd packages/intellij-plugin
+./gradlew test
+```
+
 ### AutoGen Integration Tests
 
 The AutoGen module has three levels of integration testing:
