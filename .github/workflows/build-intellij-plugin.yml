@@ -126,7 +126,7 @@ jobs:
           sed -i "s/sinceBuild.set(\"[^\"]*\")/sinceBuild.set(\"$SINCE_BUILD\")/" build.gradle.kts
 
           # Update Kotlin version for compatibility
-          sed -i "s/org.jetbrains.kotlin.jvm\" version \"[^\"]*\"/org.jetbrains.kotlin.jvm\" version \"$KOTLIN_VERSION\"/" build.gradle.kts
+          sed -i "s/org.jetbrains.kotlin.jvm\") version \"[^\"]*\"/org.jetbrains.kotlin.jvm\") version \"$KOTLIN_VERSION\"/" build.gradle.kts
 
           echo "🎯 Configured for IntelliJ ${{ matrix.intellij_version }} (sinceBuild: $SINCE_BUILD, Kotlin: $KOTLIN_VERSION)"
 
