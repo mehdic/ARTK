@@ -23,9 +23,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.yaml:snakeyaml:2.2")
 
-    // JUnit 5 for unit tests (file parsing, pure functions)
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // IntelliJ Platform test framework is provided by gradle-intellij-plugin
+    // Tests extend BasePlatformTestCase (JUnit 3 style)
 }
 
 tasks {
@@ -72,9 +71,8 @@ tasks {
         enabled = false
     }
 
-    test {
-        useJUnitPlatform()
-    }
+    // Tests use IntelliJ Platform test framework (BasePlatformTestCase)
+    // gradle-intellij-plugin automatically configures the test environment
 
     // Bundle ARTK assets into plugin resources
     register<Copy>("bundleArtkAssets") {
