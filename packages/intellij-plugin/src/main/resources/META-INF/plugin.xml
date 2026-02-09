@@ -108,6 +108,19 @@
 
             <separator/>
 
+            <group id="ARTK.Journey" text="Journey" popup="true">
+                <action id="ARTK.Journey.Validate"
+                        class="com.artk.intellij.actions.ValidateJourneyAction"
+                        text="Validate Journeys"
+                        description="Validate clarified journeys for implementation readiness"
+                        icon="AllIcons.Actions.Checked"/>
+                <action id="ARTK.Journey.Implement"
+                        class="com.artk.intellij.actions.ImplementJourneyAction"
+                        text="Implement Journeys"
+                        description="Generate Playwright tests from clarified journeys"
+                        icon="AllIcons.Actions.Execute"/>
+            </group>
+
             <group id="ARTK.LLKB" text="LLKB" popup="true">
                 <action id="ARTK.LLKB.Health"
                         class="com.artk.intellij.actions.llkb.HealthAction"
@@ -125,6 +138,11 @@
                         description="List learned patterns"
                         icon="AllIcons.Actions.ListFiles"/>
                 <separator/>
+                <action id="ARTK.LLKB.Seed"
+                        class="com.artk.intellij.actions.SeedLLKBAction"
+                        text="Seed Patterns"
+                        description="Add universal Playwright patterns to LLKB"
+                        icon="AllIcons.Actions.Download"/>
                 <action id="ARTK.LLKB.Export"
                         class="com.artk.intellij.actions.llkb.ExportAction"
                         text="Export Patterns"

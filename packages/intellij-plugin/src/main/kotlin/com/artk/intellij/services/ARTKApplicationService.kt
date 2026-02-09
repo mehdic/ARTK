@@ -35,7 +35,7 @@ class ARTKApplicationService {
     fun checkPrerequisites(): PrerequisitesResult {
         _nodeVersion = ProcessUtils.getNodeVersion()
         _npmVersion = ProcessUtils.getNpmVersion()
-        _artkCliVersion = getArtkCliVersion()
+        _artkCliVersion = detectArtkCliVersion()
         _prerequisitesChecked = true
 
         val issues = mutableListOf<String>()
@@ -63,9 +63,9 @@ class ARTKApplicationService {
     }
 
     /**
-     * Get ARTK CLI version
+     * Detect ARTK CLI version from system
      */
-    private fun getArtkCliVersion(): String? {
+    private fun detectArtkCliVersion(): String? {
         val result = ProcessUtils.execute(
             listOf("npx", "@artk/cli", "--version"),
             timeoutSeconds = 10

@@ -179,6 +179,66 @@ class CLIBridgeService(private val project: Project) {
     }
 
     /**
+     * Run artk-autogen validate command for journey validation
+     */
+    fun runJourneyValidate(
+        journeyPattern: String = "../journeys/clarified/*.md",
+        onComplete: (ProcessUtils.ProcessResult) -> Unit
+    ) {
+        val workDir = getArtkE2eDir() ?: return
+        runCliCommand(
+            "Validate Journeys",
+            listOf("npx", "artk-autogen", "validate", journeyPattern, "--json"),
+            workDir,
+            onComplete,
+            timeoutSeconds = 120
+        )
+    }
+
+    /**
+     * Run artk-autogen generate command for journey implementation
+     */
+    fun runJourneyImplement(
+        journeyPattern: String = "../journeys/clarified/*.md",
+        outputDir: String = "tests/",
+        onComplete: (ProcessUtils.ProcessResult) -> Unit
+    ) {
+        val workDir = getArtkE2eDir() ?: return
+        runCliCommand(
+            "Implement Journeys",
+            listOf("npx", "artk-autogen", "generate", journeyPattern, "-o", outputDir, "--force"),
+            workDir,
+            onComplete,
+            timeoutSeconds = 600
+        )
+    }
+
+    /**
+     * Run LLKB seed command to add universal patterns
+     */
+    fun runLlkbSeed(
+        patterns: String = "universal",
+        dryRun: Boolean = false,
+        onComplete: (ProcessUtils.ProcessResult) -> Unit
+    ) {
+        val workDir = getArtkE2eDir() ?: return
+        runCliCommand(
+            "Seed LLKB",
+            buildList {
+                add("npx")
+                add("@artk/cli")
+                add("llkb")
+                add("seed")
+                add("--patterns")
+                add(patterns)
+                if (dryRun) add("--dry-run")
+            },
+            workDir,
+            onComplete
+        )
+    }
+
+    /**
      * Run Playwright test command
      */
     fun runPlaywrightTest(

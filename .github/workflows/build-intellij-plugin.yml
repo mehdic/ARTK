@@ -107,9 +107,22 @@ jobs:
 
       - name: Configure IntelliJ version
         run: |
+          # Map IntelliJ version to sinceBuild number
+          case "${{ matrix.intellij_version }}" in
+            "2024.1") SINCE_BUILD="241" ;;
+            "2024.2") SINCE_BUILD="242" ;;
+            "2024.3") SINCE_BUILD="243" ;;
+            "2025.1") SINCE_BUILD="251" ;;
+            *) SINCE_BUILD="241" ;;
+          esac
+
           # Update intellij.version in build.gradle.kts for this matrix build
           sed -i 's/version.set("[^"]*")/version.set("${{ matrix.intellij_version }}")/' build.gradle.kts
-          echo "🎯 Configured for IntelliJ ${{ matrix.intellij_version }}"
+
+          # Update sinceBuild to match target IntelliJ version
+          sed -i "s/sinceBuild.set(\"[^\"]*\")/sinceBuild.set(\"$SINCE_BUILD\")/" build.gradle.kts
+
+          echo "🎯 Configured for IntelliJ ${{ matrix.intellij_version }} (sinceBuild: $SINCE_BUILD)"
 
       - name: Build plugin
         run: ./gradlew buildPlugin --no-daemon
