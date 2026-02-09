@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        intellij_version: ['2024.1', '2024.2', '2024.3', '2025.1']
+        intellij_version: ['2024.1', '2024.2', '2024.3', '2025.1', '2025.2', '2025.3']
       fail-fast: false
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -107,9 +107,28 @@ jobs:
 
       - name: Configure IntelliJ version
         run: |
+          # Map IntelliJ version to sinceBuild number and Kotlin version
+          # Kotlin versions from: https://plugins.jetbrains.com/docs/intellij/using-kotlin.html
+          case "${{ matrix.intellij_version }}" in
+            "2024.1") SINCE_BUILD="241"; KOTLIN_VERSION="1.9.22" ;;
+            "2024.2") SINCE_BUILD="242"; KOTLIN_VERSION="1.9.24" ;;
+            "2024.3") SINCE_BUILD="243"; KOTLIN_VERSION="2.0.21" ;;
+            "2025.1") SINCE_BUILD="251"; KOTLIN_VERSION="2.1.10" ;;
+            "2025.2") SINCE_BUILD="252"; KOTLIN_VERSION="2.1.20" ;;
+            "2025.3") SINCE_BUILD="253"; KOTLIN_VERSION="2.1.20" ;;
+            *) SINCE_BUILD="241"; KOTLIN_VERSION="1.9.22" ;;
+          esac
+
           # Update intellij.version in build.gradle.kts for this matrix build
           sed -i 's/version.set("[^"]*")/version.set("${{ matrix.intellij_version }}")/' build.gradle.kts
-          echo "🎯 Configured for IntelliJ ${{ matrix.intellij_version }}"
+
+          # Update sinceBuild to match target IntelliJ version
+          sed -i "s/sinceBuild.set(\"[^\"]*\")/sinceBuild.set(\"$SINCE_BUILD\")/" build.gradle.kts
+
+          # Update Kotlin version for compatibility
+          sed -i "s/org.jetbrains.kotlin.jvm\" version \"[^\"]*\"/org.jetbrains.kotlin.jvm\" version \"$KOTLIN_VERSION\"/" build.gradle.kts
+
+          echo "🎯 Configured for IntelliJ ${{ matrix.intellij_version }} (sinceBuild: $SINCE_BUILD, Kotlin: $KOTLIN_VERSION)"
 
       - name: Build plugin
         run: ./gradlew buildPlugin --no-daemon
@@ -279,7 +298,7 @@ jobs:
             3. Select the downloaded file
 
             ### Compatibility
-            - IntelliJ IDEA 2024.1, 2024.2, 2024.3, 2025.1
+            - IntelliJ IDEA 2024.1 through 2025.3 (latest)
             - WebStorm, PhpStorm, PyCharm, and other JetBrains IDEs
 
             ### Downloads
@@ -289,6 +308,8 @@ jobs:
             | 2024.2 | `artk-intellij-plugin-*-intellij-2024.2.zip` |
             | 2024.3 | `artk-intellij-plugin-*-intellij-2024.3.zip` |
             | 2025.1 | `artk-intellij-plugin-*-intellij-2025.1.zip` |
+            | 2025.2 | `artk-intellij-plugin-*-intellij-2025.2.zip` |
+            | 2025.3 | `artk-intellij-plugin-*-intellij-2025.3.zip` |
 
             ### Features
             - Initialize and manage ARTK projects
