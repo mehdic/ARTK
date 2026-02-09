@@ -89,7 +89,7 @@ export const defaultGlossary: Glossary = {
   entries: [
     {
       canonical: 'click',
-      synonyms: ['press', 'tap', 'select', 'hit'],
+      synonyms: ['press', 'tap', 'hit'],
     },
     {
       canonical: 'enter',
@@ -117,7 +117,7 @@ export const defaultGlossary: Glossary = {
     },
     {
       canonical: 'dropdown',
-      synonyms: ['select', 'combo', 'combobox', 'selector', 'picker'],
+      synonyms: ['combo', 'combobox', 'picker'],
     },
     {
       canonical: 'checkbox',

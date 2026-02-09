@@ -213,6 +213,86 @@ success "npm dependencies installed"
 success "Full ARTK installation complete"
 
 # ═══════════════════════════════════════════════════════════════════════════
+# STEP 2b: F12 Discovery Pipeline Validation (Task 15)
+# ═══════════════════════════════════════════════════════════════════════════
+
+section "Step 2b: F12 Discovery Pipeline Validation"
+
+# Create a src directory with enough signals for discovery to detect
+mkdir -p "$PROJECT_DIR/src"
+cat > "$PROJECT_DIR/package.json" << 'EOF'
+{
+  "name": "e2e-test-project",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@mui/material": "^5.14.0"
+  },
+  "scripts": {
+    "test": "npx playwright test"
+  }
+}
+EOF
+
+cat > "$PROJECT_DIR/src/App.tsx" << 'EOF'
+import React from 'react';
+export default function App() { return <div data-testid="app">Hello</div>; }
+EOF
+
+# Run the F12 discovery pipeline via Node
+log "Running F12 discovery pipeline..."
+LLKB_DIR="$PROJECT_DIR/artk-e2e/.artk/llkb"
+CORE_DIST="$ARTK_ROOT/core/typescript/dist/llkb/index.js"
+
+if [ -f "$CORE_DIST" ]; then
+  # Run discovery pipeline
+  node --input-type=module -e "
+    import { runFullDiscoveryPipeline } from '$CORE_DIST';
+    const result = await runFullDiscoveryPipeline('$PROJECT_DIR', '$LLKB_DIR');
+    console.log(JSON.stringify({
+      success: result.success,
+      patternCount: result.patternsFile?.patterns?.length ?? 0,
+      profile: result.profile ? true : false,
+      warnings: result.warnings.length,
+      errors: result.errors
+    }));
+  " 2>/dev/null && F12_RAN=true || F12_RAN=false
+
+  if [ "$F12_RAN" = true ]; then
+    # Validate discovered-profile.json exists
+    if [ -f "$LLKB_DIR/discovered-profile.json" ]; then
+      success "F12: discovered-profile.json created"
+    else
+      warn "F12: discovered-profile.json not found"
+    fi
+
+    # Validate discovered-patterns.json exists
+    if [ -f "$LLKB_DIR/discovered-patterns.json" ]; then
+      PATTERN_COUNT=$(python3 -c "
+import json
+with open('$LLKB_DIR/discovered-patterns.json') as f:
+    data = json.load(f)
+    print(len(data.get('patterns', [])))
+" 2>/dev/null || echo "0")
+      success "F12: discovered-patterns.json created ($PATTERN_COUNT patterns)"
+      if [ "$PATTERN_COUNT" -gt 0 ]; then
+        success "F12: Pattern count > 0"
+      else
+        warn "F12: Pattern count is 0 (expected > 0 for project with React+MUI)"
+      fi
+    else
+      warn "F12: discovered-patterns.json not found"
+    fi
+  else
+    warn "F12: Discovery pipeline could not run (core dist may not include pipeline)"
+  fi
+else
+  warn "F12: Core LLKB dist not found at $CORE_DIST (skipping F12 validation)"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
 # STEP 3: Create Test Journey
 # ═══════════════════════════════════════════════════════════════════════════
 

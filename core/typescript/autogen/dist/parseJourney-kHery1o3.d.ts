@@ -56,7 +56,7 @@ declare const CompletionSignalSchema: z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     value: string;
-    type: "text" | "title" | "url" | "toast" | "element" | "api";
+    type: "text" | "url" | "toast" | "element" | "title" | "api";
     options?: {
         exact?: boolean | undefined;
         status?: number | undefined;
@@ -66,7 +66,7 @@ declare const CompletionSignalSchema: z.ZodObject<{
     } | undefined;
 }, {
     value: string;
-    type: "text" | "title" | "url" | "toast" | "element" | "api";
+    type: "text" | "url" | "toast" | "element" | "title" | "api";
     options?: {
         exact?: boolean | undefined;
         status?: number | undefined;
@@ -243,12 +243,12 @@ declare const TestDataSetSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
     data: z.ZodRecord<z.ZodString, z.ZodAny>;
 }, "strip", z.ZodTypeAny, {
-    data: Record<string, any>;
     name: string;
+    data: Record<string, any>;
     description?: string | undefined;
 }, {
-    data: Record<string, any>;
     name: string;
+    data: Record<string, any>;
     description?: string | undefined;
 }>;
 /**
@@ -318,7 +318,7 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -328,7 +328,7 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
         } | undefined;
     }, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -383,12 +383,12 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         data: z.ZodRecord<z.ZodString, z.ZodAny>;
     }, "strip", z.ZodTypeAny, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }>, "many">>;
     visualRegression: z.ZodOptional<z.ZodObject<{
@@ -465,6 +465,12 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
         collectTimeout?: number | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    revision: number;
     modules: {
         foundation: string[];
         features: string[];
@@ -474,21 +480,19 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "proposed" | "defined" | "clarified" | "implemented" | "quarantined" | "deprecated";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    revision: number;
-    owner?: string | undefined;
-    statusReason?: string | undefined;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
         cleanup: "required" | "best-effort" | "none";
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -497,27 +501,12 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -540,31 +529,37 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
         } | undefined;
         collectTimeout?: number | undefined;
     } | undefined;
-}, {
-    status: "proposed" | "defined" | "clarified" | "implemented" | "quarantined" | "deprecated";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    modules?: {
-        foundation?: string[] | undefined;
-        features?: string[] | undefined;
-    } | undefined;
-    tests?: (string | {
-        file: string;
-        line?: number | undefined;
-    })[] | undefined;
-    revision?: number | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
+    } | undefined;
+}, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    status: "proposed" | "defined" | "clarified" | "implemented" | "quarantined" | "deprecated";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
         cleanup?: "required" | "best-effort" | "none" | undefined;
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -573,27 +568,13 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
+    revision?: number | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -615,6 +596,25 @@ declare const JourneyFrontmatterSchema: z.ZodObject<{
             ttfb?: number | undefined;
         } | undefined;
         collectTimeout?: number | undefined;
+    } | undefined;
+    modules?: {
+        foundation?: string[] | undefined;
+        features?: string[] | undefined;
+    } | undefined;
+    tests?: (string | {
+        file: string;
+        line?: number | undefined;
+    })[] | undefined;
+    owner?: string | undefined;
+    statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
     } | undefined;
 }>;
 /**
@@ -683,7 +683,7 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -693,7 +693,7 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
     }, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -748,12 +748,12 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         data: z.ZodRecord<z.ZodString, z.ZodAny>;
     }, "strip", z.ZodTypeAny, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }>, "many">>;
     visualRegression: z.ZodOptional<z.ZodObject<{
@@ -832,6 +832,12 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
 } & {
     status: z.ZodLiteral<"clarified">;
 }, "strip", z.ZodTypeAny, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    revision: number;
     modules: {
         foundation: string[];
         features: string[];
@@ -841,21 +847,19 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "clarified";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    revision: number;
-    owner?: string | undefined;
-    statusReason?: string | undefined;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
         cleanup: "required" | "best-effort" | "none";
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -864,27 +868,12 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -907,31 +896,37 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
         collectTimeout?: number | undefined;
     } | undefined;
-}, {
-    status: "clarified";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    modules?: {
-        foundation?: string[] | undefined;
-        features?: string[] | undefined;
-    } | undefined;
-    tests?: (string | {
-        file: string;
-        line?: number | undefined;
-    })[] | undefined;
-    revision?: number | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
+    } | undefined;
+}, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    status: "clarified";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
         cleanup?: "required" | "best-effort" | "none" | undefined;
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -940,27 +935,13 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
+    revision?: number | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -982,8 +963,33 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             ttfb?: number | undefined;
         } | undefined;
         collectTimeout?: number | undefined;
+    } | undefined;
+    modules?: {
+        foundation?: string[] | undefined;
+        features?: string[] | undefined;
+    } | undefined;
+    tests?: (string | {
+        file: string;
+        line?: number | undefined;
+    })[] | undefined;
+    owner?: string | undefined;
+    statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
     } | undefined;
 }>, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    revision: number;
     modules: {
         foundation: string[];
         features: string[];
@@ -993,21 +999,19 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "clarified";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    revision: number;
-    owner?: string | undefined;
-    statusReason?: string | undefined;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
         cleanup: "required" | "best-effort" | "none";
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1016,27 +1020,12 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -1059,31 +1048,37 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
         collectTimeout?: number | undefined;
     } | undefined;
-}, {
-    status: "clarified";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    modules?: {
-        foundation?: string[] | undefined;
-        features?: string[] | undefined;
-    } | undefined;
-    tests?: (string | {
-        file: string;
-        line?: number | undefined;
-    })[] | undefined;
-    revision?: number | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
+    } | undefined;
+}, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    status: "clarified";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
         cleanup?: "required" | "best-effort" | "none" | undefined;
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1092,27 +1087,13 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
+    revision?: number | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -1134,6 +1115,25 @@ declare const ClarifiedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             ttfb?: number | undefined;
         } | undefined;
         collectTimeout?: number | undefined;
+    } | undefined;
+    modules?: {
+        foundation?: string[] | undefined;
+        features?: string[] | undefined;
+    } | undefined;
+    tests?: (string | {
+        file: string;
+        line?: number | undefined;
+    })[] | undefined;
+    owner?: string | undefined;
+    statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
     } | undefined;
 }>;
 /**
@@ -1202,7 +1202,7 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1212,7 +1212,7 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
     }, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1267,12 +1267,12 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         data: z.ZodRecord<z.ZodString, z.ZodAny>;
     }, "strip", z.ZodTypeAny, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }>, "many">>;
     visualRegression: z.ZodOptional<z.ZodObject<{
@@ -1351,6 +1351,12 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
 } & {
     status: z.ZodLiteral<"implemented">;
 }, "strip", z.ZodTypeAny, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    revision: number;
     modules: {
         foundation: string[];
         features: string[];
@@ -1360,21 +1366,19 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "implemented";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    revision: number;
-    owner?: string | undefined;
-    statusReason?: string | undefined;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
         cleanup: "required" | "best-effort" | "none";
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1383,27 +1387,12 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -1426,31 +1415,37 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
         collectTimeout?: number | undefined;
     } | undefined;
-}, {
-    status: "implemented";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    modules?: {
-        foundation?: string[] | undefined;
-        features?: string[] | undefined;
-    } | undefined;
-    tests?: (string | {
-        file: string;
-        line?: number | undefined;
-    })[] | undefined;
-    revision?: number | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
+    } | undefined;
+}, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    status: "implemented";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
         cleanup?: "required" | "best-effort" | "none" | undefined;
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1459,27 +1454,13 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
+    revision?: number | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -1501,8 +1482,33 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             ttfb?: number | undefined;
         } | undefined;
         collectTimeout?: number | undefined;
+    } | undefined;
+    modules?: {
+        foundation?: string[] | undefined;
+        features?: string[] | undefined;
+    } | undefined;
+    tests?: (string | {
+        file: string;
+        line?: number | undefined;
+    })[] | undefined;
+    owner?: string | undefined;
+    statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
     } | undefined;
 }>, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    revision: number;
     modules: {
         foundation: string[];
         features: string[];
@@ -1512,21 +1518,19 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "implemented";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    revision: number;
-    owner?: string | undefined;
-    statusReason?: string | undefined;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
         cleanup: "required" | "best-effort" | "none";
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1535,27 +1539,12 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -1578,31 +1567,37 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
         collectTimeout?: number | undefined;
     } | undefined;
-}, {
-    status: "implemented";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    modules?: {
-        foundation?: string[] | undefined;
-        features?: string[] | undefined;
-    } | undefined;
-    tests?: (string | {
-        file: string;
-        line?: number | undefined;
-    })[] | undefined;
-    revision?: number | undefined;
     owner?: string | undefined;
     statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
+    } | undefined;
+}, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    status: "implemented";
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
         cleanup?: "required" | "best-effort" | "none" | undefined;
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1611,27 +1606,13 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
+    revision?: number | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -1653,6 +1634,25 @@ declare const ImplementedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             ttfb?: number | undefined;
         } | undefined;
         collectTimeout?: number | undefined;
+    } | undefined;
+    modules?: {
+        foundation?: string[] | undefined;
+        features?: string[] | undefined;
+    } | undefined;
+    tests?: (string | {
+        file: string;
+        line?: number | undefined;
+    })[] | undefined;
+    owner?: string | undefined;
+    statusReason?: string | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
     } | undefined;
 }>;
 /**
@@ -1719,7 +1719,7 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1729,7 +1729,7 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
     }, {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1784,12 +1784,12 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         data: z.ZodRecord<z.ZodString, z.ZodAny>;
     }, "strip", z.ZodTypeAny, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }, {
-        data: Record<string, any>;
         name: string;
+        data: Record<string, any>;
         description?: string | undefined;
     }>, "many">>;
     visualRegression: z.ZodOptional<z.ZodObject<{
@@ -1870,6 +1870,12 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
     owner: z.ZodString;
     statusReason: z.ZodString;
 }, "strip", z.ZodTypeAny, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    revision: number;
     modules: {
         foundation: string[];
         features: string[];
@@ -1879,21 +1885,21 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "quarantined";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    revision: number;
     owner: string;
     statusReason: string;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
         cleanup: "required" | "best-effort" | "none";
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1902,27 +1908,12 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -1945,31 +1936,37 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
         collectTimeout?: number | undefined;
     } | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
+    } | undefined;
 }, {
-    status: "quarantined";
-    id: string;
+    actor: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
-    actor: string;
+    status: "quarantined";
     owner: string;
     statusReason: string;
-    modules?: {
-        foundation?: string[] | undefined;
-        features?: string[] | undefined;
-    } | undefined;
-    tests?: (string | {
-        file: string;
-        line?: number | undefined;
-    })[] | undefined;
-    revision?: number | undefined;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
         cleanup?: "required" | "best-effort" | "none" | undefined;
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -1978,27 +1975,13 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
+    revision?: number | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -2020,8 +2003,31 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             ttfb?: number | undefined;
         } | undefined;
         collectTimeout?: number | undefined;
+    } | undefined;
+    modules?: {
+        foundation?: string[] | undefined;
+        features?: string[] | undefined;
+    } | undefined;
+    tests?: (string | {
+        file: string;
+        line?: number | undefined;
+    })[] | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
     } | undefined;
 }>, {
+    actor: string;
+    title: string;
+    id: string;
+    tier: "smoke" | "release" | "regression";
+    scope: string;
+    revision: number;
     modules: {
         foundation: string[];
         features: string[];
@@ -2031,21 +2037,21 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         line?: number | undefined;
     })[];
     status: "quarantined";
-    id: string;
-    title: string;
-    tier: "smoke" | "release" | "regression";
-    scope: string;
-    actor: string;
-    revision: number;
     owner: string;
     statusReason: string;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy: "seed" | "create" | "reuse";
         cleanup: "required" | "best-effort" | "none";
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -2054,27 +2060,12 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -2097,31 +2088,37 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
         collectTimeout?: number | undefined;
     } | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
+    } | undefined;
 }, {
-    status: "quarantined";
-    id: string;
+    actor: string;
     title: string;
+    id: string;
     tier: "smoke" | "release" | "regression";
     scope: string;
-    actor: string;
+    status: "quarantined";
     owner: string;
     statusReason: string;
-    modules?: {
-        foundation?: string[] | undefined;
-        features?: string[] | undefined;
-    } | undefined;
-    tests?: (string | {
-        file: string;
-        line?: number | undefined;
-    })[] | undefined;
-    revision?: number | undefined;
+    testData?: {
+        name: string;
+        data: Record<string, any>;
+        description?: string | undefined;
+    }[] | undefined;
+    tags?: string[] | undefined;
     data?: {
         strategy?: "seed" | "create" | "reuse" | undefined;
         cleanup?: "required" | "best-effort" | "none" | undefined;
     } | undefined;
     completion?: {
         value: string;
-        type: "text" | "title" | "url" | "toast" | "element" | "api";
+        type: "text" | "url" | "toast" | "element" | "title" | "api";
         options?: {
             exact?: boolean | undefined;
             status?: number | undefined;
@@ -2130,27 +2127,13 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             method?: string | undefined;
         } | undefined;
     }[] | undefined;
-    links?: {
-        issues?: string[] | undefined;
-        prs?: string[] | undefined;
-        docs?: string[] | undefined;
-    } | undefined;
-    tags?: string[] | undefined;
-    flags?: {
-        required?: string[] | undefined;
-        forbidden?: string[] | undefined;
-    } | undefined;
+    revision?: number | undefined;
     prerequisites?: string[] | undefined;
     negativePaths?: {
         name: string;
         input: Record<string, any>;
         expectedError: string;
         expectedElement?: string | undefined;
-    }[] | undefined;
-    testData?: {
-        data: Record<string, any>;
-        name: string;
-        description?: string | undefined;
     }[] | undefined;
     visualRegression?: {
         enabled: boolean;
@@ -2172,6 +2155,23 @@ declare const QuarantinedJourneyFrontmatterSchema: z.ZodEffects<z.ZodObject<{
             ttfb?: number | undefined;
         } | undefined;
         collectTimeout?: number | undefined;
+    } | undefined;
+    modules?: {
+        foundation?: string[] | undefined;
+        features?: string[] | undefined;
+    } | undefined;
+    tests?: (string | {
+        file: string;
+        line?: number | undefined;
+    })[] | undefined;
+    links?: {
+        issues?: string[] | undefined;
+        prs?: string[] | undefined;
+        docs?: string[] | undefined;
+    } | undefined;
+    flags?: {
+        required?: string[] | undefined;
+        forbidden?: string[] | undefined;
     } | undefined;
 }>;
 /**

@@ -1,0 +1,185 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://artk.dev/schemas/llkb/discovered-patterns.json",
+  "title": "LLKB Discovered Patterns",
+  "description": "Patterns discovered by LLKB Pattern Discovery (F12)",
+  "type": "object",
+  "required": ["version", "generatedAt", "source", "patterns", "metadata"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when patterns were discovered"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source that generated these patterns",
+      "pattern": "^discover-foundation:F12"
+    },
+    "patterns": {
+      "type": "array",
+      "description": "Array of discovered patterns",
+      "items": {
+        "$ref": "#/definitions/DiscoveredPattern"
+      }
+    },
+    "metadata": {
+      "$ref": "#/definitions/DiscoveryMetadata"
+    }
+  },
+  "definitions": {
+    "DiscoveredPattern": {
+      "type": "object",
+      "required": ["id", "normalizedText", "originalText", "mappedPrimitive", "confidence", "layer"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique pattern identifier",
+          "pattern": "^DP\\d{3,}$"
+        },
+        "normalizedText": {
+          "type": "string",
+          "description": "Normalized pattern text for matching"
+        },
+        "originalText": {
+          "type": "string",
+          "description": "Original text before normalization"
+        },
+        "mappedPrimitive": {
+          "type": "string",
+          "description": "AutoGen IR primitive this maps to",
+          "enum": [
+            "click", "fill", "navigate", "wait", "assert", "select",
+            "check", "uncheck", "hover", "press", "scroll", "upload",
+            "download", "dragAndDrop", "screenshot", "evaluate"
+          ]
+        },
+        "selectorHints": {
+          "type": "array",
+          "description": "Hints for locating elements",
+          "items": {
+            "$ref": "#/definitions/SelectorHint"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score (0.0 - 1.0)"
+        },
+        "layer": {
+          "type": "string",
+          "enum": ["app-specific", "framework", "universal"],
+          "description": "Pattern layer in the hierarchy"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["auth", "navigation", "ui-interaction", "data", "assertion", "timing"],
+          "description": "Pattern category"
+        },
+        "sourceJourneys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Journey IDs where this pattern was discovered"
+        },
+        "successCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of successful applications"
+        },
+        "failCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of failed applications"
+        },
+        "templateSource": {
+          "type": "string",
+          "description": "Template that generated this pattern",
+          "enum": ["crud", "form", "table", "modal", "navigation", "auth", "static"]
+        },
+        "entityName": {
+          "type": "string",
+          "description": "Entity name if pattern was generated from a template"
+        }
+      }
+    },
+    "SelectorHint": {
+      "type": "object",
+      "required": ["strategy", "value"],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "description": "Selector strategy",
+          "enum": ["data-testid", "data-cy", "data-test", "role", "aria-label", "css", "xpath", "text"]
+        },
+        "value": {
+          "type": "string",
+          "description": "Selector value"
+        },
+        "name": {
+          "type": "string",
+          "description": "Accessible name (for role-based selectors)"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence in this selector"
+        }
+      }
+    },
+    "DiscoveryMetadata": {
+      "type": "object",
+      "required": ["totalPatterns"],
+      "properties": {
+        "frameworks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Frameworks detected during discovery"
+        },
+        "uiLibraries": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "UI libraries detected during discovery"
+        },
+        "totalPatterns": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of patterns discovered"
+        },
+        "byCategory": {
+          "type": "object",
+          "description": "Pattern count by category",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "byTemplate": {
+          "type": "object",
+          "description": "Pattern count by template source",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "averageConfidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Average confidence across all patterns"
+        },
+        "discoveryDuration": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Discovery duration in milliseconds"
+        }
+      }
+    }
+  }
+}

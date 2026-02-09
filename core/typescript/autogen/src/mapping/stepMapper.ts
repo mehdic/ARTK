@@ -29,8 +29,8 @@ type LlkbPatternMatch = {
 
 // LLKB module reference - loaded lazily
 let llkbModule: {
-  matchLlkbPattern: (text: string, options?: { llkbRoot?: string; minConfidence?: number }) => LlkbPatternMatch | null;
-  recordPatternSuccess: (text: string, primitive: IRPrimitive, journeyId: string, options?: { llkbRoot?: string }) => void;
+  matchLlkbPattern: (_text: string, _options?: { llkbRoot?: string; minConfidence?: number }) => LlkbPatternMatch | null;
+  recordPatternSuccess: (_text: string, _primitive: IRPrimitive, _journeyId: string, _options?: { llkbRoot?: string }) => void;
 } | null = null;
 
 // Track if we've attempted to load LLKB
@@ -224,12 +224,12 @@ export function mapStepText(
     };
   }
 
-  // No match - return blocked
+  // No match - return blocked with actionable hint
   return {
     primitive: null,
     sourceText: text,
     isAssertion: false,
-    message: `Could not map step: "${text}"`,
+    message: getBlockedReason(processedText, text),
     matchSource: 'none',
   };
 }
@@ -568,4 +568,48 @@ export function suggestImprovements(blockedSteps: StepMappingResult[]): string[]
   }
 
   return suggestions;
+}
+
+/**
+ * Generate an actionable blocked reason explaining WHY a step failed and HOW to fix it
+ */
+function getBlockedReason(normalizedText: string, originalText: string): string {
+  const text = normalizedText.toLowerCase();
+
+  // Check for missing locator anchor (no quoted text, no role, no testid)
+  const hasQuotedText = /["']/.test(originalText);
+  const hasRole = /button|link|heading|checkbox|radio|textbox|combobox/.test(text);
+
+  // Click without identifiable target
+  if ((text.includes('click') || text.includes('press') || text.includes('tap')) && !hasQuotedText && !hasRole) {
+    return `Could not map step: "${originalText}" | Reason: No identifiable UI anchor (role, label, testid, or text content) | Suggestion: Rewrite as "Click the 'Label' button" or "Click the button with text 'Label'"`;
+  }
+
+  // Visibility without specific element
+  if ((text.includes('see') || text.includes('visible') || text.includes('shown') || text.includes('displayed')) && !hasQuotedText) {
+    return `Could not map step: "${originalText}" | Reason: No specific element text or label to locate | Suggestion: Rewrite as "User should see 'Specific Text'" or "'Element Name' is visible"`;
+  }
+
+  // Fill without proper structure
+  if (text.includes('fill') || text.includes('enter') || text.includes('type') || text.includes('input')) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse field name and value | Suggestion: Rewrite as "Fill 'value' in 'Field Name' field" or "Fill the 'Field Name' field with 'value'"`;
+  }
+
+  // Toast/notification
+  if (text.includes('toast') || text.includes('notification') || text.includes('snackbar')) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse toast type or message | Suggestion: Rewrite as "A success toast appears with 'Message'" or "Toast with text 'Message' appears"`;
+  }
+
+  // Select/dropdown
+  if (text.includes('select') || text.includes('choose') || text.includes('dropdown')) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse option and dropdown | Suggestion: Rewrite as "Select 'Option' from 'Dropdown Name'" or "Select 'Option' from dropdown"`;
+  }
+
+  // Navigation
+  if (text.includes('go') || text.includes('open') || text.includes('navigate') || text.includes('visit')) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse navigation target | Suggestion: Rewrite as "User navigates to '/path'" or "User opens '/url'"`;
+  }
+
+  // Generic fallback
+  return `Could not map step: "${originalText}" | Reason: No matching pattern found | Suggestion: Check supported patterns with 'artk-autogen patterns list'`;
 }

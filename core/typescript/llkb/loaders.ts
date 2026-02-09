@@ -6,18 +6,19 @@
  * @module @artk/llkb/loaders
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadJSON } from './file-utils.js';
 import type {
-  LLKBConfig,
-  LessonsFile,
+  Component,
   ComponentsFile,
   Lesson,
-  Component,
+  LessonsFile,
   LLKBCategory,
+  LLKBConfig,
   LLKBScope,
 } from './types.js';
+import { type DiscoveredPatternsFile, loadDiscoveredPatterns as loadDiscoveredPatternsFromFile } from './pattern-generation.js';
 
 // =============================================================================
 // Types
@@ -191,6 +192,7 @@ export interface LLKBData {
   lessons: LessonsFile;
   components: ComponentsFile;
   patterns: LLKBPatterns;
+  discoveredPatterns: DiscoveredPatternsFile | null;
 }
 
 // =============================================================================
@@ -286,7 +288,7 @@ function parseSimpleYAML(content: string): Partial<LLKBConfig> {
 
     // Check if it's a key: value pair
     const colonIndex = trimmed.indexOf(':');
-    if (colonIndex === -1) continue;
+    if (colonIndex === -1) {continue;}
 
     const key = trimmed.substring(0, colonIndex).trim();
     const valueStr = trimmed.substring(colonIndex + 1).trim();
@@ -294,12 +296,12 @@ function parseSimpleYAML(content: string): Partial<LLKBConfig> {
     // Pop stack until we find the right parent
     while (stack.length > 1) {
       const top = stack[stack.length - 1];
-      if (!top || top.indent < indent) break;
+      if (!top || top.indent < indent) {break;}
       stack.pop();
     }
 
     const top = stack[stack.length - 1];
-    if (!top) continue;
+    if (!top) {continue;}
     const parent = top.obj;
 
     if (valueStr === '' || valueStr === '|' || valueStr === '>') {
@@ -326,12 +328,12 @@ function parseYAMLValue(value: string): unknown {
   }
 
   // Boolean
-  if (value === 'true') return true;
-  if (value === 'false') return false;
+  if (value === 'true') {return true;}
+  if (value === 'false') {return false;}
 
   // Number
   const num = Number(value);
-  if (!isNaN(num)) return num;
+  if (!isNaN(num)) {return num;}
 
   // String
   return value;
@@ -622,6 +624,7 @@ export function loadLLKBData(llkbRoot: string = '.artk/llkb'): LLKBData {
     lessons: loadLessonsFile(llkbRoot),
     components: loadComponentsFile(llkbRoot),
     patterns: loadPatterns(llkbRoot),
+    discoveredPatterns: loadDiscoveredPatternsFromFile(llkbRoot),
   };
 }
 

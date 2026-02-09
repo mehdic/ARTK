@@ -73,6 +73,18 @@ export {
   countLines,
 } from './normalize.js';
 
+// Pluralization functions (ARCH-001: shared module)
+export type { PluralizeOptions, SingularizeOptions } from './pluralization.js';
+export {
+  pluralize,
+  singularize,
+  getSingularPlural,
+  isUncountable,
+  IRREGULAR_PLURALS,
+  IRREGULAR_SINGULARS,
+  UNCOUNTABLE_NOUNS,
+} from './pluralization.js';
+
 // Similarity functions
 export type { SimilarPatternResult } from './similarity.js';
 export {
@@ -401,3 +413,188 @@ export {
   isOk,
   isFail,
 } from './result-types.js';
+
+// Discovery - App-specific pattern discovery (F12)
+export type {
+  FrameworkSignal,
+  UiLibrarySignal,
+  SelectorSignals,
+  AuthHints,
+  DiscoveredProfile,
+  DiscoveryResult,
+} from './discovery.js';
+
+export {
+  FRAMEWORK_PATTERNS,
+  UI_LIBRARY_PATTERNS as DISCOVERY_UI_LIBRARY_PATTERNS,
+  SELECTOR_PATTERNS,
+  detectFrameworks,
+  detectUiLibraries,
+  analyzeSelectorSignals,
+  extractAuthHints,
+  runDiscovery,
+  saveDiscoveredProfile,
+  loadDiscoveredProfile,
+  saveAppProfile, // deprecated alias
+} from './discovery.js';
+
+// Pattern Generation - Generate patterns from discovery
+export type {
+  SelectorHint,
+  DiscoveredPattern,
+  DiscoveredPatternsFile,
+  LearnedPattern,
+  LearnedPatternEntry,
+} from './pattern-generation.js';
+
+export {
+  AUTH_PATTERN_TEMPLATES,
+  NAVIGATION_PATTERN_TEMPLATES,
+  UI_LIBRARY_PATTERNS as PATTERN_UI_LIBRARY_PATTERNS,
+  resetPatternIdCounter,
+  generatePatterns,
+  mergeDiscoveredPatterns,
+  createDiscoveredPatternsFile,
+  deduplicatePatterns,
+  saveDiscoveredPatterns,
+  loadDiscoveredPatterns,
+} from './pattern-generation.js';
+
+// Template Generators - CRUD, Form, Table, Modal, Navigation pattern multiplication
+export type {
+  DiscoveredEntity,
+  DiscoveredRoute,
+  DiscoveredForm,
+  FormField,
+  DiscoveredTable,
+  DiscoveredModal,
+  DiscoveredElements,
+  PatternTemplate,
+  GenerationResult,
+} from './template-generators.js';
+
+export {
+  // Main generation functions
+  generateCrudPatterns,
+  generateFormPatterns,
+  generateTablePatterns,
+  generateModalPatterns,
+  generateNavigationPatterns as generateExtendedNavigationPatterns,
+  generateNotificationPatterns,
+  generateAllPatterns,
+  // Helper functions
+  createEntity,
+  createForm,
+  createTable,
+  createModal,
+  createRoute,
+  // Templates
+  CRUD_TEMPLATES,
+  FORM_TEMPLATES,
+  TABLE_TEMPLATES,
+  MODAL_TEMPLATES,
+  EXTENDED_NAVIGATION_TEMPLATES,
+  NOTIFICATION_TEMPLATES,
+} from './template-generators.js';
+
+// Mining - Zero-config element discovery (F12)
+export type {
+  MiningResult,
+} from './mining.js';
+
+export {
+  mineEntities,
+  mineRoutes,
+  mineForms,
+  mineTables,
+  mineModals,
+  mineElements,
+  runMiningPipeline,
+} from './mining.js';
+
+// Mining Cache - File caching for performance (ARCH-002, ARCH-003)
+export type {
+  CacheStats,
+  ScannedFile,
+  ScanOptions,
+  SourceDirectory,
+} from './mining-cache.js';
+
+export {
+  MiningCache,
+  SOURCE_DIRECTORIES,
+  scanDirectory,
+  scanAllSourceDirectories,
+  createCacheFromFiles,
+} from './mining-cache.js';
+
+// Quality Controls - Pattern quality management
+export type {
+  UsageStats,
+  QualityControlResult,
+} from './quality-controls.js';
+
+export {
+  deduplicatePatterns as deduplicatePatternsQC,
+  applyConfidenceThreshold,
+  boostCrossSourcePatterns,
+  pruneUnusedPatterns,
+  applyAllQualityControls,
+  applySignalWeighting,
+} from './quality-controls.js';
+
+// Framework Packs - Lazy-loaded framework-specific patterns (F12)
+export type {
+  PackPattern,
+  FrameworkPack,
+  PackRegistryEntry,
+} from './packs/index.js';
+
+export {
+  getPackRegistry,
+  loadPacksForFrameworks,
+  packPatternsToDiscovered,
+  loadDiscoveredPatternsForFrameworks,
+} from './packs/index.js';
+
+// Mining Modules - i18n, analytics, feature flag mining (F12)
+export type {
+  I18nKey,
+  I18nMiningResult,
+} from './mining/i18n-mining.js';
+
+export type {
+  AnalyticsEvent,
+  AnalyticsMiningResult,
+} from './mining/analytics-mining.js';
+
+export type {
+  FeatureFlag,
+  FeatureFlagMiningResult,
+} from './mining/feature-flag-mining.js';
+
+export {
+  mineI18nKeys,
+  generateI18nPatterns,
+} from './mining/i18n-mining.js';
+
+export {
+  mineAnalyticsEvents,
+  generateAnalyticsPatterns,
+} from './mining/analytics-mining.js';
+
+export {
+  mineFeatureFlags,
+  generateFeatureFlagPatterns,
+} from './mining/feature-flag-mining.js';
+
+// Pipeline Orchestrator - Full discovery pipeline (F12)
+export type {
+  PipelineOptions,
+  PipelineResult,
+  PipelineStats,
+} from './pipeline.js';
+
+export {
+  runFullDiscoveryPipeline,
+} from './pipeline.js';

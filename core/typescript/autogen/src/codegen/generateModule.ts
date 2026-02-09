@@ -345,8 +345,17 @@ function primitiveToMethodLine(
       return `await expect(${getLocatorRef(primitive.locator)}).toBeDisabled();`;
 
     // Blocked - must throw to fail the test
-    case 'blocked':
-      return `// ARTK BLOCKED: ${primitive.reason}\n    throw new Error('ARTK BLOCKED: ${primitive.reason}');`;
+    case 'blocked': {
+      const parts = primitive.reason.split(' | ');
+      const mainReason = parts[0] ?? primitive.reason;
+      const reasonDetail = parts.find(p => p.startsWith('Reason:')) ?? '';
+      const suggestion = parts.find(p => p.startsWith('Suggestion:')) ?? '';
+      const lines = [`// TODO: ${mainReason}`];
+      if (reasonDetail) lines.push(`    // ${reasonDetail}`);
+      if (suggestion) lines.push(`    // ${suggestion}`);
+      lines.push(`    throw new Error('ARTK BLOCKED: ${escapeString(mainReason)}');`);
+      return lines.join('\n');
+    }
 
     default:
       return null;

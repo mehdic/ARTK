@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, renameSync, unlinkSync, statSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import 'url';
 import { parse, stringify } from 'yaml';
@@ -104,7 +104,7 @@ var init_glossary = __esm({
       entries: [
         {
           canonical: "click",
-          synonyms: ["press", "tap", "select", "hit"]
+          synonyms: ["press", "tap", "hit"]
         },
         {
           canonical: "enter",
@@ -132,7 +132,7 @@ var init_glossary = __esm({
         },
         {
           canonical: "dropdown",
-          synonyms: ["select", "combo", "combobox", "selector", "picker"]
+          synonyms: ["combo", "combobox", "picker"]
         },
         {
           canonical: "checkbox",
@@ -236,6 +236,44 @@ var init_paths = __esm({
   }
 });
 
+// src/mapping/patternDistance.ts
+function levenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          // substitution
+          matrix[i][j - 1] + 1,
+          // insertion
+          matrix[i - 1][j] + 1
+          // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+function calculateSimilarity(a, b) {
+  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1;
+  return 1 - distance / maxLength;
+}
+var init_patternDistance = __esm({
+  "src/mapping/patternDistance.ts"() {
+  }
+});
+
 // src/llkb/patternExtension.ts
 var patternExtension_exports = {};
 __export(patternExtension_exports, {
@@ -247,6 +285,7 @@ __export(patternExtension_exports, {
   getPatternStats: () => getPatternStats,
   getPatternsFilePath: () => getPatternsFilePath,
   getPromotablePatterns: () => getPromotablePatterns,
+  invalidateDiscoveredPatternCache: () => invalidateDiscoveredPatternCache,
   invalidatePatternCache: () => invalidatePatternCache,
   loadLearnedPatterns: () => loadLearnedPatterns,
   markPatternsPromoted: () => markPatternsPromoted,
@@ -256,6 +295,146 @@ __export(patternExtension_exports, {
   recordPatternSuccess: () => recordPatternSuccess,
   saveLearnedPatterns: () => saveLearnedPatterns
 });
+function createIRPrimitiveFromDiscovered(typeName, selectorHints) {
+  const locator = buildLocatorFromHints(selectorHints);
+  switch (typeName) {
+    // Interactions
+    case "click":
+      return { type: "click", locator };
+    case "dblclick":
+      return { type: "dblclick", locator };
+    case "fill":
+      return { type: "fill", locator, value: { type: "literal", value: "{{input}}" } };
+    case "check":
+      return { type: "check", locator };
+    case "uncheck":
+      return { type: "uncheck", locator };
+    case "select":
+      return { type: "select", locator, option: "{{option}}" };
+    case "hover":
+      return { type: "hover", locator };
+    case "clear":
+      return { type: "clear", locator };
+    case "press":
+      return { type: "press", key: "Enter", locator };
+    // Navigation
+    case "navigate":
+    case "goto":
+      return { type: "goto", url: "{{url}}" };
+    case "goBack":
+      return { type: "goBack" };
+    case "reload":
+      return { type: "reload" };
+    // Assertions
+    case "assert":
+    case "expectVisible":
+      return { type: "expectVisible", locator };
+    case "expectText":
+      return { type: "expectText", locator, text: "{{text}}" };
+    case "expectURL":
+      return { type: "expectURL", pattern: "{{pattern}}" };
+    // Wait
+    case "waitForVisible":
+      return { type: "waitForVisible", locator };
+    // File upload
+    case "upload":
+      return { type: "upload", locator, files: ["{{file}}"] };
+    // Keyboard shortcut (template-generators uses 'keyboard' for modal Escape etc.)
+    case "keyboard":
+      return { type: "press", key: "Escape", locator };
+    // Drag has no IR type — patterns using 'drag' (e.g., column resize) cannot
+    // be mapped to code generation yet. Return null so they are skipped gracefully.
+    case "drag":
+      return null;
+    default:
+      return null;
+  }
+}
+function buildLocatorFromHints(hints) {
+  if (!hints || hints.length === 0) {
+    return { strategy: "testid", value: "{{locator}}" };
+  }
+  const sorted = [...hints].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+  const best = sorted[0];
+  const strategy = SELECTOR_STRATEGY_MAP[best.strategy] ?? "testid";
+  return { strategy, value: best.value };
+}
+function acquireFileLock(filePath) {
+  const lockPath = `${filePath}.lock`;
+  try {
+    const dir = dirname(lockPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    if (existsSync(lockPath)) {
+      const lockAge = Date.now() - statSync(lockPath).mtimeMs;
+      if (lockAge > STALE_LOCK_THRESHOLD_MS) {
+        unlinkSync(lockPath);
+      } else {
+        return false;
+      }
+    }
+    writeFileSync(lockPath, String(Date.now()), { flag: "wx" });
+    return true;
+  } catch (error) {
+    if (error.code === "EEXIST") return false;
+    throw error;
+  }
+}
+function releaseFileLock(filePath) {
+  const lockPath = `${filePath}.lock`;
+  try {
+    if (existsSync(lockPath)) unlinkSync(lockPath);
+  } catch {
+  }
+}
+function withFileLockSync(filePath, fn) {
+  const start = Date.now();
+  while (Date.now() - start < LOCK_MAX_WAIT_MS) {
+    if (acquireFileLock(filePath)) {
+      try {
+        return fn();
+      } finally {
+        releaseFileLock(filePath);
+      }
+    }
+  }
+  console.warn(`[LLKB] Could not acquire lock on ${filePath} within ${LOCK_MAX_WAIT_MS}ms, proceeding without lock`);
+  return fn();
+}
+function isIRPrimitiveObject(value) {
+  return typeof value === "object" && value !== null && "type" in value && typeof value.type === "string";
+}
+function loadDiscoveredPatternsForMatching(llkbRoot) {
+  const now = Date.now();
+  if (discoveredPatternCache && discoveredPatternCache.llkbRoot === llkbRoot && now - discoveredPatternCache.loadedAt < DISCOVERED_CACHE_TTL_MS) {
+    return discoveredPatternCache.patterns;
+  }
+  const filePath = join(llkbRoot, "discovered-patterns.json");
+  if (!existsSync(filePath)) {
+    discoveredPatternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content);
+    if (typeof data !== "object" || data === null) {
+      console.warn(`[LLKB] Invalid discovered patterns shape in ${filePath}`);
+      discoveredPatternCache = { patterns: [], llkbRoot, loadedAt: now };
+      return [];
+    }
+    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+    discoveredPatternCache = { patterns, llkbRoot, loadedAt: now };
+    return patterns;
+  } catch (err2) {
+    console.warn(`[LLKB] Failed to load discovered patterns from ${filePath}: ${err2 instanceof Error ? err2.message : String(err2)}`);
+    discoveredPatternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+}
+function invalidateDiscoveredPatternCache() {
+  discoveredPatternCache = null;
+}
 function invalidatePatternCache() {
   patternCache = null;
 }
@@ -280,10 +459,16 @@ function loadLearnedPatterns(options = {}) {
   try {
     const content = readFileSync(filePath, "utf-8");
     const data = JSON.parse(content);
+    if (typeof data !== "object" || data === null) {
+      console.warn(`[LLKB] Invalid learned patterns shape in ${filePath}`);
+      patternCache = { patterns: [], llkbRoot, loadedAt: now };
+      return [];
+    }
     const patterns = Array.isArray(data.patterns) ? data.patterns : [];
     patternCache = { patterns, llkbRoot, loadedAt: now };
     return patterns;
-  } catch {
+  } catch (err2) {
+    console.warn(`[LLKB] Failed to load learned patterns from ${filePath}: ${err2 instanceof Error ? err2.message : String(err2)}`);
     patternCache = { patterns: [], llkbRoot, loadedAt: now };
     return [];
   }
@@ -299,7 +484,18 @@ function saveLearnedPatterns(patterns, options = {}) {
     lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
     patterns
   };
-  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  const content = JSON.stringify(data, null, 2);
+  const tempPath = `${filePath}.tmp.${Date.now()}`;
+  try {
+    writeFileSync(tempPath, content, "utf-8");
+    renameSync(tempPath, filePath);
+  } catch (err2) {
+    try {
+      if (existsSync(tempPath)) unlinkSync(tempPath);
+    } catch {
+    }
+    throw err2;
+  }
   invalidatePatternCache();
 }
 function calculateConfidence(successCount, failCount) {
@@ -314,62 +510,167 @@ function calculateConfidence(successCount, failCount) {
   return Math.max(0, Math.min(1, (center - spread) / denominator));
 }
 function recordPatternSuccess(originalText, primitive, journeyId, options = {}) {
-  const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepText(originalText);
-  let pattern = patterns.find((p) => p.normalizedText === normalizedText);
-  if (pattern) {
-    pattern.successCount++;
-    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
-    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
-    if (!pattern.sourceJourneys.includes(journeyId)) {
-      pattern.sourceJourneys.push(journeyId);
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  return withFileLockSync(filePath, () => {
+    const patterns = loadLearnedPatterns({ ...options, bypassCache: true });
+    const normalizedText = normalizeStepText(originalText);
+    let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+    if (pattern) {
+      pattern.successCount++;
+      pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+      pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+      if (!pattern.sourceJourneys.includes(journeyId)) {
+        pattern.sourceJourneys.push(journeyId);
+      }
+    } else {
+      pattern = {
+        id: generatePatternId(),
+        originalText,
+        normalizedText,
+        mappedPrimitive: primitive,
+        confidence: 0.5,
+        sourceJourneys: [journeyId],
+        successCount: 1,
+        failCount: 0,
+        lastUsed: (/* @__PURE__ */ new Date()).toISOString(),
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        promotedToCore: false
+      };
+      patterns.push(pattern);
     }
-  } else {
-    pattern = {
-      id: generatePatternId(),
-      originalText,
-      normalizedText,
-      mappedPrimitive: primitive,
-      confidence: 0.5,
-      // Initial confidence
-      sourceJourneys: [journeyId],
-      successCount: 1,
-      failCount: 0,
-      lastUsed: (/* @__PURE__ */ new Date()).toISOString(),
-      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-      promotedToCore: false
-    };
-    patterns.push(pattern);
-  }
-  saveLearnedPatterns(patterns, options);
-  return pattern;
-}
-function recordPatternFailure(originalText, _journeyId, options = {}) {
-  const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepText(originalText);
-  const pattern = patterns.find((p) => p.normalizedText === normalizedText);
-  if (pattern) {
-    pattern.failCount++;
-    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
-    pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
     saveLearnedPatterns(patterns, options);
     return pattern;
+  });
+}
+function recordPatternFailure(originalText, _journeyId, options = {}) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  return withFileLockSync(filePath, () => {
+    const patterns = loadLearnedPatterns({ ...options, bypassCache: true });
+    const normalizedText = normalizeStepText(originalText);
+    const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+    if (pattern) {
+      pattern.failCount++;
+      pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+      pattern.lastUsed = (/* @__PURE__ */ new Date()).toISOString();
+      saveLearnedPatterns(patterns, options);
+      return pattern;
+    }
+    return null;
+  });
+}
+function matchLlkbPattern(text, options = {}) {
+  const normalizedText = normalizeStepText(text);
+  const minConfidence = options.minConfidence ?? 0.5;
+  const minSimilarity = options.minSimilarity ?? 0.7;
+  const useFuzzyMatch = options.useFuzzyMatch ?? true;
+  const learnedMatch = matchLearnedPatterns(normalizedText, minConfidence, minSimilarity, useFuzzyMatch, options);
+  const discoveredMatch = matchDiscoveredPatterns(normalizedText, minConfidence, minSimilarity, useFuzzyMatch, options);
+  if (!learnedMatch && !discoveredMatch) {
+    return null;
+  }
+  if (!discoveredMatch) return learnedMatch;
+  if (!learnedMatch) return discoveredMatch;
+  if (discoveredMatch.confidence >= learnedMatch.confidence) {
+    return discoveredMatch;
+  }
+  return learnedMatch;
+}
+function matchLearnedPatterns(normalizedText, minConfidence, minSimilarity, useFuzzyMatch, options) {
+  const patterns = loadLearnedPatterns(options);
+  const exactMatch = patterns.find(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  );
+  if (exactMatch) {
+    return {
+      patternId: exactMatch.id,
+      primitive: exactMatch.mappedPrimitive,
+      confidence: exactMatch.confidence
+    };
+  }
+  if (useFuzzyMatch) {
+    let bestMatch = null;
+    let bestSimilarity = 0;
+    for (const pattern of patterns) {
+      if (pattern.promotedToCore || pattern.confidence < minConfidence) {
+        continue;
+      }
+      const similarity = calculateSimilarity(normalizedText, pattern.normalizedText);
+      if (similarity >= minSimilarity && similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestMatch = pattern;
+      }
+    }
+    if (bestMatch) {
+      return {
+        patternId: bestMatch.id,
+        primitive: bestMatch.mappedPrimitive,
+        confidence: bestMatch.confidence * bestSimilarity
+      };
+    }
   }
   return null;
 }
-function matchLlkbPattern(text, options = {}) {
-  const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepText(text);
-  const minConfidence = options.minConfidence ?? 0.7;
-  const match = patterns.find(
-    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+function matchDiscoveredPatterns(normalizedText, minConfidence, minSimilarity, useFuzzyMatch, options) {
+  const llkbRoot = getLlkbRoot(options.llkbRoot);
+  const patterns = loadDiscoveredPatternsForMatching(llkbRoot);
+  if (patterns.length === 0) return null;
+  const exactMatches = patterns.filter(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence
   );
-  if (match) {
+  if (exactMatches.length > 0) {
+    exactMatches.sort((a, b) => {
+      const layerDiff = (LAYER_PRIORITY[b.layer] ?? 0) - (LAYER_PRIORITY[a.layer] ?? 0);
+      return layerDiff !== 0 ? layerDiff : b.confidence - a.confidence;
+    });
+    const best = exactMatches[0];
+    let primitive;
+    if (isIRPrimitiveObject(best.mappedPrimitive)) {
+      primitive = best.mappedPrimitive;
+    } else {
+      primitive = createIRPrimitiveFromDiscovered(
+        best.mappedPrimitive,
+        best.selectorHints
+      );
+    }
+    if (!primitive) return null;
     return {
-      patternId: match.id,
-      primitive: match.mappedPrimitive,
-      confidence: match.confidence
+      patternId: best.id,
+      primitive,
+      confidence: best.confidence
     };
+  }
+  if (useFuzzyMatch) {
+    let bestMatch = null;
+    let bestSimilarity = 0;
+    let bestLayerPriority = 0;
+    for (const pattern of patterns) {
+      if (pattern.confidence < minConfidence) continue;
+      const similarity = calculateSimilarity(normalizedText, pattern.normalizedText);
+      if (similarity < minSimilarity) continue;
+      const layerPriority = LAYER_PRIORITY[pattern.layer] ?? 0;
+      if (layerPriority > bestLayerPriority || layerPriority === bestLayerPriority && similarity > bestSimilarity) {
+        bestMatch = pattern;
+        bestSimilarity = similarity;
+        bestLayerPriority = layerPriority;
+      }
+    }
+    if (bestMatch) {
+      let primitive;
+      if (isIRPrimitiveObject(bestMatch.mappedPrimitive)) {
+        primitive = bestMatch.mappedPrimitive;
+      } else {
+        primitive = createIRPrimitiveFromDiscovered(
+          bestMatch.mappedPrimitive,
+          bestMatch.selectorHints
+        );
+      }
+      if (!primitive) return null;
+      return {
+        patternId: bestMatch.id,
+        primitive,
+        confidence: bestMatch.confidence * bestSimilarity
+      };
+    }
   }
   return null;
 }
@@ -480,11 +781,32 @@ function clearLearnedPatterns(options = {}) {
   }
   invalidatePatternCache();
 }
-var PATTERNS_FILE, patternCache, CACHE_TTL_MS;
+var LAYER_PRIORITY, SELECTOR_STRATEGY_MAP, LOCK_MAX_WAIT_MS, STALE_LOCK_THRESHOLD_MS, discoveredPatternCache, DISCOVERED_CACHE_TTL_MS, PATTERNS_FILE, patternCache, CACHE_TTL_MS;
 var init_patternExtension = __esm({
   "src/llkb/patternExtension.ts"() {
     init_glossary();
     init_paths();
+    init_patternDistance();
+    LAYER_PRIORITY = {
+      "app-specific": 3,
+      "framework": 2,
+      "universal": 1
+    };
+    SELECTOR_STRATEGY_MAP = {
+      "data-testid": "testid",
+      "data-cy": "testid",
+      "data-test": "testid",
+      "role": "role",
+      "aria-label": "label",
+      "css": "css",
+      "text": "text",
+      "xpath": "css"
+      // fallback — xpath not directly supported in LocatorStrategy
+    };
+    LOCK_MAX_WAIT_MS = 5e3;
+    STALE_LOCK_THRESHOLD_MS = 3e4;
+    discoveredPatternCache = null;
+    DISCOVERED_CACHE_TTL_MS = 1e4;
     PATTERNS_FILE = "learned-patterns.json";
     patternCache = null;
     CACHE_TTL_MS = 5e3;
@@ -710,7 +1032,7 @@ var navigationPatterns = [
 var clickPatterns = [
   {
     name: "click-button-quoted",
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+button$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+button$/i,
     primitiveType: "click",
     extract: (match) => ({
       type: "click",
@@ -719,7 +1041,7 @@ var clickPatterns = [
   },
   {
     name: "click-link-quoted",
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+link$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+link$/i,
     primitiveType: "click",
     extract: (match) => ({
       type: "click",
@@ -748,7 +1070,7 @@ var clickPatterns = [
   },
   {
     name: "click-element-quoted",
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']$/i,
     primitiveType: "click",
     extract: (match) => ({
       type: "click",
@@ -757,7 +1079,7 @@ var clickPatterns = [
   },
   {
     name: "click-element-generic",
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?(.+?)\s+(?:button|link|icon|menu|tab)$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?(.+?)\s+(?:button|link|icon|menu|tab)$/i,
     primitiveType: "click",
     extract: (match) => ({
       type: "click",
@@ -902,6 +1224,7 @@ var visibilityPatterns = [
 var toastPatterns = [
   {
     name: "success-toast-message",
+    // "A success toast with 'Account created' appears" (pre-verb, quoted)
     regex: /^(?:a\s+)?success\s+toast\s+(?:with\s+)?["']([^"']+)["']\s*(?:message\s+)?(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: "expectToast",
     extract: (match) => ({
@@ -911,7 +1234,19 @@ var toastPatterns = [
     })
   },
   {
+    name: "success-toast-appears-with",
+    // "A success toast appears with Account created" (post-verb, unquoted)
+    regex: /^(?:a\s+)?success\s+toast\s+(?:appears?|is\s+shown|displays?)\s+(?:with\s+)?(?:(?:message|text)\s+)?["']?(.+?)["']?$/i,
+    primitiveType: "expectToast",
+    extract: (match) => ({
+      type: "expectToast",
+      toastType: "success",
+      message: match[1]
+    })
+  },
+  {
     name: "error-toast-message",
+    // "An error toast with 'Invalid email' appears" (pre-verb, quoted)
     regex: /^(?:an?\s+)?error\s+toast\s+(?:with\s+)?["']([^"']+)["']\s*(?:message\s+)?(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: "expectToast",
     extract: (match) => ({
@@ -921,17 +1256,30 @@ var toastPatterns = [
     })
   },
   {
-    name: "toast-appears",
-    regex: /^(?:a\s+)?(success|error|info|warning)\s+toast\s+(?:appears?|is\s+shown|displays?)$/i,
+    name: "error-toast-appears-with",
+    // "An error toast appears with Invalid email" (post-verb, unquoted)
+    regex: /^(?:an?\s+)?error\s+toast\s+(?:appears?|is\s+shown|displays?)\s+(?:with\s+)?(?:(?:message|text)\s+)?["']?(.+?)["']?$/i,
     primitiveType: "expectToast",
     extract: (match) => ({
       type: "expectToast",
-      toastType: match[1].toLowerCase()
+      toastType: "error",
+      message: match[1]
+    })
+  },
+  {
+    name: "toast-appears",
+    // "A success toast appears" or "A toast notification appears"
+    regex: /^(?:a\s+)?(?:(success|error|info|warning)\s+)?toast\s+(?:notification\s+)?(?:appears?|is\s+shown|displays?)$/i,
+    primitiveType: "expectToast",
+    extract: (match) => ({
+      type: "expectToast",
+      toastType: match[1]?.toLowerCase() ?? "info"
     })
   },
   {
     name: "toast-with-text",
-    regex: /^(?:toast|notification)\s+(?:with\s+)?["']([^"']+)["']\s+(?:appears?|is\s+shown|displays?)$/i,
+    // "Toast with text 'Hello' appears" (quoted) or "Toast with text Hello appears" (unquoted)
+    regex: /^(?:a\s+)?(?:toast|notification)\s+(?:with\s+)?(?:(?:text|message)\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: "expectToast",
     extract: (match) => ({
       type: "expectToast",
@@ -1144,8 +1492,8 @@ var structuredPatterns = [
 var extendedClickPatterns = [
   {
     name: "click-on-element",
-    // "Click on Submit" or "Click on the Submit button"
-    regex: /^(?:user\s+)?clicks?\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
+    // "Click on Submit" or "Click on the Submit button" or "Select on the item"
+    regex: /^(?:user\s+)?(?:clicks?|selects?)\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
     primitiveType: "click",
     extract: (match) => ({
       type: "click",
@@ -1214,6 +1562,17 @@ var extendedClickPatterns = [
   }
 ];
 var extendedFillPatterns = [
+  {
+    name: "fill-field-with-value",
+    // "Fill the username field with john" or "Fill the 'description' field with 'the value'"
+    regex: /^(?:user\s+)?(?:fills?|enters?|types?|inputs?)(?:\s+in)?\s+(?:the\s+)?["']?(.+?)["']?\s+(?:field|input)\s+with\s+["']?(.+?)["']?$/i,
+    primitiveType: "fill",
+    extract: (match) => ({
+      type: "fill",
+      locator: createLocatorFromMatch("label", match[1].replace(/["']/g, "")),
+      value: createValueFromText(match[2].replace(/["']/g, ""))
+    })
+  },
   {
     name: "type-into-field",
     // "Type 'password' into the Password field"
@@ -1514,6 +1873,17 @@ var extendedNavigationPatterns = [
 ];
 var extendedSelectPatterns = [
   {
+    name: "select-from-named-dropdown",
+    // "Select 'USA' from the country dropdown" or "Select 'Large' from the size selector"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+["'](.+?)["']\s+from\s+(?:the\s+)?(.+?)\s*(?:dropdown|select|selector|menu|list)$/i,
+    primitiveType: "select",
+    extract: (match) => ({
+      type: "select",
+      locator: createLocatorFromMatch("label", match[2].trim()),
+      option: match[1]
+    })
+  },
+  {
     name: "select-from-dropdown",
     // "Select 'Option' from dropdown" or "Choose 'Value' from the dropdown"
     regex: /^(?:user\s+)?(?:selects?|chooses?)\s+['"](.+?)['"]\s+from\s+(?:the\s+)?dropdown$/i,
@@ -1526,8 +1896,8 @@ var extendedSelectPatterns = [
   },
   {
     name: "select-option-named",
-    // "Select option 'Value'" or "Choose the 'Option' option"
-    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?['"](.+?)['"](?:\s+option)?$/i,
+    // "Select option 'Value'" or "Select option named 'Premium'" or "Choose the 'Option' option"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?(?:named\s+)?["'](.+?)["'](?:\s+option)?$/i,
     primitiveType: "select",
     extract: (match) => ({
       type: "select",
@@ -2350,14 +2720,14 @@ function mapStepText(text, options = {}) {
     primitive: null,
     sourceText: text,
     isAssertion: false,
-    message: `Could not map step: "${text}"`,
+    message: getBlockedReason(processedText, text),
     matchSource: "none"
   };
 }
 function applyHintsToPrimitive(primitive, hints) {
   const enhanced = { ...primitive };
   if (hasLocatorHints(hints)) {
-    const locatorSpec = buildLocatorFromHints(hints);
+    const locatorSpec = buildLocatorFromHints2(hints);
     if (locatorSpec && "locator" in enhanced) {
       enhanced.locator = locatorSpec;
     }
@@ -2379,7 +2749,7 @@ function applyHintsToPrimitive(primitive, hints) {
   }
   return enhanced;
 }
-function buildLocatorFromHints(hints) {
+function buildLocatorFromHints2(hints) {
   const { locator } = hints;
   if (locator.testid) {
     return { strategy: "testid", value: locator.testid };
@@ -2412,7 +2782,7 @@ function buildLocatorFromHints(hints) {
   return null;
 }
 function createPrimitiveFromHints(text, hints) {
-  const locator = buildLocatorFromHints(hints);
+  const locator = buildLocatorFromHints2(hints);
   if (!locator) return null;
   const lowerText = text.toLowerCase();
   if (lowerText.includes("click") || lowerText.includes("press")) {
@@ -2433,6 +2803,30 @@ function createPrimitiveFromHints(text, hints) {
     return { type: "check", locator };
   }
   return { type: "click", locator };
+}
+function getBlockedReason(normalizedText, originalText) {
+  const text = normalizedText.toLowerCase();
+  const hasQuotedText = /["']/.test(originalText);
+  const hasRole = /button|link|heading|checkbox|radio|textbox|combobox/.test(text);
+  if ((text.includes("click") || text.includes("press") || text.includes("tap")) && !hasQuotedText && !hasRole) {
+    return `Could not map step: "${originalText}" | Reason: No identifiable UI anchor (role, label, testid, or text content) | Suggestion: Rewrite as "Click the 'Label' button" or "Click the button with text 'Label'"`;
+  }
+  if ((text.includes("see") || text.includes("visible") || text.includes("shown") || text.includes("displayed")) && !hasQuotedText) {
+    return `Could not map step: "${originalText}" | Reason: No specific element text or label to locate | Suggestion: Rewrite as "User should see 'Specific Text'" or "'Element Name' is visible"`;
+  }
+  if (text.includes("fill") || text.includes("enter") || text.includes("type") || text.includes("input")) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse field name and value | Suggestion: Rewrite as "Fill 'value' in 'Field Name' field" or "Fill the 'Field Name' field with 'value'"`;
+  }
+  if (text.includes("toast") || text.includes("notification") || text.includes("snackbar")) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse toast type or message | Suggestion: Rewrite as "A success toast appears with 'Message'" or "Toast with text 'Message' appears"`;
+  }
+  if (text.includes("select") || text.includes("choose") || text.includes("dropdown")) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse option and dropdown | Suggestion: Rewrite as "Select 'Option' from 'Dropdown Name'" or "Select 'Option' from dropdown"`;
+  }
+  if (text.includes("go") || text.includes("open") || text.includes("navigate") || text.includes("visit")) {
+    return `Could not map step: "${originalText}" | Reason: Could not parse navigation target | Suggestion: Rewrite as "User navigates to '/path'" or "User opens '/url'"`;
+  }
+  return `Could not map step: "${originalText}" | Reason: No matching pattern found | Suggestion: Check supported patterns with 'artk-autogen patterns list'`;
 }
 
 // src/utils/escaping.ts

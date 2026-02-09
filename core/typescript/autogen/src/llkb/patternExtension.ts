@@ -1,17 +1,295 @@
 /**
  * LLKB Pattern Extension - Learning and promotion of patterns from LLKB
  * @see research/2026-01-27_autogen-empty-stubs-implementation-plan.md Phase 4
+ * @see Task 2 - Fuzzy matching support added 2026-02-04
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, renameSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type { IRPrimitive } from '../ir/types.js';
 // Use the same normalizer as stepMapper for consistent pattern matching
 // This ensures patterns learned during recording match during lookup
 import { normalizeStepText } from '../mapping/glossary.js';
 import { getLlkbRoot as getInferredLlkbRoot } from '../utils/paths.js';
+import { calculateSimilarity } from '../mapping/patternDistance.js';
 
 /**
- * A pattern learned from successful step mappings
+ * Layer priority order for discovered patterns.
+ * app-specific beats framework beats universal.
+ */
+const LAYER_PRIORITY: Record<string, number> = {
+  'app-specific': 3,
+  'framework': 2,
+  'universal': 1,
+};
+
+/**
+ * Map selector hint strategies to Playwright LocatorStrategy names.
+ */
+const SELECTOR_STRATEGY_MAP: Record<string, import('../ir/types.js').LocatorStrategy> = {
+  'data-testid': 'testid',
+  'data-cy': 'testid',
+  'data-test': 'testid',
+  'role': 'role',
+  'aria-label': 'label',
+  'css': 'css',
+  'text': 'text',
+  'xpath': 'css', // fallback — xpath not directly supported in LocatorStrategy
+};
+
+/**
+ * Create a best-effort IRPrimitive from a string type name and optional selector hints.
+ *
+ * Discovered patterns store `mappedPrimitive` as a string (e.g., "click", "fill").
+ * This function constructs a valid IRPrimitive object so discovered patterns can
+ * participate in AutoGen matching and code generation.
+ *
+ * Returns null only for unrecognized type names.
+ */
+function createIRPrimitiveFromDiscovered(
+  typeName: string,
+  selectorHints?: Array<{ strategy: string; value: string; confidence?: number }>
+): IRPrimitive | null {
+  // Build a LocatorSpec from the best selector hint
+  const locator = buildLocatorFromHints(selectorHints);
+
+  switch (typeName) {
+    // Interactions
+    case 'click':
+      return { type: 'click', locator };
+    case 'dblclick':
+      return { type: 'dblclick', locator };
+    case 'fill':
+      return { type: 'fill', locator, value: { type: 'literal', value: '{{input}}' } };
+    case 'check':
+      return { type: 'check', locator };
+    case 'uncheck':
+      return { type: 'uncheck', locator };
+    case 'select':
+      return { type: 'select', locator, option: '{{option}}' };
+    case 'hover':
+      return { type: 'hover', locator };
+    case 'clear':
+      return { type: 'clear', locator };
+    case 'press':
+      return { type: 'press', key: 'Enter', locator };
+
+    // Navigation
+    case 'navigate':
+    case 'goto':
+      return { type: 'goto', url: '{{url}}' };
+    case 'goBack':
+      return { type: 'goBack' };
+    case 'reload':
+      return { type: 'reload' };
+
+    // Assertions
+    case 'assert':
+    case 'expectVisible':
+      return { type: 'expectVisible', locator };
+    case 'expectText':
+      return { type: 'expectText', locator, text: '{{text}}' };
+    case 'expectURL':
+      return { type: 'expectURL', pattern: '{{pattern}}' };
+
+    // Wait
+    case 'waitForVisible':
+      return { type: 'waitForVisible', locator };
+
+    // File upload
+    case 'upload':
+      return { type: 'upload', locator, files: ['{{file}}'] };
+
+    // Keyboard shortcut (template-generators uses 'keyboard' for modal Escape etc.)
+    case 'keyboard':
+      return { type: 'press', key: 'Escape', locator };
+
+    // Drag has no IR type — patterns using 'drag' (e.g., column resize) cannot
+    // be mapped to code generation yet. Return null so they are skipped gracefully.
+    case 'drag':
+      return null;
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Build a LocatorSpec from discovered pattern selector hints.
+ * Falls back to a generic testid locator if no hints available.
+ */
+function buildLocatorFromHints(
+  hints?: Array<{ strategy: string; value: string; confidence?: number }>
+): import('../ir/types.js').LocatorSpec {
+  if (!hints || hints.length === 0) {
+    return { strategy: 'testid', value: '{{locator}}' };
+  }
+
+  // Sort by confidence descending, pick the best
+  const sorted = [...hints].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+  const best = sorted[0]!;
+
+  const strategy = SELECTOR_STRATEGY_MAP[best.strategy] ?? 'testid';
+  return { strategy, value: best.value };
+}
+
+// =============================================================================
+// File Locking (inline implementation for autogen package)
+// Prevents lost writes when concurrent generate calls race on learned-patterns.json
+// =============================================================================
+
+const LOCK_MAX_WAIT_MS = 5000;
+const STALE_LOCK_THRESHOLD_MS = 30000;
+const LOCK_RETRY_INTERVAL_MS = 50;
+
+function acquireFileLock(filePath: string): boolean {
+  const lockPath = `${filePath}.lock`;
+  try {
+    // Ensure parent directory exists before creating lock file
+    const dir = dirname(lockPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    if (existsSync(lockPath)) {
+      const lockAge = Date.now() - statSync(lockPath).mtimeMs;
+      if (lockAge > STALE_LOCK_THRESHOLD_MS) {
+        unlinkSync(lockPath);
+      } else {
+        return false;
+      }
+    }
+    writeFileSync(lockPath, String(Date.now()), { flag: 'wx' });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw error;
+  }
+}
+
+function releaseFileLock(filePath: string): void {
+  const lockPath = `${filePath}.lock`;
+  try { if (existsSync(lockPath)) unlinkSync(lockPath); } catch { /* ignore */ }
+}
+
+function withFileLockSync<T>(filePath: string, fn: () => T): T {
+  const start = Date.now();
+  while (Date.now() - start < LOCK_MAX_WAIT_MS) {
+    if (acquireFileLock(filePath)) {
+      try {
+        return fn();
+      } finally {
+        releaseFileLock(filePath);
+      }
+    }
+    // Busy-wait retry
+    const end = Date.now() + LOCK_RETRY_INTERVAL_MS;
+    while (Date.now() < end) { /* spin */ }
+  }
+  // Timeout — proceed without lock rather than failing silently
+  console.warn(`[LLKB] Could not acquire lock on ${filePath} within ${LOCK_MAX_WAIT_MS}ms, proceeding without lock`);
+  return fn();
+}
+
+/**
+ * Type guard: check if a value is a valid IRPrimitive object.
+ * Discovered patterns store mappedPrimitive as a string type name ("click", "fill"),
+ * while learned patterns store the full IRPrimitive object ({type: 'click', locator: ...}).
+ * This guard distinguishes the two cases safely.
+ */
+function isIRPrimitiveObject(value: unknown): value is IRPrimitive {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof (value as Record<string, unknown>).type === 'string'
+  );
+}
+
+/**
+ * A discovered pattern loaded from discovered-patterns.json
+ */
+interface DiscoveredPatternEntry {
+  id: string;
+  normalizedText: string;
+  originalText: string;
+  mappedPrimitive: string;
+  confidence: number;
+  layer: 'app-specific' | 'framework' | 'universal';
+  category?: string;
+  selectorHints?: Array<{ strategy: string; value: string; confidence?: number }>;
+  sourceJourneys?: string[];
+  successCount?: number;
+  failCount?: number;
+}
+
+/**
+ * Cache for discovered patterns (separate from learned patterns cache)
+ */
+interface DiscoveredPatternCache {
+  patterns: DiscoveredPatternEntry[];
+  llkbRoot: string;
+  loadedAt: number;
+}
+
+let discoveredPatternCache: DiscoveredPatternCache | null = null;
+const DISCOVERED_CACHE_TTL_MS = 10_000; // 10 second cache TTL (less volatile than learned patterns)
+
+/**
+ * Load discovered patterns from discovered-patterns.json
+ */
+function loadDiscoveredPatternsForMatching(llkbRoot: string): DiscoveredPatternEntry[] {
+  const now = Date.now();
+
+  // Check cache
+  if (
+    discoveredPatternCache &&
+    discoveredPatternCache.llkbRoot === llkbRoot &&
+    now - discoveredPatternCache.loadedAt < DISCOVERED_CACHE_TTL_MS
+  ) {
+    return discoveredPatternCache.patterns;
+  }
+
+  const filePath = join(llkbRoot, 'discovered-patterns.json');
+  if (!existsSync(filePath)) {
+    discoveredPatternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const data = JSON.parse(content);
+    // SEC-F03: Runtime shape validation after JSON.parse
+    if (typeof data !== 'object' || data === null) {
+      console.warn(`[LLKB] Invalid discovered patterns shape in ${filePath}`);
+      discoveredPatternCache = { patterns: [], llkbRoot, loadedAt: now };
+      return [];
+    }
+    const patterns: DiscoveredPatternEntry[] = Array.isArray(data.patterns) ? data.patterns : [];
+
+    discoveredPatternCache = { patterns, llkbRoot, loadedAt: now };
+    return patterns;
+  } catch (err) {
+    console.warn(`[LLKB] Failed to load discovered patterns from ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+    discoveredPatternCache = { patterns: [], llkbRoot, loadedAt: now };
+    return [];
+  }
+}
+
+/**
+ * Invalidate the discovered pattern cache
+ */
+export function invalidateDiscoveredPatternCache(): void {
+  discoveredPatternCache = null;
+}
+
+/**
+ * A pattern learned from successful step mappings (runtime matching format).
+ *
+ * This is the rich runtime type used by AutoGen for pattern matching during
+ * test generation. It stores `mappedPrimitive` as a full `IRPrimitive` object.
+ *
+ * NOTE: This is distinct from core LLKB's `LearnedPattern` (aka `LearnedPatternEntry`)
+ * in pattern-generation.ts, which stores `irPrimitive` as a string type name for
+ * persistence/merge operations. See I-01 in the review for context.
  */
 export interface LearnedPattern {
   /** Unique identifier */
@@ -153,13 +431,19 @@ export function loadLearnedPatterns(options: { llkbRoot?: string; bypassCache?: 
   try {
     const content = readFileSync(filePath, 'utf-8');
     const data = JSON.parse(content);
+    // SEC-F03: Runtime shape validation after JSON.parse
+    if (typeof data !== 'object' || data === null) {
+      console.warn(`[LLKB] Invalid learned patterns shape in ${filePath}`);
+      patternCache = { patterns: [], llkbRoot, loadedAt: now };
+      return [];
+    }
     const patterns = Array.isArray(data.patterns) ? data.patterns : [];
 
     // Update cache
     patternCache = { patterns, llkbRoot, loadedAt: now };
     return patterns;
-  } catch {
-    // Cache empty result on error
+  } catch (err) {
+    console.warn(`[LLKB] Failed to load learned patterns from ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
     patternCache = { patterns: [], llkbRoot, loadedAt: now };
     return [];
   }
@@ -185,7 +469,17 @@ export function saveLearnedPatterns(
     patterns,
   };
 
-  writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  // SEC-F08: Use atomic write via temp file + rename to prevent corruption
+  const content = JSON.stringify(data, null, 2);
+  const tempPath = `${filePath}.tmp.${Date.now()}`;
+  try {
+    writeFileSync(tempPath, content, 'utf-8');
+    renameSync(tempPath, filePath);
+  } catch (err) {
+    // Clean up temp file on failure
+    try { if (existsSync(tempPath)) unlinkSync(tempPath); } catch { /* ignore */ }
+    throw err;
+  }
 
   // Invalidate cache after write
   invalidatePatternCache();
@@ -220,40 +514,42 @@ export function recordPatternSuccess(
   journeyId: string,
   options: { llkbRoot?: string } = {}
 ): LearnedPattern {
-  const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepText(originalText);
+  const filePath = getPatternsFilePath(options.llkbRoot);
 
-  // Find existing pattern
-  let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  return withFileLockSync(filePath, () => {
+    // Re-load inside lock to prevent lost-write race condition
+    const patterns = loadLearnedPatterns({ ...options, bypassCache: true });
+    const normalizedText = normalizeStepText(originalText);
 
-  if (pattern) {
-    // Update existing
-    pattern.successCount++;
-    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
-    pattern.lastUsed = new Date().toISOString();
-    if (!pattern.sourceJourneys.includes(journeyId)) {
-      pattern.sourceJourneys.push(journeyId);
+    let pattern = patterns.find((p) => p.normalizedText === normalizedText);
+
+    if (pattern) {
+      pattern.successCount++;
+      pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+      pattern.lastUsed = new Date().toISOString();
+      if (!pattern.sourceJourneys.includes(journeyId)) {
+        pattern.sourceJourneys.push(journeyId);
+      }
+    } else {
+      pattern = {
+        id: generatePatternId(),
+        originalText,
+        normalizedText,
+        mappedPrimitive: primitive,
+        confidence: 0.5,
+        sourceJourneys: [journeyId],
+        successCount: 1,
+        failCount: 0,
+        lastUsed: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        promotedToCore: false,
+      };
+      patterns.push(pattern);
     }
-  } else {
-    // Create new
-    pattern = {
-      id: generatePatternId(),
-      originalText,
-      normalizedText,
-      mappedPrimitive: primitive,
-      confidence: 0.5, // Initial confidence
-      sourceJourneys: [journeyId],
-      successCount: 1,
-      failCount: 0,
-      lastUsed: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      promotedToCore: false,
-    };
-    patterns.push(pattern);
-  }
 
-  saveLearnedPatterns(patterns, options);
-  return pattern;
+    saveLearnedPatterns(patterns, options);
+    return pattern;
+  });
 }
 
 /**
@@ -264,44 +560,232 @@ export function recordPatternFailure(
   _journeyId: string,
   options: { llkbRoot?: string } = {}
 ): LearnedPattern | null {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+
+  return withFileLockSync(filePath, () => {
+    // Re-load inside lock to prevent lost-write race condition
+    const patterns = loadLearnedPatterns({ ...options, bypassCache: true });
+    const normalizedText = normalizeStepText(originalText);
+
+    const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+
+    if (pattern) {
+      pattern.failCount++;
+      pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
+      pattern.lastUsed = new Date().toISOString();
+      saveLearnedPatterns(patterns, options);
+      return pattern;
+    }
+
+    return null;
+  });
+}
+
+/**
+ * Options for LLKB pattern matching
+ */
+export interface LlkbMatchOptions {
+  /** LLKB root directory */
+  llkbRoot?: string;
+  /** Minimum pattern confidence to consider (default: 0.5) */
+  minConfidence?: number;
+  /** Minimum text similarity for fuzzy match (default: 0.7) */
+  minSimilarity?: number;
+  /** Whether to use fuzzy matching (default: true) */
+  useFuzzyMatch?: boolean;
+}
+
+/**
+ * Match text against learned LLKB patterns and discovered patterns.
+ *
+ * Search order with layer priority:
+ * 1. Learned patterns (exact match, then fuzzy match)
+ * 2. Discovered patterns (exact match, then fuzzy match)
+ *    - Layer priority: app-specific > framework > universal
+ *
+ * When both sources return a match, the higher-layer discovered pattern
+ * wins if it has equal or higher confidence than the learned pattern match.
+ */
+export function matchLlkbPattern(
+  text: string,
+  options: LlkbMatchOptions = {}
+): LlkbPatternMatch | null {
+  const normalizedText = normalizeStepText(text);
+  const minConfidence = options.minConfidence ?? 0.5;
+  const minSimilarity = options.minSimilarity ?? 0.7;
+  const useFuzzyMatch = options.useFuzzyMatch ?? true;
+
+  // --- Phase 1: Search learned patterns ---
+  const learnedMatch = matchLearnedPatterns(normalizedText, minConfidence, minSimilarity, useFuzzyMatch, options);
+
+  // --- Phase 2: Search discovered patterns (layer-priority) ---
+  const discoveredMatch = matchDiscoveredPatterns(normalizedText, minConfidence, minSimilarity, useFuzzyMatch, options);
+
+  // No matches at all
+  if (!learnedMatch && !discoveredMatch) {
+    return null;
+  }
+
+  // Only one source matched
+  if (!discoveredMatch) return learnedMatch;
+  if (!learnedMatch) return discoveredMatch;
+
+  // Both matched - discovered pattern with higher layer priority wins on ties
+  if (discoveredMatch.confidence >= learnedMatch.confidence) {
+    return discoveredMatch;
+  }
+
+  return learnedMatch;
+}
+
+/**
+ * Match against learned patterns (original logic extracted)
+ */
+function matchLearnedPatterns(
+  normalizedText: string,
+  minConfidence: number,
+  minSimilarity: number,
+  useFuzzyMatch: boolean,
+  options: LlkbMatchOptions
+): LlkbPatternMatch | null {
   const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepText(originalText);
 
-  const pattern = patterns.find((p) => p.normalizedText === normalizedText);
+  // Exact match (fast path)
+  const exactMatch = patterns.find(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  );
 
-  if (pattern) {
-    pattern.failCount++;
-    pattern.confidence = calculateConfidence(pattern.successCount, pattern.failCount);
-    pattern.lastUsed = new Date().toISOString();
-    saveLearnedPatterns(patterns, options);
-    return pattern;
+  if (exactMatch) {
+    return {
+      patternId: exactMatch.id,
+      primitive: exactMatch.mappedPrimitive,
+      confidence: exactMatch.confidence,
+    };
+  }
+
+  // Fuzzy match
+  if (useFuzzyMatch) {
+    let bestMatch: LearnedPattern | null = null;
+    let bestSimilarity = 0;
+
+    for (const pattern of patterns) {
+      if (pattern.promotedToCore || pattern.confidence < minConfidence) {
+        continue;
+      }
+
+      const similarity = calculateSimilarity(normalizedText, pattern.normalizedText);
+
+      if (similarity >= minSimilarity && similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestMatch = pattern;
+      }
+    }
+
+    if (bestMatch) {
+      return {
+        patternId: bestMatch.id,
+        primitive: bestMatch.mappedPrimitive,
+        confidence: bestMatch.confidence * bestSimilarity,
+      };
+    }
   }
 
   return null;
 }
 
 /**
- * Match text against learned LLKB patterns
+ * Match against discovered patterns with layer priority.
+ * Among exact matches, the highest-layer pattern wins.
+ * Falls back to fuzzy matching if no exact match found.
  */
-export function matchLlkbPattern(
-  text: string,
-  options: { llkbRoot?: string; minConfidence?: number } = {}
+function matchDiscoveredPatterns(
+  normalizedText: string,
+  minConfidence: number,
+  minSimilarity: number,
+  useFuzzyMatch: boolean,
+  options: LlkbMatchOptions
 ): LlkbPatternMatch | null {
-  const patterns = loadLearnedPatterns(options);
-  const normalizedText = normalizeStepText(text);
-  const minConfidence = options.minConfidence ?? 0.7;
+  const llkbRoot = getInferredLlkbRoot(options.llkbRoot);
+  const patterns = loadDiscoveredPatternsForMatching(llkbRoot);
 
-  // Find exact normalized match with sufficient confidence
-  const match = patterns.find(
-    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence && !p.promotedToCore
+  if (patterns.length === 0) return null;
+
+  // Exact matches - collect all, pick highest layer priority
+  const exactMatches = patterns.filter(
+    (p) => p.normalizedText === normalizedText && p.confidence >= minConfidence
   );
 
-  if (match) {
+  if (exactMatches.length > 0) {
+    // Sort by layer priority (highest first), then by confidence
+    exactMatches.sort((a, b) => {
+      const layerDiff = (LAYER_PRIORITY[b.layer] ?? 0) - (LAYER_PRIORITY[a.layer] ?? 0);
+      return layerDiff !== 0 ? layerDiff : b.confidence - a.confidence;
+    });
+
+    const best = exactMatches[0]!;
+    // Discovered patterns store type name strings; learned patterns store full IR objects.
+    let primitive: IRPrimitive | null;
+    if (isIRPrimitiveObject(best.mappedPrimitive)) {
+      primitive = best.mappedPrimitive;
+    } else {
+      // Convert string type name (e.g. "click") to a full IRPrimitive object
+      primitive = createIRPrimitiveFromDiscovered(
+        best.mappedPrimitive as unknown as string,
+        best.selectorHints
+      );
+    }
+    if (!primitive) return null; // unrecognized type name
     return {
-      patternId: match.id,
-      primitive: match.mappedPrimitive,
-      confidence: match.confidence,
+      patternId: best.id,
+      primitive,
+      confidence: best.confidence,
     };
+  }
+
+  // Fuzzy match with layer priority
+  if (useFuzzyMatch) {
+    let bestMatch: DiscoveredPatternEntry | null = null;
+    let bestSimilarity = 0;
+    let bestLayerPriority = 0;
+
+    for (const pattern of patterns) {
+      if (pattern.confidence < minConfidence) continue;
+
+      const similarity = calculateSimilarity(normalizedText, pattern.normalizedText);
+
+      if (similarity < minSimilarity) continue;
+
+      const layerPriority = LAYER_PRIORITY[pattern.layer] ?? 0;
+
+      // Prefer higher layer, then higher similarity
+      if (
+        layerPriority > bestLayerPriority ||
+        (layerPriority === bestLayerPriority && similarity > bestSimilarity)
+      ) {
+        bestMatch = pattern;
+        bestSimilarity = similarity;
+        bestLayerPriority = layerPriority;
+      }
+    }
+
+    if (bestMatch) {
+      // Discovered patterns store type name strings; learned patterns store full IR objects.
+      let primitive: IRPrimitive | null;
+      if (isIRPrimitiveObject(bestMatch.mappedPrimitive)) {
+        primitive = bestMatch.mappedPrimitive;
+      } else {
+        primitive = createIRPrimitiveFromDiscovered(
+          bestMatch.mappedPrimitive as unknown as string,
+          bestMatch.selectorHints
+        );
+      }
+      if (!primitive) return null; // unrecognized type name
+      return {
+        patternId: bestMatch.id,
+        primitive,
+        confidence: bestMatch.confidence * bestSimilarity,
+      };
+    }
   }
 
   return null;

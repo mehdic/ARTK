@@ -603,7 +603,18 @@ declare function isLlmFallbackAvailable(config?: Partial<LlmFallbackConfig>): {
 };
 
 /**
- * A pattern learned from successful step mappings
+ * Invalidate the discovered pattern cache
+ */
+declare function invalidateDiscoveredPatternCache(): void;
+/**
+ * A pattern learned from successful step mappings (runtime matching format).
+ *
+ * This is the rich runtime type used by AutoGen for pattern matching during
+ * test generation. It stores `mappedPrimitive` as a full `IRPrimitive` object.
+ *
+ * NOTE: This is distinct from core LLKB's `LearnedPattern` (aka `LearnedPatternEntry`)
+ * in pattern-generation.ts, which stores `irPrimitive` as a string type name for
+ * persistence/merge operations. See I-01 in the review for context.
  */
 interface LearnedPattern {
     /** Unique identifier */
@@ -729,14 +740,15 @@ interface LlkbMatchOptions {
     useFuzzyMatch?: boolean;
 }
 /**
- * Match text against learned LLKB patterns
+ * Match text against learned LLKB patterns and discovered patterns.
  *
- * Uses a two-phase approach:
- * 1. Try exact normalized text match (fast path)
- * 2. If no exact match, use fuzzy similarity matching
+ * Search order with layer priority:
+ * 1. Learned patterns (exact match, then fuzzy match)
+ * 2. Discovered patterns (exact match, then fuzzy match)
+ *    - Layer priority: app-specific > framework > universal
  *
- * Fuzzy matching compares the input text against all learned patterns
- * and returns the best match above the similarity threshold.
+ * When both sources return a match, the higher-layer discovered pattern
+ * wins if it has equal or higher confidence than the learned pattern match.
  */
 declare function matchLlkbPattern(text: string, options?: LlkbMatchOptions): LlkbPatternMatch | null;
 /**
@@ -797,4 +809,4 @@ declare function clearLearnedPatterns(options?: {
     llkbRoot?: string;
 }): void;
 
-export { type BlockedStepAnalysis, type BlockedStepRecord, DEFAULT_LLM_CONFIG, type FuzzyMatchConfig, type FuzzyMatchResult, type LearnedPattern, type LlkbMatchOptions, type LlkbPatternMatch, type LlmFallbackConfig, type LlmFallbackResult, type LlmFallbackTelemetry, type LlmProvider, type NearestPatternResult, type NormalizeOptions, type PatternDefinition, type PatternGap, type PromotedPattern, type PruneOptions, type StepCategory, StepPattern, type StepSuggestion, type TelemetryStats, type UnifiedMatchOptions, type UnifiedMatchResult, analyzeBlockedPatterns, analyzeBlockedStep, areStepsEquivalent, calculateConfidence, calculateSimilarity, categorizeStep, categorizeStepText, clearFuzzyMatchCache, clearLearnedPatterns, clearLlmResponseCache, clearTelemetry, expandAbbreviations, explainMismatch, exportPatternsToConfig, findNearestPattern, formatBlockedStepAnalysis, fuzzyMatch, generatePatternId, generateRegexFromText, getAllNormalizations, getAssertionSuggestions, getCanonicalForm, getCorePatterns, getFuzzyMatchStats, getGenericSuggestions, getInteractionSuggestions, getLightNormalization, getLlmFallbackTelemetry, getMatchedPatternName, getNavigationSuggestions, getPatternStats, getPatternsFilePath, getPromotablePatterns, getTelemetryPath, getTelemetryStats, getUnifiedMatcherStats, getWaitSuggestions, hasPatternMatch, inferMachineHint, invalidatePatternCache, irPrimitiveToPlannedAction, isLlmFallbackAvailable, levenshteinDistance, llmFallback, loadLearnedPatterns, markPatternsPromoted, matchLlkbPattern, normalizeStepTextEnhanced, normalizeStepTextForTelemetry, plannedActionToIRPrimitive, prunePatterns, readBlockedStepRecords, recordBlockedStep, recordPatternFailure, recordPatternSuccess, recordUserFix, removeActorPrefixes, removeStopWords, resetLlmFallbackTelemetry, saveLearnedPatterns, stemWord, unifiedMatch, unifiedMatchAll, validateLlmPrimitive, warmUpUnifiedMatcher };
+export { type BlockedStepAnalysis, type BlockedStepRecord, DEFAULT_LLM_CONFIG, type FuzzyMatchConfig, type FuzzyMatchResult, type LearnedPattern, type LlkbMatchOptions, type LlkbPatternMatch, type LlmFallbackConfig, type LlmFallbackResult, type LlmFallbackTelemetry, type LlmProvider, type NearestPatternResult, type NormalizeOptions, type PatternDefinition, type PatternGap, type PromotedPattern, type PruneOptions, type StepCategory, StepPattern, type StepSuggestion, type TelemetryStats, type UnifiedMatchOptions, type UnifiedMatchResult, analyzeBlockedPatterns, analyzeBlockedStep, areStepsEquivalent, calculateConfidence, calculateSimilarity, categorizeStep, categorizeStepText, clearFuzzyMatchCache, clearLearnedPatterns, clearLlmResponseCache, clearTelemetry, expandAbbreviations, explainMismatch, exportPatternsToConfig, findNearestPattern, formatBlockedStepAnalysis, fuzzyMatch, generatePatternId, generateRegexFromText, getAllNormalizations, getAssertionSuggestions, getCanonicalForm, getCorePatterns, getFuzzyMatchStats, getGenericSuggestions, getInteractionSuggestions, getLightNormalization, getLlmFallbackTelemetry, getMatchedPatternName, getNavigationSuggestions, getPatternStats, getPatternsFilePath, getPromotablePatterns, getTelemetryPath, getTelemetryStats, getUnifiedMatcherStats, getWaitSuggestions, hasPatternMatch, inferMachineHint, invalidateDiscoveredPatternCache, invalidatePatternCache, irPrimitiveToPlannedAction, isLlmFallbackAvailable, levenshteinDistance, llmFallback, loadLearnedPatterns, markPatternsPromoted, matchLlkbPattern, normalizeStepTextEnhanced, normalizeStepTextForTelemetry, plannedActionToIRPrimitive, prunePatterns, readBlockedStepRecords, recordBlockedStep, recordPatternFailure, recordPatternSuccess, recordUserFix, removeActorPrefixes, removeStopWords, resetLlmFallbackTelemetry, saveLearnedPatterns, stemWord, unifiedMatch, unifiedMatchAll, validateLlmPrimitive, warmUpUnifiedMatcher };

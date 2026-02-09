@@ -128,7 +128,7 @@ export const navigationPatterns: StepPattern[] = [
 export const clickPatterns: StepPattern[] = [
   {
     name: 'click-button-quoted',
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+button$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+button$/i,
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
@@ -137,7 +137,7 @@ export const clickPatterns: StepPattern[] = [
   },
   {
     name: 'click-link-quoted',
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+link$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']\s+link$/i,
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
@@ -166,7 +166,7 @@ export const clickPatterns: StepPattern[] = [
   },
   {
     name: 'click-element-quoted',
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?["']([^"']+)["']$/i,
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
@@ -175,7 +175,7 @@ export const clickPatterns: StepPattern[] = [
   },
   {
     name: 'click-element-generic',
-    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?)\s+(?:on\s+)?(?:the\s+)?(.+?)\s+(?:button|link|icon|menu|tab)$/i,
+    regex: /^(?:user\s+)?(?:clicks?|presses?|taps?|selects?)\s+(?:on\s+)?(?:the\s+)?(.+?)\s+(?:button|link|icon|menu|tab)$/i,
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
@@ -340,6 +340,7 @@ export const visibilityPatterns: StepPattern[] = [
 export const toastPatterns: StepPattern[] = [
   {
     name: 'success-toast-message',
+    // "A success toast with 'Account created' appears" (pre-verb, quoted)
     regex: /^(?:a\s+)?success\s+toast\s+(?:with\s+)?["']([^"']+)["']\s*(?:message\s+)?(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: 'expectToast',
     extract: (match) => ({
@@ -349,7 +350,19 @@ export const toastPatterns: StepPattern[] = [
     }),
   },
   {
+    name: 'success-toast-appears-with',
+    // "A success toast appears with Account created" (post-verb, unquoted)
+    regex: /^(?:a\s+)?success\s+toast\s+(?:appears?|is\s+shown|displays?)\s+(?:with\s+)?(?:(?:message|text)\s+)?["']?(.+?)["']?$/i,
+    primitiveType: 'expectToast',
+    extract: (match) => ({
+      type: 'expectToast',
+      toastType: 'success',
+      message: match[1]!,
+    }),
+  },
+  {
     name: 'error-toast-message',
+    // "An error toast with 'Invalid email' appears" (pre-verb, quoted)
     regex: /^(?:an?\s+)?error\s+toast\s+(?:with\s+)?["']([^"']+)["']\s*(?:message\s+)?(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: 'expectToast',
     extract: (match) => ({
@@ -359,17 +372,30 @@ export const toastPatterns: StepPattern[] = [
     }),
   },
   {
-    name: 'toast-appears',
-    regex: /^(?:a\s+)?(success|error|info|warning)\s+toast\s+(?:appears?|is\s+shown|displays?)$/i,
+    name: 'error-toast-appears-with',
+    // "An error toast appears with Invalid email" (post-verb, unquoted)
+    regex: /^(?:an?\s+)?error\s+toast\s+(?:appears?|is\s+shown|displays?)\s+(?:with\s+)?(?:(?:message|text)\s+)?["']?(.+?)["']?$/i,
     primitiveType: 'expectToast',
     extract: (match) => ({
       type: 'expectToast',
-      toastType: match[1]!.toLowerCase() as 'success' | 'error' | 'info' | 'warning',
+      toastType: 'error',
+      message: match[1]!,
+    }),
+  },
+  {
+    name: 'toast-appears',
+    // "A success toast appears" or "A toast notification appears"
+    regex: /^(?:a\s+)?(?:(success|error|info|warning)\s+)?toast\s+(?:notification\s+)?(?:appears?|is\s+shown|displays?)$/i,
+    primitiveType: 'expectToast',
+    extract: (match) => ({
+      type: 'expectToast',
+      toastType: (match[1]?.toLowerCase() ?? 'info') as 'success' | 'error' | 'info' | 'warning',
     }),
   },
   {
     name: 'toast-with-text',
-    regex: /^(?:toast|notification)\s+(?:with\s+)?["']([^"']+)["']\s+(?:appears?|is\s+shown|displays?)$/i,
+    // "Toast with text 'Hello' appears" (quoted) or "Toast with text Hello appears" (unquoted)
+    regex: /^(?:a\s+)?(?:toast|notification)\s+(?:with\s+)?(?:(?:text|message)\s+)?["']?(.+?)["']?\s+(?:appears?|is\s+shown|displays?)$/i,
     primitiveType: 'expectToast',
     extract: (match) => ({
       type: 'expectToast',
@@ -633,8 +659,8 @@ export const structuredPatterns: StepPattern[] = [
 export const extendedClickPatterns: StepPattern[] = [
   {
     name: 'click-on-element',
-    // "Click on Submit" or "Click on the Submit button"
-    regex: /^(?:user\s+)?clicks?\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
+    // "Click on Submit" or "Click on the Submit button" or "Select on the item"
+    regex: /^(?:user\s+)?(?:clicks?|selects?)\s+on\s+(?:the\s+)?(.+?)(?:\s+button|\s+link)?$/i,
     primitiveType: 'click',
     extract: (match) => ({
       type: 'click',
@@ -708,6 +734,17 @@ export const extendedClickPatterns: StepPattern[] = [
  * Added in v1.1.0 based on telemetry analysis
  */
 export const extendedFillPatterns: StepPattern[] = [
+  {
+    name: 'fill-field-with-value',
+    // "Fill the username field with john" or "Fill the 'description' field with 'the value'"
+    regex: /^(?:user\s+)?(?:fills?|enters?|types?|inputs?)(?:\s+in)?\s+(?:the\s+)?["']?(.+?)["']?\s+(?:field|input)\s+with\s+["']?(.+?)["']?$/i,
+    primitiveType: 'fill',
+    extract: (match) => ({
+      type: 'fill',
+      locator: createLocatorFromMatch('label', match[1]!.replace(/["']/g, '')),
+      value: createValueFromText(match[2]!.replace(/["']/g, '')),
+    }),
+  },
   {
     name: 'type-into-field',
     // "Type 'password' into the Password field"
@@ -1037,6 +1074,17 @@ export const extendedNavigationPatterns: StepPattern[] = [
  */
 export const extendedSelectPatterns: StepPattern[] = [
   {
+    name: 'select-from-named-dropdown',
+    // "Select 'USA' from the country dropdown" or "Select 'Large' from the size selector"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+["'](.+?)["']\s+from\s+(?:the\s+)?(.+?)\s*(?:dropdown|select|selector|menu|list)$/i,
+    primitiveType: 'select',
+    extract: (match) => ({
+      type: 'select',
+      locator: createLocatorFromMatch('label', match[2]!.trim()),
+      option: match[1]!,
+    }),
+  },
+  {
     name: 'select-from-dropdown',
     // "Select 'Option' from dropdown" or "Choose 'Value' from the dropdown"
     regex: /^(?:user\s+)?(?:selects?|chooses?)\s+['"](.+?)['"]\s+from\s+(?:the\s+)?dropdown$/i,
@@ -1049,8 +1097,8 @@ export const extendedSelectPatterns: StepPattern[] = [
   },
   {
     name: 'select-option-named',
-    // "Select option 'Value'" or "Choose the 'Option' option"
-    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?['"](.+?)['"](?:\s+option)?$/i,
+    // "Select option 'Value'" or "Select option named 'Premium'" or "Choose the 'Option' option"
+    regex: /^(?:user\s+)?(?:selects?|chooses?)\s+(?:the\s+)?(?:option\s+)?(?:named\s+)?["'](.+?)["'](?:\s+option)?$/i,
     primitiveType: 'select',
     extract: (match) => ({
       type: 'select',

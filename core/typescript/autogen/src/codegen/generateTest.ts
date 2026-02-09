@@ -330,8 +330,17 @@ function renderPrimitive(primitive: IRPrimitive, indent = '', _ctx?: VariantCont
       return `${indent}await ${factoryName}(page).${primitive.method}(${args});`;
 
     // Blocked - must throw to fail the test
-    case 'blocked':
-      return `${indent}// ARTK BLOCKED: ${primitive.reason}\n${indent}// Source: ${escapeString(primitive.sourceText)}\n${indent}throw new Error('ARTK BLOCKED: ${escapeString(primitive.reason)}');`;
+    case 'blocked': {
+      const parts = primitive.reason.split(' | ');
+      const mainReason = parts[0] ?? primitive.reason;
+      const reasonDetail = parts.find(p => p.startsWith('Reason:')) ?? '';
+      const suggestion = parts.find(p => p.startsWith('Suggestion:')) ?? '';
+      const lines = [`${indent}// TODO: ${mainReason}`];
+      if (reasonDetail) lines.push(`${indent}// ${reasonDetail}`);
+      if (suggestion) lines.push(`${indent}// ${suggestion}`);
+      lines.push(`${indent}throw new Error('ARTK BLOCKED: ${escapeString(mainReason)}');`);
+      return lines.join('\n');
+    }
 
     default:
       return `${indent}// Unknown primitive type: ${(primitive as { type: string }).type}`;
@@ -342,7 +351,7 @@ function renderPrimitive(primitive: IRPrimitive, indent = '', _ctx?: VariantCont
  * Create a variant-aware render function for use in templates
  * @internal The ctx parameter is passed through for future variant-specific handling
  */
-function createVariantAwareRenderer(ctx: VariantContext): (primitive: IRPrimitive, indent?: string) => string {
+function createVariantAwareRenderer(ctx: VariantContext): (_primitive: IRPrimitive, _indent?: string) => string {
   // Note: ctx is passed to renderPrimitive for future variant-specific code generation
   // Currently no primitives require variant checking, but the infrastructure is in place
   return (primitive: IRPrimitive, indent = '') => renderPrimitive(primitive, indent, ctx);
