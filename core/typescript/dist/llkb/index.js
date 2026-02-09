@@ -21,7 +21,9 @@ function createSafeDict(entries) {
   return Object.freeze(Object.assign(/* @__PURE__ */ Object.create(null), entries));
 }
 function applyCasePattern(original, result) {
-  if (original.length === 0) return result;
+  if (original.length === 0) {
+    return result;
+  }
   if (original === original.toUpperCase() && /[A-Z]/.test(original)) {
     return result.toUpperCase();
   }
@@ -166,7 +168,9 @@ function getSingularPlural(word) {
   return { singular, plural };
 }
 function isUncountable(word) {
-  if (typeof word !== "string") return false;
+  if (typeof word !== "string") {
+    return false;
+  }
   return UNCOUNTABLE_NOUNS.has(word.toLowerCase());
 }
 var MAX_WORD_LENGTH, UNCOUNTABLE_NOUNS, IRREGULAR_PLURALS, IRREGULAR_SINGULARS;
@@ -887,7 +891,9 @@ async function scanDirectory(dir, cache, options = {}) {
   const extensions = options.extensions ?? DEFAULT_EXTENSIONS2;
   const files = [];
   async function scanRecursive(currentDir, depth) {
-    if (depth > maxDepth || files.length >= maxFiles) return;
+    if (depth > maxDepth || files.length >= maxFiles) {
+      return;
+    }
     let entries;
     try {
       entries = await fsp3.readdir(currentDir, { withFileTypes: true });
@@ -895,14 +901,18 @@ async function scanDirectory(dir, cache, options = {}) {
       return;
     }
     for (const entry of entries) {
-      if (files.length >= maxFiles) break;
+      if (files.length >= maxFiles) {
+        break;
+      }
       const fullPath = path13.join(currentDir, entry.name);
       if (entry.isDirectory()) {
         if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && entry.name !== "coverage" && entry.name !== "__pycache__" && entry.name !== ".git" && entry.name !== ".svn" && !entry.isSymbolicLink()) {
           await scanRecursive(fullPath, depth + 1);
         }
       } else if (entry.isFile() && extensions.some((ext) => entry.name.endsWith(ext))) {
-        if (entry.isSymbolicLink()) continue;
+        if (entry.isSymbolicLink()) {
+          continue;
+        }
         const content = await cache.getContent(fullPath);
         if (content !== null) {
           files.push({ path: fullPath, content });
@@ -925,7 +935,9 @@ async function scanAllSourceDirectories(projectRoot, cache, options = {}) {
     }
     try {
       const stat = await fsp3.lstat(fullPath);
-      if (stat.isSymbolicLink() || !stat.isDirectory()) continue;
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        continue;
+      }
     } catch {
       continue;
     }
@@ -1144,13 +1156,19 @@ var init_mining_cache = __esm({
         for (const file of files) {
           const normalizedPath = path13.resolve(file.path);
           const size = file.size ?? file.content.length * V8_STRING_BYTES_PER_CHAR;
-          if (size > MAX_CACHE_FILE_SIZE) continue;
-          if (!this.canCache(size)) break;
+          if (size > MAX_CACHE_FILE_SIZE) {
+            continue;
+          }
+          if (!this.canCache(size)) {
+            break;
+          }
           let mtime = file.mtime;
           if (mtime === void 0) {
             try {
               const stat = await fsp3.lstat(normalizedPath);
-              if (stat.isSymbolicLink()) continue;
+              if (stat.isSymbolicLink()) {
+                continue;
+              }
               mtime = stat.mtimeMs;
             } catch {
               mtime = Date.now();
@@ -1181,7 +1199,9 @@ var init_mining_cache = __esm({
        */
       getHitRate() {
         const total = this.stats.hits + this.stats.misses;
-        if (total === 0) return 0;
+        if (total === 0) {
+          return 0;
+        }
         return Math.round(this.stats.hits / total * 100);
       }
       /**
@@ -1257,7 +1277,9 @@ var init_mining_cache = __esm({
        * O(1) operation.
        */
       moveToHead(node) {
-        if (node === this.lruHead) return;
+        if (node === this.lruHead) {
+          return;
+        }
         this.unlinkNode(node);
         node.prev = null;
         node.next = this.lruHead;
@@ -2604,7 +2626,7 @@ function loadDiscoveredPatterns(llkbDir) {
   try {
     const content = fs.readFileSync(patternsPath, "utf-8");
     const data = JSON.parse(content);
-    if (typeof data !== "object" || data === null || !Array.isArray(data.patterns) || typeof data.version !== "string") {
+    if (typeof data !== "object" || data === null || !("patterns" in data) || !Array.isArray(data.patterns) || !("version" in data) || typeof data.version !== "string") {
       console.warn(`[LLKB] Invalid discovered patterns shape in ${patternsPath}`);
       return null;
     }
@@ -2674,16 +2696,22 @@ function parseSimpleYAML(content) {
     const indent = line.search(/\S/);
     const trimmed = line.trim();
     const colonIndex = trimmed.indexOf(":");
-    if (colonIndex === -1) continue;
+    if (colonIndex === -1) {
+      continue;
+    }
     const key = trimmed.substring(0, colonIndex).trim();
     const valueStr = trimmed.substring(colonIndex + 1).trim();
     while (stack.length > 1) {
       const top2 = stack[stack.length - 1];
-      if (!top2 || top2.indent < indent) break;
+      if (!top2 || top2.indent < indent) {
+        break;
+      }
       stack.pop();
     }
     const top = stack[stack.length - 1];
-    if (!top) continue;
+    if (!top) {
+      continue;
+    }
     const parent = top.obj;
     if (valueStr === "" || valueStr === "|" || valueStr === ">") {
       const newObj = {};
@@ -2699,10 +2727,16 @@ function parseYAMLValue(value) {
   if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1);
   }
-  if (value === "true") return true;
-  if (value === "false") return false;
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
   const num = Number(value);
-  if (!isNaN(num)) return num;
+  if (!isNaN(num)) {
+    return num;
+  }
   return value;
 }
 function mergeConfig(defaults, overrides) {
@@ -7113,10 +7147,11 @@ function loadDiscoveredProfile(llkbDir) {
     if (typeof parsed !== "object" || parsed === null) {
       return null;
     }
-    if (!parsed.version || !Array.isArray(parsed.frameworks)) {
+    const obj = parsed;
+    if (!obj.version || !Array.isArray(obj.frameworks)) {
       return null;
     }
-    return parsed;
+    return obj;
   } catch {
     return null;
   }
@@ -7136,7 +7171,9 @@ async function scanDirectoryForSelectors(dir, selectorCounts, sampleSelectors, d
     return;
   }
   for (const entry of entries) {
-    if (fileCount.count > MAX_FILES_TO_SCAN) break;
+    if (fileCount.count > MAX_FILES_TO_SCAN) {
+      break;
+    }
     const fullPath = path13.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name !== "node_modules" && !entry.name.startsWith(".") && !entry.isSymbolicLink()) {
@@ -7162,7 +7199,9 @@ async function scanDirectoryForSelectors(dir, selectorCounts, sampleSelectors, d
   }
 }
 async function countSourceFiles(dir, depth = 0) {
-  if (depth > MAX_SCAN_DEPTH) return 0;
+  if (depth > MAX_SCAN_DEPTH) {
+    return 0;
+  }
   const extensions = [".tsx", ".jsx", ".vue", ".ts", ".js"];
   let count = 0;
   let entries;
@@ -7182,20 +7221,36 @@ async function countSourceFiles(dir, depth = 0) {
   return count;
 }
 function detectNamingConvention(samples) {
-  if (samples.length === 0) return "kebab-case";
+  if (samples.length === 0) {
+    return "kebab-case";
+  }
   let kebabCount = 0;
   let camelCount = 0;
   let snakeCount = 0;
   for (const sample of samples) {
-    if (sample.includes("-")) kebabCount++;
-    if (/[a-z][A-Z]/.test(sample)) camelCount++;
-    if (sample.includes("_")) snakeCount++;
+    if (sample.includes("-")) {
+      kebabCount++;
+    }
+    if (/[a-z][A-Z]/.test(sample)) {
+      camelCount++;
+    }
+    if (sample.includes("_")) {
+      snakeCount++;
+    }
   }
   const maxCount = Math.max(kebabCount, camelCount, snakeCount);
-  if (maxCount === 0) return "kebab-case";
-  if (kebabCount === maxCount && camelCount < maxCount && snakeCount < maxCount) return "kebab-case";
-  if (camelCount === maxCount && kebabCount < maxCount && snakeCount < maxCount) return "camelCase";
-  if (snakeCount === maxCount && kebabCount < maxCount && camelCount < maxCount) return "snake_case";
+  if (maxCount === 0) {
+    return "kebab-case";
+  }
+  if (kebabCount === maxCount && camelCount < maxCount && snakeCount < maxCount) {
+    return "kebab-case";
+  }
+  if (camelCount === maxCount && kebabCount < maxCount && snakeCount < maxCount) {
+    return "camelCase";
+  }
+  if (snakeCount === maxCount && kebabCount < maxCount && camelCount < maxCount) {
+    return "snake_case";
+  }
   return "mixed";
 }
 async function scanForAuthPatterns(srcDir, depth = 0) {
@@ -7273,7 +7328,9 @@ function validatePathWithinRoot(projectRoot, targetPath) {
 async function isFileSizeWithinLimit(filePath) {
   try {
     const stats = await fsp3.lstat(filePath);
-    if (stats.isSymbolicLink()) return false;
+    if (stats.isSymbolicLink()) {
+      return false;
+    }
     return stats.size <= MAX_FILE_SIZE_BYTES;
   } catch {
     return false;
@@ -7378,7 +7435,9 @@ async function mineEntities(projectRoot, options = {}) {
   const srcDirs = ["src", "app", "lib", "pages", "components", "models", "entities", "types"];
   for (const dir of srcDirs) {
     const fullPath = path13.join(resolvedRoot, dir);
-    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) {
+      continue;
+    }
     if (fs.existsSync(fullPath)) {
       await scanForEntities(fullPath, entityMap, fileCount, 0, maxDepth, maxFiles);
     }
@@ -7400,7 +7459,9 @@ async function mineEntities(projectRoot, options = {}) {
   });
 }
 async function scanForEntities(dir, entityMap, fileCount, depth, maxDepth, maxFiles) {
-  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  if (depth > maxDepth || fileCount.count > maxFiles) {
+    return;
+  }
   let entries;
   try {
     entries = await fsp3.readdir(dir, { withFileTypes: true });
@@ -7408,7 +7469,9 @@ async function scanForEntities(dir, entityMap, fileCount, depth, maxDepth, maxFi
     return;
   }
   for (const entry of entries) {
-    if (fileCount.count > maxFiles) break;
+    if (fileCount.count > maxFiles) {
+      break;
+    }
     const fullPath = path13.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
@@ -7417,7 +7480,9 @@ async function scanForEntities(dir, entityMap, fileCount, depth, maxDepth, maxFi
     } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       fileCount.count++;
       try {
-        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        if (!await isFileSizeWithinLimit(fullPath)) {
+          continue;
+        }
         const content = await fsp3.readFile(fullPath, "utf-8");
         extractEntitiesFromContent(content, fullPath, entityMap);
       } catch {
@@ -7432,15 +7497,21 @@ function extractEntitiesFromContent(content, source, entityMap) {
     const isApiPattern = patternName.includes("api") || patternName.includes("rest") || patternName.includes("fetch");
     let iterations = 0;
     while ((match = pattern.exec(content)) !== null) {
-      if (++iterations > MAX_REGEX_ITERATIONS) break;
+      if (++iterations > MAX_REGEX_ITERATIONS) {
+        break;
+      }
       const rawName = match[1];
-      if (!rawName) continue;
-      let name = rawName.replace(/(?:Model|Entity|Schema|Type|Interface|DTO|Input|Output)$/i, "");
+      if (!rawName) {
+        continue;
+      }
+      const name = rawName.replace(/(?:Model|Entity|Schema|Type|Interface|DTO|Input|Output)$/i, "");
       let normalized = name.toLowerCase();
       if (isApiPattern) {
         normalized = singularize(normalized);
       }
-      if (ENTITY_EXCLUSIONS.has(normalized) || normalized.length < 3) continue;
+      if (ENTITY_EXCLUSIONS.has(normalized) || normalized.length < 3) {
+        continue;
+      }
       if (/(?:Props|State|Context|Config|Options|Params|Args|Handler|Callback|Service|Controller|Repository)$/i.test(rawName)) {
         continue;
       }
@@ -7473,7 +7544,9 @@ async function extractPrismaEntities(prismaPath, entityMap) {
     let match;
     let iterations = 0;
     while ((match = modelPattern.exec(content)) !== null) {
-      if (++iterations > MAX_REGEX_ITERATIONS) break;
+      if (++iterations > MAX_REGEX_ITERATIONS) {
+        break;
+      }
       const name = match[1].toLowerCase();
       if (!ENTITY_EXCLUSIONS.has(name) && name.length >= 3) {
         const existing = entityMap.get(name);
@@ -7525,7 +7598,9 @@ async function mineRoutes(projectRoot, options = {}) {
   const srcDirs = ["src", "app", "pages", "routes", "views"];
   for (const dir of srcDirs) {
     const fullPath = path13.join(resolvedRoot, dir);
-    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) {
+      continue;
+    }
     if (fs.existsSync(fullPath)) {
       await scanForRoutes(fullPath, routeMap, fileCount, 0, maxDepth, maxFiles);
     }
@@ -7541,7 +7616,9 @@ async function mineRoutes(projectRoot, options = {}) {
   return Array.from(routeMap.values());
 }
 async function scanForRoutes(dir, routeMap, fileCount, depth, maxDepth, maxFiles) {
-  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  if (depth > maxDepth || fileCount.count > maxFiles) {
+    return;
+  }
   let entries;
   try {
     entries = await fsp3.readdir(dir, { withFileTypes: true });
@@ -7549,7 +7626,9 @@ async function scanForRoutes(dir, routeMap, fileCount, depth, maxDepth, maxFiles
     return;
   }
   for (const entry of entries) {
-    if (fileCount.count > maxFiles) break;
+    if (fileCount.count > maxFiles) {
+      break;
+    }
     const fullPath = path13.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
@@ -7558,7 +7637,9 @@ async function scanForRoutes(dir, routeMap, fileCount, depth, maxDepth, maxFiles
     } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       fileCount.count++;
       try {
-        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        if (!await isFileSizeWithinLimit(fullPath)) {
+          continue;
+        }
         const content = await fsp3.readFile(fullPath, "utf-8");
         extractRoutesFromContent(content, fullPath, routeMap);
       } catch {
@@ -7568,16 +7649,24 @@ async function scanForRoutes(dir, routeMap, fileCount, depth, maxDepth, maxFiles
 }
 function extractRoutesFromContent(content, source, routeMap) {
   for (const pattern of Object.values(ROUTE_PATTERNS)) {
-    if (typeof pattern === "function") continue;
+    if (typeof pattern === "function") {
+      continue;
+    }
     pattern.lastIndex = 0;
     let match;
     let iterations = 0;
     while ((match = pattern.exec(content)) !== null) {
-      if (++iterations > MAX_REGEX_ITERATIONS) break;
+      if (++iterations > MAX_REGEX_ITERATIONS) {
+        break;
+      }
       const routePath = match[1];
-      if (!routePath || routePath === "*" || routePath === "**") continue;
+      if (!routePath || routePath === "*" || routePath === "**") {
+        continue;
+      }
       const normalizedPath = routePath.startsWith("/") ? routePath : `/${routePath}`;
-      if (normalizedPath.startsWith("/api/")) continue;
+      if (normalizedPath.startsWith("/api/")) {
+        continue;
+      }
       const name = pathToName(normalizedPath);
       const params = extractRouteParams(normalizedPath);
       if (!routeMap.has(normalizedPath)) {
@@ -7665,9 +7754,13 @@ async function extractNextJsAppRoutes(dir, routeMap, basePath) {
   }
 }
 function pathToName(routePath) {
-  if (routePath === "/") return "Home";
+  if (routePath === "/") {
+    return "Home";
+  }
   const segments = routePath.split("/").filter((s) => s && !s.startsWith(":"));
-  if (segments.length === 0) return "Home";
+  if (segments.length === 0) {
+    return "Home";
+  }
   const lastSegment = segments[segments.length - 1];
   return lastSegment.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 }
@@ -7677,7 +7770,9 @@ function extractRouteParams(routePath) {
   let match;
   let iterations = 0;
   while ((match = paramPattern.exec(routePath)) !== null) {
-    if (++iterations > MAX_REGEX_ITERATIONS) break;
+    if (++iterations > MAX_REGEX_ITERATIONS) {
+      break;
+    }
     params.push(match[1]);
   }
   return params;
@@ -7708,7 +7803,9 @@ async function mineForms(projectRoot, options = {}) {
   const srcDirs = ["src", "app", "components", "forms", "schemas", "validation"];
   for (const dir of srcDirs) {
     const fullPath = path13.join(resolvedRoot, dir);
-    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) {
+      continue;
+    }
     if (fs.existsSync(fullPath)) {
       await scanForForms(fullPath, formMap, fileCount, 0, maxDepth, maxFiles);
     }
@@ -7716,7 +7813,9 @@ async function mineForms(projectRoot, options = {}) {
   return Array.from(formMap.values());
 }
 async function scanForForms(dir, formMap, fileCount, depth, maxDepth, maxFiles) {
-  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  if (depth > maxDepth || fileCount.count > maxFiles) {
+    return;
+  }
   let entries;
   try {
     entries = await fsp3.readdir(dir, { withFileTypes: true });
@@ -7724,7 +7823,9 @@ async function scanForForms(dir, formMap, fileCount, depth, maxDepth, maxFiles) 
     return;
   }
   for (const entry of entries) {
-    if (fileCount.count > maxFiles) break;
+    if (fileCount.count > maxFiles) {
+      break;
+    }
     const fullPath = path13.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
@@ -7733,7 +7834,9 @@ async function scanForForms(dir, formMap, fileCount, depth, maxDepth, maxFiles) 
     } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       fileCount.count++;
       try {
-        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        if (!await isFileSizeWithinLimit(fullPath)) {
+          continue;
+        }
         const content = await fsp3.readFile(fullPath, "utf-8");
         extractFormsFromContent(content, fullPath, formMap);
       } catch {
@@ -7751,7 +7854,9 @@ function extractFormsFromContent(content, source, formMap) {
     let fieldMatch;
     let fieldIter = 0;
     while ((fieldMatch = FORM_PATTERNS.zodField.exec(zodMatch[1])) !== null) {
-      if (++fieldIter > MAX_REGEX_ITERATIONS) break;
+      if (++fieldIter > MAX_REGEX_ITERATIONS) {
+        break;
+      }
       fields.push({
         name: fieldMatch[1],
         type: zodTypeToHtmlType(fieldMatch[2]),
@@ -7766,7 +7871,9 @@ function extractFormsFromContent(content, source, formMap) {
     let fieldMatch;
     let yupIter = 0;
     while ((fieldMatch = FORM_PATTERNS.yupField.exec(yupMatch[1])) !== null) {
-      if (++yupIter > MAX_REGEX_ITERATIONS) break;
+      if (++yupIter > MAX_REGEX_ITERATIONS) {
+        break;
+      }
       const existingField = fields.find((f) => f.name === fieldMatch[1]);
       if (!existingField) {
         fields.push({
@@ -7782,7 +7889,9 @@ function extractFormsFromContent(content, source, formMap) {
   let rhfMatch;
   let rhfIter = 0;
   while ((rhfMatch = FORM_PATTERNS.rhfRegister.exec(content)) !== null) {
-    if (++rhfIter > MAX_REGEX_ITERATIONS) break;
+    if (++rhfIter > MAX_REGEX_ITERATIONS) {
+      break;
+    }
     const existingField = fields.find((f) => f.name === rhfMatch[1]);
     if (!existingField) {
       fields.push({
@@ -7796,7 +7905,9 @@ function extractFormsFromContent(content, source, formMap) {
   let htmlMatch;
   let htmlIter = 0;
   while ((htmlMatch = FORM_PATTERNS.htmlInputNameFirst.exec(content)) !== null) {
-    if (++htmlIter > MAX_REGEX_ITERATIONS) break;
+    if (++htmlIter > MAX_REGEX_ITERATIONS) {
+      break;
+    }
     const existingField = fields.find((f) => f.name === htmlMatch[1]);
     if (!existingField) {
       fields.push({
@@ -7809,7 +7920,9 @@ function extractFormsFromContent(content, source, formMap) {
   FORM_PATTERNS.htmlInputTypeFirst.lastIndex = 0;
   let htmlIter2 = 0;
   while ((htmlMatch = FORM_PATTERNS.htmlInputTypeFirst.exec(content)) !== null) {
-    if (++htmlIter2 > MAX_REGEX_ITERATIONS) break;
+    if (++htmlIter2 > MAX_REGEX_ITERATIONS) {
+      break;
+    }
     const existingField = fields.find((f) => f.name === htmlMatch[2]);
     if (!existingField) {
       fields.push({
@@ -7880,7 +7993,9 @@ async function mineTables(projectRoot, options = {}) {
   const srcDirs = ["src", "app", "components", "tables", "grids", "views"];
   for (const dir of srcDirs) {
     const fullPath = path13.join(resolvedRoot, dir);
-    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) {
+      continue;
+    }
     if (fs.existsSync(fullPath)) {
       await scanForTables(fullPath, tableMap, fileCount, 0, maxDepth, maxFiles);
     }
@@ -7888,7 +8003,9 @@ async function mineTables(projectRoot, options = {}) {
   return Array.from(tableMap.values());
 }
 async function scanForTables(dir, tableMap, fileCount, depth, maxDepth, maxFiles) {
-  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  if (depth > maxDepth || fileCount.count > maxFiles) {
+    return;
+  }
   let entries;
   try {
     entries = await fsp3.readdir(dir, { withFileTypes: true });
@@ -7896,7 +8013,9 @@ async function scanForTables(dir, tableMap, fileCount, depth, maxDepth, maxFiles
     return;
   }
   for (const entry of entries) {
-    if (fileCount.count > maxFiles) break;
+    if (fileCount.count > maxFiles) {
+      break;
+    }
     const fullPath = path13.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
@@ -7905,7 +8024,9 @@ async function scanForTables(dir, tableMap, fileCount, depth, maxDepth, maxFiles
     } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       fileCount.count++;
       try {
-        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        if (!await isFileSizeWithinLimit(fullPath)) {
+          continue;
+        }
         const content = await fsp3.readFile(fullPath, "utf-8");
         extractTablesFromContent(content, fullPath, tableMap);
       } catch {
@@ -7928,14 +8049,18 @@ function extractTablesFromContent(content, source, tableMap) {
     let fieldMatch;
     let colIter = 0;
     while ((fieldMatch = TABLE_PATTERNS.agGridField.exec(columnDefsMatch[1])) !== null) {
-      if (++colIter > MAX_REGEX_ITERATIONS) break;
+      if (++colIter > MAX_REGEX_ITERATIONS) {
+        break;
+      }
       if (!columns.includes(fieldMatch[1])) {
         columns.push(fieldMatch[1]);
       }
     }
     colIter = 0;
     while ((fieldMatch = TABLE_PATTERNS.muiField.exec(columnDefsMatch[1])) !== null) {
-      if (++colIter > MAX_REGEX_ITERATIONS) break;
+      if (++colIter > MAX_REGEX_ITERATIONS) {
+        break;
+      }
       if (!columns.includes(fieldMatch[1])) {
         columns.push(fieldMatch[1]);
       }
@@ -7947,7 +8072,9 @@ function extractTablesFromContent(content, source, tableMap) {
   let tanstackMatch;
   let tanstackIter = 0;
   while ((tanstackMatch = TABLE_PATTERNS.tanstackColumn.exec(content)) !== null) {
-    if (++tanstackIter > MAX_REGEX_ITERATIONS) break;
+    if (++tanstackIter > MAX_REGEX_ITERATIONS) {
+      break;
+    }
     if (!columns.includes(tanstackMatch[1])) {
       columns.push(tanstackMatch[1]);
     }
@@ -7956,7 +8083,9 @@ function extractTablesFromContent(content, source, tableMap) {
   let antdMatch;
   let antdIter = 0;
   while ((antdMatch = TABLE_PATTERNS.antdDataIndex.exec(content)) !== null) {
-    if (++antdIter > MAX_REGEX_ITERATIONS) break;
+    if (++antdIter > MAX_REGEX_ITERATIONS) {
+      break;
+    }
     if (!columns.includes(antdMatch[1])) {
       columns.push(antdMatch[1]);
     }
@@ -7965,7 +8094,9 @@ function extractTablesFromContent(content, source, tableMap) {
   let thMatch;
   let thIter = 0;
   while ((thMatch = TABLE_PATTERNS.htmlTh.exec(content)) !== null) {
-    if (++thIter > MAX_REGEX_ITERATIONS) break;
+    if (++thIter > MAX_REGEX_ITERATIONS) {
+      break;
+    }
     const header = thMatch[1].trim();
     if (header && !columns.includes(header)) {
       columns.push(header);
@@ -8011,7 +8142,9 @@ async function mineModals(projectRoot, options = {}) {
   const srcDirs = ["src", "app", "components", "modals", "dialogs"];
   for (const dir of srcDirs) {
     const fullPath = path13.join(resolvedRoot, dir);
-    if (!validatePathWithinRoot(resolvedRoot, fullPath)) continue;
+    if (!validatePathWithinRoot(resolvedRoot, fullPath)) {
+      continue;
+    }
     if (fs.existsSync(fullPath)) {
       await scanForModals(fullPath, modalMap, fileCount, 0, maxDepth, maxFiles);
     }
@@ -8019,7 +8152,9 @@ async function mineModals(projectRoot, options = {}) {
   return Array.from(modalMap.values());
 }
 async function scanForModals(dir, modalMap, fileCount, depth, maxDepth, maxFiles) {
-  if (depth > maxDepth || fileCount.count > maxFiles) return;
+  if (depth > maxDepth || fileCount.count > maxFiles) {
+    return;
+  }
   let entries;
   try {
     entries = await fsp3.readdir(dir, { withFileTypes: true });
@@ -8027,7 +8162,9 @@ async function scanForModals(dir, modalMap, fileCount, depth, maxDepth, maxFiles
     return;
   }
   for (const entry of entries) {
-    if (fileCount.count > maxFiles) break;
+    if (fileCount.count > maxFiles) {
+      break;
+    }
     const fullPath = path13.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "dist" && entry.name !== "build" && !entry.isSymbolicLink()) {
@@ -8036,7 +8173,9 @@ async function scanForModals(dir, modalMap, fileCount, depth, maxDepth, maxFiles
     } else if (entry.isFile() && !entry.isSymbolicLink() && SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       fileCount.count++;
       try {
-        if (!await isFileSizeWithinLimit(fullPath)) continue;
+        if (!await isFileSizeWithinLimit(fullPath)) {
+          continue;
+        }
         const content = await fsp3.readFile(fullPath, "utf-8");
         extractModalsFromContent(content, fullPath, modalMap);
       } catch {
@@ -8051,7 +8190,9 @@ function extractModalsFromContent(content, source, modalMap) {
     pattern.lastIndex = 0;
     return pattern.test(content);
   });
-  if (!hasModal) return;
+  if (!hasModal) {
+    return;
+  }
   let modalTitle;
   MODAL_PATTERNS.muiDialogTitle.lastIndex = 0;
   const muiTitleMatch = MODAL_PATTERNS.muiDialogTitle.exec(content);
@@ -8939,7 +9080,7 @@ function detectI18nLibrary(files) {
   }
   return detectedLibrary;
 }
-function extractI18nKeys(files, library) {
+function extractI18nKeys(files, _library) {
   const keys = [];
   const seenKeys = /* @__PURE__ */ new Set();
   for (const file of files) {
@@ -8948,11 +9089,17 @@ function extractI18nKeys(files, library) {
       let match;
       let iterations = 0;
       while ((match = pattern.exec(file.content)) !== null) {
-        if (++iterations > MAX_REGEX_ITERATIONS2) break;
+        if (++iterations > MAX_REGEX_ITERATIONS2) {
+          break;
+        }
         const key = match[1] || match[2];
-        if (!key) continue;
+        if (!key) {
+          continue;
+        }
         const keyId = `${key}:${file.path}`;
-        if (seenKeys.has(keyId)) continue;
+        if (seenKeys.has(keyId)) {
+          continue;
+        }
         seenKeys.add(keyId);
         let namespace;
         let cleanKey = key;
@@ -8985,8 +9132,12 @@ async function findLocaleFiles(projectRoot) {
     const fullPath = path13.join(projectRoot, dir);
     try {
       const stat = await fsp3.lstat(fullPath);
-      if (stat.isSymbolicLink()) continue;
-      if (!stat.isDirectory()) continue;
+      if (stat.isSymbolicLink()) {
+        continue;
+      }
+      if (!stat.isDirectory()) {
+        continue;
+      }
       const files = await findJsonFilesRecursive(fullPath);
       localeFiles.push(...files);
     } catch {
@@ -8996,12 +9147,16 @@ async function findLocaleFiles(projectRoot) {
   return localeFiles;
 }
 async function findJsonFilesRecursive(dir, depth = 0, maxDepth = 5) {
-  if (depth > maxDepth) return [];
+  if (depth > maxDepth) {
+    return [];
+  }
   const files = [];
   try {
     const entries = await fsp3.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.isSymbolicLink()) continue;
+      if (entry.isSymbolicLink()) {
+        continue;
+      }
       const fullPath = path13.join(dir, entry.name);
       if (entry.isDirectory()) {
         const subFiles = await findJsonFilesRecursive(fullPath, depth + 1, maxDepth);
@@ -9159,11 +9314,17 @@ function extractAnalyticsEvents(files, provider) {
       let match;
       let iterations = 0;
       while ((match = pattern.exec(file.content)) !== null) {
-        if (++iterations > MAX_REGEX_ITERATIONS3) break;
+        if (++iterations > MAX_REGEX_ITERATIONS3) {
+          break;
+        }
         const eventName = match[1];
-        if (!eventName) continue;
+        if (!eventName) {
+          continue;
+        }
         const eventId = `${eventName}:${file.path}`;
-        if (seenEvents.has(eventId)) continue;
+        if (seenEvents.has(eventId)) {
+          continue;
+        }
         seenEvents.add(eventId);
         const properties = extractEventProperties(file.content, match.index);
         let eventProvider = provider;
@@ -9194,14 +9355,18 @@ function extractEventProperties(content, matchIndex) {
   const snippet = content.slice(matchIndex, searchEnd);
   EVENT_PROPERTIES_PATTERN.lastIndex = 0;
   const propsMatch = EVENT_PROPERTIES_PATTERN.exec(snippet);
-  if (!propsMatch) return void 0;
+  if (!propsMatch) {
+    return void 0;
+  }
   const propsText = propsMatch[1];
   const propertyPattern = /(\w+)\s*:/g;
   const properties = [];
   let propMatch;
   let iterations = 0;
   while ((propMatch = propertyPattern.exec(propsText)) !== null) {
-    if (++iterations > MAX_REGEX_ITERATIONS3) break;
+    if (++iterations > MAX_REGEX_ITERATIONS3) {
+      break;
+    }
     properties.push(propMatch[1]);
   }
   return properties.length > 0 ? properties : void 0;
@@ -9340,11 +9505,17 @@ function extractFeatureFlags(files, provider) {
       let match;
       let iterations = 0;
       while ((match = pattern.exec(file.content)) !== null) {
-        if (++iterations > MAX_REGEX_ITERATIONS4) break;
+        if (++iterations > MAX_REGEX_ITERATIONS4) {
+          break;
+        }
         const flagName = match[1];
-        if (!flagName) continue;
+        if (!flagName) {
+          continue;
+        }
         const flagId = `${flagName}:${file.path}`;
-        if (seenFlags.has(flagId)) continue;
+        if (seenFlags.has(flagId)) {
+          continue;
+        }
         seenFlags.add(flagId);
         let defaultValue;
         if (match[2] !== void 0 && patternName === "launchDarklyVariation") {
@@ -9570,9 +9741,15 @@ async function runFullDiscoveryPipeline(projectRoot, llkbDir, options = {}) {
     }
   }
   const signalStrengths = /* @__PURE__ */ new Map();
-  for (const id of strongIds) signalStrengths.set(id, "strong");
-  for (const id of mediumIds) signalStrengths.set(id, "medium");
-  for (const id of weakIds) signalStrengths.set(id, "weak");
+  for (const id of strongIds) {
+    signalStrengths.set(id, "strong");
+  }
+  for (const id of mediumIds) {
+    signalStrengths.set(id, "medium");
+  }
+  for (const id of weakIds) {
+    signalStrengths.set(id, "weak");
+  }
   const weightedPatterns = signalStrengths.size > 0 ? applySignalWeighting(allPatterns, signalStrengths) : allPatterns;
   const totalBeforeQC = weightedPatterns.length;
   let finalPatterns;
