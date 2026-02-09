@@ -1,12 +1,14 @@
 package com.artk.intellij.installer
 
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
+import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
-class BrowserDetectorTest {
+/**
+ * Tests for BrowserDetector using IntelliJ Platform test fixtures.
+ * Platform fixtures properly initialize SystemInfo and process APIs.
+ */
+class BrowserDetectorTest : BasePlatformTestCase() {
 
-    @Test
-    fun `detect returns valid BrowserInfo`() {
+    fun testDetectReturnsValidBrowserInfo() {
         val result = BrowserDetector.detect()
 
         assertNotNull(result)
@@ -14,8 +16,7 @@ class BrowserDetectorTest {
         assertTrue(result.channel in listOf("msedge", "chrome", "chromium"))
     }
 
-    @Test
-    fun `detect fallback returns chromium`() {
+    fun testDetectFallbackReturnsChromium() {
         // When no browsers are found, should fallback to chromium
         val result = BrowserDetector.detect()
 
@@ -27,8 +28,7 @@ class BrowserDetectorTest {
         )
     }
 
-    @Test
-    fun `BrowserInfo data class works correctly`() {
+    fun testBrowserInfoDataClassWorksCorrectly() {
         val info = BrowserDetector.BrowserInfo(
             channel = "chrome",
             version = "120.0.6099.71",
@@ -40,8 +40,7 @@ class BrowserDetectorTest {
         assertEquals("/usr/bin/google-chrome", info.path)
     }
 
-    @Test
-    fun `BrowserInfo with null version and path`() {
+    fun testBrowserInfoWithNullVersionAndPath() {
         val info = BrowserDetector.BrowserInfo(
             channel = "chromium",
             version = null,
@@ -53,16 +52,55 @@ class BrowserDetectorTest {
         assertNull(info.path)
     }
 
-    @Test
-    fun `getPlaywrightChannel returns correct mapping`() {
+    fun testBrowserInfoDisplayName() {
+        val edgeInfo = BrowserDetector.BrowserInfo("msedge", null, null)
+        val chromeInfo = BrowserDetector.BrowserInfo("chrome", null, null)
+        val chromiumInfo = BrowserDetector.BrowserInfo("chromium", null, null)
+
+        assertEquals("Microsoft Edge", edgeInfo.displayName)
+        assertEquals("Google Chrome", chromeInfo.displayName)
+        assertEquals("Playwright Chromium (bundled)", chromiumInfo.displayName)
+    }
+
+    fun testBrowserInfoIsSystemBrowser() {
+        val edgeInfo = BrowserDetector.BrowserInfo("msedge", null, null)
+        val chromeInfo = BrowserDetector.BrowserInfo("chrome", null, null)
+        val chromiumInfo = BrowserDetector.BrowserInfo("chromium", null, null)
+
+        assertTrue(edgeInfo.isSystemBrowser)
+        assertTrue(chromeInfo.isSystemBrowser)
+        assertFalse(chromiumInfo.isSystemBrowser)
+    }
+
+    fun testGetPlaywrightChannelReturnsCorrectMapping() {
         // Test that browser channels map correctly to Playwright channels
         val chromiumInfo = BrowserDetector.BrowserInfo("chromium", null, null)
         val chromeInfo = BrowserDetector.BrowserInfo("chrome", "120.0", "/path")
         val edgeInfo = BrowserDetector.BrowserInfo("msedge", "120.0", "/path")
 
         // All channels should be valid Playwright channel names
-        assertTrue(chromiumInfo.channel in listOf("chromium", "chrome", "msedge", "chrome-beta", "chrome-dev"))
-        assertTrue(chromeInfo.channel in listOf("chromium", "chrome", "msedge", "chrome-beta", "chrome-dev"))
-        assertTrue(edgeInfo.channel in listOf("chromium", "chrome", "msedge", "chrome-beta", "chrome-dev"))
+        val validChannels = listOf("chromium", "chrome", "msedge", "chrome-beta", "chrome-dev")
+        assertTrue(chromiumInfo.channel in validChannels)
+        assertTrue(chromeInfo.channel in validChannels)
+        assertTrue(edgeInfo.channel in validChannels)
+    }
+
+    fun testBrowserPreferenceFromString() {
+        assertEquals(BrowserDetector.BrowserPreference.EDGE, BrowserDetector.BrowserPreference.fromString("edge"))
+        assertEquals(BrowserDetector.BrowserPreference.EDGE, BrowserDetector.BrowserPreference.fromString("msedge"))
+        assertEquals(BrowserDetector.BrowserPreference.CHROME, BrowserDetector.BrowserPreference.fromString("chrome"))
+        assertEquals(BrowserDetector.BrowserPreference.CHROMIUM, BrowserDetector.BrowserPreference.fromString("chromium"))
+        assertEquals(BrowserDetector.BrowserPreference.CHROMIUM, BrowserDetector.BrowserPreference.fromString("bundled"))
+        assertEquals(BrowserDetector.BrowserPreference.AUTO, BrowserDetector.BrowserPreference.fromString("auto"))
+        assertEquals(BrowserDetector.BrowserPreference.AUTO, BrowserDetector.BrowserPreference.fromString(null))
+        assertEquals(BrowserDetector.BrowserPreference.AUTO, BrowserDetector.BrowserPreference.fromString("unknown"))
+    }
+
+    fun testDetectWithChromiumPreferenceReturnsBundled() {
+        val result = BrowserDetector.detect(BrowserDetector.BrowserPreference.CHROMIUM)
+
+        assertEquals("chromium", result.channel)
+        assertNull(result.version)
+        assertNull(result.path)
     }
 }

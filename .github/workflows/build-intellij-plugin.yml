@@ -133,12 +133,9 @@ jobs:
       - name: Build plugin
         run: ./gradlew buildPlugin --no-daemon
 
-      # NOTE: Tests are skipped in CI because they require IntelliJ Platform context.
-      # The tests use ProcessUtils which depends on IntelliJ Platform APIs (GeneralCommandLine,
-      # OSProcessHandler, SystemInfo) that aren't properly initialized in headless JUnit.
-      # To run tests, use IntelliJ IDEA's built-in test runner with platform test fixtures.
-      # - name: Run tests
-      #   run: ./gradlew test --no-daemon
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+        continue-on-error: true
 
       - name: Verify plugin
         run: ./gradlew verifyPlugin --no-daemon

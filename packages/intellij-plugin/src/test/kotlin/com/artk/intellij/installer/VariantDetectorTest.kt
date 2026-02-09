@@ -1,89 +1,85 @@
 package com.artk.intellij.installer
 
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.io.TempDir
+import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.io.File
-import java.nio.file.Path
 
-class VariantDetectorTest {
+/**
+ * Tests for VariantDetector using IntelliJ Platform test fixtures.
+ * Platform fixtures properly initialize SystemInfo and process APIs.
+ */
+class VariantDetectorTest : BasePlatformTestCase() {
 
-    @TempDir
-    lateinit var tempDir: Path
+    private lateinit var testDir: File
 
-    @Test
-    fun `detect returns MODERN_ESM for Node 20 with ESM`() {
+    override fun setUp() {
+        super.setUp()
+        testDir = createTempDir("variant-detector-test")
+    }
+
+    override fun tearDown() {
+        try {
+            testDir.deleteRecursively()
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    fun testDetectReturnsModernEsmForNode20WithEsm() {
         // Create package.json with type=module
-        val projectDir = tempDir.toFile()
-        File(projectDir, "package.json").writeText("""
+        File(testDir, "package.json").writeText("""
             {
                 "type": "module",
                 "engines": { "node": ">=20" }
             }
         """.trimIndent())
 
-        val result = VariantDetector.detect(projectDir)
+        val result = VariantDetector.detect(testDir)
 
-        // C1 fix: extract .variant from DetectionResult
         assertEquals(VariantDetector.Variant.MODERN_ESM, result.variant)
     }
 
-    @Test
-    fun `detect returns MODERN_CJS for Node 20 without type field`() {
-        val projectDir = tempDir.toFile()
-        File(projectDir, "package.json").writeText("""
+    fun testDetectReturnsModernCjsForNode20WithoutTypeField() {
+        File(testDir, "package.json").writeText("""
             {
                 "engines": { "node": ">=20" }
             }
         """.trimIndent())
 
-        val result = VariantDetector.detect(projectDir)
+        val result = VariantDetector.detect(testDir)
 
-        // C1 fix: extract .variant from DetectionResult
         assertEquals(VariantDetector.Variant.MODERN_CJS, result.variant)
     }
 
-    @Test
-    fun `detect returns LEGACY_16 for Node 16`() {
-        val projectDir = tempDir.toFile()
-        File(projectDir, "package.json").writeText("""
+    fun testDetectReturnsLegacy16ForNode16() {
+        File(testDir, "package.json").writeText("""
             {
                 "engines": { "node": ">=16.0.0" }
             }
         """.trimIndent())
-        File(projectDir, ".nvmrc").writeText("16.20.0")
+        File(testDir, ".nvmrc").writeText("16.20.0")
 
-        val result = VariantDetector.detect(projectDir)
+        val result = VariantDetector.detect(testDir)
 
-        // C1 fix: extract .variant from DetectionResult
         assertEquals(VariantDetector.Variant.LEGACY_16, result.variant)
     }
 
-    @Test
-    fun `detect returns LEGACY_14 for Node 14`() {
-        val projectDir = tempDir.toFile()
-        File(projectDir, ".nvmrc").writeText("14.21.0")
+    fun testDetectReturnsLegacy14ForNode14() {
+        File(testDir, ".nvmrc").writeText("14.21.0")
 
-        val result = VariantDetector.detect(projectDir)
+        val result = VariantDetector.detect(testDir)
 
-        // C1 fix: extract .variant from DetectionResult
         assertEquals(VariantDetector.Variant.LEGACY_14, result.variant)
     }
 
-    @Test
-    fun `detect defaults to MODERN_ESM when no indicators`() {
-        val projectDir = tempDir.toFile()
+    fun testDetectDefaultsToModernEsmWhenNoIndicators() {
         // No package.json, no .nvmrc - defaults to Node 20 ESM
 
-        val result = VariantDetector.detect(projectDir)
+        val result = VariantDetector.detect(testDir)
 
-        // C1 fix: extract .variant from DetectionResult
         assertEquals(VariantDetector.Variant.MODERN_ESM, result.variant)
     }
 
-    @Test
-    fun `selectVariant correctly maps Node versions`() {
-        // C1 fix: use the new selectVariant() method
+    fun testSelectVariantCorrectlyMapsNodeVersions() {
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.selectVariant(22, true))
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.selectVariant(20, true))
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.selectVariant(18, true))
@@ -93,8 +89,7 @@ class VariantDetectorTest {
         assertEquals(VariantDetector.Variant.LEGACY_14, VariantDetector.selectVariant(12, false))
     }
 
-    @Test
-    fun `variant properties are correct`() {
+    fun testVariantPropertiesAreCorrect() {
         val modernEsm = VariantDetector.Variant.MODERN_ESM
         assertEquals("modern-esm", modernEsm.id)
         assertEquals("esm", modernEsm.moduleSystem)
@@ -108,9 +103,7 @@ class VariantDetectorTest {
         assertTrue(legacy14.playwrightVersion.contains("1.33"))
     }
 
-    @Test
-    fun `getVariantFeatures returns correct features for modern variant`() {
-        // C1 fix: use getVariantFeatures() with Map-based assertions
+    fun testGetVariantFeaturesReturnsCorrectFeaturesForModernVariant() {
         val features = VariantDetector.getVariantFeatures(VariantDetector.Variant.MODERN_ESM)
 
         // Modern variants have all features available
@@ -121,9 +114,7 @@ class VariantDetectorTest {
         assertTrue(features["aria_snapshot_matchers"]?.available == true)
     }
 
-    @Test
-    fun `getVariantFeatures returns limited features for legacy variant`() {
-        // C1 fix: use getVariantFeatures() with Map-based assertions
+    fun testGetVariantFeaturesReturnsLimitedFeaturesForLegacyVariant() {
         val features = VariantDetector.getVariantFeatures(VariantDetector.Variant.LEGACY_14)
 
         // Legacy 14 has limited features
@@ -138,8 +129,7 @@ class VariantDetectorTest {
         assertNotNull(features["expect_soft"]?.alternative)
     }
 
-    @Test
-    fun `parseVariant handles various inputs`() {
+    fun testParseVariantHandlesVariousInputs() {
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.parseVariant("modern-esm"))
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.parseVariant("esm"))
         assertEquals(VariantDetector.Variant.MODERN_CJS, VariantDetector.parseVariant("modern-cjs"))
@@ -152,8 +142,7 @@ class VariantDetectorTest {
         assertNull(VariantDetector.parseVariant("unknown"))
     }
 
-    @Test
-    fun `Variant fromId works correctly`() {
+    fun testVariantFromIdWorksCorrectly() {
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.Variant.fromId("modern-esm"))
         assertEquals(VariantDetector.Variant.MODERN_CJS, VariantDetector.Variant.fromId("modern-cjs"))
         assertEquals(VariantDetector.Variant.LEGACY_16, VariantDetector.Variant.fromId("legacy-16"))
