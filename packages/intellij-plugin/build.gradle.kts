@@ -23,8 +23,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.yaml:snakeyaml:2.2")
 
-    // IntelliJ Platform test framework is provided by gradle-intellij-plugin
-    // Tests extend BasePlatformTestCase (JUnit 3 style)
+    // Test dependencies - JUnit 4 provides backwards compatibility with JUnit 3 style tests
+    testImplementation("junit:junit:4.13.2")
 }
 
 tasks {
@@ -71,8 +71,18 @@ tasks {
         enabled = false
     }
 
-    // Tests use IntelliJ Platform test framework (BasePlatformTestCase)
-    // gradle-intellij-plugin automatically configures the test environment
+    // Configure test task for IntelliJ Platform tests
+    test {
+        // IntelliJ Platform tests require additional memory
+        jvmArgs("-Xmx1g")
+        // Enable headless mode for CI
+        systemProperty("java.awt.headless", "true")
+        // Log test execution
+        testLogging {
+            events("passed", "skipped", "failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        }
+    }
 
     // Bundle ARTK assets into plugin resources
     register<Copy>("bundleArtkAssets") {
