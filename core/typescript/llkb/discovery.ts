@@ -703,7 +703,7 @@ async function scanDirectoryForSelectors(
         for (const [attr, pattern] of Object.entries(freshPatterns)) {
           let match: RegExpExecArray | null;
           while ((match = pattern.exec(content)) !== null) {
-            selectorCounts[attr]++;
+            selectorCounts[attr]!++;
             if (sampleSelectors.length < MAX_SAMPLE_SELECTORS && match[1]) {
               sampleSelectors.push(match[1]);
             }

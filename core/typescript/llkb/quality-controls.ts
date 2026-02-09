@@ -194,7 +194,7 @@ export function boostCrossSourcePatterns(patterns: DiscoveredPattern[]): Discove
   for (const group of groupsArray) {
     if (group.length === 1) {
       // Single pattern - no boost needed
-      boosted.push({ ...group[0] });
+      boosted.push({ ...group[0] } as DiscoveredPattern);
       continue;
     }
 

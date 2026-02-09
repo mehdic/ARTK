@@ -157,7 +157,7 @@ function detectI18nLibrary(
     for (const [library, pattern] of Object.entries(I18N_LIBRARY_PATTERNS)) {
       pattern.lastIndex = 0;
       if (pattern.test(file.content)) {
-        detectionScores[library]++;
+        detectionScores[library]!++;
       }
     }
   }
@@ -212,13 +212,13 @@ function extractI18nKeys(
         if (key.includes(':')) {
           const parts = key.split(':');
           if (parts.length === 2) {
-            namespace = parts[0];
-            cleanKey = parts[1];
+            namespace = parts[0]!;
+            cleanKey = parts[1]!;
           }
         } else if (key.includes('.')) {
           // Handle dotted keys like 'login.title' -> extract 'title'
           const parts = key.split('.');
-          cleanKey = parts[parts.length - 1];
+          cleanKey = parts[parts.length - 1]!;
         }
 
         // Extract default value if present (for react-i18next pattern)

@@ -29,8 +29,8 @@ type LlkbPatternMatch = {
 
 // LLKB module reference - loaded lazily
 let llkbModule: {
-  matchLlkbPattern: (text: string, options?: { llkbRoot?: string; minConfidence?: number }) => LlkbPatternMatch | null;
-  recordPatternSuccess: (text: string, primitive: IRPrimitive, journeyId: string, options?: { llkbRoot?: string }) => void;
+  matchLlkbPattern: (_text: string, _options?: { llkbRoot?: string; minConfidence?: number }) => LlkbPatternMatch | null;
+  recordPatternSuccess: (_text: string, _primitive: IRPrimitive, _journeyId: string, _options?: { llkbRoot?: string }) => void;
 } | null = null;
 
 // Track if we've attempted to load LLKB

@@ -82,6 +82,7 @@ async function isFileSizeWithinLimit(filePath: string): Promise<boolean> {
 /**
  * Count source files in a directory (BUG-006: track filesScanned stat)
  */
+// @ts-expect-error Reserved for future use
 function _countSourceFilesInDir(
   dir: string,
   count: { value: number },
@@ -657,7 +658,7 @@ function pathToName(routePath: string): string {
   if (segments.length === 0) {return 'Home';}
 
   // Convert last segment to title case
-  const lastSegment = segments[segments.length - 1];
+  const lastSegment = segments[segments.length - 1]!;
   return lastSegment
     .split('-')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -672,7 +673,7 @@ function extractRouteParams(routePath: string): string[] {
   let iterations = 0;
   while ((match = paramPattern.exec(routePath)) !== null) {
     if (++iterations > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-    params.push(match[1]);
+    params.push(match[1]!);
   }
 
   return params;
@@ -819,12 +820,12 @@ function extractFormsFromContent(
     FORM_PATTERNS.zodField.lastIndex = 0;
     let fieldMatch: RegExpExecArray | null;
     let fieldIter = 0;
-    while ((fieldMatch = FORM_PATTERNS.zodField.exec(zodMatch[1])) !== null) {
+    while ((fieldMatch = FORM_PATTERNS.zodField.exec(zodMatch[1]!)) !== null) {
       if (++fieldIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
       fields.push({
-        name: fieldMatch[1],
-        type: zodTypeToHtmlType(fieldMatch[2]),
-        label: fieldNameToLabel(fieldMatch[1]),
+        name: fieldMatch[1]!,
+        type: zodTypeToHtmlType(fieldMatch[2]!),
+        label: fieldNameToLabel(fieldMatch[1]!),
       });
     }
     FORM_PATTERNS.zodSchema.lastIndex = 0;
@@ -836,14 +837,14 @@ function extractFormsFromContent(
     FORM_PATTERNS.yupField.lastIndex = 0;
     let fieldMatch: RegExpExecArray | null;
     let yupIter = 0;
-    while ((fieldMatch = FORM_PATTERNS.yupField.exec(yupMatch[1])) !== null) {
+    while ((fieldMatch = FORM_PATTERNS.yupField.exec(yupMatch[1]!)) !== null) {
       if (++yupIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-      const existingField = fields.find(f => f.name === fieldMatch![1]);
+      const existingField = fields.find(f => f.name === fieldMatch![1]!);
       if (!existingField) {
         fields.push({
-          name: fieldMatch[1],
-          type: yupTypeToHtmlType(fieldMatch[2]),
-          label: fieldNameToLabel(fieldMatch[1]),
+          name: fieldMatch[1]!,
+          type: yupTypeToHtmlType(fieldMatch[2]!),
+          label: fieldNameToLabel(fieldMatch[1]!),
         });
       }
     }
@@ -856,12 +857,12 @@ function extractFormsFromContent(
   let rhfIter = 0;
   while ((rhfMatch = FORM_PATTERNS.rhfRegister.exec(content)) !== null) {
     if (++rhfIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-    const existingField = fields.find(f => f.name === rhfMatch![1]);
+    const existingField = fields.find(f => f.name === rhfMatch![1]!);
     if (!existingField) {
       fields.push({
-        name: rhfMatch[1],
+        name: rhfMatch[1]!,
         type: 'text',
-        label: fieldNameToLabel(rhfMatch[1]),
+        label: fieldNameToLabel(rhfMatch[1]!),
       });
     }
   }
@@ -873,12 +874,12 @@ function extractFormsFromContent(
   let htmlIter = 0;
   while ((htmlMatch = FORM_PATTERNS.htmlInputNameFirst.exec(content)) !== null) {
     if (++htmlIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-    const existingField = fields.find(f => f.name === htmlMatch![1]);
+    const existingField = fields.find(f => f.name === htmlMatch![1]!);
     if (!existingField) {
       fields.push({
-        name: htmlMatch[1],
+        name: htmlMatch[1]!,
         type: htmlMatch[2] || 'text',
-        label: fieldNameToLabel(htmlMatch[1]),
+        label: fieldNameToLabel(htmlMatch[1]!),
       });
     }
   }
@@ -889,12 +890,12 @@ function extractFormsFromContent(
   while ((htmlMatch = FORM_PATTERNS.htmlInputTypeFirst.exec(content)) !== null) {
     if (++htmlIter2 > MAX_REGEX_ITERATIONS) {break;} // SEC-004
     // Note: capture groups are reversed - [1]=type, [2]=name
-    const existingField = fields.find(f => f.name === htmlMatch![2]);
+    const existingField = fields.find(f => f.name === htmlMatch![2]!);
     if (!existingField) {
       fields.push({
-        name: htmlMatch[2],
-        type: htmlMatch[1] || 'text',
-        label: fieldNameToLabel(htmlMatch[2]),
+        name: htmlMatch[2]!,
+        type: htmlMatch[1]! || 'text',
+        label: fieldNameToLabel(htmlMatch[2]!),
       });
     }
   }
@@ -1091,17 +1092,17 @@ function extractTablesFromContent(
     let fieldMatch: RegExpExecArray | null;
     let colIter = 0;
 
-    while ((fieldMatch = TABLE_PATTERNS.agGridField.exec(columnDefsMatch[1])) !== null) {
+    while ((fieldMatch = TABLE_PATTERNS.agGridField.exec(columnDefsMatch[1]!)) !== null) {
       if (++colIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-      if (!columns.includes(fieldMatch[1])) {
-        columns.push(fieldMatch[1]);
+      if (!columns.includes(fieldMatch[1]!)) {
+        columns.push(fieldMatch[1]!);
       }
     }
     colIter = 0;
-    while ((fieldMatch = TABLE_PATTERNS.muiField.exec(columnDefsMatch[1])) !== null) {
+    while ((fieldMatch = TABLE_PATTERNS.muiField.exec(columnDefsMatch[1]!)) !== null) {
       if (++colIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-      if (!columns.includes(fieldMatch[1])) {
-        columns.push(fieldMatch[1]);
+      if (!columns.includes(fieldMatch[1]!)) {
+        columns.push(fieldMatch[1]!);
       }
     }
     TABLE_PATTERNS.agGridColumns.lastIndex = 0;
@@ -1114,8 +1115,8 @@ function extractTablesFromContent(
   let tanstackIter = 0;
   while ((tanstackMatch = TABLE_PATTERNS.tanstackColumn.exec(content)) !== null) {
     if (++tanstackIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-    if (!columns.includes(tanstackMatch[1])) {
-      columns.push(tanstackMatch[1]);
+    if (!columns.includes(tanstackMatch[1]!)) {
+      columns.push(tanstackMatch[1]!);
     }
   }
 
@@ -1125,8 +1126,8 @@ function extractTablesFromContent(
   let antdIter = 0;
   while ((antdMatch = TABLE_PATTERNS.antdDataIndex.exec(content)) !== null) {
     if (++antdIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-    if (!columns.includes(antdMatch[1])) {
-      columns.push(antdMatch[1]);
+    if (!columns.includes(antdMatch[1]!)) {
+      columns.push(antdMatch[1]!);
     }
   }
 
@@ -1136,7 +1137,7 @@ function extractTablesFromContent(
   let thIter = 0;
   while ((thMatch = TABLE_PATTERNS.htmlTh.exec(content)) !== null) {
     if (++thIter > MAX_REGEX_ITERATIONS) {break;} // SEC-004
-    const header = thMatch[1].trim();
+    const header = thMatch[1]!.trim();
     if (header && !columns.includes(header)) {
       columns.push(header);
     }
@@ -1297,7 +1298,7 @@ function extractModalsFromContent(
   MODAL_PATTERNS.muiDialogTitle.lastIndex = 0;
   const muiTitleMatch = MODAL_PATTERNS.muiDialogTitle.exec(content);
   if (muiTitleMatch) {
-    modalTitle = muiTitleMatch[1].trim();
+    modalTitle = muiTitleMatch[1]!.trim();
   }
 
   // Check Chakra modal header
@@ -1305,7 +1306,7 @@ function extractModalsFromContent(
     MODAL_PATTERNS.chakraModalHeader.lastIndex = 0;
     const chakraTitleMatch = MODAL_PATTERNS.chakraModalHeader.exec(content);
     if (chakraTitleMatch) {
-      modalTitle = chakraTitleMatch[1].trim();
+      modalTitle = chakraTitleMatch[1]!.trim();
     }
   }
 
@@ -1314,7 +1315,7 @@ function extractModalsFromContent(
     MODAL_PATTERNS.antdModalTitle.lastIndex = 0;
     const antdTitleMatch = MODAL_PATTERNS.antdModalTitle.exec(content);
     if (antdTitleMatch) {
-      modalTitle = antdTitleMatch[1].trim();
+      modalTitle = antdTitleMatch[1]!.trim();
     }
   }
 

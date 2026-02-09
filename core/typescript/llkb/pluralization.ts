@@ -289,7 +289,7 @@ function applyCasePattern(original: string, result: string): string {
   }
 
   // Title case (first letter uppercase): User -> Users
-  if (original[0] === original[0].toUpperCase() && original.slice(1) === original.slice(1).toLowerCase()) {
+  if (original[0]! === original[0]!.toUpperCase() && original.slice(1) === original.slice(1).toLowerCase()) {
     return result.charAt(0).toUpperCase() + result.slice(1);
   }
 
@@ -338,7 +338,7 @@ export function pluralize(word: string, options: PluralizeOptions = {}): string 
 
   // Check irregular plurals (safe lookup - null prototype)
   if (lower in IRREGULAR_PLURALS) {
-    const result = IRREGULAR_PLURALS[lower];
+    const result = IRREGULAR_PLURALS[lower]!;
     return options.preserveCase ? applyCasePattern(word, result) : result;
   }
 
@@ -363,7 +363,7 @@ export function pluralize(word: string, options: PluralizeOptions = {}): string 
 
   // -y preceded by consonant -> -ies
   if (lower.endsWith('y') && lower.length > 1) {
-    const beforeY = lower[lower.length - 2];
+    const beforeY = lower[lower.length - 2]!;
     if (!'aeiou'.includes(beforeY)) {
       result = lower.slice(0, -1) + 'ies';
       return options.preserveCase ? applyCasePattern(word, result) : result;
@@ -402,7 +402,7 @@ export function pluralize(word: string, options: PluralizeOptions = {}): string 
 
   // -o preceded by consonant -> -es (common pattern)
   if (lower.endsWith('o') && lower.length > 1) {
-    const beforeO = lower[lower.length - 2];
+    const beforeO = lower[lower.length - 2]!;
     if (!'aeiou'.includes(beforeO)) {
       result = lower + 'es';
       return options.preserveCase ? applyCasePattern(word, result) : result;
@@ -460,7 +460,7 @@ export function singularize(word: string, options: SingularizeOptions = {}): str
 
   // Check irregular singulars (safe lookup - null prototype)
   if (lower in IRREGULAR_SINGULARS) {
-    const result = IRREGULAR_SINGULARS[lower];
+    const result = IRREGULAR_SINGULARS[lower]!;
     return options.preserveCase ? applyCasePattern(word, result) : result;
   }
 
@@ -552,7 +552,7 @@ export function getSingularPlural(word: string): { singular: string; plural: str
   // Check if it's a known plural (safe lookup - null prototype)
   if (lower in IRREGULAR_SINGULARS) {
     return {
-      singular: IRREGULAR_SINGULARS[lower],
+      singular: IRREGULAR_SINGULARS[lower]!,
       plural: lower,
     };
   }
@@ -561,7 +561,7 @@ export function getSingularPlural(word: string): { singular: string; plural: str
   if (lower in IRREGULAR_PLURALS) {
     return {
       singular: lower,
-      plural: IRREGULAR_PLURALS[lower],
+      plural: IRREGULAR_PLURALS[lower]!,
     };
   }
 

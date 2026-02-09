@@ -160,7 +160,7 @@ function detectAnalyticsProvider(
     for (const [provider, pattern] of Object.entries(ANALYTICS_PROVIDER_PATTERNS)) {
       pattern.lastIndex = 0;
       if (pattern.test(file.content)) {
-        detectionScores[provider]++;
+        detectionScores[provider]!++;
       }
     }
 
@@ -168,7 +168,7 @@ function detectAnalyticsProvider(
     const customPattern = /(?:trackEvent|logEvent|sendEvent)\s*\(/g;
     customPattern.lastIndex = 0;
     if (customPattern.test(file.content)) {
-      detectionScores.custom++;
+      detectionScores.custom!++;
     }
   }
 
@@ -258,7 +258,7 @@ function extractEventProperties(content: string, matchIndex: number): string[] |
   if (!propsMatch) {return undefined;}
 
   // Extract property names (simple extraction, may not be perfect)
-  const propsText = propsMatch[1];
+  const propsText = propsMatch[1]!;
   const propertyPattern = /(\w+)\s*:/g;
   const properties: string[] = [];
 
@@ -267,7 +267,7 @@ function extractEventProperties(content: string, matchIndex: number): string[] |
 
   while ((propMatch = propertyPattern.exec(propsText)) !== null) {
     if (++iterations > MAX_REGEX_ITERATIONS) {break;}
-    properties.push(propMatch[1]);
+    properties.push(propMatch[1]!);
   }
 
   return properties.length > 0 ? properties : undefined;

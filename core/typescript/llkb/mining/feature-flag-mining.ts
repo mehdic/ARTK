@@ -158,7 +158,7 @@ function detectFeatureFlagProvider(
     for (const [provider, pattern] of Object.entries(FEATURE_FLAG_PROVIDER_PATTERNS)) {
       pattern.lastIndex = 0;
       if (pattern.test(file.content)) {
-        detectionScores[provider]++;
+        detectionScores[provider]!++;
       }
     }
 
@@ -166,7 +166,7 @@ function detectFeatureFlagProvider(
     const customPattern = /(?:featureFlags|isFeatureEnabled)\s*[.(]/g;
     customPattern.lastIndex = 0;
     if (customPattern.test(file.content)) {
-      detectionScores.custom++;
+      detectionScores.custom!++;
     }
   }
 

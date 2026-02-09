@@ -351,7 +351,7 @@ function renderPrimitive(primitive: IRPrimitive, indent = '', _ctx?: VariantCont
  * Create a variant-aware render function for use in templates
  * @internal The ctx parameter is passed through for future variant-specific handling
  */
-function createVariantAwareRenderer(ctx: VariantContext): (primitive: IRPrimitive, indent?: string) => string {
+function createVariantAwareRenderer(ctx: VariantContext): (_primitive: IRPrimitive, _indent?: string) => string {
   // Note: ctx is passed to renderPrimitive for future variant-specific code generation
   // Currently no primitives require variant checking, but the infrastructure is in place
   return (primitive: IRPrimitive, indent = '') => renderPrimitive(primitive, indent, ctx);
