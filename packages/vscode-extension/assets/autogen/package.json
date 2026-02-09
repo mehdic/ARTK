@@ -2,7 +2,6 @@
   "name": "@artk/core-autogen",
   "version": "0.1.0",
   "description": "ARTK AutoGen Core - Deterministic test generation engine for Playwright E2E tests",
-  "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -68,9 +67,16 @@
   },
   "artkVariant": {
     "id": "modern-esm",
-    "nodeRange": ["18", "19", "20", "21", "22"],
+    "nodeRange": [
+      "18",
+      "19",
+      "20",
+      "21",
+      "22"
+    ],
     "playwrightVersion": "1.57.x",
     "moduleSystem": "esm",
     "tsTarget": "ES2022"
-  }
+  },
+  "private": true
 }

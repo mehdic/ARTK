@@ -47,6 +47,19 @@ if ! git diff --quiet -- packages/vscode-extension/assets/journeys; then
   exit 1
 fi
 
+# Sync VS Code extension core assets (core dist, autogen dist, bootstrap templates)
+echo "Syncing VS Code extension core assets..."
+if is_windows; then
+  powershell.exe -ExecutionPolicy Bypass -File "./scripts/sync-vscode-core-assets.ps1"
+else
+  ./scripts/sync-vscode-core-assets.sh
+fi
+
+if ! git diff --quiet -- packages/vscode-extension/assets/core packages/vscode-extension/assets/autogen packages/vscode-extension/assets/bootstrap-templates; then
+  echo "ERROR: packages/vscode-extension/assets/{core,autogen,bootstrap-templates} changed. Please commit the updated assets before pushing."
+  exit 1
+fi
+
 # Sync CLI assets
 if [ ! -d "packages/cli/node_modules/ts-node" ]; then
   echo "Installing CLI dev dependencies..."
