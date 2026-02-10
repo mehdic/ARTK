@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { z } from 'zod';
 import { existsSync, readFileSync, mkdirSync, writeFileSync, realpathSync, renameSync, unlinkSync, rmSync, appendFileSync, statSync, readdirSync, mkdtempSync } from 'fs';
+import * as path from 'path';
 import { dirname, join, resolve, relative, isAbsolute, basename } from 'path';
 import yaml, { stringify, parse } from 'yaml';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -113,8 +114,8 @@ var init_builder = __esm({
       static literal(value) {
         return { type: "literal", value };
       }
-      static actor(path) {
-        return { type: "actor", value: path };
+      static actor(path2) {
+        return { type: "actor", value: path2 };
       }
       static runId() {
         return { type: "runId", value: "runId" };
@@ -122,8 +123,8 @@ var init_builder = __esm({
       static generated(template) {
         return { type: "generated", value: template };
       }
-      static testData(path) {
-        return { type: "testData", value: path };
+      static testData(path2) {
+        return { type: "testData", value: path2 };
       }
     };
     StepBuilder = class {
@@ -301,8 +302,8 @@ var init_builder = __esm({
         this.journey.revision = rev;
         return this;
       }
-      sourcePath(path) {
-        this.journey.sourcePath = path;
+      sourcePath(path2) {
+        this.journey.sourcePath = path2;
         return this;
       }
       build() {
@@ -740,8 +741,8 @@ function createLocatorFromMatch(strategy, value, name) {
 }
 function createValueFromText(text) {
   if (/^\{\{.+\}\}$/.test(text)) {
-    const path = text.slice(2, -2).trim();
-    return { type: "actor", value: path };
+    const path2 = text.slice(2, -2).trim();
+    return { type: "actor", value: path2 };
   }
   if (/^\$.+/.test(text)) {
     return { type: "testData", value: text.slice(1) };
@@ -2839,16 +2840,63 @@ function createIRPrimitiveFromDiscovered(typeName, selectorHints) {
     case "assert":
     case "expectVisible":
       return { type: "expectVisible", locator };
+    case "expectNotVisible":
+      return { type: "expectNotVisible", locator };
+    case "expectHidden":
+      return { type: "expectHidden", locator };
     case "expectText":
       return { type: "expectText", locator, text: "{{text}}" };
     case "expectURL":
       return { type: "expectURL", pattern: "{{pattern}}" };
+    case "expectTitle":
+      return { type: "expectTitle", title: "{{title}}" };
+    case "expectValue":
+      return { type: "expectValue", locator, value: "{{value}}" };
+    case "expectChecked":
+      return { type: "expectChecked", locator };
+    case "expectEnabled":
+      return { type: "expectEnabled", locator };
+    case "expectDisabled":
+      return { type: "expectDisabled", locator };
+    case "expectCount":
+      return { type: "expectCount", locator, count: 0 };
+    case "expectContainsText":
+      return { type: "expectContainsText", locator, text: "{{text}}" };
+    // Signals (toasts, modals, alerts)
+    case "expectToast":
+      return { type: "expectToast", toastType: "success" };
+    case "dismissModal":
+      return { type: "dismissModal" };
+    case "acceptAlert":
+      return { type: "acceptAlert" };
+    case "dismissAlert":
+      return { type: "dismissAlert" };
     // Wait
     case "waitForVisible":
       return { type: "waitForVisible", locator };
+    case "waitForHidden":
+      return { type: "waitForHidden", locator };
+    case "waitForURL":
+      return { type: "waitForURL", pattern: "{{pattern}}" };
+    case "waitForNetworkIdle":
+      return { type: "waitForNetworkIdle" };
+    case "waitForTimeout":
+      return { type: "waitForTimeout", ms: 1e3 };
+    case "waitForResponse":
+      return { type: "waitForResponse", urlPattern: "{{pattern}}" };
+    case "waitForLoadingComplete":
+      return { type: "waitForLoadingComplete" };
+    // Navigation (additional)
+    case "goForward":
+      return { type: "goForward" };
     // File upload
     case "upload":
       return { type: "upload", locator, files: ["{{file}}"] };
+    // Additional interactions
+    case "rightClick":
+      return { type: "rightClick", locator };
+    case "focus":
+      return { type: "focus", locator };
     // Keyboard shortcut (template-generators uses 'keyboard' for modal Escape etc.)
     case "keyboard":
       return { type: "press", key: "Escape", locator };
@@ -2974,7 +3022,33 @@ function loadLearnedPatterns(options = {}) {
       patternCache = { patterns: [], llkbRoot, loadedAt: now };
       return [];
     }
-    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+    const rawPatterns = Array.isArray(data.patterns) ? data.patterns : [];
+    const patterns = rawPatterns.map((p) => {
+      if (p.mappedPrimitive && typeof p.mappedPrimitive === "object") {
+        return p;
+      }
+      if (typeof p.irPrimitive === "string") {
+        const primitive = createIRPrimitiveFromDiscovered(p.irPrimitive);
+        if (!primitive) {
+          return null;
+        }
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        return {
+          id: p.id || generatePatternId(),
+          originalText: p.originalText || "",
+          normalizedText: p.normalizedText || "",
+          mappedPrimitive: primitive,
+          confidence: typeof p.confidence === "number" ? p.confidence : 0.5,
+          sourceJourneys: Array.isArray(p.sourceJourneys) ? p.sourceJourneys : [],
+          successCount: typeof p.successCount === "number" ? p.successCount : 0,
+          failCount: typeof p.failCount === "number" ? p.failCount : 0,
+          lastUsed: p.lastUpdated || p.lastUsed || nowIso,
+          createdAt: p.createdAt || nowIso,
+          promotedToCore: p.promotedToCore || false
+        };
+      }
+      return null;
+    }).filter((p) => p !== null);
     patternCache = { patterns, llkbRoot, loadedAt: now };
     return patterns;
   } catch (err3) {
@@ -9021,7 +9095,7 @@ var init_llkb_storage = __esm({
   }
 });
 async function checkPlaywrightInstalled(cwd) {
-  return new Promise((resolve8) => {
+  return new Promise((resolve9) => {
     const proc = spawn("npx", ["playwright", "--version"], {
       cwd: getHarnessRoot(),
       env: process.env
@@ -9037,26 +9111,26 @@ async function checkPlaywrightInstalled(cwd) {
     proc.on("close", (code) => {
       if (code === 0) {
         const versionMatch = stdout.match(/(\d+\.\d+\.\d+)/);
-        resolve8({
+        resolve9({
           installed: true,
           version: versionMatch && versionMatch[1] ? versionMatch[1] : void 0
         });
       } else {
-        resolve8({
+        resolve9({
           installed: false,
           error: stderr || "Playwright not found. Run: npx playwright install"
         });
       }
     });
     proc.on("error", (err3) => {
-      resolve8({
+      resolve9({
         installed: false,
         error: `Failed to check Playwright: ${err3.message}`
       });
     });
     setTimeout(() => {
       proc.kill();
-      resolve8({
+      resolve9({
         installed: false,
         error: "Playwright check timed out"
       });
@@ -12802,7 +12876,7 @@ async function runPlaywrightTest(testPath, options) {
   if (options.debug) {
     args.push("--debug");
   }
-  return new Promise((resolve8) => {
+  return new Promise((resolve9) => {
     let stdout = "";
     let stderr = "";
     const proc = spawn("npx", args, {
@@ -12866,7 +12940,7 @@ async function runPlaywrightTest(testPath, options) {
 
 [${name} TRUNCATED - ${text.length - truncateAt} more characters]`;
       };
-      resolve8({
+      resolve9({
         version: "1.0",
         testPath,
         journeyId,
@@ -12883,7 +12957,7 @@ async function runPlaywrightTest(testPath, options) {
       });
     });
     proc.on("error", (err3) => {
-      resolve8({
+      resolve9({
         version: "1.0",
         testPath,
         status: "error",
@@ -13614,26 +13688,26 @@ __export(status_exports, {
   runStatus: () => runStatus
 });
 function getArtifactStatus(artifact) {
-  const path = getAutogenArtifact(artifact);
-  const exists = existsSync(path);
+  const path2 = getAutogenArtifact(artifact);
+  const exists = existsSync(path2);
   const status = {
     name: artifact,
-    path,
+    path: path2,
     exists
   };
   if (exists) {
-    const stat = statSync(path);
+    const stat = statSync(path2);
     status.size = stat.size;
     status.modifiedAt = stat.mtime.toISOString();
     try {
       if (artifact === "analysis") {
-        const data = JSON.parse(readFileSync(path, "utf-8"));
+        const data = JSON.parse(readFileSync(path2, "utf-8"));
         status.summary = `${data.journeys?.length || 0} journeys, ${data.summary?.totalSteps || 0} steps`;
       } else if (artifact === "plan") {
-        const data = JSON.parse(readFileSync(path, "utf-8"));
+        const data = JSON.parse(readFileSync(path2, "utf-8"));
         status.summary = `${data.plans?.length || 0} plans, ${data.summary?.totalSteps || 0} steps`;
       } else if (artifact === "results") {
-        const data = JSON.parse(readFileSync(path, "utf-8"));
+        const data = JSON.parse(readFileSync(path2, "utf-8"));
         status.summary = `${data.summary?.passed || 0}/${data.summary?.total || 0} passed`;
       }
     } catch {
@@ -13650,9 +13724,9 @@ function loadRefinementStates() {
     const files = readdirSync(autogenDir);
     for (const file of files) {
       if (file.startsWith("refine-state-") && file.endsWith(".json")) {
-        const path = join(autogenDir, file);
+        const path2 = join(autogenDir, file);
         try {
-          const data = JSON.parse(readFileSync(path, "utf-8"));
+          const data = JSON.parse(readFileSync(path2, "utf-8"));
           const lastAttempt = data.attempts?.[data.attempts.length - 1];
           states.push({
             testPath: data.testPath,
@@ -14021,10 +14095,10 @@ Total: ${formatSize(totalSize)}`);
       input: process.stdin,
       output: process.stdout
     });
-    const answer = await new Promise((resolve8) => {
+    const answer = await new Promise((resolve9) => {
       rl.question("\nProceed with deletion? [y/N] ", (ans) => {
         rl.close();
-        resolve8(ans);
+        resolve9(ans);
       });
     });
     if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
@@ -14437,14 +14511,14 @@ async function runInstall(args) {
     console.log("\u2713 Installation complete\n");
     if (result.created.length > 0) {
       console.log("Created:");
-      for (const path of result.created) {
-        console.log(`  + ${path}`);
+      for (const path2 of result.created) {
+        console.log(`  + ${path2}`);
       }
     }
     if (result.skipped.length > 0) {
       console.log("\nSkipped (already exists):");
-      for (const path of result.skipped) {
-        console.log(`  - ${path}`);
+      for (const path2 of result.skipped) {
+        console.log(`  - ${path2}`);
       }
     }
     console.log("\nNext steps:");
@@ -14890,10 +14964,10 @@ async function confirmAction(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve8) => {
+  return new Promise((resolve9) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve8(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve9(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -15283,10 +15357,10 @@ async function confirmAction2(message) {
     input: process.stdin,
     output: process.stdout
   });
-  return new Promise((resolve8) => {
+  return new Promise((resolve9) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve8(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      resolve9(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
     });
   });
 }
@@ -15309,11 +15383,195 @@ async function runClear2(options) {
   clearLearnedPatterns({ llkbRoot: options.llkbRoot });
   console.log("\u2705 All learned patterns cleared.\n");
 }
+async function runReseed(options) {
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  const { existsSync: fileExists, readFileSync: readFile } = await import('fs');
+  let rawPatterns = [];
+  if (fileExists(filePath)) {
+    try {
+      const data2 = JSON.parse(readFile(filePath, "utf-8"));
+      rawPatterns = Array.isArray(data2.patterns) ? data2.patterns : [];
+    } catch {
+    }
+  }
+  const currentDir = getCurrentDir();
+  const seedPaths = [
+    path.resolve(currentDir, "..", "..", "..", "dist", "llkb", "index.js"),
+    path.resolve(currentDir, "..", "..", "..", "llkb", "universal-seeds.js")
+  ];
+  let createSeeds = null;
+  for (const seedPath of seedPaths) {
+    try {
+      const mod = await import(seedPath);
+      createSeeds = mod.createUniversalSeedPatterns;
+      break;
+    } catch {
+    }
+  }
+  if (!createSeeds) {
+    console.error("\u274C Could not resolve universal seeds module.");
+    process.exit(1);
+  }
+  const seeds = createSeeds();
+  const existingTexts = new Set(
+    rawPatterns.map(
+      (p) => p.normalizedText || ""
+    )
+  );
+  let added = 0;
+  let skipped = 0;
+  for (const seed of seeds) {
+    if (existingTexts.has(seed.normalizedText)) {
+      skipped++;
+    } else {
+      rawPatterns.push(seed);
+      added++;
+    }
+  }
+  const data = {
+    version: "1.0.0",
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+    patterns: rawPatterns
+  };
+  const { writeFileSync: writeFile, mkdirSync: mkDir, renameSync: renameFile } = await import('fs');
+  const dir = path.dirname(filePath);
+  if (!fileExists(dir)) {
+    mkDir(dir, { recursive: true });
+  }
+  const content = JSON.stringify(data, null, 2);
+  const tempPath = `${filePath}.tmp.${Date.now()}`;
+  writeFile(tempPath, content, "utf-8");
+  renameFile(tempPath, filePath);
+  invalidatePatternCache();
+  if (options.json) {
+    console.log(JSON.stringify({ added, skipped, total: rawPatterns.length }));
+    return;
+  }
+  console.log(`
+\u{1F331} Universal seed patterns applied:`);
+  console.log(`   Added:   ${added}`);
+  console.log(`   Skipped: ${skipped} (already exist)`);
+  console.log(`   Total:   ${rawPatterns.length} patterns
+`);
+}
+function getCurrentDir() {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    if (typeof __dirname === "string") {
+      return __dirname;
+    }
+    return process.cwd();
+  }
+}
+async function resolvePipeline() {
+  const currentDir = getCurrentDir();
+  const tried = [];
+  const builtPath = path.resolve(currentDir, "..", "..", "..", "dist", "llkb", "index.js");
+  tried.push(builtPath);
+  try {
+    return await import(builtPath);
+  } catch {
+  }
+  const devPath = path.resolve(currentDir, "..", "..", "..", "llkb", "index.js");
+  tried.push(devPath);
+  try {
+    return await import(devPath);
+  } catch {
+  }
+  const vendoredPath = path.resolve(currentDir, "..", "..", "core", "dist", "llkb", "index.js");
+  tried.push(vendoredPath);
+  try {
+    return await import(vendoredPath);
+  } catch {
+  }
+  throw new Error(
+    `Could not resolve @artk/core LLKB pipeline module.
+Ensure you are running from the ARTK monorepo or a project with @artk/core installed.
+Tried:
+${tried.map((p) => `  - ${p}`).join("\n")}`
+  );
+}
+async function runDiscover(options) {
+  const projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : process.cwd();
+  const llkbRoot = options.llkbRoot ? path.resolve(options.llkbRoot) : path.join(process.cwd(), ".artk", "llkb");
+  const { existsSync: existsSync34 } = await import('fs');
+  if (!existsSync34(projectRoot)) {
+    console.error(`\u274C Project root does not exist: ${projectRoot}`);
+    process.exit(1);
+  }
+  if (!existsSync34(llkbRoot)) {
+    console.error(`\u274C LLKB root does not exist: ${llkbRoot}`);
+    console.error(`   Run 'artk init' or 'artk llkb init' first to create the LLKB directory.`);
+    process.exit(1);
+  }
+  if (!options.json) {
+    console.log(`
+\u{1F50D} Running LLKB discovery pipeline...`);
+    console.log(`   Project root: ${projectRoot}`);
+    console.log(`   LLKB root:    ${llkbRoot}
+`);
+  }
+  let pipeline;
+  try {
+    pipeline = await resolvePipeline();
+  } catch (err3) {
+    console.error(`\u274C ${err3 instanceof Error ? err3.message : "Failed to load pipeline module"}`);
+    process.exit(1);
+  }
+  const result = await pipeline.runFullDiscoveryPipeline(projectRoot, llkbRoot);
+  if (options.json) {
+    console.log(JSON.stringify({
+      success: result.success,
+      stats: result.stats,
+      warnings: result.warnings,
+      errors: result.errors
+    }, null, 2));
+    return;
+  }
+  if (!result.success) {
+    console.error("\u274C Discovery pipeline failed");
+    for (const error of result.errors) {
+      console.error(`   ${error}`);
+    }
+    process.exit(1);
+  }
+  const s = result.stats;
+  const durationSec = (s.durationMs / 1e3).toFixed(1);
+  console.log(`\u2705 Discovery pipeline completed`);
+  console.log(`   Duration: ${durationSec}s`);
+  console.log(`   Patterns before QC: ${s.totalBeforeQC}`);
+  console.log(`   Patterns after QC:  ${s.totalAfterQC}`);
+  console.log();
+  console.log(`\u{1F4CA} Pattern Sources:`);
+  console.log(`   Discovery:       ${s.patternSources.discovery}`);
+  console.log(`   Templates:       ${s.patternSources.templates}`);
+  console.log(`   Framework Packs: ${s.patternSources.frameworkPacks}`);
+  console.log(`   i18n:            ${s.patternSources.i18n}`);
+  console.log(`   Analytics:       ${s.patternSources.analytics}`);
+  console.log(`   Feature Flags:   ${s.patternSources.featureFlags}`);
+  if (s.mining) {
+    console.log();
+    console.log(`\u26CF\uFE0F  Mining Results:`);
+    console.log(`   Entities: ${s.mining.entitiesFound} | Routes: ${s.mining.routesFound}`);
+    console.log(`   Forms: ${s.mining.formsFound} | Tables: ${s.mining.tablesFound} | Modals: ${s.mining.modalsFound}`);
+    console.log(`   Files scanned: ${s.mining.filesScanned}`);
+  }
+  if (result.warnings.length > 0) {
+    console.log();
+    console.log(`\u26A0\uFE0F  Warnings:`);
+    for (const warning of result.warnings) {
+      console.log(`   ${warning}`);
+    }
+  }
+  console.log();
+}
 async function runLlkbPatterns(args) {
   const { values, positionals } = parseArgs({
     args,
     options: {
       "llkb-root": { type: "string", short: "r" },
+      "project-root": { type: "string", short: "p" },
       limit: { type: "string", short: "n", default: "20" },
       "min-confidence": { type: "string", default: "0.7" },
       "min-success": { type: "string", default: "1" },
@@ -15369,6 +15627,15 @@ async function runLlkbPatterns(args) {
     case "clear":
       await runClear2({ llkbRoot: baseOptions.llkbRoot, force: values.force });
       break;
+    case "discover":
+      await runDiscover({
+        ...baseOptions,
+        projectRoot: values["project-root"]
+      });
+      break;
+    case "reseed":
+      await runReseed(baseOptions);
+      break;
     default:
       console.error(`Unknown subcommand: ${subcommand}`);
       console.log(LLKB_PATTERNS_USAGE);
@@ -15389,14 +15656,17 @@ Subcommands:
   export      Export patterns to LLKB config format
   prune       Remove low-quality patterns
   clear       Clear all learned patterns (use with caution)
+  discover    Run full LLKB discovery pipeline on a project
+  reseed      Re-apply universal seed patterns (restores seeds after clear)
 
 Options:
-  --llkb-root, -r <path>    LLKB root directory (default: .artk/llkb)
-  --limit, -n <num>         Limit number of results (default: 20)
-  --min-confidence <num>    Minimum confidence threshold (default: varies by command)
-  --json                    Output as JSON
-  --force, -f               Skip confirmation prompts (for clear command)
-  -h, --help                Show this help message
+  --llkb-root, -r <path>       LLKB root directory (default: .artk/llkb)
+  --project-root, -p <path>    Project root directory (default: cwd, for discover)
+  --limit, -n <num>            Limit number of results (default: 20)
+  --min-confidence <num>       Minimum confidence threshold (default: varies by command)
+  --json                       Output as JSON
+  --force, -f                  Skip confirmation prompts (for clear command)
+  -h, --help                   Show this help message
 
 Examples:
   artk-autogen llkb-patterns list                    # List top 20 learned patterns
@@ -15407,6 +15677,9 @@ Examples:
   artk-autogen llkb-patterns prune --min-confidence 0.3  # Remove low-confidence patterns
   artk-autogen llkb-patterns clear                   # Clear all patterns (with confirmation)
   artk-autogen llkb-patterns clear --force           # Clear all patterns (no confirmation)
+  artk-autogen llkb-patterns discover                # Run discovery on current project
+  artk-autogen llkb-patterns discover -p /path/to/project  # Discover with explicit project root
+  artk-autogen llkb-patterns reseed                  # Re-apply 39 universal seed patterns
 `;
   }
 });
