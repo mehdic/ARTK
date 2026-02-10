@@ -1029,8 +1029,8 @@ artk llkb health
 # View statistics
 artk llkb stats
 
-# Export for AutoGen
-artk llkb export --for-autogen --output ./
+# Export learned patterns for reuse
+artk-autogen llkb-patterns export
 ```
 
 ---
@@ -1342,8 +1342,7 @@ When implementing `/artk.journey-maintain`, ensure these 5 capabilities are incl
    ↓
    For each outdated test:
      - Create backup: {testFile}.llkb-backup-{timestamp}
-     - Re-export LLKB: artk llkb export --for-autogen
-     - Regenerate test with AutoGen (with --llkb-config, --llkb-glossary)
+     - Regenerate test with AutoGen (reads LLKB internally)
 
 4. Quick Verify
    ↓
