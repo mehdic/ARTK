@@ -42,16 +42,16 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║    □ Read `${LLKB_ROOT}/config.yml`                                       ║
 # ║    □ Read `${LLKB_ROOT}/components.json`                                  ║
 # ║    □ Read `${LLKB_ROOT}/lessons.json`                                     ║
+# ║    □ Read `${LLKB_ROOT}/learned-patterns.json`                            ║
 # ║    □ Output "LLKB Context Loaded" section showing findings                ║
 # ║                                                                           ║
-# ║  GATE 2.5: Export LLKB for AutoGen (Step 2.5)                             ║
-# ║    □ Run `artk llkb export --for-autogen --llkb-root ${LLKB_ROOT}`        ║
-# ║    □ Generates autogen-llkb.config.yml and llkb-glossary.ts               ║
-# ║    □ Output export statistics                                             ║
-# ║    □ In subagent mode: Orchestrator runs export ONCE (not per subagent)   ║
+# ║  GATE 2.5: Verify LLKB Pattern Status (Step 2.5)                          ║
+# ║    □ Check learned-patterns.json has patterns (reseed if empty)            ║
+# ║    □ Optionally run discovery pipeline if discovered-patterns.json missing ║
+# ║    □ Output LLKB pattern statistics                                       ║
 # ║                                                                           ║
 # ║  GATE 3: Use AutoGen CLI (Step 3)                                         ║
-# ║    □ Run `npx artk-autogen generate` with --llkb-config and --llkb-glossary ║
+# ║    □ Run `npx artk-autogen generate` (reads LLKB patterns internally)      ║
 # ║    □ Alternative: Use pipeline commands (analyze → plan → generate → run)  ║
 # ║    □ Only use manual implementation if AutoGen fails or has blocked steps ║
 # ║    □ In subagent mode, subagents run AutoGen (main agent does NOT)         ║
@@ -123,7 +123,7 @@ Manual implementation is ONLY allowed when:
 # ║  DEFAULT MODE (batchMode=subagent): PARALLEL SUBAGENT EXECUTION           ║
 # ║  ✅ Faster for large batches (processes N journeys in parallel)           ║
 # ║  ✅ LLKB loaded by each subagent (better isolation)                       ║
-# ║  ✅ LLKB export runs ONCE at orchestrator level (not per subagent)        ║
+# ║  ✅ AutoGen reads LLKB pattern files internally (no export needed)        ║
 # ║  ⚠️  Auto-fallbacks to serial in non-VS Code environments                 ║
 # ║                                                                           ║
 # ║  FALLBACK MODE (batchMode=serial): SERIAL EXECUTION                       ║
@@ -290,12 +290,12 @@ Default naming:
 When executing this command, structure your response like this:
 
 1) **Detected Context**
-2) **LLKB Context Loaded** ← MANDATORY: Show components/lessons found
+2) **LLKB Context Loaded** ← MANDATORY: Show components/lessons + pattern counts
 3) **Implementation Plan**
 4) **Questions (if needed)**
 5) **AutoGen Execution** ← MANDATORY: Show AutoGen CLI output
 6) **Changes Applied** (if manual steps needed)
-7) **LLKB Summary** ← MANDATORY: Components reused/created, lessons applied
+7) **LLKB Summary** ← MANDATORY: Components reused/created, lessons applied, patterns available
 8) **Validation + Verification**
 9) **How to Run + Debug**
 10) **Blockers / Follow-ups**
@@ -526,9 +526,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[0]}
     - LLKB_ROOT: ${HARNESS_ROOT}/.artk/llkb/ (subagent MUST load LLKB first)
-    - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
+    - NOTE: AutoGen reads learned-patterns.json and discovered-patterns.json internally
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen generate → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -538,9 +538,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[1]}
     - LLKB_ROOT: ${HARNESS_ROOT}/.artk/llkb/ (subagent MUST load LLKB first)
-    - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
+    - NOTE: AutoGen reads learned-patterns.json and discovered-patterns.json internally
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen generate → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -550,9 +550,9 @@ IF batchMode == "subagent" AND totalJourneys > 1:
     - harnessRoot: {harnessRoot}
     - Journey ID: {batch[2]}
     - LLKB_ROOT: ${HARNESS_ROOT}/.artk/llkb/ (subagent MUST load LLKB first)
-    - LLKB_EXPORT: {harnessRoot}/autogen-llkb.config.yml, {harnessRoot}/llkb-glossary.ts
+    - NOTE: AutoGen reads learned-patterns.json and discovered-patterns.json internally
     - Timeout: {subagentTimeout}ms
-    Task: Load LLKB → Load journey → Run AutoGen with --llkb-config --llkb-glossary → Update frontmatter (tests[], status)
+    Task: Load LLKB → Load journey → Run AutoGen generate → Update frontmatter (tests[], status)
     Return: {journeyId, status, testFiles[], newComponents[], errors[]}
     DO NOT regenerate backlog/index (main agent will do this).
 
@@ -858,6 +858,7 @@ If the Journey is not clarified:
 #   - ${LLKB_ROOT}/config.yml (configuration)
 #   - ${LLKB_ROOT}/components.json (component registry)
 #   - ${LLKB_ROOT}/lessons.json (lessons learned)
+#   - ${LLKB_ROOT}/learned-patterns.json (seed patterns + recorded successes)
 #
 # The directory alone is NOT sufficient - all core files must exist.
 # ═══════════════════════════════════════════════════════════════
@@ -865,7 +866,8 @@ If the Journey is not clarified:
 REQUIRED_LLKB_FILES = [
   "${LLKB_ROOT}/config.yml",
   "${LLKB_ROOT}/components.json",
-  "${LLKB_ROOT}/lessons.json"
+  "${LLKB_ROOT}/lessons.json",
+  "${LLKB_ROOT}/learned-patterns.json"
 ]
 
 missingFiles = []
@@ -899,6 +901,7 @@ IF NOT exists("${LLKB_ROOT}/") OR missingFiles.length > 0:
   ║    - app-profile.json (application DNA)                            ║
   ║    - lessons.json (empty, ready for learnings)                     ║
   ║    - components.json (empty, ready for components)                 ║
+  ║    - learned-patterns.json (39 universal seed patterns)            ║
   ║                                                                    ║
   ║  Cannot proceed without valid LLKB structure.                      ║
   ╚════════════════════════════════════════════════════════════════════╝
@@ -918,6 +921,38 @@ IF NOT config.enabled:
   ║  Cannot proceed without LLKB enabled.                              ║
   ╚════════════════════════════════════════════════════════════════════╝
   STOP
+
+# ═══════════════════════════════════════════════════════════════
+# SEED PRE-FLIGHT: Ensure learned-patterns.json has seed patterns
+# ═══════════════════════════════════════════════════════════════
+learnedPatterns = loadJSON("${LLKB_ROOT}/learned-patterns.json") OR { patterns: [] }
+IF learnedPatterns.patterns.length == 0:
+  OUTPUT:
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  ⚠️  LLKB PATTERNS EMPTY — Reseeding                               ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  learned-patterns.json exists but has 0 patterns.                  ║
+  ║  Running reseed to restore 39 universal seed patterns...           ║
+  ╚════════════════════════════════════════════════════════════════════╝
+
+  RUN:
+  cd <ARTK_ROOT>/<harnessRoot>
+  npx artk-autogen llkb-patterns reseed --llkb-root ${LLKB_ROOT}
+
+  # Reload after reseed
+  learnedPatterns = loadJSON("${LLKB_ROOT}/learned-patterns.json") OR { patterns: [] }
+
+  IF learnedPatterns.patterns.length == 0:
+    # Reseed failed (old vendored version, command error, etc.)
+    OUTPUT:
+    ╔════════════════════════════════════════════════════════════════════╗
+    ║  ⚠️  RESEED FAILED — Continuing with core patterns only            ║
+    ╠════════════════════════════════════════════════════════════════════╣
+    ║  AutoGen still has 84 core patterns and will generate tests.       ║
+    ║  LLKB learning is degraded but functional.                         ║
+    ║  To fix: upgrade @artk/core or run /artk.discover-foundation.     ║
+    ╚════════════════════════════════════════════════════════════════════╝
+    # Do NOT STOP — AutoGen works without LLKB patterns
 ```
 
 ### 2.2 Load LLKB Data Files
@@ -925,6 +960,9 @@ IF NOT config.enabled:
 components = loadJSON("${LLKB_ROOT}/components.json") OR { components: [] }
 lessons = loadJSON("${LLKB_ROOT}/lessons.json") OR { lessons: [], globalRules: [], appQuirks: [] }
 appProfile = loadJSON("${LLKB_ROOT}/app-profile.json") OR {}
+# Re-read intentionally — seeds may have been added by pre-flight in Step 2.1
+learnedPatterns = loadJSON("${LLKB_ROOT}/learned-patterns.json") OR { patterns: [] }
+discoveredPatterns = loadJSON("${LLKB_ROOT}/discovered-patterns.json") OR null
 ```
 
 ### 2.3 Filter by Journey Scope (Context Injection Algorithm)
@@ -1087,160 +1125,66 @@ FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) ->
 
 ---
 
-## Step 2.5 — Export LLKB for AutoGen (MANDATORY)
+## Step 2.5 — LLKB Pattern Summary (Informational)
 
-# ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║  🛑 STOP: This step is MANDATORY after Step 2                             ║
-# ╠═══════════════════════════════════════════════════════════════════════════╣
-# ║  You MUST export LLKB to AutoGen-compatible format BEFORE Step 3.         ║
-# ║  This step generates files that AutoGen CLI will consume.                 ║
-# ║                                                                           ║
-# ║  In subagent mode: Orchestrator runs this ONCE (not per subagent).        ║
-# ║  Subagents will use the exported files generated by the orchestrator.     ║
-# ╚═══════════════════════════════════════════════════════════════════════════╝
+AutoGen reads LLKB pattern files **internally** during code generation:
+- `learned-patterns.json` — Seed patterns + recorded successes (Phase 1 matching)
+- `discovered-patterns.json` — Framework packs + discovery pipeline output (Phase 2 matching)
 
-### 2.5.1 Run LLKB Export Command
+No manual export step is needed. AutoGen loads these files automatically.
 
-Before running AutoGen, export LLKB knowledge to AutoGen-compatible format:
+### 2.5.1 Output Pattern Statistics (MANDATORY)
+
+**You MUST output this section showing the current LLKB pattern state:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  LLKB PATTERN STATUS                                               ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  Learned Patterns (learned-patterns.json):                         ║
+║    Total: {learnedPatterns.patterns.length}                        ║
+║    Seed patterns (confidence == 0.80, sourceJourneys empty): {count} ║
+║    High confidence (>=0.7): {count}                                ║
+║                                                                    ║
+║  Discovered Patterns (discovered-patterns.json):                   ║
+║    {discoveredPatterns ? "Total: " + discoveredPatterns.patterns.length : "Not yet generated"} ║
+║    {discoveredPatterns ? "Sources: " + discoveredPatterns.metadata?.sources : ""} ║
+║                                                                    ║
+║  AutoGen reads these files internally during generation.           ║
+║  No manual export needed.                                          ║
+║                                                                    ║
+║  NOTE: "High confidence: 0" is normal for new projects.            ║
+║  AutoGen uses patterns above its internal threshold (0.7).         ║
+║  Seeds start at 0.80 and confidence updates with each generation.  ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+### 2.5.2 Discovery Pipeline (Optional Enhancement)
+
+If `discovered-patterns.json` does not exist, the discovery pipeline has not been run.
+This is OPTIONAL but recommended for better pattern coverage:
 
 ```bash
-# From harness root directory
 cd <ARTK_ROOT>/<harnessRoot>
-
-# Export LLKB for AutoGen
-artk llkb export --for-autogen --llkb-root ${LLKB_ROOT} \
-  --output ./ \
-  --min-confidence 0.7
+# --project-root should be the parent directory of harnessRoot (the actual app)
+npx artk-autogen llkb-patterns discover \
+  --project-root .. \
+  --llkb-root .artk/llkb
 ```
 
-**Command options:**
-- `--output ./` — Output directory (harness root)
-- `--min-confidence 0.7` — Minimum confidence threshold for exported entries
-- `--dry-run` — Preview export without writing files (optional)
+This runs framework detection, entity mining, and template multiplication.
+Skip this if `/artk.discover-foundation` already ran the pipeline successfully.
 
-### 2.5.2 Expected Output Files
+### 2.5.3 Legacy Export (Optional — Only if custom patterns exist)
 
-The export command generates two files in the harness root:
+If the project has manually-created LLKB config or glossary files:
+- `autogen-llkb.config.yml` — Additional pattern rules
+- `llkb-glossary.ts` — Custom term-to-IR mappings
 
-1. **`autogen-llkb.config.yml`** — AutoGen config extension with:
-   - Additional patterns from LLKB lessons
-   - Selector overrides from lessons
-   - Timing hints from lessons
-   - Module mappings from components
-
-2. **`llkb-glossary.ts`** — TypeScript glossary file with:
-   - Natural language term mappings to IR primitives
-   - Component name variations
-   - Metadata about export (timestamp, confidence, sources)
-
-### 2.5.3 Output Export Statistics (MANDATORY)
-
-**You MUST output this section showing export results:**
-
-```
-╔════════════════════════════════════════════════════════════════════╗
-║  LLKB EXPORTED FOR AUTOGEN                                         ║
-╠════════════════════════════════════════════════════════════════════╣
-║                                                                    ║
-║  📊 Export Statistics:                                             ║
-║    Patterns exported: {patternsExported}                           ║
-║    Selector overrides exported: {selectorsExported}                ║
-║    Timing hints exported: {timingHintsExported}                    ║
-║    Modules exported: {modulesExported}                             ║
-║    Glossary entries generated: {glossaryEntriesExported}           ║
-║                                                                    ║
-║  📦 Output Files:                                                  ║
-║    - {harnessRoot}/autogen-llkb.config.yml                         ║
-║    - {harnessRoot}/llkb-glossary.ts                                ║
-║                                                                    ║
-║  ⏰ Export completed at: {exportedAt}                              ║
-║  🎯 Min confidence threshold: {minConfidence}                      ║
-║                                                                    ║
-║  Warnings: {warnings.length} {warnings.length > 0 ? "⚠️" : "✓"}    ║
-{FOR warning IN warnings:
-║    - {warning}                                                     ║
-}
-║                                                                    ║
-╚════════════════════════════════════════════════════════════════════╝
-```
-
-### 2.5.4 Error Handling
-
-**If export fails:**
-
-```
-╔════════════════════════════════════════════════════════════════════╗
-║  ⚠️  LLKB EXPORT FAILED                                            ║
-╠════════════════════════════════════════════════════════════════════╣
-║  Error: {errorMessage}                                             ║
-║                                                                    ║
-║  Possible causes:                                                  ║
-║  - LLKB not properly initialized                                   ║
-║  - Invalid LLKB data format                                        ║
-║  - No high-confidence entries to export                            ║
-║                                                                    ║
-║  Action: Continuing without LLKB export (AutoGen uses core only)   ║
-║  Impact: AutoGen will not benefit from learned patterns            ║
-║                                                                    ║
-║  To fix: Run /artk.discover-foundation to rebuild LLKB             ║
-╚════════════════════════════════════════════════════════════════════╝
-```
-
-**If no high-confidence entries:**
-
-This is a WARNING, not an error. Continue with empty export:
-
-```
-╔════════════════════════════════════════════════════════════════════╗
-║  ⚠️  NO HIGH-CONFIDENCE LLKB ENTRIES                               ║
-╠════════════════════════════════════════════════════════════════════╣
-║  No lessons or components meet the confidence threshold (0.7).     ║
-║                                                                    ║
-║  Generated empty export files for AutoGen.                         ║
-║  AutoGen will use core patterns only.                              ║
-║                                                                    ║
-║  This is normal for new projects with limited learning history.    ║
-╚════════════════════════════════════════════════════════════════════╝
-```
-
-### 2.5.5 Batch Mode Considerations
-
-**In subagent mode (batchMode=subagent):**
-
-The LLKB export happens ONCE at the orchestrator level, NOT per subagent:
-
-```
-IF batchMode == "subagent":
-  # Orchestrator runs export BEFORE spawning subagents
-  OUTPUT: "Running LLKB export (once for all subagents)..."
-  RUN: artk llkb export --for-autogen --llkb-root ${LLKB_ROOT} --output {harnessRoot}/
-
-  # Then spawn subagents
-  # Subagents will find and use the exported files
-  FOR batch IN batches:
-    spawnSubagents(batch)
-```
-
-**In serial mode (batchMode=serial):**
-
-The LLKB export happens ONCE before processing journeys:
-
-```
-IF batchMode == "serial":
-  # Orchestrator runs export ONCE
-  OUTPUT: "Running LLKB export (once for all journeys)..."
-  RUN: artk llkb export --for-autogen --llkb-root ${LLKB_ROOT} --output {harnessRoot}/
-
-  # Then process journeys serially
-  FOR journey IN journeyList:
-    implementJourney(journey)
-```
-
-**Why once, not per journey/subagent:**
-- LLKB data is project-wide, not journey-specific
-- Export is idempotent and deterministic
-- Running once reduces overhead (5-10s per export)
-- All subagents/journeys use the same exported files
+These are OPTIONAL enhancements. AutoGen works fully without them.
+If they exist, they will be passed to AutoGen in Step 3.3.
 
 ---
 
@@ -1348,42 +1292,36 @@ IF journey.modules is Array:
 From the `<harnessRoot>/` directory (typically `artk-e2e/`):
 
 # ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║  🛑 PREREQUISITE: Did you run Step 2.5 (LLKB Export)?                     ║
-# ╠═══════════════════════════════════════════════════════════════════════════╣
-# ║  Before running AutoGen, you MUST have:                                   ║
-# ║  1. Run: artk llkb export --for-autogen --llkb-root .artk/llkb -o .       ║
-# ║  2. Verified these files exist:                                           ║
-# ║     - autogen-llkb.config.yml                                             ║
-# ║     - llkb-glossary.ts                                                    ║
-# ║                                                                           ║
-# ║  If you skip LLKB export:                                                 ║
-# ║  - AutoGen will generate SKELETON tests (empty test bodies)               ║
-# ║  - You'll have to manually implement all test steps                       ║
-# ║  - No learning will occur from existing patterns                          ║
-# ║                                                                           ║
-# ║  The --llkb-config and --llkb-glossary flags are MANDATORY when files     ║
-# ║  exist. Only omit them if LLKB export failed or LLKB is empty.            ║
+# ║  AutoGen has 84 core patterns + LLKB patterns (loaded internally).        ║
+# ║  It generates FULL tests — not skeletons — even without extra flags.      ║
+# ║  Do NOT assume AutoGen will fail. Do NOT skip to manual implementation.   ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 ```bash
 # Navigate to harness root
 cd <ARTK_ROOT>/<harnessRoot>
 
-# Verify LLKB export files exist (from Step 2.5)
-ls -la autogen-llkb.config.yml llkb-glossary.ts
-
-# Generate tests from the Journey (with LLKB integration)
+# Generate tests from the Journey
 npx artk-autogen generate "../journeys/{status}/{journey.file}" \
   -o tests/{tier}/ \
   -m \
-  --llkb-config ./autogen-llkb.config.yml \
-  --llkb-glossary ./llkb-glossary.ts \
   --dry-run  # First do a dry run to check for issues
 ```
 
 **If dry-run succeeds:**
 ```bash
-# Run actual generation (with LLKB integration)
+# Run actual generation
+npx artk-autogen generate "../journeys/{status}/{journey.file}" \
+  -o tests/{tier}/ \
+  -m
+```
+
+**Optional enhancements** (only if these files exist from manual setup):
+```bash
+# Check if optional LLKB config/glossary files exist
+ls autogen-llkb.config.yml llkb-glossary.ts 2>/dev/null
+
+# If they exist, add them for extra patterns:
 npx artk-autogen generate "../journeys/{status}/{journey.file}" \
   -o tests/{tier}/ \
   -m \
@@ -1391,11 +1329,11 @@ npx artk-autogen generate "../journeys/{status}/{journey.file}" \
   --llkb-glossary ./llkb-glossary.ts
 ```
 
-**CRITICAL:** The `--llkb-config` and `--llkb-glossary` flags are MANDATORY when export files exist.
-- Without these flags → skeleton tests with empty bodies
-- With these flags → fully implemented tests using learned patterns
-If the exported files don't exist (export failed or skipped), AutoGen will ignore these flags
-and proceed with core patterns only.
+**How AutoGen uses LLKB (automatic — no flags needed):**
+- Reads `learned-patterns.json` (seeds + learned patterns) via `matchLlkbPattern()` Phase 1
+- Reads `discovered-patterns.json` (framework packs + discovery) via Phase 2
+- Records successful matches via `recordPatternSuccess()` for future confidence updates
+- 84 core patterns handle ~82% of steps; LLKB patterns supplement the remaining
 
 **CLI Options:**
 
@@ -1405,9 +1343,9 @@ and proceed with core patterns only.
 | `-m, --modules` | Also generate feature module files |
 | `--dry-run` | Preview what would be generated without writing |
 | `-c, --config <file>` | Custom autogen config file |
-| `--llkb-config <file>` | **NEW:** LLKB-generated config (from Step 2.5) |
-| `--llkb-glossary <file>` | **NEW:** LLKB-generated glossary (from Step 2.5) |
-| `--no-llkb` | Disable LLKB integration (use core patterns only) |
+| `--llkb-config <file>` | Optional: Custom LLKB config file (if manually created) |
+| `--llkb-glossary <file>` | Optional: Custom LLKB glossary file (if manually created) |
+| `--no-llkb` | Disable ALL LLKB pattern matching (seeds + learned + discovered). Core 84 patterns still work. |
 | `-q, --quiet` | Suppress output except errors |
 
 ### 3.3.2 Pipeline Commands (Advanced - Hybrid Agentic Architecture)
@@ -1580,21 +1518,10 @@ const result = await generateJourneyTests({
 ```
 $ cd artk-e2e
 
-# STEP 1: Export LLKB first (MANDATORY)
-$ artk llkb export --for-autogen --llkb-root .artk/llkb -o .
-LLKB Export Complete
-  Patterns exported: 12
-  Components exported: 8
-  Glossary entries: 45
-  Output: autogen-llkb.config.yml, llkb-glossary.ts
-
-# STEP 2: Run AutoGen WITH LLKB options (MANDATORY)
+# Run AutoGen (LLKB patterns loaded internally)
 $ npx artk-autogen generate ../journeys/clarified/JRN-0001__user-login.md \
-    -o tests/smoke/ -m \
-    --llkb-config ./autogen-llkb.config.yml \
-    --llkb-glossary ./llkb-glossary.ts
+    -o tests/smoke/ -m
 Found 1 journey file(s)
-Loaded LLKB glossary: 45 entries
 Processing: JRN-0001 - User Login and Dashboard Access
 
 Generated:
@@ -1603,6 +1530,7 @@ Generated:
 Summary:
   Tests: 1
   Modules: 0
+  Blocked steps: 0
   Errors: 0
   Warnings: 0
 ```
@@ -1798,6 +1726,20 @@ Error: EPERM: operation not permitted
 2. Verify selector strategies match Journey intent
 3. Confirm acceptance criteria are mapped to assertions
 4. **Skip to Step 6** (LLKB Component Matching and Usage Recording)
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  🛑 TRUST AUTOGEN OUTPUT — DO NOT OVERWRITE                              ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  When AutoGen reports 0 blocked steps and generates complete tests:      ║
+# ║  - The generated code IS the implementation                              ║
+# ║  - Do NOT rewrite AutoGen output with manual code                        ║
+# ║  - Do NOT treat 0 LLKB components/lessons as a sign of failure           ║
+# ║    (LLKB pattern matching happens INSIDE AutoGen, not in this prompt)    ║
+# ║  - Proceed directly to Step 6 (Component Matching)                      ║
+# ║                                                                           ║
+# ║  The only valid reason to modify AutoGen output is if specific steps     ║
+# ║  have incorrect selectors or missing domain logic.                       ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
 
 **If AutoGen reports blocked steps:**
 
@@ -2703,6 +2645,11 @@ Proceeding with caution...
 ║                                                                    ║
 ║  Extraction Candidates: {count}                                    ║
 ║    {for each: "- Step {n}: {description} (reason: {reason})"}      ║
+║                                                                    ║
+║  AutoGen Pattern Matching (internal):                              ║
+║    Learned patterns available: {learnedPatterns.patterns.length}   ║
+║    Discovered patterns available: {discoveredPatterns?.patterns.length ?? 'N/A'} ║
+║    (Pattern matching happens inside AutoGen generate)              ║
 ║                                                                    ║
 ║  Rate Limits:                                                      ║
 ║    Session extractions: {sessionState.predictiveExtractionCount}/3 ║
