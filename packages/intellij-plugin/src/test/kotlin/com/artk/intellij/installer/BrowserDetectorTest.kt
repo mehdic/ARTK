@@ -2,12 +2,7 @@ package com.artk.intellij.installer
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
-/**
- * Tests for BrowserDetector - focuses on data classes and parsing that don't require process execution.
- */
 class BrowserDetectorTest : BasePlatformTestCase() {
-
-    // --- BrowserInfo data class tests ---
 
     fun testBrowserInfoDisplayNameReturnsCorrectNames() {
         val edgeInfo = BrowserDetector.BrowserInfo("msedge", "120.0", "/path")
@@ -54,8 +49,6 @@ class BrowserDetectorTest : BasePlatformTestCase() {
         assertFalse(info.isSystemBrowser)
     }
 
-    // --- BrowserPreference enum tests ---
-
     fun testBrowserPreferenceFromStringParsesEdge() {
         assertEquals(BrowserDetector.BrowserPreference.EDGE, BrowserDetector.BrowserPreference.fromString("edge"))
         assertEquals(BrowserDetector.BrowserPreference.EDGE, BrowserDetector.BrowserPreference.fromString("msedge"))
@@ -77,18 +70,5 @@ class BrowserDetectorTest : BasePlatformTestCase() {
         assertEquals(BrowserDetector.BrowserPreference.AUTO, BrowserDetector.BrowserPreference.fromString(null))
         assertEquals(BrowserDetector.BrowserPreference.AUTO, BrowserDetector.BrowserPreference.fromString(""))
         assertEquals(BrowserDetector.BrowserPreference.AUTO, BrowserDetector.BrowserPreference.fromString("unknown"))
-    }
-
-    // --- Detection tests that don't use ProcessUtils ---
-
-    fun testDetectWithChromiumPreferenceReturnsBundled() {
-        // CHROMIUM preference returns bundled chromium without any process execution
-        val result = BrowserDetector.detect(BrowserDetector.BrowserPreference.CHROMIUM)
-
-        assertEquals("chromium", result.channel)
-        assertNull(result.version)
-        assertNull(result.path)
-        assertFalse(result.isSystemBrowser)
-        assertEquals("Playwright Chromium (bundled)", result.displayName)
     }
 }

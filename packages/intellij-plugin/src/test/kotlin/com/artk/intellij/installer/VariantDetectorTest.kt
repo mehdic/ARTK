@@ -2,12 +2,7 @@ package com.artk.intellij.installer
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
-/**
- * Tests for VariantDetector - focuses on variant selection logic that doesn't require process execution.
- */
 class VariantDetectorTest : BasePlatformTestCase() {
-
-    // --- Variant enum tests ---
 
     fun testVariantModernEsmProperties() {
         val variant = VariantDetector.Variant.MODERN_ESM
@@ -49,8 +44,6 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertNull(VariantDetector.Variant.fromId("invalid"))
     }
 
-    // --- selectVariant tests (pure logic, no I/O) ---
-
     fun testSelectVariantReturnsModernEsmForNode18PlusWithEsm() {
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.selectVariant(22, true))
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.selectVariant(20, true))
@@ -77,8 +70,6 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertEquals(VariantDetector.Variant.LEGACY_14, VariantDetector.selectVariant(10, true))
     }
 
-    // --- parseVariant tests ---
-
     fun testParseVariantHandlesStandardIds() {
         assertEquals(VariantDetector.Variant.MODERN_ESM, VariantDetector.parseVariant("modern-esm"))
         assertEquals(VariantDetector.Variant.MODERN_CJS, VariantDetector.parseVariant("modern-cjs"))
@@ -96,8 +87,6 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertNull(VariantDetector.parseVariant(null))
         assertNull(VariantDetector.parseVariant(""))
     }
-
-    // --- getVariantFeatures tests ---
 
     fun testGetVariantFeaturesReturnsAllFeaturesForModernEsm() {
         val features = VariantDetector.getVariantFeatures(VariantDetector.Variant.MODERN_ESM)
@@ -123,8 +112,6 @@ class VariantDetectorTest : BasePlatformTestCase() {
         assertFalse(features["expect_soft"]?.available == true)
         assertNotNull(features["clock_api"]?.alternative)
     }
-
-    // --- Data class tests ---
 
     fun testDetectionResultDataClass() {
         val result = VariantDetector.DetectionResult(

@@ -22,9 +22,7 @@ intellij {
 dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.yaml:snakeyaml:2.2")
-
-    // Test dependencies - JUnit 4 provides backwards compatibility with JUnit 3 style tests
-    testImplementation("junit:junit:4.13.2")
+    // IntelliJ Platform test framework (JUnit 3) is provided by gradle-intellij-plugin
 }
 
 tasks {

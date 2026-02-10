@@ -2,12 +2,7 @@ package com.artk.intellij.installer
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
-/**
- * Tests for NodeDetector - focuses on parsing logic that doesn't require process execution.
- */
 class NodeDetectorTest : BasePlatformTestCase() {
-
-    // --- Version parsing tests (no ProcessUtils dependency) ---
 
     fun testParseNodeVersionHandlesStandardFormat() {
         assertEquals(20, NodeDetector.parseNodeVersion("20.11.0"))
@@ -45,8 +40,6 @@ class NodeDetectorTest : BasePlatformTestCase() {
         assertNull(NodeDetector.parseMajorVersion("abc"))
         assertNull(NodeDetector.parseMajorVersion("lts"))
     }
-
-    // --- Data class tests ---
 
     fun testNodeInfoDataClass() {
         val info = NodeDetector.NodeInfo(
