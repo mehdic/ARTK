@@ -1805,37 +1805,31 @@ artk llkb init --llkb-root ${HARNESS_ROOT}/.artk/llkb
    Created: ${HARNESS_ROOT}/.artk/llkb/history/
 ```
 
-### 11.9.5 Seed LLKB with Universal Patterns (Cold Start Solution)
+### 11.9.5 Universal Seed Patterns (Automatic)
 
-**CRITICAL:** Pre-seed LLKB with universal patterns to solve the cold start problem.
-Without seeding, LLKB starts empty and provides no value until patterns are learned.
+When LLKB is initialized, 39 universal seed patterns are automatically written to
+`learned-patterns.json`. These cover common web UI actions (click, fill, navigate,
+assert, wait, modal, toast, table, keyboard) and provide immediate value before
+any app-specific discovery.
 
-```bash
-artk llkb seed --llkb-root ${HARNESS_ROOT}/.artk/llkb --patterns universal
-```
+No manual action needed — seeds are created automatically by `initializeLLKB()`.
 
-**Expected output:**
-```
-📦 Seed: Universal Patterns
-   Common UI patterns that work across most web applications. Pre-seeded to reduce cold start issues.
-   Lessons: 30
-   Components: 5
-
-✅ Seed applied successfully:
-   Lessons added: 30
-   Lessons skipped (already exist): 0
-   Components added: 5
-   Components skipped (already exist): 0
-```
-
-**What gets seeded:**
-- **30 universal lessons**: Click buttons, fill forms, navigate, assertions, keyboard actions
-- **5 universal components**: loginFlow, logoutFlow, waitForToast, closeModal, confirmDialog
+**What gets seeded (39 patterns at confidence 0.80):**
+- **Navigation (3):** goto, goBack, reload
+- **Click (6):** button, link, menu item, tab, checkbox, radio
+- **Fill (5):** text input, password, search, textarea, email
+- **Form (3):** submit, clear, select dropdown
+- **Assert (5):** visible, text, URL, title, hidden
+- **Wait (3):** element appear, navigation, network idle
+- **Modal (4):** open, close, confirm dialog, dismiss dialog
+- **Toast (3):** verify toast, close notification, wait disappear
+- **Table (4):** sort column, filter, select row, paginate
+- **Keyboard (3):** Enter, Escape, Tab
 
 **Why this matters:**
-- AutoGen can now match common patterns immediately (no learning required)
+- AutoGen can match common patterns immediately (no learning required)
 - Blocked step rate drops from 60%+ to ~40-50% on first journey
-- Patterns have pre-established confidence scores (0.80-0.95)
+- Patterns have pre-established confidence scores (0.80)
 - Foundation for app-specific pattern learning
 
 ### 11.10 Output Summary
@@ -1871,73 +1865,60 @@ CLI Commands Available:
 
 **Purpose:** Analyze the target application to generate 200-400 app-specific patterns that reduce the TODO rate during test generation from ~18% to <5%.
 
-### F12.1: Framework & UI Library Detection (Static)
+### F12.1: Run the Full Discovery Pipeline via CLI
 
-Detect frameworks and UI libraries using `@artk/core/llkb`:
+Run the discovery pipeline as a single CLI command:
 
-```typescript
-import { runDiscovery } from '@artk/core/llkb';
-
-// Run full discovery pipeline
-const discoveryResult = await runDiscovery(projectRoot);
-// Returns: { frameworks, uiLibraries, selectorSignals, authHints }
+```bash
+cd "${HARNESS_ROOT}"
+npx artk-autogen llkb-patterns discover \
+  --project-root "$(dirname "${HARNESS_ROOT}")" \
+  --llkb-root "${HARNESS_ROOT}/.artk/llkb"
 ```
 
-**What gets detected:**
-- **Frameworks:** React, Angular, Vue, Next.js, Svelte, Nuxt
-- **UI Libraries:** MUI, Ant Design, Chakra UI, AG Grid, PrimeNG, Bootstrap
-- **Evidence:** package.json dependencies + file structure scanning
-- **Confidence:** Based on evidence count (0.0-1.0)
+This single command performs all F12 steps:
+- **Framework & UI library detection** (React, Angular, Vue, MUI, Antd, Chakra, AG Grid)
+- **Selector convention analysis** (data-testid, data-cy, aria-label coverage)
+- **Entity, route, form, table, modal mining** from source code
+- **Template multiplication** (CRUD, form, table, modal, navigation, notification patterns)
+- **Framework pack loading** (lazy-loaded patterns for detected frameworks)
+- **Mining modules** (i18n keys, analytics events, feature flags)
+- **Signal weighting** (strong/medium/weak classification)
+- **Quality controls** (cross-source boost → dedup → threshold → prune)
+- **Persistence** to `discovered-patterns.json` and `discovered-profile.json`
 
-**Output to `${HARNESS_ROOT}/.artk/llkb/discovered-profile.json`:**
-```json
-{
-  "version": "1.0",
-  "generatedAt": "<ISO8601>",
-  "frameworks": [{ "name": "react", "version": "18.x", "confidence": 0.95, "evidence": ["..."] }],
-  "uiLibraries": [{ "name": "mui", "confidence": 0.85, "evidence": ["..."] }],
-  "selectorSignals": { "primaryAttribute": "data-testid", "coverage": { ... } },
-  "auth": { "detected": true, "type": "oidc", "selectors": { ... } }
-}
+For JSON output (machine-readable):
+```bash
+npx artk-autogen llkb-patterns discover \
+  --project-root "$(dirname "${HARNESS_ROOT}")" \
+  --llkb-root "${HARNESS_ROOT}/.artk/llkb" \
+  --json
 ```
 
-### F12.2: Selector Convention Analysis (Static)
-
-Scan source files for selector attribute patterns:
-
-```typescript
-// Already included in runDiscovery() output
-const { selectorSignals } = discoveryResult;
-// Returns: { primaryAttribute, namingConvention, coverage }
+**Expected output:**
+```
+✅ Discovery pipeline completed
+   Duration: 12.3s
+   Patterns before QC: 487
+   Patterns after QC: 412
+📊 Pattern Sources:
+   Discovery:       18
+   Templates:       245
+   Framework Packs: 69
+   i18n:            32
+   Analytics:       15
+   Feature Flags:   8
+⛏️  Mining Results:
+   Entities: 12 | Routes: 15
+   Forms: 8 | Tables: 5 | Modals: 10
+   Files scanned: 234
 ```
 
-**Scanned attributes:** `data-testid`, `data-cy`, `data-test`, `aria-label`, `role`
-**Detected conventions:** kebab-case, camelCase, snake_case, mixed
-**Coverage:** Percentage of components using each attribute
+### F12.2: What Gets Discovered
 
-### F12.3: Entity & Pattern Mining (Static)
+**Frameworks & UI Libraries:** React, Angular, Vue, Next.js, Svelte, Nuxt, MUI, Ant Design, Chakra UI, AG Grid, PrimeNG, Bootstrap. Detected via package.json dependencies + file structure scanning.
 
-Mine entities, routes, forms, tables, and modals from source code:
-
-```typescript
-import {
-  mineElements,
-  generateAllPatterns,
-  createEntity,
-  createForm,
-  createTable,
-  createModal,
-  createRoute,
-} from '@artk/core/llkb';
-
-// Mine all elements using cached file I/O
-const elements = await mineElements(projectRoot);
-// Returns: { entities, routes, forms, tables, modals }
-
-// Generate patterns from discovered elements (template multiplication)
-const { patterns, stats } = generateAllPatterns(elements);
-// stats: { crudPatterns, formPatterns, tablePatterns, modalPatterns, navigationPatterns, notificationPatterns, totalPatterns }
-```
+**Selector conventions:** `data-testid`, `data-cy`, `data-test`, `aria-label`, `role`. Detects naming conventions (kebab-case, camelCase, snake_case) and coverage percentages.
 
 **Template multiplication produces:**
 - 23 CRUD operations × N entities
@@ -1945,48 +1926,9 @@ const { patterns, stats } = generateAllPatterns(elements);
 - 24 table operations × N tables (+ per-column patterns)
 - 19 modal operations × N modals
 - 22 navigation operations × N routes
-- 20 notification patterns (static, always generated regardless of mined elements)
+- 20 notification patterns (static, always generated)
 
-### F12.4: Generate & Merge LLKB Patterns
-
-Combine all discovered patterns and merge with seed patterns:
-
-```typescript
-import {
-  mergeDiscoveredPatterns,
-  loadDiscoveredPatterns,
-} from '@artk/core/llkb';
-
-// Merge discovered patterns with existing seed patterns (non-destructive)
-const merged = mergeDiscoveredPatterns(existingPatterns, discoveredPatterns);
-```
-
-**Confidence assignment (after signal weighting):**
-- Discovery patterns (strong signal): 0.85 base
-- Template/pack/i18n patterns (medium signal): 0.75 base
-- Analytics/feature flag patterns (weak signal): 0.60 base
-- With selector hints: boosted above base
-- Cross-source validated (found in 2+ sources): +0.10 boost (capped at 0.95)
-
-**Output to `${HARNESS_ROOT}/.artk/llkb/discovered-patterns.json`:**
-```json
-{
-  "version": "1.0",
-  "generatedAt": "<ISO8601>",
-  "source": "discover-foundation:F12",
-  "patterns": [ ... ],
-  "metadata": {
-    "frameworks": ["react"],
-    "uiLibraries": ["mui"],
-    "totalPatterns": 300,
-    "byCategory": { "auth": 5, "navigation": 40, "data": 180, "ui-interaction": 55, "notification": 20 }
-  }
-}
-```
-
-### F12.5: Signal Weighting & Quality Controls
-
-**Signal weighting** classifies patterns by source strength before quality controls:
+**Signal weighting classifies patterns by source strength:**
 
 | Signal Strength | Sources | Base Confidence |
 |-----------------|---------|-----------------|
@@ -1994,26 +1936,9 @@ const merged = mergeDiscoveredPatterns(existingPatterns, discoveredPatterns);
 | **Medium** (0.75) | Template patterns, framework packs, i18n | Raised to 0.75 minimum |
 | **Weak** (0.60) | Analytics events, feature flags | Raised to 0.60 minimum |
 
-Signal weighting uses `Math.max(original, base)` — it never lowers a pattern that already has higher confidence.
+**QC pipeline order:** cross-source boost → deduplication → threshold filter (0.7) → prune.
 
-```typescript
-import { applySignalWeighting, applyAllQualityControls } from '@artk/core/llkb';
-
-// Step 1: Apply signal weighting (classify by source strength)
-const signalStrengths = new Map<string, 'strong' | 'medium' | 'weak'>();
-// ... populate from pipeline source tracking
-const weightedPatterns = applySignalWeighting(allPatterns, signalStrengths);
-
-// Step 2: Apply quality controls (boost → dedup → threshold → prune)
-const { patterns: finalPatterns, result } = applyAllQualityControls(weightedPatterns, {
-  threshold: 0.7,  // Minimum confidence (spec AC3)
-});
-// result: { inputCount, outputCount, deduplicated, thresholdFiltered, crossSourceBoosted }
-```
-
-**QC pipeline order:** cross-source boost → deduplication → threshold filter → prune. Boost runs before dedup so cross-source signal is preserved.
-
-### F12.6: Error Handling
+### F12.3: Error Handling
 
 | Scenario | Behavior |
 |----------|----------|
@@ -2024,23 +1949,11 @@ const { patterns: finalPatterns, result } = applyAllQualityControls(weightedPatt
 
 **All failures are non-blocking.** Discovery enriches LLKB but never blocks discover-foundation.
 
-### F12.7: Output Summary
+### F12.4: Output Files
 
-After pattern discovery, output:
-
-```
-LLKB Pattern Discovery (F12):
-✓ Frameworks detected: React 18.x (0.95), Next.js (0.90)
-✓ UI libraries detected: MUI (0.85)
-✓ Selector convention: data-testid (kebab-case, 63% coverage)
-✓ Entities mined: 12 entities, 8 forms, 5 tables, 10 modals, 15 routes
-✓ Patterns generated: 300 app-specific patterns
-  - CRUD: 60 | Forms: 75 | Tables: 48 | Modals: 48 | Navigation: 40 | Notifications: 20 | Auth: 9
-✓ Signal weighting: strong (discovery) | medium (templates/packs/i18n) | weak (analytics/flags)
-✓ Quality controls: 300 input → 285 after dedup → 280 after threshold
-✓ Output: ${HARNESS_ROOT}/.artk/llkb/discovered-patterns.json
-✓ Output: ${HARNESS_ROOT}/.artk/llkb/discovered-profile.json
-```
+After pattern discovery, the pipeline writes:
+- `${HARNESS_ROOT}/.artk/llkb/discovered-patterns.json` — All patterns with metadata
+- `${HARNESS_ROOT}/.artk/llkb/discovered-profile.json` — Framework/selector profile
 
 ---
 

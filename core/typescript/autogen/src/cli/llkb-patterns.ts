@@ -6,8 +6,15 @@
  */
 import { parseArgs } from 'node:util';
 import { createInterface } from 'node:readline';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// __dirname may exist in CJS builds (injected by tsup/Node.js) but not in ESM
+declare const __dirname: string | undefined;
 import {
   loadLearnedPatterns,
+  getPatternsFilePath,
+  invalidatePatternCache,
   getPromotablePatterns,
   markPatternsPromoted,
   prunePatterns,
@@ -28,14 +35,17 @@ Subcommands:
   export      Export patterns to LLKB config format
   prune       Remove low-quality patterns
   clear       Clear all learned patterns (use with caution)
+  discover    Run full LLKB discovery pipeline on a project
+  reseed      Re-apply universal seed patterns (restores seeds after clear)
 
 Options:
-  --llkb-root, -r <path>    LLKB root directory (default: .artk/llkb)
-  --limit, -n <num>         Limit number of results (default: 20)
-  --min-confidence <num>    Minimum confidence threshold (default: varies by command)
-  --json                    Output as JSON
-  --force, -f               Skip confirmation prompts (for clear command)
-  -h, --help                Show this help message
+  --llkb-root, -r <path>       LLKB root directory (default: .artk/llkb)
+  --project-root, -p <path>    Project root directory (default: cwd, for discover)
+  --limit, -n <num>            Limit number of results (default: 20)
+  --min-confidence <num>       Minimum confidence threshold (default: varies by command)
+  --json                       Output as JSON
+  --force, -f                  Skip confirmation prompts (for clear command)
+  -h, --help                   Show this help message
 
 Examples:
   artk-autogen llkb-patterns list                    # List top 20 learned patterns
@@ -46,6 +56,9 @@ Examples:
   artk-autogen llkb-patterns prune --min-confidence 0.3  # Remove low-confidence patterns
   artk-autogen llkb-patterns clear                   # Clear all patterns (with confirmation)
   artk-autogen llkb-patterns clear --force           # Clear all patterns (no confirmation)
+  artk-autogen llkb-patterns discover                # Run discovery on current project
+  artk-autogen llkb-patterns discover -p /path/to/project  # Discover with explicit project root
+  artk-autogen llkb-patterns reseed                  # Re-apply 39 universal seed patterns
 `;
 
 /**
@@ -256,6 +269,284 @@ async function runClear(options: { llkbRoot?: string; force?: boolean }): Promis
 }
 
 /**
+ * Run the reseed subcommand — re-apply universal seed patterns.
+ *
+ * Seeds are written in persistence format (irPrimitive: string).
+ * loadLearnedPatterns() normalizes them to runtime format on next load.
+ * Existing patterns with matching normalizedText are not overwritten.
+ */
+async function runReseed(options: { llkbRoot?: string; json: boolean }): Promise<void> {
+  // Read raw file to preserve existing pattern shapes
+  const filePath = getPatternsFilePath(options.llkbRoot);
+  const { existsSync: fileExists, readFileSync: readFile } = await import('node:fs');
+
+   
+  let rawPatterns: any[] = [];
+  if (fileExists(filePath)) {
+    try {
+      const data = JSON.parse(readFile(filePath, 'utf-8'));
+      rawPatterns = Array.isArray(data.patterns) ? data.patterns : [];
+    } catch {
+      // Corrupted file — start fresh
+    }
+  }
+
+  // Resolve seed patterns from core LLKB
+  const currentDir = getCurrentDir();
+  const seedPaths = [
+    path.resolve(currentDir, '..', '..', '..', 'dist', 'llkb', 'index.js'),
+    path.resolve(currentDir, '..', '..', '..', 'llkb', 'universal-seeds.js'),
+  ];
+
+  let createSeeds: (() => Array<Record<string, unknown>>) | null = null;
+  for (const seedPath of seedPaths) {
+    try {
+      const mod = await import(seedPath);
+      createSeeds = mod.createUniversalSeedPatterns;
+      break;
+    } catch {
+      // Try next
+    }
+  }
+
+  if (!createSeeds) {
+    console.error('❌ Could not resolve universal seeds module.');
+    process.exit(1);
+  }
+
+  const seeds = createSeeds();
+  const existingTexts = new Set(
+    rawPatterns.map((p: Record<string, unknown>) =>
+      (p.normalizedText as string) || ''
+    )
+  );
+  let added = 0;
+  let skipped = 0;
+
+  for (const seed of seeds) {
+    if (existingTexts.has(seed.normalizedText as string)) {
+      skipped++;
+    } else {
+      // Add in persistence format — loadLearnedPatterns normalizes on load
+      rawPatterns.push(seed);
+      added++;
+    }
+  }
+
+  // Write directly to file (persistence format)
+  const data = {
+    version: '1.0.0',
+    lastUpdated: new Date().toISOString(),
+    patterns: rawPatterns,
+  };
+  // Write raw to preserve existing shapes + seed persistence format
+  const { writeFileSync: writeFile, mkdirSync: mkDir, renameSync: renameFile } = await import('node:fs');
+  const dir = path.dirname(filePath);
+  if (!fileExists(dir)) {
+    mkDir(dir, { recursive: true });
+  }
+  const content = JSON.stringify(data, null, 2);
+  const tempPath = `${filePath}.tmp.${Date.now()}`;
+  writeFile(tempPath, content, 'utf-8');
+  renameFile(tempPath, filePath);
+
+  // Invalidate cache
+  invalidatePatternCache();
+
+  if (options.json) {
+    console.log(JSON.stringify({ added, skipped, total: rawPatterns.length }));
+    return;
+  }
+
+  console.log(`\n🌱 Universal seed patterns applied:`);
+  console.log(`   Added:   ${added}`);
+  console.log(`   Skipped: ${skipped} (already exist)`);
+  console.log(`   Total:   ${rawPatterns.length} patterns\n`);
+}
+
+/** Result type for the pipeline module */
+interface PipelineModule {
+  runFullDiscoveryPipeline: (
+    _projectRoot: string,
+    _llkbDir: string,
+    _options?: Record<string, unknown>
+  ) => Promise<{
+    success: boolean;
+    profile: unknown;
+    patternsFile: unknown;
+    stats: {
+      durationMs: number;
+      patternSources: Record<string, number>;
+      totalBeforeQC: number;
+      totalAfterQC: number;
+      mining: Record<string, number> | null;
+    };
+    warnings: string[];
+    errors: string[];
+  }>;
+}
+
+/**
+ * Get the directory of the current module (ESM-safe).
+ */
+function getCurrentDir(): string {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    // Fallback for CJS (tsup CJS build injects __dirname)
+    if (typeof __dirname === 'string') {
+      return __dirname;
+    }
+    return process.cwd();
+  }
+}
+
+/**
+ * Resolve the core LLKB pipeline module.
+ *
+ * Tries multiple resolution strategies:
+ * 1. Monorepo: autogen/dist/cli/ → core/typescript/dist/llkb/index.js (bundled barrel)
+ * 2. Monorepo dev (tsx): autogen/src/cli/ → core/typescript/llkb/index.ts (source)
+ * 3. Vendored: node_modules/@artk/core/dist/llkb/index.js
+ */
+async function resolvePipeline(): Promise<PipelineModule> {
+  const currentDir = getCurrentDir();
+  const tried: string[] = [];
+
+  // Strategy 1: Monorepo built output
+  // From autogen/dist/cli/ → ../../../dist/llkb/index.js
+  const builtPath = path.resolve(currentDir, '..', '..', '..', 'dist', 'llkb', 'index.js');
+  tried.push(builtPath);
+  try {
+    return await import(builtPath);
+  } catch {
+    // Not found, try next
+  }
+
+  // Strategy 2: Monorepo dev mode (running via tsx from source)
+  // From autogen/src/cli/ → ../../../llkb/index.ts (ts-node/tsx resolves .ts)
+  const devPath = path.resolve(currentDir, '..', '..', '..', 'llkb', 'index.js');
+  tried.push(devPath);
+  try {
+    return await import(devPath);
+  } catch {
+    // Not found, try next
+  }
+
+  // Strategy 3: Vendored @artk/core (client project)
+  // From node_modules/@artk/core-autogen/dist/cli/ → ../../core/dist/llkb/index.js
+  const vendoredPath = path.resolve(currentDir, '..', '..', 'core', 'dist', 'llkb', 'index.js');
+  tried.push(vendoredPath);
+  try {
+    return await import(vendoredPath);
+  } catch {
+    // Not found
+  }
+
+  throw new Error(
+    'Could not resolve @artk/core LLKB pipeline module.\n' +
+    'Ensure you are running from the ARTK monorepo or a project with @artk/core installed.\n' +
+    `Tried:\n${tried.map(p => `  - ${p}`).join('\n')}`
+  );
+}
+
+/**
+ * Run the discover subcommand — full LLKB discovery pipeline
+ */
+async function runDiscover(options: {
+  llkbRoot?: string;
+  projectRoot?: string;
+  json: boolean;
+}): Promise<void> {
+  const projectRoot = options.projectRoot
+    ? path.resolve(options.projectRoot)
+    : process.cwd();
+  const llkbRoot = options.llkbRoot
+    ? path.resolve(options.llkbRoot)
+    : path.join(process.cwd(), '.artk', 'llkb');
+
+  // Validate directories exist
+  const { existsSync } = await import('node:fs');
+  if (!existsSync(projectRoot)) {
+    console.error(`❌ Project root does not exist: ${projectRoot}`);
+    process.exit(1);
+  }
+  if (!existsSync(llkbRoot)) {
+    console.error(`❌ LLKB root does not exist: ${llkbRoot}`);
+    console.error(`   Run 'artk init' or 'artk llkb init' first to create the LLKB directory.`);
+    process.exit(1);
+  }
+
+  if (!options.json) {
+    console.log(`\n🔍 Running LLKB discovery pipeline...`);
+    console.log(`   Project root: ${projectRoot}`);
+    console.log(`   LLKB root:    ${llkbRoot}\n`);
+  }
+
+  let pipeline: PipelineModule;
+  try {
+    pipeline = await resolvePipeline();
+  } catch (err) {
+    console.error(`❌ ${err instanceof Error ? err.message : 'Failed to load pipeline module'}`);
+    process.exit(1);
+  }
+
+  const result = await pipeline.runFullDiscoveryPipeline(projectRoot, llkbRoot);
+
+  if (options.json) {
+    console.log(JSON.stringify({
+      success: result.success,
+      stats: result.stats,
+      warnings: result.warnings,
+      errors: result.errors,
+    }, null, 2));
+    return;
+  }
+
+  if (!result.success) {
+    console.error('❌ Discovery pipeline failed');
+    for (const error of result.errors) {
+      console.error(`   ${error}`);
+    }
+    process.exit(1);
+  }
+
+  const s = result.stats;
+  const durationSec = (s.durationMs / 1000).toFixed(1);
+
+  console.log(`✅ Discovery pipeline completed`);
+  console.log(`   Duration: ${durationSec}s`);
+  console.log(`   Patterns before QC: ${s.totalBeforeQC}`);
+  console.log(`   Patterns after QC:  ${s.totalAfterQC}`);
+  console.log();
+  console.log(`📊 Pattern Sources:`);
+  console.log(`   Discovery:       ${s.patternSources.discovery}`);
+  console.log(`   Templates:       ${s.patternSources.templates}`);
+  console.log(`   Framework Packs: ${s.patternSources.frameworkPacks}`);
+  console.log(`   i18n:            ${s.patternSources.i18n}`);
+  console.log(`   Analytics:       ${s.patternSources.analytics}`);
+  console.log(`   Feature Flags:   ${s.patternSources.featureFlags}`);
+
+  if (s.mining) {
+    console.log();
+    console.log(`⛏️  Mining Results:`);
+    console.log(`   Entities: ${s.mining.entitiesFound} | Routes: ${s.mining.routesFound}`);
+    console.log(`   Forms: ${s.mining.formsFound} | Tables: ${s.mining.tablesFound} | Modals: ${s.mining.modalsFound}`);
+    console.log(`   Files scanned: ${s.mining.filesScanned}`);
+  }
+
+  if (result.warnings.length > 0) {
+    console.log();
+    console.log(`⚠️  Warnings:`);
+    for (const warning of result.warnings) {
+      console.log(`   ${warning}`);
+    }
+  }
+
+  console.log();
+}
+
+/**
  * Main entry point for llkb-patterns command
  */
 export async function runLlkbPatterns(args: string[]): Promise<void> {
@@ -263,6 +554,7 @@ export async function runLlkbPatterns(args: string[]): Promise<void> {
     args,
     options: {
       'llkb-root': { type: 'string', short: 'r' },
+      'project-root': { type: 'string', short: 'p' },
       limit: { type: 'string', short: 'n', default: '20' },
       'min-confidence': { type: 'string', default: '0.7' },
       'min-success': { type: 'string', default: '1' },
@@ -325,6 +617,17 @@ export async function runLlkbPatterns(args: string[]): Promise<void> {
 
     case 'clear':
       await runClear({ llkbRoot: baseOptions.llkbRoot, force: values.force as boolean });
+      break;
+
+    case 'discover':
+      await runDiscover({
+        ...baseOptions,
+        projectRoot: values['project-root'] as string | undefined,
+      });
+      break;
+
+    case 'reseed':
+      await runReseed(baseOptions);
       break;
 
     default:

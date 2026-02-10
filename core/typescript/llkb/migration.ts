@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/require-await, no-magic-numbers */
 /**
  * LLKB Migration Module
  *
@@ -10,11 +11,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type {
-  LessonsFile,
   ComponentsFile,
+  LessonsFile,
   SaveResult,
 } from './types.js';
-import { saveJSONAtomic, loadJSON, ensureDir } from './file-utils.js';
+import { ensureDir, loadJSON, saveJSONAtomic } from './file-utils.js';
 import { createEmptyAnalytics } from './analytics.js';
 
 // =============================================================================
@@ -109,9 +110,9 @@ export function compareVersions(a: string, b: string): number {
   const va = parseVersion(a);
   const vb = parseVersion(b);
 
-  if (va.major !== vb.major) return va.major < vb.major ? -1 : 1;
-  if (va.minor !== vb.minor) return va.minor < vb.minor ? -1 : 1;
-  if (va.patch !== vb.patch) return va.patch < vb.patch ? -1 : 1;
+  if (va.major !== vb.major) {return va.major < vb.major ? -1 : 1;}
+  if (va.minor !== vb.minor) {return va.minor < vb.minor ? -1 : 1;}
+  if (va.patch !== vb.patch) {return va.patch < vb.patch ? -1 : 1;}
   return 0;
 }
 
@@ -521,6 +522,19 @@ overrides:
     if (!fs.existsSync(analyticsPath)) {
       const defaultAnalytics = createEmptyAnalytics();
       await saveJSONAtomic(analyticsPath, defaultAnalytics);
+    }
+
+    // Seed learned-patterns.json with universal patterns (cold start solution)
+    const learnedPatternsPath = path.join(llkbRoot, 'learned-patterns.json');
+    if (!fs.existsSync(learnedPatternsPath)) {
+      const { createUniversalSeedPatterns } = await import('./universal-seeds.js');
+      const seedPatterns = createUniversalSeedPatterns();
+      await saveJSONAtomic(learnedPatternsPath, {
+        version: CURRENT_VERSION,
+        lastUpdated: new Date().toISOString(),
+        patterns: seedPatterns,
+        metadata: { source: 'universal-seeds', totalPatterns: seedPatterns.length },
+      });
     }
 
     // Create default pattern files if not exist

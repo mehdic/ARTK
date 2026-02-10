@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unused-vars, sort-imports */
 /**
  * Integration tests for LLKB module
  *
@@ -915,5 +916,88 @@ describe('End-to-End Workflows', () => {
     // 5. Final health check
     const finalHealth = runHealthCheck(tempDir);
     expect(finalHealth.checks.every(c => c.status !== 'fail')).toBe(true);
+  });
+});
+
+// =============================================================================
+// initializeLLKB Seed Creation Tests
+// =============================================================================
+
+describe('initializeLLKB seed creation', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `llkb-seed-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  });
+
+  afterEach(() => {
+    if (existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('creates learned-patterns.json with 39 universal seed patterns', async () => {
+    // Import the actual initializeLLKB from migration module
+    const { initializeLLKB } = await import('../migration.js');
+
+    const result = await initializeLLKB(tempDir);
+    expect(result.success).toBe(true);
+
+    // Verify learned-patterns.json was created
+    const patternsPath = join(tempDir, 'learned-patterns.json');
+    expect(existsSync(patternsPath)).toBe(true);
+
+    // Verify contents
+    const data = JSON.parse(readFileSync(patternsPath, 'utf-8')) as {
+      version: string;
+      patterns: Array<{ normalizedText: string; originalText: string; irPrimitive: string; confidence: number; successCount: number; failCount: number; sourceJourneys: string[] }>;
+      metadata: { source: string; totalPatterns: number };
+    };
+    expect(data.version).toBe('1.0.0');
+    expect(data.patterns).toHaveLength(39);
+    expect(data.metadata.source).toBe('universal-seeds');
+    expect(data.metadata.totalPatterns).toBe(39);
+
+    // Verify pattern structure (persistence format)
+    const first = data.patterns[0];
+    expect(first.normalizedText).toBeDefined();
+    expect(first.originalText).toBeDefined();
+    expect(typeof first.irPrimitive).toBe('string');
+    expect(first.confidence).toBe(0.80);
+    expect(first.successCount).toBe(1);
+    expect(first.failCount).toBe(0);
+    expect(first.sourceJourneys).toEqual([]);
+  });
+
+  it('does not overwrite existing learned-patterns.json on re-init', async () => {
+    const { initializeLLKB } = await import('../migration.js');
+
+    // First init — creates seeds
+    await initializeLLKB(tempDir);
+
+    // Write a custom pattern to the file
+    const patternsPath = join(tempDir, 'learned-patterns.json');
+    const data = JSON.parse(readFileSync(patternsPath, 'utf-8')) as {
+      patterns: Array<Record<string, unknown>>;
+    };
+    data.patterns.push({
+      normalizedText: 'custom test pattern',
+      originalText: 'Custom Test Pattern',
+      irPrimitive: 'click',
+      confidence: 0.99,
+      successCount: 10,
+      failCount: 0,
+      sourceJourneys: ['JRN-0001'],
+    });
+    writeFileSync(patternsPath, JSON.stringify(data, null, 2), 'utf-8');
+
+    // Re-init — should NOT overwrite
+    await initializeLLKB(tempDir);
+
+    const reloaded = JSON.parse(readFileSync(patternsPath, 'utf-8')) as {
+      patterns: Array<Record<string, unknown>>;
+    };
+    expect(reloaded.patterns).toHaveLength(40); // 39 seeds + 1 custom
+    expect(reloaded.patterns.some((p) => p.normalizedText === 'custom test pattern')).toBe(true);
   });
 });

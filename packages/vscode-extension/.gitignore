@@ -1,4 +1,8 @@
 node_modules/
-dist/
+/dist/
 *.vsix
 .vscode-test/
+
+# Allow compiled dist/ inside bundled assets (synced by sync-vscode-core-assets.sh)
+!assets/core/dist/
+!assets/autogen/dist/

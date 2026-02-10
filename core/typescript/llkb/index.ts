@@ -460,6 +460,12 @@ export {
   loadDiscoveredPatterns,
 } from './pattern-generation.js';
 
+// Universal Seed Patterns - Cold start solution for first-run projects
+export {
+  createUniversalSeedPatterns,
+  VALID_IR_PRIMITIVES,
+} from './universal-seeds.js';
+
 // Template Generators - CRUD, Form, Table, Modal, Navigation pattern multiplication
 export type {
   DiscoveredEntity,
