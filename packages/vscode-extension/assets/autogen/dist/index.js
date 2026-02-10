@@ -768,16 +768,63 @@ function createIRPrimitiveFromDiscovered(typeName, selectorHints) {
     case "assert":
     case "expectVisible":
       return { type: "expectVisible", locator };
+    case "expectNotVisible":
+      return { type: "expectNotVisible", locator };
+    case "expectHidden":
+      return { type: "expectHidden", locator };
     case "expectText":
       return { type: "expectText", locator, text: "{{text}}" };
     case "expectURL":
       return { type: "expectURL", pattern: "{{pattern}}" };
+    case "expectTitle":
+      return { type: "expectTitle", title: "{{title}}" };
+    case "expectValue":
+      return { type: "expectValue", locator, value: "{{value}}" };
+    case "expectChecked":
+      return { type: "expectChecked", locator };
+    case "expectEnabled":
+      return { type: "expectEnabled", locator };
+    case "expectDisabled":
+      return { type: "expectDisabled", locator };
+    case "expectCount":
+      return { type: "expectCount", locator, count: 0 };
+    case "expectContainsText":
+      return { type: "expectContainsText", locator, text: "{{text}}" };
+    // Signals (toasts, modals, alerts)
+    case "expectToast":
+      return { type: "expectToast", toastType: "success" };
+    case "dismissModal":
+      return { type: "dismissModal" };
+    case "acceptAlert":
+      return { type: "acceptAlert" };
+    case "dismissAlert":
+      return { type: "dismissAlert" };
     // Wait
     case "waitForVisible":
       return { type: "waitForVisible", locator };
+    case "waitForHidden":
+      return { type: "waitForHidden", locator };
+    case "waitForURL":
+      return { type: "waitForURL", pattern: "{{pattern}}" };
+    case "waitForNetworkIdle":
+      return { type: "waitForNetworkIdle" };
+    case "waitForTimeout":
+      return { type: "waitForTimeout", ms: 1e3 };
+    case "waitForResponse":
+      return { type: "waitForResponse", urlPattern: "{{pattern}}" };
+    case "waitForLoadingComplete":
+      return { type: "waitForLoadingComplete" };
+    // Navigation (additional)
+    case "goForward":
+      return { type: "goForward" };
     // File upload
     case "upload":
       return { type: "upload", locator, files: ["{{file}}"] };
+    // Additional interactions
+    case "rightClick":
+      return { type: "rightClick", locator };
+    case "focus":
+      return { type: "focus", locator };
     // Keyboard shortcut (template-generators uses 'keyboard' for modal Escape etc.)
     case "keyboard":
       return { type: "press", key: "Escape", locator };
@@ -903,7 +950,33 @@ function loadLearnedPatterns(options = {}) {
       patternCache = { patterns: [], llkbRoot, loadedAt: now };
       return [];
     }
-    const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+    const rawPatterns = Array.isArray(data.patterns) ? data.patterns : [];
+    const patterns = rawPatterns.map((p) => {
+      if (p.mappedPrimitive && typeof p.mappedPrimitive === "object") {
+        return p;
+      }
+      if (typeof p.irPrimitive === "string") {
+        const primitive = createIRPrimitiveFromDiscovered(p.irPrimitive);
+        if (!primitive) {
+          return null;
+        }
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        return {
+          id: p.id || generatePatternId(),
+          originalText: p.originalText || "",
+          normalizedText: p.normalizedText || "",
+          mappedPrimitive: primitive,
+          confidence: typeof p.confidence === "number" ? p.confidence : 0.5,
+          sourceJourneys: Array.isArray(p.sourceJourneys) ? p.sourceJourneys : [],
+          successCount: typeof p.successCount === "number" ? p.successCount : 0,
+          failCount: typeof p.failCount === "number" ? p.failCount : 0,
+          lastUsed: p.lastUpdated || p.lastUsed || nowIso,
+          createdAt: p.createdAt || nowIso,
+          promotedToCore: p.promotedToCore || false
+        };
+      }
+      return null;
+    }).filter((p) => p !== null);
     patternCache = { patterns, llkbRoot, loadedAt: now };
     return patterns;
   } catch (err3) {

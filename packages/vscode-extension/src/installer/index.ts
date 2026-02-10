@@ -1168,6 +1168,83 @@ overrides:
       JSON.stringify({ version: CURRENT_VERSION, patterns: [] }, null, 2)
     );
   }
+
+  // Create learned-patterns.json with universal seed patterns (cold start solution)
+  // These 39 patterns provide immediate value before any app-specific discovery
+  const learnedPatternsPath = path.join(llkbPath, 'learned-patterns.json');
+  if (!fs.existsSync(learnedPatternsPath)) {
+    const now = new Date().toISOString();
+    const seedDefs = [
+      // Navigation (3)
+      { text: 'navigate to url', primitive: 'goto' },
+      { text: 'go back to previous page', primitive: 'goBack' },
+      { text: 'reload the page', primitive: 'reload' },
+      // Click (6)
+      { text: 'click the button', primitive: 'click' },
+      { text: 'click the link', primitive: 'click' },
+      { text: 'click the menu item', primitive: 'click' },
+      { text: 'click the tab', primitive: 'click' },
+      { text: 'check the checkbox', primitive: 'check' },
+      { text: 'click the radio button', primitive: 'click' },
+      // Fill (5)
+      { text: 'enter text in the input field', primitive: 'fill' },
+      { text: 'enter the password', primitive: 'fill' },
+      { text: 'type in the search box', primitive: 'fill' },
+      { text: 'enter text in the textarea', primitive: 'fill' },
+      { text: 'enter the email address', primitive: 'fill' },
+      // Form (3)
+      { text: 'submit the form', primitive: 'click' },
+      { text: 'clear the form', primitive: 'clear' },
+      { text: 'select option from dropdown', primitive: 'select' },
+      // Assert (5)
+      { text: 'verify element is visible', primitive: 'expectVisible' },
+      { text: 'verify text is displayed', primitive: 'expectText' },
+      { text: 'verify the url', primitive: 'expectURL' },
+      { text: 'verify the page title', primitive: 'expectTitle' },
+      { text: 'verify element is hidden', primitive: 'expectHidden' },
+      // Wait (3)
+      { text: 'wait for element to appear', primitive: 'waitForVisible' },
+      { text: 'wait for navigation to complete', primitive: 'waitForURL' },
+      { text: 'wait for network idle', primitive: 'waitForNetworkIdle' },
+      // Modal (4)
+      { text: 'open the modal dialog', primitive: 'click' },
+      { text: 'close the modal', primitive: 'dismissModal' },
+      { text: 'confirm the dialog', primitive: 'acceptAlert' },
+      { text: 'dismiss the dialog', primitive: 'dismissAlert' },
+      // Toast (3)
+      { text: 'verify toast notification appears', primitive: 'expectToast' },
+      { text: 'close the notification', primitive: 'click' },
+      { text: 'wait for toast to disappear', primitive: 'waitForHidden' },
+      // Table (4)
+      { text: 'sort the table column', primitive: 'click' },
+      { text: 'filter the table', primitive: 'fill' },
+      { text: 'select the table row', primitive: 'click' },
+      { text: 'click next page in pagination', primitive: 'click' },
+      // Keyboard (3)
+      { text: 'press enter', primitive: 'press' },
+      { text: 'press escape', primitive: 'press' },
+      { text: 'press tab', primitive: 'press' },
+    ];
+    const seedPatterns = seedDefs.map(def => ({
+      normalizedText: def.text,
+      originalText: def.text,
+      irPrimitive: def.primitive,
+      confidence: 0.80,
+      successCount: 1,
+      failCount: 0,
+      sourceJourneys: [] as string[],
+      lastUpdated: now,
+    }));
+    await fs.promises.writeFile(
+      learnedPatternsPath,
+      JSON.stringify({
+        version: CURRENT_VERSION,
+        lastUpdated: now,
+        patterns: seedPatterns,
+        metadata: { source: 'universal-seeds', totalPatterns: seedPatterns.length },
+      }, null, 2)
+    );
+  }
 }
 
 /**

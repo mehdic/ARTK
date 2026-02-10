@@ -397,6 +397,129 @@ var init_pluralization = __esm({
   }
 });
 
+// llkb/universal-seeds.ts
+var universal_seeds_exports = {};
+__export(universal_seeds_exports, {
+  VALID_IR_PRIMITIVES: () => VALID_IR_PRIMITIVES,
+  createUniversalSeedPatterns: () => createUniversalSeedPatterns
+});
+function createUniversalSeedPatterns() {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  return SEED_DEFINITIONS.map((def) => ({
+    normalizedText: def.text,
+    originalText: def.text,
+    irPrimitive: def.primitive,
+    confidence: SEED_CONFIDENCE,
+    successCount: 1,
+    failCount: 0,
+    sourceJourneys: [],
+    lastUpdated: now
+  }));
+}
+var VALID_IR_PRIMITIVES, SEED_DEFINITIONS, SEED_CONFIDENCE;
+var init_universal_seeds = __esm({
+  "llkb/universal-seeds.ts"() {
+    VALID_IR_PRIMITIVES = [
+      // Navigation
+      "goto",
+      "goBack",
+      "goForward",
+      "reload",
+      // Wait
+      "waitForVisible",
+      "waitForHidden",
+      "waitForURL",
+      "waitForNetworkIdle",
+      "waitForTimeout",
+      "waitForResponse",
+      "waitForLoadingComplete",
+      // Interactions
+      "click",
+      "dblclick",
+      "rightClick",
+      "fill",
+      "select",
+      "check",
+      "uncheck",
+      "press",
+      "hover",
+      "focus",
+      "clear",
+      "upload",
+      // Assertions
+      "expectVisible",
+      "expectNotVisible",
+      "expectHidden",
+      "expectText",
+      "expectValue",
+      "expectChecked",
+      "expectEnabled",
+      "expectDisabled",
+      "expectURL",
+      "expectTitle",
+      "expectCount",
+      "expectContainsText",
+      // Signals
+      "expectToast",
+      "dismissModal",
+      "acceptAlert",
+      "dismissAlert"
+    ];
+    SEED_DEFINITIONS = [
+      // Navigation (3)
+      { text: "navigate to url", primitive: "goto" },
+      { text: "go back to previous page", primitive: "goBack" },
+      { text: "reload the page", primitive: "reload" },
+      // Click (6)
+      { text: "click the button", primitive: "click" },
+      { text: "click the link", primitive: "click" },
+      { text: "click the menu item", primitive: "click" },
+      { text: "click the tab", primitive: "click" },
+      { text: "check the checkbox", primitive: "check" },
+      { text: "click the radio button", primitive: "click" },
+      // Fill (5)
+      { text: "enter text in the input field", primitive: "fill" },
+      { text: "enter the password", primitive: "fill" },
+      { text: "type in the search box", primitive: "fill" },
+      { text: "enter text in the textarea", primitive: "fill" },
+      { text: "enter the email address", primitive: "fill" },
+      // Form (3)
+      { text: "submit the form", primitive: "click" },
+      { text: "clear the form", primitive: "clear" },
+      { text: "select option from dropdown", primitive: "select" },
+      // Assert (5)
+      { text: "verify element is visible", primitive: "expectVisible" },
+      { text: "verify text is displayed", primitive: "expectText" },
+      { text: "verify the url", primitive: "expectURL" },
+      { text: "verify the page title", primitive: "expectTitle" },
+      { text: "verify element is hidden", primitive: "expectHidden" },
+      // Wait (3)
+      { text: "wait for element to appear", primitive: "waitForVisible" },
+      { text: "wait for navigation to complete", primitive: "waitForURL" },
+      { text: "wait for network idle", primitive: "waitForNetworkIdle" },
+      // Modal (4)
+      { text: "open the modal dialog", primitive: "click" },
+      { text: "close the modal", primitive: "dismissModal" },
+      { text: "confirm the dialog", primitive: "acceptAlert" },
+      { text: "dismiss the dialog", primitive: "dismissAlert" },
+      // Toast (3)
+      { text: "verify toast notification appears", primitive: "expectToast" },
+      { text: "close the notification", primitive: "click" },
+      { text: "wait for toast to disappear", primitive: "waitForHidden" },
+      // Table (4)
+      { text: "sort the table column", primitive: "click" },
+      { text: "filter the table", primitive: "fill" },
+      { text: "select the table row", primitive: "click" },
+      { text: "click next page in pagination", primitive: "click" },
+      // Keyboard (3)
+      { text: "press enter", primitive: "press" },
+      { text: "press escape", primitive: "press" },
+      { text: "press tab", primitive: "press" }
+    ];
+    SEED_CONFIDENCE = 0.8;
+  }
+});
+
 // llkb/template-generators.ts
 var template_generators_exports = {};
 __export(template_generators_exports, {
@@ -6272,6 +6395,17 @@ overrides:
       const defaultAnalytics = createEmptyAnalytics();
       await saveJSONAtomic(analyticsPath, defaultAnalytics);
     }
+    const learnedPatternsPath = path13.join(llkbRoot, "learned-patterns.json");
+    if (!fs.existsSync(learnedPatternsPath)) {
+      const { createUniversalSeedPatterns: createUniversalSeedPatterns2 } = await Promise.resolve().then(() => (init_universal_seeds(), universal_seeds_exports));
+      const seedPatterns = createUniversalSeedPatterns2();
+      await saveJSONAtomic(learnedPatternsPath, {
+        version: CURRENT_VERSION,
+        lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+        patterns: seedPatterns,
+        metadata: { source: "universal-seeds", totalPatterns: seedPatterns.length }
+      });
+    }
     const patternFiles = ["selectors.json", "timing.json", "assertions.json", "auth.json", "data.json"];
     for (const patternFile of patternFiles) {
       const patternPath = path13.join(llkbRoot, "patterns", patternFile);
@@ -7310,6 +7444,7 @@ async function scanForAuthPatterns(srcDir, depth = 0) {
 }
 
 // llkb/index.ts
+init_universal_seeds();
 init_template_generators();
 
 // llkb/mining.ts
@@ -9809,6 +9944,6 @@ async function runFullDiscoveryPipeline(projectRoot, llkbDir, options = {}) {
   };
 }
 
-export { AUTH_PATTERN_TEMPLATES, CONFIDENCE_HISTORY_RETENTION_DAYS, CRUD_TEMPLATES, CURRENT_VERSION, DEFAULT_LLKB_ROOT, UI_LIBRARY_PATTERNS2 as DISCOVERY_UI_LIBRARY_PATTERNS, EXTENDED_NAVIGATION_TEMPLATES, FORM_TEMPLATES, FRAMEWORK_PATTERNS, IRREGULAR_PLURALS, IRREGULAR_SINGULARS, LOCK_MAX_WAIT_MS, LOCK_RETRY_INTERVAL_MS, MAX_CONFIDENCE_HISTORY_ENTRIES, MIN_SUPPORTED_VERSION, MODAL_TEMPLATES, MiningCache, NAVIGATION_PATTERN_TEMPLATES, NOTIFICATION_TEMPLATES, UI_LIBRARY_PATTERNS as PATTERN_UI_LIBRARY_PATTERNS, SELECTOR_PATTERNS, SOURCE_DIRECTORIES, STALE_LOCK_THRESHOLD_MS, TABLE_TEMPLATES, UNCOUNTABLE_NOUNS, addComponentToRegistry, analyzeSelectorSignals, appendToHistory, applyAllQualityControls, applyConfidenceThreshold, applySignalWeighting, boostCrossSourcePatterns, calculateConfidence, calculateSimilarity, checkMigrationNeeded, checkUpdates, cleanupOldHistoryFiles, combineResults, compareVersions as compareTestVersion, compareVersions as compareTestVersions, compareVersions2 as compareVersions, componentNameToTrigger, componentToGlossaryEntries, componentToModule, countJourneyExtractionsToday, countLines, countNewEntriesSince, countPredictiveExtractionsToday, countTodayEvents, createCacheFromFiles, createDiscoveredPatternsFile, createEmptyAnalytics, createEmptyRegistry, createEntity, createForm, createModal, createRoute, createTable, daysBetween, deduplicatePatterns2 as deduplicatePatterns, deduplicatePatterns as deduplicatePatternsQC, detectDecliningConfidence, detectDuplicatesAcrossFiles, detectDuplicatesInFile, detectFrameworks, detectUiLibraries, ensureDir, exportForAutogen, exportLLKB, exportToFile, extractAuthHints, extractKeywords, extractLlkbEntriesFromTest, extractLlkbVersionFromTest, extractStepKeywords, extractLlkbVersionFromTest as extractVersionFromTest, fail, findComponents, findExtractionCandidates, findLessonsByPattern, findModulesByCategory, findNearDuplicates, findSimilarPatterns, findUnusedComponentOpportunities, formatCheckUpdatesResult, formatVersionComparison as formatComparison, formatContextForPrompt, formatDate, formatExportResult, formatExportResultForConsole, formatHealthCheck, formatLearnResult, formatLearningResult, formatPruneResult, formatStats, formatUpdateCheckResult, formatUpdateTestResult, formatUpdateTestsResult, formatVersionComparison, generateAllPatterns, generateAnalyticsPatterns, generateCrudPatterns, generateNavigationPatterns2 as generateExtendedNavigationPatterns, generateFeatureFlagPatterns, generateFormPatterns, generateI18nPatterns, generateModalPatterns, generateNameVariations, generateNotificationPatterns, generatePatterns, generateReport, generateTablePatterns, getAllCategories, getAnalyticsSummary, getComponentCategories, getComponentsForJourney, getConfidenceTrend, getCurrentLlkbVersion, getHistoryDir, getHistoryFilePath, getHistoryFilesInRange, getImportPath, getLessonsForJourney, getCurrentLlkbVersion as getLlkbVersion, getModuleForComponent, getPackRegistry, getRelevantContext, getRelevantScopes, getSingularPlural, getStats, hashCode, inferCategory, inferCategoryWithConfidence, initializeLLKB, isComponentCategory, isDailyRateLimitReached, isFail, isJourneyRateLimitReached, isLLKBEnabled, isNearDuplicate, isOk, isUncountable, isVersionSupported, jaccardSimilarity, lessonToGlossaryEntries, lessonToPattern, lessonToSelectorOverride, lessonToTimingHint, lineCountSimilarity, listModules, llkbExists, loadAppProfile, loadComponents, loadDiscoveredPatterns, loadDiscoveredPatternsForFrameworks, loadDiscoveredProfile, loadJSON, loadLLKBConfig, loadLLKBData, loadLessons, loadPacksForFrameworks, loadPatterns, loadRegistry, mapResult, matchStepsToComponents, mergeDiscoveredPatterns, migrateLLKB, mineAnalyticsEvents, mineElements, mineEntities, mineFeatureFlags, mineForms, mineI18nKeys, mineModals, mineRoutes, mineTables, needsConfidenceReview, needsMigration, normalizeCode, ok, packPatternsToDiscovered, parseAdapterArgs, parseVersion, pluralize, prune, pruneUnusedPatterns, readHistoryFile, readTodayHistory, recordBatch, recordComponentUsed, recordLearning, recordLessonApplied, recordPatternLearned, removeComponentFromRegistry, resetPatternIdCounter, runAdapterCLI, runCheckUpdates, runDiscovery, runExportForAutogen, runFullDiscoveryPipeline, runHealthCheck, runLearnCommand, runMiningPipeline, runUpdateTest, runUpdateTests, saveAppProfile, saveDiscoveredPatterns, saveDiscoveredProfile, saveJSONAtomic, saveJSONAtomicSync, saveRegistry, scanAllSourceDirectories, scanDirectory, search, shouldExtractAsComponent, singularize, syncRegistryWithComponents, tokenize, triggerToRegex, tryCatch, updateAnalytics, updateAnalyticsWithData, updateComponentInRegistry, updateConfidenceHistory, updateJSONWithLock, updateJSONWithLockSync, updateTestLlkbVersion, updateTestSafe, updateTestLlkbVersion as updateVersionInTest, validateLLKBInstallation, validateRegistryConsistency };
+export { AUTH_PATTERN_TEMPLATES, CONFIDENCE_HISTORY_RETENTION_DAYS, CRUD_TEMPLATES, CURRENT_VERSION, DEFAULT_LLKB_ROOT, UI_LIBRARY_PATTERNS2 as DISCOVERY_UI_LIBRARY_PATTERNS, EXTENDED_NAVIGATION_TEMPLATES, FORM_TEMPLATES, FRAMEWORK_PATTERNS, IRREGULAR_PLURALS, IRREGULAR_SINGULARS, LOCK_MAX_WAIT_MS, LOCK_RETRY_INTERVAL_MS, MAX_CONFIDENCE_HISTORY_ENTRIES, MIN_SUPPORTED_VERSION, MODAL_TEMPLATES, MiningCache, NAVIGATION_PATTERN_TEMPLATES, NOTIFICATION_TEMPLATES, UI_LIBRARY_PATTERNS as PATTERN_UI_LIBRARY_PATTERNS, SELECTOR_PATTERNS, SOURCE_DIRECTORIES, STALE_LOCK_THRESHOLD_MS, TABLE_TEMPLATES, UNCOUNTABLE_NOUNS, VALID_IR_PRIMITIVES, addComponentToRegistry, analyzeSelectorSignals, appendToHistory, applyAllQualityControls, applyConfidenceThreshold, applySignalWeighting, boostCrossSourcePatterns, calculateConfidence, calculateSimilarity, checkMigrationNeeded, checkUpdates, cleanupOldHistoryFiles, combineResults, compareVersions as compareTestVersion, compareVersions as compareTestVersions, compareVersions2 as compareVersions, componentNameToTrigger, componentToGlossaryEntries, componentToModule, countJourneyExtractionsToday, countLines, countNewEntriesSince, countPredictiveExtractionsToday, countTodayEvents, createCacheFromFiles, createDiscoveredPatternsFile, createEmptyAnalytics, createEmptyRegistry, createEntity, createForm, createModal, createRoute, createTable, createUniversalSeedPatterns, daysBetween, deduplicatePatterns2 as deduplicatePatterns, deduplicatePatterns as deduplicatePatternsQC, detectDecliningConfidence, detectDuplicatesAcrossFiles, detectDuplicatesInFile, detectFrameworks, detectUiLibraries, ensureDir, exportForAutogen, exportLLKB, exportToFile, extractAuthHints, extractKeywords, extractLlkbEntriesFromTest, extractLlkbVersionFromTest, extractStepKeywords, extractLlkbVersionFromTest as extractVersionFromTest, fail, findComponents, findExtractionCandidates, findLessonsByPattern, findModulesByCategory, findNearDuplicates, findSimilarPatterns, findUnusedComponentOpportunities, formatCheckUpdatesResult, formatVersionComparison as formatComparison, formatContextForPrompt, formatDate, formatExportResult, formatExportResultForConsole, formatHealthCheck, formatLearnResult, formatLearningResult, formatPruneResult, formatStats, formatUpdateCheckResult, formatUpdateTestResult, formatUpdateTestsResult, formatVersionComparison, generateAllPatterns, generateAnalyticsPatterns, generateCrudPatterns, generateNavigationPatterns2 as generateExtendedNavigationPatterns, generateFeatureFlagPatterns, generateFormPatterns, generateI18nPatterns, generateModalPatterns, generateNameVariations, generateNotificationPatterns, generatePatterns, generateReport, generateTablePatterns, getAllCategories, getAnalyticsSummary, getComponentCategories, getComponentsForJourney, getConfidenceTrend, getCurrentLlkbVersion, getHistoryDir, getHistoryFilePath, getHistoryFilesInRange, getImportPath, getLessonsForJourney, getCurrentLlkbVersion as getLlkbVersion, getModuleForComponent, getPackRegistry, getRelevantContext, getRelevantScopes, getSingularPlural, getStats, hashCode, inferCategory, inferCategoryWithConfidence, initializeLLKB, isComponentCategory, isDailyRateLimitReached, isFail, isJourneyRateLimitReached, isLLKBEnabled, isNearDuplicate, isOk, isUncountable, isVersionSupported, jaccardSimilarity, lessonToGlossaryEntries, lessonToPattern, lessonToSelectorOverride, lessonToTimingHint, lineCountSimilarity, listModules, llkbExists, loadAppProfile, loadComponents, loadDiscoveredPatterns, loadDiscoveredPatternsForFrameworks, loadDiscoveredProfile, loadJSON, loadLLKBConfig, loadLLKBData, loadLessons, loadPacksForFrameworks, loadPatterns, loadRegistry, mapResult, matchStepsToComponents, mergeDiscoveredPatterns, migrateLLKB, mineAnalyticsEvents, mineElements, mineEntities, mineFeatureFlags, mineForms, mineI18nKeys, mineModals, mineRoutes, mineTables, needsConfidenceReview, needsMigration, normalizeCode, ok, packPatternsToDiscovered, parseAdapterArgs, parseVersion, pluralize, prune, pruneUnusedPatterns, readHistoryFile, readTodayHistory, recordBatch, recordComponentUsed, recordLearning, recordLessonApplied, recordPatternLearned, removeComponentFromRegistry, resetPatternIdCounter, runAdapterCLI, runCheckUpdates, runDiscovery, runExportForAutogen, runFullDiscoveryPipeline, runHealthCheck, runLearnCommand, runMiningPipeline, runUpdateTest, runUpdateTests, saveAppProfile, saveDiscoveredPatterns, saveDiscoveredProfile, saveJSONAtomic, saveJSONAtomicSync, saveRegistry, scanAllSourceDirectories, scanDirectory, search, shouldExtractAsComponent, singularize, syncRegistryWithComponents, tokenize, triggerToRegex, tryCatch, updateAnalytics, updateAnalyticsWithData, updateComponentInRegistry, updateConfidenceHistory, updateJSONWithLock, updateJSONWithLockSync, updateTestLlkbVersion, updateTestSafe, updateTestLlkbVersion as updateVersionInTest, validateLLKBInstallation, validateRegistryConsistency };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
