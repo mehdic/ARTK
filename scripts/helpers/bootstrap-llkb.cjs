@@ -384,6 +384,65 @@ overrides:
 }
 
 // ============================================================================
+// UNIVERSAL SEED PATTERN DEFINITIONS (inline — must match universal-seeds.ts)
+// ============================================================================
+// 39 patterns covering common web UI actions. Kept inline because this CJS
+// helper runs standalone on client projects without access to the compiled
+// TypeScript universal-seeds module.
+const SEED_DEFINITIONS = [
+  // Navigation (3)
+  { text: 'navigate to url', primitive: 'goto' },
+  { text: 'go back to previous page', primitive: 'goBack' },
+  { text: 'reload the page', primitive: 'reload' },
+  // Click (6)
+  { text: 'click the button', primitive: 'click' },
+  { text: 'click the link', primitive: 'click' },
+  { text: 'click the menu item', primitive: 'click' },
+  { text: 'click the tab', primitive: 'click' },
+  { text: 'check the checkbox', primitive: 'check' },
+  { text: 'click the radio button', primitive: 'click' },
+  // Fill (5)
+  { text: 'enter text in the input field', primitive: 'fill' },
+  { text: 'enter the password', primitive: 'fill' },
+  { text: 'type in the search box', primitive: 'fill' },
+  { text: 'enter text in the textarea', primitive: 'fill' },
+  { text: 'enter the email address', primitive: 'fill' },
+  // Form (3)
+  { text: 'submit the form', primitive: 'click' },
+  { text: 'clear the form', primitive: 'clear' },
+  { text: 'select option from dropdown', primitive: 'select' },
+  // Assert (5)
+  { text: 'verify element is visible', primitive: 'expectVisible' },
+  { text: 'verify text is displayed', primitive: 'expectText' },
+  { text: 'verify the url', primitive: 'expectURL' },
+  { text: 'verify the page title', primitive: 'expectTitle' },
+  { text: 'verify element is hidden', primitive: 'expectHidden' },
+  // Wait (3)
+  { text: 'wait for element to appear', primitive: 'waitForVisible' },
+  { text: 'wait for navigation to complete', primitive: 'waitForURL' },
+  { text: 'wait for network idle', primitive: 'waitForNetworkIdle' },
+  // Modal (4)
+  { text: 'open the modal dialog', primitive: 'click' },
+  { text: 'close the modal', primitive: 'dismissModal' },
+  { text: 'confirm the dialog', primitive: 'acceptAlert' },
+  { text: 'dismiss the dialog', primitive: 'dismissAlert' },
+  // Toast (3)
+  { text: 'verify toast notification appears', primitive: 'expectToast' },
+  { text: 'close the notification', primitive: 'click' },
+  { text: 'wait for toast to disappear', primitive: 'waitForHidden' },
+  // Table (4)
+  { text: 'sort the table column', primitive: 'click' },
+  { text: 'filter the table', primitive: 'fill' },
+  { text: 'select the table row', primitive: 'click' },
+  { text: 'click next page in pagination', primitive: 'click' },
+  // Keyboard (3)
+  { text: 'press enter', primitive: 'press' },
+  { text: 'press escape', primitive: 'press' },
+  { text: 'press tab', primitive: 'press' },
+];
+const SEED_CONFIDENCE = 0.80;
+
+// ============================================================================
 // SEED PATTERNS INSTALLATION
 // ============================================================================
 function installSeedPatterns(llkbRoot, verbose) {
@@ -397,59 +456,30 @@ function installSeedPatterns(llkbRoot, verbose) {
     return { installed: false, reason: 'already_exists' };
   }
 
-  // Try to find seed patterns in ARTK source
-  // Look in several possible locations
-  const possibleSeedLocations = [
-    // Direct path from ARTK repo
-    path.join(__dirname, '..', '..', '.artk', 'llkb', 'learned-patterns.json'),
-    // Relative to script
-    path.join(__dirname, 'seed-patterns.json'),
-    // In node_modules (when installed as package)
-    path.join(__dirname, '..', '..', 'node_modules', '@artk', 'core', '.artk', 'llkb', 'learned-patterns.json'),
-  ];
+  // Generate seed patterns from inline definitions
+  const now = new Date().toISOString();
+  const seedPatterns = SEED_DEFINITIONS.map(def => ({
+    normalizedText: def.text,
+    originalText: def.text,
+    irPrimitive: def.primitive,
+    confidence: SEED_CONFIDENCE,
+    successCount: 1,
+    failCount: 0,
+    sourceJourneys: [],
+    lastUpdated: now,
+  }));
 
-  let seedSource = null;
-  for (const loc of possibleSeedLocations) {
-    if (fs.existsSync(loc)) {
-      seedSource = loc;
-      break;
-    }
-  }
-
-  if (!seedSource) {
-    log('  No seed patterns found in ARTK source');
-    // Create empty learned-patterns.json as fallback
-    const emptyPatterns = {
-      version: '1.0.0',
-      lastUpdated: new Date().toISOString(),
-      description: 'LLKB learned patterns - will be populated during generation',
-      patterns: []
-    };
-    try {
-      fs.writeFileSync(seedPatternsPath, JSON.stringify(emptyPatterns, null, 2), 'utf-8');
-      log('  Created empty learned-patterns.json');
-      return { installed: true, count: 0, source: 'empty' };
-    } catch (err) {
-      return { installed: false, reason: err.message };
-    }
-  }
-
-  // Copy seed patterns
   try {
-    const seedContent = fs.readFileSync(seedSource, 'utf-8');
-    const seedData = JSON.parse(seedContent);
-    const patternCount = seedData.patterns ? seedData.patterns.length : 0;
-
-    // Update metadata
-    seedData.lastUpdated = new Date().toISOString();
-    seedData.description = 'LLKB seed patterns - copied from ARTK core, will be augmented during generation';
-    seedData.seedSource = 'artk-core';
-
-    fs.writeFileSync(seedPatternsPath, JSON.stringify(seedData, null, 2), 'utf-8');
-    log(`  Installed ${patternCount} seed patterns from ${seedSource}`);
-    return { installed: true, count: patternCount, source: seedSource };
+    fs.writeFileSync(seedPatternsPath, JSON.stringify({
+      version: CURRENT_VERSION,
+      lastUpdated: now,
+      patterns: seedPatterns,
+      metadata: { source: 'universal-seeds', totalPatterns: seedPatterns.length },
+    }, null, 2), 'utf-8');
+    log(`  Installed ${seedPatterns.length} seed patterns (inline universal seeds)`);
+    return { installed: true, count: seedPatterns.length, source: 'inline' };
   } catch (err) {
-    log(`  Warning: Failed to copy seed patterns: ${err.message}`);
+    log(`  Warning: Failed to install seed patterns: ${err.message}`);
     return { installed: false, reason: err.message };
   }
 }

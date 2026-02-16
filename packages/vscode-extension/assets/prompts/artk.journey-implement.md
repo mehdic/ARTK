@@ -43,6 +43,7 @@ ARTK plugs into GitHub Copilot to help teams build and maintain **complete autom
 # ║    □ Read `${LLKB_ROOT}/components.json`                                  ║
 # ║    □ Read `${LLKB_ROOT}/lessons.json`                                     ║
 # ║    □ Read `${LLKB_ROOT}/learned-patterns.json`                            ║
+# ║    □ Read `${HARNESS_ROOT}/reports/discovery/*.json` (selectors, routes)  ║
 # ║    □ Output "LLKB Context Loaded" section showing findings                ║
 # ║                                                                           ║
 # ║  GATE 2.5: Verify LLKB Pattern Status (Step 2.5)                          ║
@@ -963,6 +964,31 @@ appProfile = loadJSON("${LLKB_ROOT}/app-profile.json") OR {}
 # Re-read intentionally — seeds may have been added by pre-flight in Step 2.1
 learnedPatterns = loadJSON("${LLKB_ROOT}/learned-patterns.json") OR { patterns: [] }
 discoveredPatterns = loadJSON("${LLKB_ROOT}/discovered-patterns.json") OR null
+
+# ═══════════════════════════════════════════════════════════════
+# SUPPLEMENTARY: Load Discovery Reports (critical for selectors)
+# ═══════════════════════════════════════════════════════════════
+# Discovery reports contain app-specific data from /artk.discover-foundation:
+# - testids, routes, selectors, APIs, forms, entity definitions
+# - These are the PRIMARY source of app-specific selector data
+# - LLKB patterns are derived from these, but reports have raw details
+#
+discoveryReportsDir = "${HARNESS_ROOT}/reports/discovery"
+discoveryData = {
+  summary: loadJSON("${discoveryReportsDir}/summary.json") OR null,
+  routes: loadJSON("${discoveryReportsDir}/routes.json") OR null,
+  apis: loadJSON("${discoveryReportsDir}/apis.json") OR null
+}
+
+# ═══════════════════════════════════════════════════════════════
+# CRITICAL: Use discovery data for test generation context
+# ═══════════════════════════════════════════════════════════════
+# When writing tests, use discovery data to:
+# - Prefer data-testid selectors from discoveryData.summary.testids
+# - Use discovered routes for navigation assertions
+# - Use API endpoints for network-level assertions
+# - Use entity/form selectors for fill/submit operations
+# - This data is MORE SPECIFIC than LLKB patterns (exact selectors vs patterns)
 ```
 
 ### 2.3 Filter by Journey Scope (Context Injection Algorithm)
@@ -1108,6 +1134,11 @@ FUNCTION loadAndFilterLLKBContext(journeyScope: string, journeySteps: Step[]) ->
 ║                                                                    ║
 ║  ⚠️  Known Quirks:                                                 ║
 ║    {for each quirk: "- {id}: {description}"}                       ║
+║                                                                    ║
+║  🔍 Discovery Reports:                                             ║
+║    Routes: {discoveryData.routes?.length || "not found"}           ║
+║    TestIDs: {discoveryData.summary?.testids?.length || "none"}     ║
+║    APIs: {discoveryData.apis?.length || "not found"}               ║
 ║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
 ```
