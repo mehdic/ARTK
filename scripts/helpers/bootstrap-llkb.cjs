@@ -450,10 +450,20 @@ function installSeedPatterns(llkbRoot, verbose) {
 
   const seedPatternsPath = path.join(llkbRoot, 'learned-patterns.json');
 
-  // Don't overwrite if already exists
+  // Don't overwrite if already exists AND has patterns
   if (fs.existsSync(seedPatternsPath)) {
-    log('  Seed patterns already exist, skipping');
-    return { installed: false, reason: 'already_exists' };
+    try {
+      const existing = JSON.parse(fs.readFileSync(seedPatternsPath, 'utf-8'));
+      if (existing.patterns && existing.patterns.length > 0) {
+        log(`  Seed patterns already exist (${existing.patterns.length} patterns), skipping`);
+        return { installed: false, reason: 'already_exists' };
+      }
+      // File exists but patterns array is empty — overwrite with seeds
+      log('  Found empty learned-patterns.json, will write seed patterns');
+    } catch (err) {
+      // File is corrupted — overwrite with seeds
+      log('  Found corrupted learned-patterns.json, will overwrite with seeds');
+    }
   }
 
   // Generate seed patterns from inline definitions

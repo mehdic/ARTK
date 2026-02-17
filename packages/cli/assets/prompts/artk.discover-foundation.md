@@ -2056,6 +2056,37 @@ browsers: [chromium]
 # PART 4: FOUNDATION VALIDATION
 # ═══════════════════════════════════════════════════════════════════
 
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  🛑🛑🛑 HARD GATE — CANNOT PROCEED TO VALIDATION 🛑🛑🛑          ║
+# ╠═══════════════════════════════════════════════════════════════════╣
+# ║                                                                   ║
+# ║  BEFORE running ANY validation (V0-V6), verify these files exist: ║
+# ║                                                                   ║
+# ║  CHECK 1: learned-patterns.json has patterns (not empty array)    ║
+# ║    → Read ${HARNESS_ROOT}/.artk/llkb/learned-patterns.json        ║
+# ║    → If patterns array is empty: run bootstrap-llkb.cjs --force   ║
+# ║                                                                   ║
+# ║  CHECK 2: discovered-patterns.json exists                         ║
+# ║    → Read ${HARNESS_ROOT}/.artk/llkb/discovered-patterns.json     ║
+# ║    → If missing: run Step F12 NOW (npx artk-autogen llkb-patterns ║
+# ║      discover --project-root .. --llkb-root .artk/llkb)           ║
+# ║                                                                   ║
+# ║  CHECK 3: discovered-profile.json exists                          ║
+# ║    → Read ${HARNESS_ROOT}/.artk/llkb/discovered-profile.json      ║
+# ║    → Created by F12 alongside discovered-patterns.json            ║
+# ║                                                                   ║
+# ║  IF ANY CHECK FAILS:                                              ║
+# ║    DO NOT proceed to V0. Go back and execute Steps F11-F12.       ║
+# ║    These steps generate the patterns that journey-implement needs ║
+# ║    for test generation. Without them, tests are generated blind.  ║
+# ║                                                                   ║
+# ║  Output the check results:                                        ║
+# ║    ✅ or ❌ learned-patterns.json: {count} patterns                ║
+# ║    ✅ or ❌ discovered-patterns.json: {count} patterns             ║
+# ║    ✅ or ❌ discovered-profile.json: {framework}                   ║
+# ║                                                                   ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
 **This step validates that all foundation modules compile and work correctly.**
 
 ## Step V0 — Pre-Compilation Validation (MANDATORY)
