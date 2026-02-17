@@ -145,9 +145,17 @@ for file in "${CORE_CRITICAL[@]}"; do
   fi
 done
 
+# Copy CJS helpers (bootstrap-llkb.cjs, verify-llkb-artifacts.cjs)
+HELPERS_DIR="$REPO_ROOT/scripts/helpers"
+for helper in bootstrap-llkb.cjs verify-llkb-artifacts.cjs; do
+  if [ -f "$HELPERS_DIR/$helper" ]; then
+    cp -P "$HELPERS_DIR/$helper" "$CORE_STAGING/$helper"
+  fi
+done
+
 # Atomic swap (rename-old pattern)
 atomic_swap "$CORE_STAGING" "$CORE_TARGET"
-echo "     core/dist/, templates/, package.json (stripped), version.json"
+echo "     core/dist/, templates/, package.json (stripped), version.json, CJS helpers"
 
 # ── 2. Sync AutoGen ────────────────────────────────────────────────
 
