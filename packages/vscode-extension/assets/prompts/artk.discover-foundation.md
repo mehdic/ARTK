@@ -2358,6 +2358,52 @@ Next steps:
 
 ---
 
+## 🛑 MANDATORY: Self-Validation Gate (BEFORE Final Output)
+
+**STOP. Before displaying the final output, you MUST verify you completed every phase from the Mandatory Execution Plan at the top of this prompt. Go through each item below. For any item marked MISSING, go back and complete it NOW before continuing.**
+
+**Display this checklist in your output with ✅ or ❌ for each item:**
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  EXECUTION PLAN SELF-CHECK                                         ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  PHASE 1: DISCOVERY                                                ║
+║    {✅|❌} Routes discovered and reports/discovery/routes.json created  ║
+║    {✅|❌} reports/discovery/summary.json created                       ║
+║    {✅|❌} docs/DISCOVERY.md created                                    ║
+║    {✅|❌} docs/TESTABILITY.md created                                  ║
+║                                                                    ║
+║  PHASE 2: FOUNDATION BUILD                                         ║
+║    {✅|❌} Playwright config created/updated                            ║
+║    {✅|❌} Auth module created                                          ║
+║    {✅|❌} Foundation modules scaffolded (auth/nav/selectors/data)      ║
+║    {✅|❌} Module registry created/updated                              ║
+║                                                                    ║
+║  PHASE 3: LLKB (Steps F11-F12) ⚠️ MOST COMMONLY SKIPPED           ║
+║    {✅|❌} F11: LLKB structure verified/created at .artk/llkb/         ║
+║    {✅|❌} F11: learned-patterns.json has seed patterns (NOT empty)     ║
+║    {✅|❌} F12: Discovery pipeline ran (npx artk-autogen llkb-patterns discover) ║
+║    {✅|❌} F12: discovered-patterns.json created with app patterns      ║
+║    {✅|❌} F12: discovered-profile.json created with framework profile  ║
+║                                                                    ║
+║  PHASE 4: VALIDATION                                               ║
+║    {✅|❌} TypeScript compilation passes (tsc --noEmit)                 ║
+║    {✅|❌} Foundation validation tests pass                             ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+**IF ANY ❌ APPEARS:**
+- For PHASE 3 items: These are CRITICAL. Go back and execute Steps F11-F12 NOW.
+- For other items: Evaluate if they were intentionally skipped (e.g., dry-run mode) or missed.
+- Do NOT display the "Next Commands" box until all critical items are ✅.
+
+**Only after all items are ✅ (or intentionally skipped with explanation), proceed to the final output below.**
+
+---
+
 ## MANDATORY: Final Output Section
 
 **You MUST display this section at the end of your output, exactly as formatted.**
