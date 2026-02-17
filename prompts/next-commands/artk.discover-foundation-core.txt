@@ -1,0 +1,17 @@
+╔════════════════════════════════════════════════════════════════════╗
+║                      CORE PHASE COMPLETE                           ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  Discovery (D0-D10) and Foundation Build (F0-F10) are complete.    ║
+║                                                                    ║
+║  Return to the orchestrator to continue with:                      ║
+║  - PHASE 3: LLKB initialization + pattern discovery (CLI)          ║
+║  - PHASE 4: Validation (V0-V6)                                    ║
+║  - PHASE 5: Final output                                          ║
+║                                                                    ║
+║  If running standalone, execute these manually:                    ║
+║    1. node vendor/artk-core/bootstrap-llkb.cjs <harness-root>     ║
+║    2. npx artk-autogen llkb-patterns discover ...                  ║
+║    3. /artk.discover-foundation-validate                           ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝

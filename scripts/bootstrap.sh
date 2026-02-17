@@ -702,9 +702,16 @@ if [ "$LLKB_ONLY" = true ]; then
 
     LLKB_HELPER="$ARTK_REPO/scripts/helpers/bootstrap-llkb.cjs"
     LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
+    VERIFY_HELPER="$ARTK_REPO/scripts/helpers/verify-llkb-artifacts.cjs"
+    VERIFY_HELPER_DEST="$ARTK_E2E/vendor/artk-core/verify-llkb-artifacts.cjs"
 
     if [ -f "$LLKB_HELPER" ]; then
         cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
+
+        # Copy verify helper if it exists
+        if [ -f "$VERIFY_HELPER" ]; then
+            cp "$VERIFY_HELPER" "$VERIFY_HELPER_DEST"
+        fi
 
         # Build LLKB helper arguments
         LLKB_ARGS="--verbose"
@@ -2622,9 +2629,16 @@ if [ "$SKIP_LLKB" = false ]; then
 
     LLKB_HELPER="$ARTK_REPO/scripts/helpers/bootstrap-llkb.cjs"
     LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
+    VERIFY_HELPER="$ARTK_REPO/scripts/helpers/verify-llkb-artifacts.cjs"
+    VERIFY_HELPER_DEST="$ARTK_E2E/vendor/artk-core/verify-llkb-artifacts.cjs"
 
     if [ -f "$LLKB_HELPER" ]; then
         cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
+
+        # Copy verify helper if it exists
+        if [ -f "$VERIFY_HELPER" ]; then
+            cp "$VERIFY_HELPER" "$VERIFY_HELPER_DEST"
+        fi
 
         # Build LLKB helper arguments
         LLKB_ARGS="--verbose"

@@ -811,9 +811,16 @@ if ($LlkbOnly) {
     # Note: Nested Join-Path calls for PowerShell 5.1 compatibility (Join-Path with multiple children requires PS 6+)
     $llkbHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "bootstrap-llkb.cjs"
     $llkbHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "bootstrap-llkb.cjs"
+    $verifyHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "verify-llkb-artifacts.cjs"
+    $verifyHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "verify-llkb-artifacts.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
+
+        # Copy verify helper if it exists
+        if (Test-Path $verifyHelper) {
+            Copy-Item -Path $verifyHelper -Destination $verifyHelperDest -Force
+        }
 
         # Build LLKB helper arguments
         $llkbArgs = @($llkbHelperDest, $ArtkE2e, "--verbose")
@@ -2606,9 +2613,16 @@ if (-not $SkipLlkb) {
     # Note: Nested Join-Path calls for PowerShell 5.1 compatibility (Join-Path with multiple children requires PS 6+)
     $llkbHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "bootstrap-llkb.cjs"
     $llkbHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "bootstrap-llkb.cjs"
+    $verifyHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "verify-llkb-artifacts.cjs"
+    $verifyHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "verify-llkb-artifacts.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
+
+        # Copy verify helper if it exists
+        if (Test-Path $verifyHelper) {
+            Copy-Item -Path $verifyHelper -Destination $verifyHelperDest -Force
+        }
 
         # Build LLKB helper arguments
         $llkbArgs = @($llkbHelperDest, $ArtkE2e, "--verbose")
