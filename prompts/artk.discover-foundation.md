@@ -80,6 +80,35 @@ Parse `key=value` arguments:
 
 ---
 
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  🛑 MANDATORY EXECUTION PLAN — YOU MUST COMPLETE ALL PHASES      ║
+# ╠═══════════════════════════════════════════════════════════════════╣
+# ║                                                                   ║
+# ║  PHASE 1: DISCOVERY (Steps D0-D10)                               ║
+# ║    □ App detection, routes, features, auth, testability           ║
+# ║    □ Generate reports/discovery/*.json                            ║
+# ║    □ Generate docs/DISCOVERY.md + docs/TESTABILITY.md             ║
+# ║                                                                   ║
+# ║  PHASE 2: FOUNDATION BUILD (Steps F0-F10)                        ║
+# ║    □ Playwright config, auth, fixtures, modules, registry         ║
+# ║                                                                   ║
+# ║  PHASE 3: LLKB INITIALIZATION (Steps F11-F12) ⚠️ DO NOT SKIP    ║
+# ║    □ F11: Verify/create LLKB structure + seed patterns            ║
+# ║    □ F12: Run discovery pipeline → discovered-patterns.json       ║
+# ║    These steps provide 39 seed patterns + 200-400 app-specific    ║
+# ║    patterns that journey-implement NEEDS for test generation.     ║
+# ║    SKIPPING F11-F12 = journey-implement generates blind.          ║
+# ║                                                                   ║
+# ║  PHASE 4: VALIDATION (Steps V0-V6)                               ║
+# ║    □ TypeScript compilation, validation tests, summary            ║
+# ║                                                                   ║
+# ║  PHASE 5: FINAL OUTPUT (MANDATORY)                               ║
+# ║    □ Display "Next Commands" from file                            ║
+# ║                                                                   ║
+# ║  ⚠️  If you finish validation without completing F11-F12,         ║
+# ║  your output is INCOMPLETE. Go back and run them.                 ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
 # ═══════════════════════════════════════════════════════════════════
 # PART 1: DISCOVERY
 # ═══════════════════════════════════════════════════════════════════
