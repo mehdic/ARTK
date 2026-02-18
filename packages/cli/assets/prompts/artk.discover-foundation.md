@@ -84,11 +84,9 @@ Parse `key=value` arguments:
 # ║  PHASE 2: Read and execute artk.discover-foundation-core (cont.)  ║
 # ║    → Questions + Finalization from the core agent                 ║
 # ║                                                                   ║
-# ║  PHASE 3: LLKB INITIALIZATION (deterministic CLI commands)        ║
-# ║    → F11: bootstrap-llkb.cjs (seed patterns)                     ║
-# ║    → F12: artk-autogen llkb-patterns discover (app patterns)     ║
-# ║    → Verify: verify-llkb-artifacts.cjs (hard gate)               ║
-# ║    These are BASH COMMANDS, not LLM instructions.                 ║
+# ║  PHASE 3: LLKB INITIALIZATION (single terminal command)           ║
+# ║    → node run-llkb-phase3.cjs (runs F11 + F12 + verify)         ║
+# ║    This is ONE TERMINAL COMMAND — do not create files manually.  ║
 # ║    SKIPPING = journey-implement generates blind.                  ║
 # ║                                                                   ║
 # ║  PHASE 4: Read and execute artk.discover-foundation-validate      ║
@@ -121,84 +119,72 @@ After completing the core agent, note the `HARNESS_ROOT` value determined in Ste
 
 ---
 
-# PHASE 3: LLKB Initialization + Pattern Discovery (CLI Commands)
+# PHASE 3: LLKB Initialization + Pattern Discovery (Terminal Command)
 
-**These are deterministic CLI commands. Execute them as bash commands, not as LLM reasoning.**
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  CRITICAL: THIS IS A TERMINAL COMMAND, NOT AN LLM INSTRUCTION   ║
+# ║                                                                   ║
+# ║  You MUST execute the command below in the integrated terminal.   ║
+# ║  Do NOT manually create any JSON files (learned-patterns.json,   ║
+# ║  discovered-patterns.json, etc.) — the CLI generates 200-400     ║
+# ║  patterns. Manual creation produces only a handful and will       ║
+# ║  FAIL the verification gate below.                               ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 
-**IMPORTANT:** Before running these commands, you MUST substitute `${HARNESS_ROOT}` with the actual harness root path determined in Step D1/F1 of Phase 1. If the user provided `harnessRoot=my-tests`, use that value. If no value was provided, use the default `artk-e2e` relative to the project root.
+## Execute in Terminal
 
-## Step F11 — Initialize LLKB Structure + Seed Patterns
-
-```bash
-# SUBSTITUTE THIS with the actual harnessRoot path from Phase 1
-# Examples: "artk-e2e", "my-tests", or an absolute path
-HARNESS_ROOT="${HARNESS_ROOT:-$(pwd)/artk-e2e}"
-
-# Ensure LLKB helper exists
-LLKB_HELPER="${HARNESS_ROOT}/vendor/artk-core/bootstrap-llkb.cjs"
-
-if [ ! -f "$LLKB_HELPER" ]; then
-  echo "FATAL: bootstrap-llkb.cjs not found at $LLKB_HELPER"
-  echo "Please re-run bootstrap: artk init . --force"
-  exit 1
-fi
-
-# Initialize LLKB (creates structure + installs 39 seed patterns)
-node "$LLKB_HELPER" "${HARNESS_ROOT}" --verbose
-```
-
-**If this command fails**, stop and report to user:
-```
-LLKB initialization failed. Please run bootstrap again:
-  artk init . --force
-```
-
-## Step F12 — Run LLKB Pattern Discovery Pipeline
+**Run this single command in your terminal.** Replace `HARNESS_ROOT_PATH` with the actual harness root path from Step D1/F1 (e.g., `./artk-e2e`).
 
 ```bash
-cd "${HARNESS_ROOT}"
-npx artk-autogen llkb-patterns discover \
-  --project-root "$(dirname "${HARNESS_ROOT}")" \
-  --llkb-root "${HARNESS_ROOT}/.artk/llkb"
+node "HARNESS_ROOT_PATH/vendor/artk-core/run-llkb-phase3.cjs" "HARNESS_ROOT_PATH" --verbose
 ```
 
-This generates:
-- `discovered-patterns.json` — 200-400 app-specific patterns
-- `discovered-profile.json` — Framework/selector profile
-
-**If this command fails**, log the error and attempt remediation:
-1. Re-run the command once
-2. If it still fails, **continue to verification** — discovered-patterns.json is valuable but not a hard blocker (learned-patterns.json from F11 IS the hard blocker)
-
-## Verify LLKB Artifacts (Mandatory Check)
+For example, if the harness root is `artk-e2e`:
 
 ```bash
-VERIFY_HELPER="${HARNESS_ROOT}/vendor/artk-core/verify-llkb-artifacts.cjs"
-
-if [ ! -f "$VERIFY_HELPER" ]; then
-  echo "ERROR: verify-llkb-artifacts.cjs not found at $VERIFY_HELPER"
-  echo "Please re-run bootstrap: artk init . --force"
-  # Fallback: manually check the minimum required artifact
-  if [ ! -f "${HARNESS_ROOT}/.artk/llkb/learned-patterns.json" ]; then
-    echo "FATAL: learned-patterns.json is missing. Cannot proceed."
-    exit 1
-  fi
-fi
-
-node "$VERIFY_HELPER" "${HARNESS_ROOT}/.artk/llkb" --verbose
+node "artk-e2e/vendor/artk-core/run-llkb-phase3.cjs" "artk-e2e" --verbose
 ```
 
-**Display the verification results.** Interpret results as follows:
+This single command runs all three LLKB steps automatically:
+- **F11:** Initializes LLKB structure + installs 39 seed patterns
+- **F12:** Discovers 200-400 app-specific patterns from the codebase
+- **Verify:** Validates all artifacts exist and have content
 
-**HARD BLOCKERS (must fix before Phase 4):**
-- Missing/empty `learned-patterns.json` → Re-run `node bootstrap-llkb.cjs ${HARNESS_ROOT} --force`
-- Missing `config.yml` → Re-run `node bootstrap-llkb.cjs ${HARNESS_ROOT} --force`
+Wait for the command to complete. A successful run ends with:
+```
+RESULT: SUCCESS — LLKB Phase 3 complete.
+```
 
-**SOFT WARNINGS (log and continue to Phase 4):**
-- Missing `discovered-patterns.json` → F12 failed, but journey-implement can still work with seed patterns only
-- Missing `discovered-profile.json` → Same as above
+## Anti-Fabrication Rules
 
-**DO NOT proceed to Phase 4 if learned-patterns.json is missing or empty.** This is the minimum requirement for journey-implement to function.
+**You MUST NOT:**
+- Create `learned-patterns.json` manually (the CLI generates 39 seed patterns)
+- Create `discovered-patterns.json` manually (the CLI generates 200-400 patterns)
+- Create `discovered-profile.json` manually (the CLI auto-detects the framework)
+- Create `.phase3-manifest.json` manually (the CLI writes this as proof of execution)
+- Skip this step or mark it as done without terminal output showing "Phase 3 complete"
+
+**If the command is not found**, the bootstrap may be outdated. Tell the user:
+```
+LLKB Phase 3 runner not found. Please re-run bootstrap: artk init . --force
+```
+
+## Interpret the Results
+
+**Exit code 0 (SUCCESS):** All steps passed, or seeds passed with a soft warning about discovery. Check the output for `WARNING` text. Either way, **proceed to Phase 4**.
+
+**Exit code 1 (HARD FAILURE):** Seed patterns are missing or invalid. **DO NOT proceed to Phase 4.** Report to user:
+```
+LLKB initialization failed. Please run: artk init . --force
+```
+
+## Verification Gate
+
+After the command completes, verify the output shows:
+- `Learned patterns:` count is **>= 39** (seed patterns from F11)
+- If F12 succeeded: `Discovered patterns:` count is typically **100-400**
+
+**If `learned-patterns.json` has fewer than 39 patterns, Phase 3 did not run correctly.** Re-run the command.
 
 ---
 

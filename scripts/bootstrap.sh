@@ -704,6 +704,8 @@ if [ "$LLKB_ONLY" = true ]; then
     LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
     VERIFY_HELPER="$ARTK_REPO/scripts/helpers/verify-llkb-artifacts.cjs"
     VERIFY_HELPER_DEST="$ARTK_E2E/vendor/artk-core/verify-llkb-artifacts.cjs"
+    PHASE3_HELPER="$ARTK_REPO/scripts/helpers/run-llkb-phase3.cjs"
+    PHASE3_HELPER_DEST="$ARTK_E2E/vendor/artk-core/run-llkb-phase3.cjs"
 
     if [ -f "$LLKB_HELPER" ]; then
         cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
@@ -711,6 +713,11 @@ if [ "$LLKB_ONLY" = true ]; then
         # Copy verify helper if it exists
         if [ -f "$VERIFY_HELPER" ]; then
             cp "$VERIFY_HELPER" "$VERIFY_HELPER_DEST"
+        fi
+
+        # Copy Phase 3 runner if it exists
+        if [ -f "$PHASE3_HELPER" ]; then
+            cp "$PHASE3_HELPER" "$PHASE3_HELPER_DEST"
         fi
 
         # Build LLKB helper arguments
@@ -2631,6 +2638,8 @@ if [ "$SKIP_LLKB" = false ]; then
     LLKB_HELPER_DEST="$ARTK_E2E/vendor/artk-core/bootstrap-llkb.cjs"
     VERIFY_HELPER="$ARTK_REPO/scripts/helpers/verify-llkb-artifacts.cjs"
     VERIFY_HELPER_DEST="$ARTK_E2E/vendor/artk-core/verify-llkb-artifacts.cjs"
+    PHASE3_HELPER="$ARTK_REPO/scripts/helpers/run-llkb-phase3.cjs"
+    PHASE3_HELPER_DEST="$ARTK_E2E/vendor/artk-core/run-llkb-phase3.cjs"
 
     if [ -f "$LLKB_HELPER" ]; then
         cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
@@ -2638,6 +2647,11 @@ if [ "$SKIP_LLKB" = false ]; then
         # Copy verify helper if it exists
         if [ -f "$VERIFY_HELPER" ]; then
             cp "$VERIFY_HELPER" "$VERIFY_HELPER_DEST"
+        fi
+
+        # Copy Phase 3 runner if it exists
+        if [ -f "$PHASE3_HELPER" ]; then
+            cp "$PHASE3_HELPER" "$PHASE3_HELPER_DEST"
         fi
 
         # Build LLKB helper arguments

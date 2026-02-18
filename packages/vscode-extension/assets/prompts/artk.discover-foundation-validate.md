@@ -22,14 +22,22 @@ This prompt contains the **VALIDATION phase** of the discover-foundation workflo
 # ║                                                                   ║
 # ║  BEFORE running ANY validation (V0-V6), verify these files exist: ║
 # ║                                                                   ║
-# ║  CHECK 1: learned-patterns.json has patterns (not empty array)    ║
+# ║  CHECK 0: .phase3-manifest.json exists AND is fresh                ║
+# ║    → Read ${HARNESS_ROOT}/.artk/llkb/.phase3-manifest.json        ║
+# ║    → If missing: Phase 3 CLI was NOT executed in terminal          ║
+# ║    → Check generatedAt timestamp is within the last 30 minutes    ║
+# ║    → Check generatedBy === 'run-llkb-phase3.cjs'                  ║
+# ║    → Check steps.f11.success === true                              ║
+# ║    → Cross-check: manifest.learnedPatternCount matches actual      ║
+# ║      count in learned-patterns.json (detects manual creation)     ║
+# ║                                                                   ║
+# ║  CHECK 1: learned-patterns.json has >= 39 patterns                ║
 # ║    → Read ${HARNESS_ROOT}/.artk/llkb/learned-patterns.json        ║
-# ║    → If patterns array is empty: run bootstrap-llkb.cjs --force   ║
+# ║    → If < 39 patterns: seeds were NOT installed by CLI             ║
 # ║                                                                   ║
 # ║  CHECK 2: discovered-patterns.json exists                         ║
 # ║    → Read ${HARNESS_ROOT}/.artk/llkb/discovered-patterns.json     ║
-# ║    → If missing: run Step F12 NOW (npx artk-autogen llkb-patterns ║
-# ║      discover --project-root .. --llkb-root .artk/llkb)           ║
+# ║    → If missing: F12 discovery failed (soft warning, not fatal)    ║
 # ║                                                                   ║
 # ║  CHECK 3: discovered-profile.json exists                          ║
 # ║    → Read ${HARNESS_ROOT}/.artk/llkb/discovered-profile.json      ║
@@ -377,10 +385,11 @@ Next steps:
 ║    {✅|❌} Foundation modules scaffolded (auth/nav/selectors/data)      ║
 ║    {✅|❌} Module registry created/updated                              ║
 ║                                                                    ║
-║  PHASE 3: LLKB (Steps F11-F12) ⚠️ MOST COMMONLY SKIPPED           ║
-║    {✅|❌} F11: LLKB structure verified/created at .artk/llkb/         ║
-║    {✅|❌} F11: learned-patterns.json has seed patterns (NOT empty)     ║
-║    {✅|❌} F12: Discovery pipeline ran (npx artk-autogen llkb-patterns discover) ║
+║  PHASE 3: LLKB (run-llkb-phase3.cjs) ⚠️ MOST COMMONLY SKIPPED     ║
+║    {✅|❌} Phase 3 runner executed (node run-llkb-phase3.cjs)           ║
+║    {✅|❌} .phase3-manifest.json exists AND is fresh (< 30 min old)    ║
+║    {✅|❌} Manifest generatedBy === 'run-llkb-phase3.cjs'              ║
+║    {✅|❌} F11: learned-patterns.json has >= 39 seed patterns           ║
 ║    {✅|❌} F12: discovered-patterns.json created with app patterns      ║
 ║    {✅|❌} F12: discovered-profile.json created with framework profile  ║
 ║                                                                    ║
@@ -392,7 +401,7 @@ Next steps:
 ```
 
 **IF ANY ❌ APPEARS:**
-- For F11 items (LLKB structure, learned-patterns.json): These are HARD BLOCKERS. Report failure: "LLKB seed patterns missing. Re-run bootstrap: `artk init . --force`"
+- For F11 items (LLKB structure, learned-patterns.json): These are HARD BLOCKERS. Report failure: "LLKB seed patterns missing. Re-run Phase 3: `node artk-e2e/vendor/artk-core/run-llkb-phase3.cjs artk-e2e --verbose` or re-run bootstrap: `artk init . --force`"
 - For F12 items (discovered-patterns.json, discovered-profile.json): These are SOFT WARNINGS. Log the warning but proceed — journey-implement can work with seed patterns alone.
 - For other items: Evaluate if they were intentionally skipped (e.g., dry-run mode) or missed.
 - Do NOT display the "Next Commands" box until all HARD BLOCKER items are ✅.

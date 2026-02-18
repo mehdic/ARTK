@@ -1,0 +1,21 @@
+╔════════════════════════════════════════════════════════════════════╗
+║  CORE PHASE COMPLETE                                              ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  Steps 0-7.5 complete (LLKB + AutoGen + Implementation).          ║
+║                                                                    ║
+║  Return to the orchestrator to continue with:                      ║
+║  - PHASE 2: Quality Gates + Finalization                          ║
+║    - Step 8: Pre-Compilation Validation                           ║
+║    - Step 11: /artk.journey-validate                              ║
+║    - Step 12: /artk.journey-verify                                ║
+║    - Step 12.5: Learning Recording                                ║
+║    - Step 13: Finalize Journey status                             ║
+║                                                                    ║
+║  If running standalone, execute these manually:                    ║
+║    1. Review generated code for compilation issues                ║
+║    2. /artk.journey-validate id=<JRN-ID>                         ║
+║    3. /artk.journey-verify id=<JRN-ID>                           ║
+║    4. Record LLKB learning if verification passes                 ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝

@@ -160,6 +160,17 @@ async function bundleAssets(): Promise<void> {
     console.log('   - version.json');
   }
 
+  // Copy CJS helpers (bootstrap-llkb, verify-llkb-artifacts, run-llkb-phase3)
+  const helpersSource = path.join(REPO_ROOT, 'scripts', 'helpers');
+  const cjsHelpers = ['bootstrap-llkb.cjs', 'verify-llkb-artifacts.cjs', 'run-llkb-phase3.cjs'];
+  for (const helper of cjsHelpers) {
+    const helperPath = path.join(helpersSource, helper);
+    if (fs.existsSync(helperPath)) {
+      copyFile(helperPath, path.join(CORE_TARGET, helper));
+      console.log(`   - ${helper}`);
+    }
+  }
+
   // 3. Bundle @artk/core-autogen
   console.log('\n3. Bundling @artk/core-autogen...');
   fs.mkdirSync(AUTOGEN_TARGET, { recursive: true });

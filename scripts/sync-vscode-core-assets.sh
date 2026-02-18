@@ -147,7 +147,7 @@ done
 
 # Copy CJS helpers (bootstrap-llkb.cjs, verify-llkb-artifacts.cjs)
 HELPERS_DIR="$REPO_ROOT/scripts/helpers"
-for helper in bootstrap-llkb.cjs verify-llkb-artifacts.cjs; do
+for helper in bootstrap-llkb.cjs verify-llkb-artifacts.cjs run-llkb-phase3.cjs; do
   if [ -f "$HELPERS_DIR/$helper" ]; then
     cp -P "$HELPERS_DIR/$helper" "$CORE_STAGING/$helper"
   fi

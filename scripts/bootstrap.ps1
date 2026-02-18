@@ -813,6 +813,8 @@ if ($LlkbOnly) {
     $llkbHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "bootstrap-llkb.cjs"
     $verifyHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "verify-llkb-artifacts.cjs"
     $verifyHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "verify-llkb-artifacts.cjs"
+    $phase3Helper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "run-llkb-phase3.cjs"
+    $phase3HelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "run-llkb-phase3.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
@@ -820,6 +822,11 @@ if ($LlkbOnly) {
         # Copy verify helper if it exists
         if (Test-Path $verifyHelper) {
             Copy-Item -Path $verifyHelper -Destination $verifyHelperDest -Force
+        }
+
+        # Copy Phase 3 runner if it exists
+        if (Test-Path $phase3Helper) {
+            Copy-Item -Path $phase3Helper -Destination $phase3HelperDest -Force
         }
 
         # Build LLKB helper arguments
@@ -2615,6 +2622,8 @@ if (-not $SkipLlkb) {
     $llkbHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "bootstrap-llkb.cjs"
     $verifyHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "verify-llkb-artifacts.cjs"
     $verifyHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "verify-llkb-artifacts.cjs"
+    $phase3Helper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "run-llkb-phase3.cjs"
+    $phase3HelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "run-llkb-phase3.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
@@ -2622,6 +2631,11 @@ if (-not $SkipLlkb) {
         # Copy verify helper if it exists
         if (Test-Path $verifyHelper) {
             Copy-Item -Path $verifyHelper -Destination $verifyHelperDest -Force
+        }
+
+        # Copy Phase 3 runner if it exists
+        if (Test-Path $phase3Helper) {
+            Copy-Item -Path $phase3Helper -Destination $phase3HelperDest -Force
         }
 
         # Build LLKB helper arguments
