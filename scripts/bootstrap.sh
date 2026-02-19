@@ -706,6 +706,8 @@ if [ "$LLKB_ONLY" = true ]; then
     VERIFY_HELPER_DEST="$ARTK_E2E/vendor/artk-core/verify-llkb-artifacts.cjs"
     PHASE3_HELPER="$ARTK_REPO/scripts/helpers/run-llkb-phase3.cjs"
     PHASE3_HELPER_DEST="$ARTK_E2E/vendor/artk-core/run-llkb-phase3.cjs"
+    PROMOTE_HELPER="$ARTK_REPO/scripts/helpers/journey-promote.cjs"
+    PROMOTE_HELPER_DEST="$ARTK_E2E/vendor/artk-core/journey-promote.cjs"
 
     if [ -f "$LLKB_HELPER" ]; then
         cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
@@ -718,6 +720,11 @@ if [ "$LLKB_ONLY" = true ]; then
         # Copy Phase 3 runner if it exists
         if [ -f "$PHASE3_HELPER" ]; then
             cp "$PHASE3_HELPER" "$PHASE3_HELPER_DEST"
+        fi
+
+        # Copy journey promote helper if it exists
+        if [ -f "$PROMOTE_HELPER" ]; then
+            cp "$PROMOTE_HELPER" "$PROMOTE_HELPER_DEST"
         fi
 
         # Build LLKB helper arguments
@@ -2640,6 +2647,8 @@ if [ "$SKIP_LLKB" = false ]; then
     VERIFY_HELPER_DEST="$ARTK_E2E/vendor/artk-core/verify-llkb-artifacts.cjs"
     PHASE3_HELPER="$ARTK_REPO/scripts/helpers/run-llkb-phase3.cjs"
     PHASE3_HELPER_DEST="$ARTK_E2E/vendor/artk-core/run-llkb-phase3.cjs"
+    PROMOTE_HELPER="$ARTK_REPO/scripts/helpers/journey-promote.cjs"
+    PROMOTE_HELPER_DEST="$ARTK_E2E/vendor/artk-core/journey-promote.cjs"
 
     if [ -f "$LLKB_HELPER" ]; then
         cp "$LLKB_HELPER" "$LLKB_HELPER_DEST"
@@ -2652,6 +2661,11 @@ if [ "$SKIP_LLKB" = false ]; then
         # Copy Phase 3 runner if it exists
         if [ -f "$PHASE3_HELPER" ]; then
             cp "$PHASE3_HELPER" "$PHASE3_HELPER_DEST"
+        fi
+
+        # Copy journey promote helper if it exists
+        if [ -f "$PROMOTE_HELPER" ]; then
+            cp "$PROMOTE_HELPER" "$PROMOTE_HELPER_DEST"
         fi
 
         # Build LLKB helper arguments

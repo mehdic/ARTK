@@ -160,9 +160,9 @@ async function bundleAssets(): Promise<void> {
     console.log('   - version.json');
   }
 
-  // Copy CJS helpers (bootstrap-llkb, verify-llkb-artifacts, run-llkb-phase3)
+  // Copy CJS helpers (bootstrap-llkb, verify-llkb-artifacts, run-llkb-phase3, journey-promote)
   const helpersSource = path.join(REPO_ROOT, 'scripts', 'helpers');
-  const cjsHelpers = ['bootstrap-llkb.cjs', 'verify-llkb-artifacts.cjs', 'run-llkb-phase3.cjs'];
+  const cjsHelpers = ['bootstrap-llkb.cjs', 'verify-llkb-artifacts.cjs', 'run-llkb-phase3.cjs', 'journey-promote.cjs'];
   for (const helper of cjsHelpers) {
     const helperPath = path.join(helpersSource, helper);
     if (fs.existsSync(helperPath)) {

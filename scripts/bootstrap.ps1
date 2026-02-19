@@ -815,6 +815,8 @@ if ($LlkbOnly) {
     $verifyHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "verify-llkb-artifacts.cjs"
     $phase3Helper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "run-llkb-phase3.cjs"
     $phase3HelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "run-llkb-phase3.cjs"
+    $promoteHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "journey-promote.cjs"
+    $promoteHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "journey-promote.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
@@ -827,6 +829,11 @@ if ($LlkbOnly) {
         # Copy Phase 3 runner if it exists
         if (Test-Path $phase3Helper) {
             Copy-Item -Path $phase3Helper -Destination $phase3HelperDest -Force
+        }
+
+        # Copy journey promote helper if it exists
+        if (Test-Path $promoteHelper) {
+            Copy-Item -Path $promoteHelper -Destination $promoteHelperDest -Force
         }
 
         # Build LLKB helper arguments
@@ -2624,6 +2631,8 @@ if (-not $SkipLlkb) {
     $verifyHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "verify-llkb-artifacts.cjs"
     $phase3Helper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "run-llkb-phase3.cjs"
     $phase3HelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "run-llkb-phase3.cjs"
+    $promoteHelper = Join-Path (Join-Path (Join-Path $ArtkRepo "scripts") "helpers") "journey-promote.cjs"
+    $promoteHelperDest = Join-Path (Join-Path (Join-Path $ArtkE2e "vendor") "artk-core") "journey-promote.cjs"
 
     if (Test-Path $llkbHelper) {
         Copy-Item -Path $llkbHelper -Destination $llkbHelperDest -Force
@@ -2636,6 +2645,11 @@ if (-not $SkipLlkb) {
         # Copy Phase 3 runner if it exists
         if (Test-Path $phase3Helper) {
             Copy-Item -Path $phase3Helper -Destination $phase3HelperDest -Force
+        }
+
+        # Copy journey promote helper if it exists
+        if (Test-Path $promoteHelper) {
+            Copy-Item -Path $promoteHelper -Destination $promoteHelperDest -Force
         }
 
         # Build LLKB helper arguments
