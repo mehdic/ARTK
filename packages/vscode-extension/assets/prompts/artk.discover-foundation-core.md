@@ -108,27 +108,74 @@ All generated sections MUST include:
 
 ## Step D0 — Check Application Running Status
 
-**Before proceeding with auth detection, check if the application is running.**
+**Auto-detect the application URL before asking the user.**
 
-Ask the user:
+### D0.1 — Extract candidate URLs
+
+Gather potential base URLs from these sources (check in this order, stop collecting after 5 candidates):
+
+1. `baseUrl=` argument (if passed by user)
+2. `artk.config.yml` → `environments.local.baseUrl` (or any `environments.*.baseUrl`)
+3. Environment files (`.env.local`, `.env`, `.env.development`): extract variables matching `*_BASE_URL`, `*_APP_URL`, `*_API_URL`, `BASE_URL`, `APP_URL` that contain `localhost` or `127.0.0.1`
+4. Build tool configs (`vite.config.ts`, `webpack.config.js`, `angular.json`): extract `server.port`, `devServer.port`, or proxy target URLs
+5. `package.json` scripts: extract port numbers from `"dev"`, `"start"`, `"serve"` commands (e.g., `--port 5173`)
+6. Framework defaults (only if framework was detected in D1): `localhost:5173` (Vite), `localhost:3000` (CRA/Next), `localhost:4200` (Angular), `localhost:8080` (Vue CLI/Spring Boot)
+
+### D0.2 — Probe candidate URLs
+
+For each candidate URL (up to 5), run a quick connectivity check:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 <url>
 ```
-Is your application currently running locally?
-(Required for auth flow detection; can be skipped for static-only discovery)
 
-1. Yes - app is running at [baseUrl from config or ask user]
-2. No - skip auth detection (I'll run it later)
-3. Skip auth detection entirely
-```
+A URL is **reachable** if the HTTP status code is:
+- 2xx (success), 3xx (redirect), or 401/403 (auth-protected but server is running)
 
-**If user selects "No" or "Skip":**
-- Set `skipAuthDetection=true` internally
+### D0.3 — Decide
+
+- **One URL reachable:** Use it automatically. Print:
+  `✓ Auto-detected running app at <url>. Proceeding with full discovery.`
+  Set `skipAuthDetection=false` and use this as `baseUrl`.
+
+- **Multiple URLs reachable:** Ask user to pick:
+  ```
+  I detected multiple running services:
+  1. http://localhost:5173 (from vite.config.ts)
+  2. http://localhost:8085 (from .env.local)
+  Which is the main frontend URL for testing? (default: 1)
+  ```
+
+- **No URL reachable:** Ask user:
+  ```
+  Could not reach the application at these URLs:
+  - http://localhost:5173 (from vite.config.ts) — not responding
+  - http://localhost:8085 (from .env.local) — not responding
+
+  Options:
+  1. Provide the correct URL (app is running elsewhere)
+  2. Skip runtime detection (static-only discovery)
+  3. Skip auth detection entirely
+  ```
+
+- **No candidate URLs found at all:** Ask user:
+  ```
+  I could not find any local URLs in your config files.
+
+  Options:
+  1. Provide the URL where the app is running
+  2. Skip runtime detection (static-only discovery)
+  3. Skip auth detection entirely
+  ```
+
+**If skip or no URL confirmed:**
+- Set `skipAuthDetection=true`
 - Proceed with static discovery only
-- Auth setup tests will be created but marked with TODO for credentials
-- Document in output: "Auth detection skipped - run with app running for full detection"
+- Document: "Auth detection skipped — run with app running for full detection"
 
-**If user selects "Yes":**
-- Proceed with full discovery including runtime auth detection
-- Validate baseUrl is accessible before starting
+**If URL confirmed (auto or user-provided):**
+- Set `skipAuthDetection=false`
+- Use as `baseUrl` for auth detection and runtime scan
 
 ---
 
