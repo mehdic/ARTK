@@ -311,6 +311,43 @@ For teams with many legacy journeys, recommend:
 
 **Note:** Migration is automatic during clarification - no separate command needed.
 
+## Step 1.8 — Check App Availability (Auto-Probe)
+
+**Before pulling discovery context, check if the application is reachable.** This allows runtime inspection of pages to resolve steps that would otherwise be marked as blocked.
+
+### 1.8.1 — Extract candidate URLs
+
+Gather potential base URLs from these sources (check in order, stop after 5 candidates):
+
+1. `baseUrl=` argument (if passed by user)
+2. `artk.config.yml` → `environments.local.baseUrl` (or any `environments.*.baseUrl`)
+3. `playwright.config.ts` → `baseURL` in `use:` block
+4. Environment files (`.env.local`, `.env`, `.env.development`): variables matching `*_BASE_URL`, `*_APP_URL`, `BASE_URL`, `APP_URL` containing `localhost` or `127.0.0.1`
+5. Build tool configs (`vite.config.ts`, `webpack.config.js`, `angular.json`): `server.port`, `devServer.port`, or proxy targets
+6. `package.json` scripts: port numbers from `"dev"`, `"start"`, `"serve"` commands
+
+### 1.8.2 — Probe candidate URLs
+
+For each candidate (up to 5):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 <url>
+```
+
+A URL is **reachable** if HTTP status is 2xx, 3xx, 401, or 403.
+
+### 1.8.3 — Set runtime availability flag
+
+- **One URL reachable:** Set `appAvailable=true`, `appBaseUrl=<url>`. Print:
+  `✓ App detected at <url> — will use runtime inspection to reduce blocked steps.`
+
+- **Multiple reachable:** Ask user to pick, then set `appAvailable=true`.
+
+- **None reachable / no candidates:** Set `appAvailable=false`. Print:
+  `ℹ App not reachable — proceeding with static-only clarification. Some steps may be marked as blocked.`
+
+**This flag is used later in Machine Hints (Step 6) to attempt runtime resolution before marking steps as blocked.**
+
 ## Step 2 — Pull discovery + testability context (auto)
 If `useDiscovery=true` OR (`auto` and discovery files exist):
 Use discovery outputs (from /artk.discover-foundation) to prefill and reduce questions:
@@ -945,7 +982,26 @@ Valid roles include: button, link, textbox, checkbox, etc.
 Fix: `(role=button, name=Submit)`
 ```
 
-**Steps without hints:**
+**Steps without hints — Runtime Resolution (if `appAvailable=true`):**
+
+Before marking a step as blocked, attempt runtime inspection if the app is reachable (set in Step 1.8):
+
+1. **Navigate to the relevant route** for the step's context:
+   ```bash
+   curl -s --max-time 5 <appBaseUrl>/<route>
+   ```
+
+2. **Inspect the HTML** for selectors, form fields, ARIA roles, or test IDs that resolve the step:
+   - Form validation rules → look for `required`, `pattern`, `minlength` attributes, validation libraries
+   - Selector mechanisms → look for `<select>`, combobox roles, listbox patterns
+   - Console error detection → confirm page loads without server errors (HTTP 2xx)
+   - UI component structure → look for `data-testid`, `aria-label`, role attributes
+
+3. **If resolved:** Add the machine hint and proceed (do NOT block the step).
+
+4. **If still unresolvable:** Mark as `blockedSteps` with reason.
+
+**Steps without hints (if `appAvailable=false`):**
 - AutoGen will attempt to infer locators from step description
 - If inference fails, step is marked as `blockedSteps` for manual implementation
 - Add hints proactively to reduce blocked steps
